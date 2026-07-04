@@ -1,0 +1,21 @@
+# Rust
+**/target
+
+# WASM
+**/pkg
+
+# Trunk
+**/dist
+
+# Node (if using Tailwind)
+node_modules/
+
+# Environment
+.env
+
+# Zed (only if using project settings)
+.zed/
+
+# OS
+.DS_Store
+Thumbs.db
