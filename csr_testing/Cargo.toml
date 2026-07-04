@@ -1,0 +1,16 @@
+[package]
+name = "csr_testing"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.103"
+console_error_panic_hook = "0.1.7"
+js-sys = "0.3.103"
+leptos = { version = "0.8.20", features = ["csr"] }
+leptos_router = "0.8.14"
+wasm-bindgen = "0.2.126"
+web-sys = "0.3.103"
+
+[lib]
+path = "src/lib.rs"
