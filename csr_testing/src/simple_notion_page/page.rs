@@ -5,20 +5,6 @@ use crate::simple_notion_page::textarea::TextArea;
 use leptos::logging::log;
 use leptos::prelude::*;
 
-/*
-* use leptos::prelude::*;
-use leptos_router::components::A; // for making <A> work
-use leptos_router::components::{Route, Router, Routes};
-use leptos_router::path; // for the path!() macro
-
-//use leptos_starter::page1_and_page2::{page1::Page1, page2};
-use leptos_starter::routing::r2_folder_routing::page1_and_page2::{page1::Page1, page2};
-*/
-
-/*use leptos_router::components::A; // for making <A> work
-use leptos_router::components::{Route, Router, Routes};
-use leptos_router::path; // for the path!() macro*/
-
 #[derive(Clone)] //necessary
 struct TextBlocks {
     text: RwSignal<String>,

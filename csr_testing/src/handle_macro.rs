@@ -6,6 +6,7 @@ macro_rules! javascript_take_the_wheel {
 
         let handle = window_event_listener_untyped($name, move |ev| {
             if let Ok(custom_ev) = ev.dyn_into::<web_sys::CustomEvent>() {
+                //cargo add websys
                 let $payload: JsValue = custom_ev.detail();
                 $callback
             }
