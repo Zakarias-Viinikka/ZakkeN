@@ -1,0 +1,23 @@
+//copied animations from here:
+//https://animista.net/play/basic/slide
+
+$box-size: 50px;
+
+.box-container {
+    border: 1px black solid;
+    height: 200px;
+    display: flex;
+    align-items: flex-end; // pushes child to bottom
+}
+
+#box-trying-to-become-square {
+    border: 1px deeppink solid;
+    background-color: deeppink;
+    width: $box-size;
+    height: $box-size;
+}
+
+#backflip-wrapper {
+    padding: 5px;
+    border: 1px greenyellow solid;
+}
