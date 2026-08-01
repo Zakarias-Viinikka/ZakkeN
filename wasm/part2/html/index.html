@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live Forever</title>
+</head>
+
+<body>
+  <script type="module">
+    import init, { LiveForever } from '../pkg/part2.js';
+    await init();
+    const state = LiveForever.new("data that's supposed to be inside rust struct");
+    console.log(state.get_data()); // "hello from rust"
+
+    state.change_data("new data")
+    console.log(state.get_data());
+  </script>
+</body>
+</html>

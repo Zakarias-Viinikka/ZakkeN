@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>part 4</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+        <h1 style="margin:0;"><span id="status"></span>db test harness</h1>
+        <button onclick="location.href='tests/test.html'">Open Test Page</button>
+    </div>
+    </a>
+
+    <div class="grid">
+        <section id="insert-section">
+            <h2>insert</h2>
+            <div id="insert-fields"></div>
+            <button onclick="doInsert()">Insert</button>
+        </section>
+        <section>
+            <h2>read</h2>
+            <label for="read-table">table name</label>
+            <select id="read-table"></select>
+            <button onclick="doGet()">Get data</button>
+            <button onclick="doCheck()">Check table</button>
+        </section>
+        <section>
+            <h2>edit</h2>
+            <label for="edit-row-id">row id</label>
+            <input id="edit-row-id"
+                oninput="localStorage.setItem('edit-row-id', this.value)">
+            <label for="edit-col">column name</label>
+            <input id="edit-col"
+                oninput="localStorage.setItem('edit-col', this.value)">
+            <label for="edit-val">new value</label>
+            <input id="edit-val"
+                oninput="localStorage.setItem('edit-val', this.value)">
+            <button onclick="doEdit()">Edit row</button>
+        </section>
+        <section>
+            <h2>swap</h2>
+            <label for="swap-row-id-1">row id 1</label>
+            <input id="swap-row-id-1"
+                oninput="localStorage.setItem('swap-row-id-1', this.value)">
+            <label for="swap-row-id-2">row id 2</label>
+            <input id="swap-row-id-2"
+                oninput="localStorage.setItem('swap-row-id-2', this.value)">
+            <label for="swap-col">column name</label>
+            <input id="swap-col"
+                oninput="localStorage.setItem('swap-col', this.value)">
+            <button onclick="doSwap()">Swap columns</button>
+        </section>
+        <section>
+            <h2>delete</h2>
+            <label for="delete-row-id">row id</label>
+            <input id="delete-row-id"
+                oninput="localStorage.setItem('delete-row-id', this.value)">
+            <button class="danger" onclick="doDelete()">Delete row</button>
+        </section>
+        <section>
+            <!-- create table -->
+            <h2>create table</h2>
+            <label for="new-table-name">table name</label>
+            <input id="new-table-name"
+                oninput="localStorage.setItem('new-table-name', this.value)">
+            <button onclick="addColumnRow()">Add column</button>
+            <div id="new-table-columns"></div>
+            <button onclick="doCreateTable()">Create table</button>
+        </section>
+        <!-- delete section -->
+        <section>
+            <h2>delete table</h2>
+            <div id="delete-table-list" class="table-chip-list"></div>
+        </section>
+        <div id="confirm-modal" class="modal-overlay hidden">
+          <div class="modal-box">
+            <p id="confirm-modal-text"></p>
+            <div class="modal-actions">
+              <button id="confirm-modal-yes" class="danger">Yes, delete</button>
+              <button id="confirm-modal-no">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <!-- index section -->
+        <section>
+            <h2>index column</h2>
+            <label for="index-table">table name</label>
+            <input id="index-table">
+            <label for="index-col">column name</label>
+            <input id="index-col">
+            <button onclick="doIndexColumn()">Add index</button>
+        </section>
+    </div>
+    <div class="output-row">
+    <div id="table_dump" class="table-dumb"></div>
+    <div id="log"></div>
+    </div>
+    <script src="cache.js"></script>
+    <script type="module">
+
+    // --- worker setup ---
+    const myWorker = new Worker('./worker.js', { type: 'module' });
+    // queue for ask() calls, so requests to the worker never overlap
+    let askQueue = Promise.resolve();
+    // wait for the worker to signal it's loaded and ready
+    await new Promise(resolve => {
+      myWorker.onmessage = (e) => {
+        if (e.data[0] === "ready") resolve();
+      };
+    });
+    document.getElementById('status').classList.add('ready');
+    // --- database setup ---
+    await ask(["initialize", "idiotmatic_db_name"]);
+    // --- read table section: populate with real tables from the db (must happen before any dumpTable() call) ---
+    await renderReadTableDropdown();
+    log('ready', 'ready to do business');
+    // --- delete table section: populate with real tables from the db ---
+    await renderDeleteTableList();
+    // --- create table section: restore saved columns (or fall back to default id row) ---
+    restoreColumnsFromStorage();
+    // keep create-table columns saved to localStorage as they're edited
+    document.getElementById('new-table-columns').addEventListener('input', saveColumnsToStorage);
+    document.getElementById('new-table-columns').addEventListener('change', saveColumnsToStorage);
+
+
+function ask(msg) {
+  askQueue = askQueue.then(() => new Promise(resolve => {
+    myWorker.onmessage = (e) => resolve(e.data);
+    myWorker.postMessage(msg);
+  }));
+  return askQueue;
+}
+
+function log(tag, data) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.innerHTML = `<span class="tag">[${tag}]</span> ${JSON.stringify(data)}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  dumpTable();
+}
+
+async function dumpTable() {
+  const table = document.getElementById('read-table').value;
+  const table_data = await ask(["get_data", table, "", [""]]);
+  const table_shape = await ask(["check_table", table]);
+  renderDataToTable(table, table_data, table_shape);
+  updateInsertFields(table_shape);
+}
+
+function updateInsertFields(table_shape) {
+  const container = document.getElementById('insert-fields');
+  container.innerHTML = '';
+
+  const columns = parseCheckTable(table_shape[1]);
+
+  columns.forEach(col => {
+    if (col.primaryKey) return; // assuming autoincrement, skip manual input
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'insert-field';
+
+    const label = document.createElement('label');
+    label.textContent = col.name;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.dataset.colName = col.name;
+    input.className = 'insert-input';
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
+  });
+}
+async function renderDataToTable(table, table_data, table_shape) {
+  const el = document.getElementById('table_dump');
+  el.innerHTML = '';
+  const rows = table_data[1];
+  const columns = parseCheckTable(table_shape[1]);
+
+  const tableEl = document.createElement('table');
+  tableEl.className = 'data-table';
+  const headerRow = document.createElement('tr');
+  columns.forEach(col => {
+    const th = document.createElement('th');
+    th.textContent = col.name;
+    headerRow.appendChild(th);
+  });
+  tableEl.appendChild(headerRow);
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    row.forEach(cell => {
+      const td = document.createElement('td');
+      td.textContent = cell;
+      tr.appendChild(td);
+    });
+    tableEl.appendChild(tr);
+  });
+  el.appendChild(tableEl);
+  el.scrollTop = el.scrollHeight;
+}
+
+
+window.doInsert = async () => {
+  const table_name = document.getElementById('read-table').value;
+  const inputs = document.querySelectorAll('#insert-fields .insert-input');
+
+  const col_names = [];
+  const vals = [];
+  inputs.forEach(input => {
+    col_names.push(input.dataset.colName);
+    vals.push(input.value);
+  });
+
+  log('insert', await ask(["insert_data", table_name, col_names, vals]));
+};
+
+window.doGet = async () => {
+  const table = document.getElementById('read-table').value;
+  log('get', await ask(["get_data", table, "", ["textblock"]]));
+};
+
+window.doCheck = async () => {
+  const table = document.getElementById('read-table').value;
+  log('check', await ask(["check_table", table]));
+};
+
+window.doEdit = async () => {
+  /*
+  pub async fn edit_col_in_row(
+      &self,
+      table_name: String,
+      row_id: String,
+      column: String,
+      value: String,
+  ) */
+  const table = document.getElementById('read-table').value;
+  const id = document.getElementById('edit-row-id').value;
+  const col = document.getElementById('edit-col').value;
+  const val = document.getElementById('edit-val').value;
+  log('edit', await ask(["edit_row", table, id, col, val]));
+};
+window.doSwap = async () => {
+  const table = document.getElementById('read-table').value;
+  const id1 = document.getElementById('swap-row-id-1').value;
+  const id2 = document.getElementById('swap-row-id-2').value;
+  const col = document.getElementById('swap-col').value;
+  log('swap', await ask(["swap_columns", table, id1, id2, col]));
+};
+
+window.doDelete = async () => {
+  const table = document.getElementById('read-table').value;
+  const id = document.getElementById('delete-row-id').value;
+  log('delete', await ask(["delete_row", table, id]));
+};
+
+//create table stuff
+
+function createColumnRow(defaults = {}) {
+  const row = document.createElement('div');
+  row.className = 'column-row';
+
+  const header = document.createElement('div');
+  header.className = 'column-row-header';
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.gap = '8px';
+  header.style.cursor = 'pointer';
+
+  const toggleBtn = document.createElement('span');
+  toggleBtn.textContent = '▶';
+
+  const nameLabel = document.createElement('span');
+  nameLabel.className = 'column-row-name-label';
+  nameLabel.textContent = defaults.name || '(unnamed)';
+  nameLabel.style.flex = '1';
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.textContent = 'Remove';
+  removeBtn.onclick = (e) => {
+    e.stopPropagation();
+    row.remove();
+    saveColumnsToStorage();
+  };
+
+  header.appendChild(toggleBtn);
+  header.appendChild(nameLabel);
+  header.appendChild(removeBtn);
+
+  const body = document.createElement('div');
+  body.className = 'column-row-body';
+  body.style.display = 'none';
+  body.innerHTML = `
+    <input type="text" class="col-name" placeholder="column name" value="${defaults.name || ''}">
+    <select class="col-type">
+      <option value="INTEGER">INTEGER</option>
+      <option value="TEXT">TEXT</option>
+      <option value="REAL">REAL</option>
+      <option value="BLOB">BLOB</option>
+      <option value="NUMERIC">NUMERIC</option>
+    </select>
+    <label><input type="checkbox" class="col-pk"> PRIMARY KEY</label>
+    <label><input type="checkbox" class="col-notnull"> NOT NULL</label>
+    <label><input type="checkbox" class="col-unique"> UNIQUE</label>
+    <label><input type="checkbox" class="col-autoincrement"> AUTOINCREMENT</label>
+    <input type="text" class="col-default" placeholder="default value">
+  `;
+
+  if (defaults.type) body.querySelector('.col-type').value = defaults.type;
+  if (defaults.primaryKey) body.querySelector('.col-pk').checked = true;
+  if (defaults.notNull) body.querySelector('.col-notnull').checked = true;
+  if (defaults.unique) body.querySelector('.col-unique').checked = true;
+  if (defaults.autoincrement) body.querySelector('.col-autoincrement').checked = true;
+  if (defaults.defaultValue) body.querySelector('.col-default').value = defaults.defaultValue;
+
+  const nameInput = body.querySelector('.col-name');
+  nameInput.addEventListener('input', () => {
+    nameLabel.textContent = nameInput.value || '(unnamed)';
+  });
+
+  header.onclick = () => {
+    const collapsed = body.style.display === 'none';
+    body.style.display = collapsed ? '' : 'none';
+    toggleBtn.textContent = collapsed ? '▼' : '▶';
+  };
+
+  row.appendChild(header);
+  row.appendChild(body);
+  return row;
+}
+
+window.addColumnRow = () => {
+  const container = document.getElementById('new-table-columns');
+  container.appendChild(createColumnRow());
+  saveColumnsToStorage();
+};
+
+function saveColumnsToStorage() {
+  localStorage.setItem('create-table-columns', JSON.stringify(collectColumns()));
+}
+
+function restoreColumnsFromStorage() {
+  const container = document.getElementById('new-table-columns');
+  const saved = localStorage.getItem('create-table-columns');
+  let columns;
+  try {
+    columns = saved ? JSON.parse(saved) : null;
+  } catch {
+    columns = null;
+  }
+
+  if (!columns || columns.length === 0) {
+    addDefaultIdColumnRow();
+    return;
+  }
+
+  columns.forEach(col => {
+    container.appendChild(createColumnRow({
+      name: col[0],
+      type: col[1],
+      primaryKey: col[2],
+      notNull: col[3],
+      unique: col[4],
+      defaultValue: col[5],
+      autoincrement: col[6],
+    }));
+  });
+}
+
+function addDefaultIdColumnRow() {
+  const container = document.getElementById('new-table-columns');
+  container.appendChild(createColumnRow({
+    name: 'id',
+    type: 'INTEGER',
+    primaryKey: true,
+    notNull: true,
+    autoincrement: true,
+  }));
+}
+
+function collectColumns() {
+  const rows = document.querySelectorAll('#new-table-columns .column-row');
+  return Array.from(rows).map(row => [
+    row.querySelector('.col-name').value,
+    row.querySelector('.col-type').value,
+    row.querySelector('.col-pk').checked,
+    row.querySelector('.col-notnull').checked,
+    row.querySelector('.col-unique').checked,
+    row.querySelector('.col-default').value,
+    row.querySelector('.col-autoincrement').checked,
+  ]);
+}
+
+function resetCreateTableSection() {
+  document.getElementById('new-table-name').value = '';
+  localStorage.removeItem('new-table-name');
+  document.getElementById('new-table-columns').innerHTML = '';
+  localStorage.removeItem('create-table-columns');
+  addDefaultIdColumnRow();
+}
+
+window.doCreateTable = async () => {
+  const tableName = document.getElementById('new-table-name').value;
+  const columns = collectColumns();
+  const result = await ask(["create_table", tableName, columns]);
+  log('create_table', result);
+  resetCreateTableSection();
+  await renderDeleteTableList();
+  await renderReadTableDropdown();
+};
+
+//delete stuff
+async function renderDeleteTableList() {
+  const container = document.getElementById('delete-table-list');
+  container.innerHTML = '';
+
+  const result = await ask(["list_tables"]);
+  const tableNames = result[1];
+
+  tableNames.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'table-chip';
+    btn.textContent = name;
+    btn.onclick = () => confirmDeleteTable(name);
+    container.appendChild(btn);
+  });
+}
+
+function confirmDeleteTable(name) {
+  const modal = document.getElementById('confirm-modal');
+  document.getElementById('confirm-modal-text').textContent =
+    `Delete table "${name}"? This can't be undone.`;
+  modal.classList.remove('hidden');
+
+  const yesBtn = document.getElementById('confirm-modal-yes');
+  const noBtn = document.getElementById('confirm-modal-no');
+
+  const cleanup = () => {
+    modal.classList.add('hidden');
+    yesBtn.onclick = null;
+    noBtn.onclick = null;
+  };
+
+  yesBtn.onclick = async () => {
+    cleanup();
+    const result = await ask(["delete_table", name]);
+    log('delete_table', result);
+    await renderDeleteTableList();
+    await renderReadTableDropdown();
+  };
+
+  noBtn.onclick = cleanup;
+}
+
+//index section
+window.doIndexColumn = async () => {
+  const table = document.getElementById('index-table').value;
+  const col = document.getElementById('index-col').value;
+  log('create_index', await ask(["create_index", table, col]));
+};
+
+function parseCheckTable(columnInfoStrings) {
+  return columnInfoStrings.map(info => {
+    const nameMatch = info.match(/name=([^,]+)/);
+    const typeMatch = info.match(/type=([^,]+)/);
+    const pkMatch = info.match(/primary_key=([^,]+)/);
+
+    if (!nameMatch || !typeMatch || !pkMatch) {
+      throw new Error(`could not parse column info: ${info}`);
+    }
+
+    return {
+      name: nameMatch[1],
+      type: typeMatch[1],
+      primaryKey: pkMatch[1] === 'true',
+    };
+  });
+}
+
+async function renderReadTableDropdown() {
+  const select = document.getElementById('read-table');
+  const previousValue = select.value;
+
+  const result = await ask(["list_tables"]);
+  const tableNames = result[1];
+
+  select.innerHTML = '';
+  tableNames.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+
+  if (tableNames.includes(previousValue)) {
+    select.value = previousValue;
+  } else if (tableNames.length > 0) {
+    select.value = tableNames[0];
+    if (previousValue) {
+      log('warning', `table "${previousValue}" no longer exists, switched to "${tableNames[0]}"`);
+    }
+  }
+}
+
+</script>
+</body>
+</html>

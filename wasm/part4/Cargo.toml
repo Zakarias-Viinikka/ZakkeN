@@ -1,0 +1,33 @@
+[package]
+name = "part4"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+web-sys = { version = "0.3.103", features = ["DragEvent", "Element", "HtmlElement", "DomTokenList", "NodeList", "DomRect", "Blob", "Url", "console", "Window", "Document", "HtmlAnchorElement"] }
+sqlite-wasm-rs = { version = "0.4.5", default-features = false, features = ["precompiled"] }
+anyhow = "1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+js-sys = "0.3.103"
+wasm-bindgen-futures = "0.4.76" #so i can put async on the code under wasm_bindgen
+serde-wasm-bindgen = "0.6.5" #so Vec<Vec<String>> can turn into JsValue
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.7", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.76"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"

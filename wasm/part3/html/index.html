@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>part 3 </title>
+</head>
+
+<body>
+  <script type="module">
+  const myWorker = new Worker('./worker.js', { type: 'module' });
+
+  // Wait for the worker to be fully initialised
+  await new Promise(resolve => {
+    myWorker.onmessage = (e) => {
+      if (e.data[0] === "ready") resolve();
+    };
+  });
+  console.log("promise finished")
+
+  let response = await askWorker(["get data"]);
+  console.log(response);
+  response = await askWorker(["change data", "differenter data"]);
+  console.log(response);
+  response = await askWorker(["get data"]);
+  console.log(response);
+
+  function askWorker(msg) {
+    console.log("test");
+    return new Promise(resolve => {
+      myWorker.onmessage = (e) => resolve(e.data);
+      myWorker.postMessage(msg);
+    });
+  }
+  </script>
+</body>
+</html>

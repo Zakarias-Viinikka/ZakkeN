@@ -1,0 +1,15 @@
+[package]
+name = "leptos_integration"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+js-sys = "0.3.103"
+leptos = { version = "0.8.20", features = ["csr"] }
+leptos_router = "0.8.15"
+
+
+wasm-bindgen = "0.2.126"
+wasm-bindgen-futures = "0.4.76" #so i can put async on the code under wasm_bindgen
+web-sys = { version = "0.3.103", features = ["Window"] }
