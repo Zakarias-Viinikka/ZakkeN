@@ -1,0 +1,83 @@
+.finale-container {
+    width: 700px;
+    box-shadow: 0 4px 12px rgba(100, 0, 200, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 2px solid black;
+    padding: 10px;
+}
+
+/*input {
+    text-align: left;
+}*/
+
+/**/
+
+.text-input-container {
+    display: flex;
+    justify-content: flex-start;
+    border: 2px solid #333;
+    width: 500px;
+    padding: 5px;
+}
+
+.drag-handle {
+    border: 1px black solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-right: 5px;
+    cursor: grab;
+    user-select: none;
+}
+
+.text-container {
+    display: flex;
+    align-items: center;
+    border: 2px solid red;
+    width: 100%;
+    padding: 5px;
+}
+
+/*.text-container.dragging {
+    opacity: 0.5;
+    overflow: hidden;
+}*/
+
+/*make textarea look pretty*/
+
+.textarea {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1.5;
+    color: #37352f;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    border-radius: 4px;
+    transition: background 0.2s;
+    min-height: 24px;
+    box-sizing: border-box;
+
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.textarea::-webkit-scrollbar {
+    display: none;
+}
+.textarea:hover {
+    background: #f1f1f0;
+}
+
+.textarea:focus {
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.2);
+}

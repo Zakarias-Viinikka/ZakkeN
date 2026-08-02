@@ -1,0 +1,116 @@
+[package]
+name = "leptos_starter"
+version = "0.1.0"
+edition = "2024"
+# default-run = "basic_routing" instead of this edit the index.html
+
+
+[dependencies]
+anyhow = "1.0.103"
+#anyhow = "1.0.103"
+console_error_panic_hook = "0.1.7"
+getrandom = { version = "0.4.3", features = ["wasm_js"] } #rand wouldn't work properly without this one
+js-sys = "0.3.103"
+leptos = { version = "0.8.19", features = ["csr"] }
+
+#https://leptos-use.rs/browser/use_textarea_autosize.html
+leptos-use = { version = "0.19.0", features = ["use_textarea_autosize"] }
+leptos_meta = "0.8.6"
+
+leptos_router = "0.8.13"
+rand = "0.10.1"
+tw_merge = "0.1.21"
+wasm-bindgen = "0.2.126"
+#Blob and Url are for exporting sqldb as something i can download so that i can verify my db code is doing what i want it to.
+web-sys = { version = "0.3.103", features = ["DragEvent", "Element", "HtmlElement", "DomTokenList", "NodeList", "DomRect", "Blob", "Url"] }
+
+#local sqlite stuff
+# it was just
+# sqlite-wasm-rs = "0.5.5"
+# before but i had to do this to get cargo test to work for my machine
+sqlite-wasm-rs = { version = "0.4.5", default-features = false, features = ["precompiled"] }
+
+#trying to get tests to work part 2 //this is just for tests/web.rs
+wasm-bindgen-test = "0.3.76"
+serde = { version = "1.0.228", features = ["derive"] }
+gloo-timers = "0.4.0"
+
+#gloo worker
+gloo-worker = { version = "0.6.0", features = ["futures"] }
+gloo-console = "0.3" # logging from a worker
+
+[[bin]]
+name = "basic_routing"
+path = "src/routing/r1_basic_routing/main.rs"
+
+[[bin]]
+name = "folder_routing"
+path = "src/routing/r2_folder_routing/main.rs"
+
+[[bin]]
+name = "routing_with_signals"
+path = "src/routing/r3_routing_w_signals/main.rs"
+
+[[bin]]
+name = "optional_signals"
+path = "src/routing/r4_optional_signals/main.rs"
+
+[[bin]]
+name = "memo"
+path = "src/signals/memo/main.rs"
+
+[[bin]]
+name = "calling_js_from_rust"
+path = "src/rust_js/rj1_calling_js_from_rust/main.rs"
+
+[[bin]]
+name = "js_signals"
+path = "src/rust_js/rj2_js_accesses_signals/main.rs"
+
+[[bin]]
+name = "clean_js"
+path = "src/rust_js/rj3_cleaner_code/main.rs"
+
+[[bin]]
+name = "js_for_js"
+path = "src/rust_js/rj1_calling_rust_from_js/this_no_work.rs"
+
+[[bin]]
+name = "enumerate_basic"
+path = "src/for_enumerate/basic_example/main.rs"
+
+[[bin]]
+name = "list_of_reactive_components"
+path = "src/for_enumerate/list_of_reactive_components/main.rs"
+
+[[bin]]
+name = "finale"
+path = "src/final_example/main.rs"
+
+[[bin]]
+name = "read_from_local_sqlite"
+path = "src/sqlite/read_from/main.rs"
+
+[[bin]]
+name = "simple_async"
+path = "src/sqlite/simple_worker/simple_async.rs"
+
+[[bin]]
+name = "background_dots"
+path = "src/animation/background_dots/main.rs"
+
+[[bin]]
+name = "simple_anim"
+path = "src/animation/simple_example/main.rs"
+
+[[bin]]
+name = "gloo_test"
+path = "src/sqlite/gloo_worker/test1.rs"
+
+[[bin]]
+name = "worker"
+path = "src/sqlite/gloo_worker/worker.rs"
+
+[[bin]]
+name = "per_page_linking"
+path = "src/per_page_linking/main.rs"
