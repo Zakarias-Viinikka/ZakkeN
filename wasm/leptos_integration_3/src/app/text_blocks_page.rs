@@ -1,8 +1,10 @@
 use crate::app::add_css_and_js;
+use crate::app::helper;
 use crate::app::js_value_parsing;
 use leptos::logging::log;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use text_diff2::custom_text_area::CustomTextArea;
 
 use leptos_meta::*;
 
@@ -30,6 +32,7 @@ pub fn TextBlocksPage() -> impl IntoView {
     provide_meta_context();
 
     let (list, set_list) = signal(Vec::new());
+
     set_list.update(|l| {
         for _ in 0..5 {
             l.push(TextBlocks::new(l.len()));
@@ -49,19 +52,26 @@ pub fn TextBlocksPage() -> impl IntoView {
     });
 
     Effect::new(move || {
-        spawn_local(async {
-            match beg_js_to_work_the_worker(vec!["list_tables".to_string()]).await {
-                Ok(val) => {
-                    let text = js_sys::JSON::stringify(&val)
-                        .unwrap_or_else(|_| JsValue::from("(unstringifiable)").into());
-                    leptos::logging::log!(
-                        "Worker response: {}",
-                        text.as_string().unwrap_or_default()
-                    );
-                }
-                Err(e) => leptos::logging::log!("Worker error: {:?}", e),
+        spawn_local(async move {
+            if let Err(e) = helper::create_table_if_not_exist().await {
+                log!("create_table_if_not_exist failed: {:?}", e);
             }
         });
+    });
+
+    let (last_diff, set_last_diff) = signal(String::new());
+
+    Effect::new(move |_| {
+        let diff = last_diff.get();
+
+        if !diff.is_empty() {
+            log!("Parent received diff: {}", diff);
+
+            // Later:
+            // apply_to_yjs(&diff);
+            // send_to_server(&diff);
+            // update_database(&diff);
+        }
     });
 
     view! {
@@ -76,62 +86,30 @@ pub fn TextBlocksPage() -> impl IntoView {
                 >
                     <TextArea
                         index=index
-                        text=text_blocks.text
+                        on_diff=move |diff: String| {
+                            set_last_diff.set(diff);
+                        }
                     />
                 </ForEnumerate>
             </ul>
-            <div>
-                "this is all of the textblocks combined:"
-                <ForEnumerate
-                    each=move || list.get()
-                    key=|text_blocks| text_blocks.id
-                    let(_, text_blocks)
-                >
-                    <span>
-                        {move || text_blocks.text.0.get()}
-                        <br/>
-                    </span>
-                </ForEnumerate>
-            </div>
         </div>
     }
 }
 
 #[component]
-fn TextArea(
-    index: ReadSignal<usize>,
-    text: (ReadSignal<String>, WriteSignal<String>),
-) -> impl IntoView {
-    let (get_text, set_text) = text;
-
+fn TextArea(index: ReadSignal<usize>, #[prop(into)] on_diff: Callback<String>) -> impl IntoView {
     view! {
         <li class="text-container" data-id={move || index.get()}>
             <div class="drag-handle">"⠿"</div>
+
             <div class="text-input-container">
-                <textarea
-                    id={move || index.get()}
-                    class="textarea"
-                    on:input=move |ev| {
-                        set_text.set(event_target_value(&ev));
-                    }
-                    placeholder="Type something..."
-                ></textarea>
+                <CustomTextArea
+                    box_index=index.get_untracked()
+                    on_diff=on_diff
+                    attr:class="textarea"
+                    attr:id={move || index.get()}
+                />
             </div>
         </li>
     }
-}
-
-#[wasm_bindgen(js_name = javascript_im_begging_you)]
-extern "C" {
-    fn javascript_im_begging_you(args: &JsValue) -> js_sys::Promise;
-}
-
-async fn beg_js_to_work_the_worker(args: Vec<String>) -> Result<JsValue, JsValue> {
-    let arr = Array::new();
-    for arg in &args {
-        arr.push(&JsValue::from_str(arg));
-    }
-    let promise = javascript_im_begging_you(&arr);
-    let result = JsFuture::from(promise).await?;
-    Ok(result)
 }

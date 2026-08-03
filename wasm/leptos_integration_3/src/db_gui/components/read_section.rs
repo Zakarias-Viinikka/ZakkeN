@@ -1,7 +1,4 @@
-use crate::local_sqlite::local_sqlite_wrapper;
-use leptos::html;
 use leptos::prelude::*;
-use leptos::tachys::reactive_graph::bind::GetValue;
 
 #[component]
 pub fn ReadSection(
@@ -26,8 +23,6 @@ pub fn ReadSection(
                     <option value={name.clone()}>{name.clone()}</option>
                 </For>
             </select>
-            <button>"Get data"</button>
-            <button>"Check table"</button>
         </section>
     }
 }
