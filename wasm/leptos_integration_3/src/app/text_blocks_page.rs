@@ -6,10 +6,9 @@ use leptos::task::spawn_local;
 
 use leptos_meta::*;
 
-use js_sys::{Array, Function, Promise};
+use js_sys::Array;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::window;
 
 #[derive(Copy, Clone)]
 struct TextBlocks {

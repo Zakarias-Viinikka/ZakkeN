@@ -4,7 +4,7 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
 use leptos_integration_3::app::text_blocks_page::TextBlocksPage;
-use leptos_integration_3::db_gui::db_gui_comp::DbGui;
+use leptos_integration_3::db_gui::db_gui_main::DbGui;
 
 fn main() {
     console_error_panic_hook::set_once();
