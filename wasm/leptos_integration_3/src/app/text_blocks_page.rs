@@ -4,6 +4,7 @@ use crate::app::js_value_parsing;
 use leptos::logging::log;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_router::components::A;
 use text_diff2::custom_text_area::CustomTextArea;
 
 use leptos_meta::*;
@@ -56,6 +57,9 @@ pub fn TextBlocksPage() -> impl IntoView {
             if let Err(e) = helper::create_table_if_not_exist().await {
                 log!("create_table_if_not_exist failed: {:?}", e);
             }
+            if let Err(e) = helper::create_hardcoded_columns_if_not_exist().await {
+                log!("create_hardcoded_columns_if_not_exist failed: {:?}", e);
+            }
         });
     });
 
@@ -76,6 +80,7 @@ pub fn TextBlocksPage() -> impl IntoView {
 
     view! {
         <add_css_and_js::CssAndJs />
+        <A href="/dbgui">"Db GUI"</A>
 
         <div class="finale-container">
             <ul id="sortable-container">

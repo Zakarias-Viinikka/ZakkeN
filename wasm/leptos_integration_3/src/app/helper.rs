@@ -1,5 +1,6 @@
 use crate::local_sqlite::column_helper;
 use crate::local_sqlite::local_sqlite_wrapper;
+use anyhow::{Result, anyhow};
 use leptos::logging::log;
 use wasm_bindgen::JsValue;
 
@@ -13,57 +14,48 @@ pub async fn create_table_if_not_exist() -> Result<(), JsValue> {
         return Ok(());
     }
 
-    let columns = [
-        column_helper::id_column(),
-        column_helper::column("position", "INTEGER"),
-        column_helper::column("content", "TEXT"),
-        column_helper::column("metadata", "TEXT"),
-    ];
+    let columns = new_text_block_columns();
 
     let msg = local_sqlite_wrapper::create_table("text_blocks", &columns).await?;
     log!("{}", msg);
     Ok(())
 }
 
-/*
-* fn build_get_data_msg(
-    table_name: &str,
-    arguments: &str,
-    columns_to_read: &[String],
-) -> Vec<JsValue> {
-    let cols_arr = Array::new();
-    for c in columns_to_read {
-        cols_arr.push(&JsValue::from_str(c));
+pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
+    let table_name = "text_blocks";
+    let arguments = "position = content";
+    let columns_to_read = vec!["".to_string()]; //returns all of them
+    let result = local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
+    match result {
+        Ok(result) => {
+            if result.into_iter().next().is_none() {
+                let column_names = vec![
+                    "position".to_string(),
+                    "content".to_string(),
+                    "metadata".to_string(),
+                ];
+                let column_values = vec!["".to_string(), "".to_string(), "".to_string()];
+                for i in 0..5 {
+                    local_sqlite_wrapper::insert_data(table_name, &column_names, &column_values)
+                        .await
+                        .map_err(|e| anyhow!(format! {"{:?}", e}))?;
+                }
+                log!("created 5 columns");
+                Ok(())
+            } else {
+                log!("columns exist in db already");
+                Ok(())
+            }
+        }
+        Err(e) => Err(anyhow!(format!("{:?}", e))),
     }
+}
+
+fn new_text_block_columns() -> Vec<local_sqlite_wrapper::CreateTableColumnDef> {
     vec![
-        JsValue::from_str("get_data"),
-        JsValue::from_str(table_name),
-        JsValue::from_str(arguments),
-        cols_arr.into(),
+        column_helper::id_column(),
+        column_helper::column("position", "INTEGER"),
+        column_helper::column("content", "TEXT"),
+        column_helper::column("metadata", "TEXT"),
     ]
 }
-
-pub async fn get_data(
-    table_name: &str,
-    arguments: &str,
-    columns_to_read: &[String],
-) -> Result<Vec<Vec<String>>, JsValue> {
-    let raw = beg_js_to_work_the_worker(build_get_data_msg(table_name, arguments, columns_to_read))
-        .await?;
-    let outer: Array = raw.dyn_into()?;
-    let rows: Array = outer.get(1).dyn_into()?;
-
-    rows.iter()
-        .map(|row_val| {
-            let row: Array = row_val.dyn_into()?;
-            row.iter()
-                .map(|cell| {
-                    cell.as_string().ok_or_else(|| {
-                        JsValue::from_str("expected string cell in get_data response")
-                    })
-                })
-                .collect()
-        })
-        .collect()
-}
-*/
