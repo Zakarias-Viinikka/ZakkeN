@@ -1,3 +1,4 @@
+use leptos::attr::any_attribute::AnyAttribute;
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use std::time::Duration;
@@ -23,6 +24,9 @@ pub fn CustomTextArea(
     /// Called with a description of the change whenever an edit finishes.
     #[prop(into)]
     on_diff: Callback<String>,
+    /// Extra attributes (class, id, etc.) forwarded from wherever this component is used.
+    #[prop(attrs)]
+    attrs: Vec<AnyAttribute>,
 ) -> impl IntoView {
     let current_text = RwSignal::new(String::new());
     let typing_state = RwSignal::new(TypingState::NotTyping);
@@ -31,6 +35,7 @@ pub fn CustomTextArea(
 
     view! {
         <textarea
+            {..attrs}
             prop:value=move || current_text.get()
             on:input=move |ev| {
                 let text_before_this_keystroke = current_text.get_untracked();
@@ -140,6 +145,7 @@ fn report_and_reset(
     text_after: &str,
 ) {
     on_diff.run(describe_text_difference(text_before, text_after, box_index));
+
     typing_state.set(TypingState::NotTyping);
     cancel_pending_timer(pending_timer);
 }
@@ -158,6 +164,7 @@ fn describe_text_difference(text_before: &str, text_after: &str, box_index: usiz
 
     let before_remaining = before.len() - first_diff;
     let after_remaining = after.len() - first_diff;
+
     let matching_suffix_len = (0..before_remaining.min(after_remaining))
         .find(|&i| before[before.len() - 1 - i] != after[after.len() - 1 - i])
         .unwrap_or(before_remaining.min(after_remaining));
@@ -165,19 +172,28 @@ fn describe_text_difference(text_before: &str, text_after: &str, box_index: usiz
     let before_end = before.len() - matching_suffix_len;
     let after_end = after.len() - matching_suffix_len;
 
-    let removed_text: String = before[first_diff..before_end].iter().collect();
-    let added_text: String = after[first_diff..after_end].iter().collect();
+    let delete_len = before_end - first_diff;
+    let inserted_text: String = after[first_diff..after_end].iter().collect();
 
-    match (removed_text.is_empty(), added_text.is_empty()) {
+    match (delete_len == 0, inserted_text.is_empty()) {
         (true, false) => {
-            format!("Inserted '{added_text}' at position {first_diff} in box {box_index}")
+            format!(
+                "Insert '{}' at position {} in box {}",
+                inserted_text, first_diff, box_index
+            )
         }
         (false, true) => {
-            format!("Deleted '{removed_text}' at position {first_diff} in box {box_index}")
+            format!(
+                "Delete {} chars at position {} in box {}",
+                delete_len, first_diff, box_index
+            )
         }
-        (false, false) => format!(
-            "Replaced '{removed_text}' with '{added_text}' at position {first_diff} in box {box_index}"
-        ),
+        (false, false) => {
+            format!(
+                "Delete {} chars at position {} then insert '{}' in box {}",
+                delete_len, first_diff, inserted_text, box_index
+            )
+        }
         (true, true) => String::new(),
     }
 }
@@ -195,7 +211,7 @@ mod tests {
     fn insertion_at_start() {
         assert_eq!(
             describe_text_difference("world", "hello world", 1),
-            "Inserted 'hello ' at position 0 in box 1"
+            "Insert 'hello ' at position 0 in box 1"
         );
     }
 
@@ -203,7 +219,7 @@ mod tests {
     fn insertion_in_middle() {
         assert_eq!(
             describe_text_difference("abcz", "abcdefgz", 2),
-            "Inserted 'defg' at position 3 in box 2"
+            "Insert 'defg' at position 3 in box 2"
         );
     }
 
@@ -211,7 +227,7 @@ mod tests {
     fn insertion_at_end() {
         assert_eq!(
             describe_text_difference("start", "start end", 3),
-            "Inserted ' end' at position 5 in box 3"
+            "Insert ' end' at position 5 in box 3"
         );
     }
 
@@ -219,7 +235,7 @@ mod tests {
     fn deletion_at_start() {
         assert_eq!(
             describe_text_difference("prefix text", "text", 0),
-            "Deleted 'prefix ' at position 0 in box 0"
+            "Delete 7 chars at position 0 in box 0"
         );
     }
 
@@ -227,7 +243,7 @@ mod tests {
     fn deletion_in_middle() {
         assert_eq!(
             describe_text_difference("abcdefg", "abg", 1),
-            "Deleted 'cdef' at position 2 in box 1"
+            "Delete 4 chars at position 2 in box 1"
         );
     }
 
@@ -235,7 +251,7 @@ mod tests {
     fn deletion_at_end() {
         assert_eq!(
             describe_text_difference("data goes here", "data", 2),
-            "Deleted ' goes here' at position 4 in box 2"
+            "Delete 10 chars at position 4 in box 2"
         );
     }
 
@@ -243,7 +259,7 @@ mod tests {
     fn replacement_simple() {
         assert_eq!(
             describe_text_difference("old", "new", 3),
-            "Replaced 'old' with 'new' at position 0 in box 3"
+            "Delete 3 chars at position 0 then insert 'new' in box 3"
         );
     }
 
@@ -251,7 +267,7 @@ mod tests {
     fn replacement_with_common_prefix_and_suffix() {
         assert_eq!(
             describe_text_difference("abc---xyz", "abc+++xyz", 4),
-            "Replaced '---' with '+++' at position 3 in box 4"
+            "Delete 3 chars at position 3 then insert '+++' in box 4"
         );
     }
 
@@ -259,7 +275,7 @@ mod tests {
     fn unicode_characters() {
         assert_eq!(
             describe_text_difference("café", "café au lait", 5),
-            "Inserted ' au lait' at position 4 in box 5"
+            "Insert ' au lait' at position 4 in box 5"
         );
     }
 
@@ -267,7 +283,7 @@ mod tests {
     fn emoji_insertion() {
         assert_eq!(
             describe_text_difference("start 🎉", "start 😊🎉", 6),
-            "Inserted '😊' at position 6 in box 6"
+            "Insert '😊' at position 6 in box 6"
         );
     }
 
@@ -275,18 +291,15 @@ mod tests {
     fn multi_byte_removal() {
         assert_eq!(
             describe_text_difference("こんにちは世界", "こんにちは", 7),
-            "Deleted '世界' at position 5 in box 7"
+            "Delete 2 chars at position 5 in box 7"
         );
     }
 
     #[test]
     fn overlapping_common_part_inside() {
-        // When the changed section itself contains parts that match prefix/suffix,
-        // the algorithm still works because it finds the *first* differing character
-        // and the *last* differing character.
         assert_eq!(
             describe_text_difference("axbxc", "aybyc", 0),
-            "Replaced 'xbx' with 'yby' at position 1 in box 0"
+            "Delete 3 chars at position 1 then insert 'yby' in box 0"
         );
     }
 
@@ -294,7 +307,7 @@ mod tests {
     fn whole_string_deleted() {
         assert_eq!(
             describe_text_difference("everything", "", 3),
-            "Deleted 'everything' at position 0 in box 3"
+            "Delete 10 chars at position 0 in box 3"
         );
     }
 
@@ -302,7 +315,7 @@ mod tests {
     fn whole_string_inserted() {
         assert_eq!(
             describe_text_difference("", "everything", 1),
-            "Inserted 'everything' at position 0 in box 1"
+            "Insert 'everything' at position 0 in box 1"
         );
     }
 }

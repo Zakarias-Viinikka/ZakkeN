@@ -3,8 +3,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local_scoped;
 use leptos_meta::*;
 use std::time::Duration;
-use wasm_bindgen::JsCast;
-use web_sys::{HtmlScriptElement, window};
+//use wasm_bindgen::JsCast;
+use web_sys::window;
 
 #[component]
 pub fn CssAndJs() -> impl IntoView {

@@ -2,7 +2,7 @@ use js_sys::Array;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-#[wasm_bindgen(js_name = javascript_im_begging_you)]
+#[wasm_bindgen]
 extern "C" {
     fn javascript_im_begging_you(args: &JsValue) -> js_sys::Promise;
 }

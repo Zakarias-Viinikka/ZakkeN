@@ -1,5 +1,5 @@
 use crate::local_sqlite::local_sqlite_wrapper::CreateTableColumnDef;
-use serde::{Deserialize, Serialize};
+//use serde::{Deserialize, Serialize};
 
 /*
 pub struct CreateTableColumnDef {

@@ -8,9 +8,9 @@ use text_diff2::custom_text_area::CustomTextArea;
 
 use leptos_meta::*;
 
-use js_sys::Array;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
+//use js_sys::Array;
+//use wasm_bindgen::prelude::*;
+//use wasm_bindgen_futures::JsFuture;
 
 #[derive(Copy, Clone)]
 struct TextBlocks {
@@ -82,7 +82,7 @@ pub fn TextBlocksPage() -> impl IntoView {
                 <ForEnumerate
                     each=move || list.get()
                     key=|text_blocks| text_blocks.id
-                    let(index, text_blocks)
+                    let(index, _)
                 >
                     <TextArea
                         index=index
