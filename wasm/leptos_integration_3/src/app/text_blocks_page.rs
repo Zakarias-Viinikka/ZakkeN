@@ -6,6 +6,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::components::A;
 use text_diff2::custom_text_area::CustomTextArea;
+use text_diff2::text_block;
 
 use leptos_meta::*;
 
@@ -13,21 +14,6 @@ use crate::local_sqlite::local_sqlite_wrapper;
 //use js_sys::Array;
 //use wasm_bindgen::prelude::*;
 //use wasm_bindgen_futures::JsFuture;
-
-#[derive(Copy, Clone)]
-struct TextBlocks {
-    text: (ReadSignal<String>, WriteSignal<String>),
-    id: usize,
-}
-
-impl TextBlocks {
-    fn new(text: String, id: usize) -> Self {
-        Self {
-            text: signal(text),
-            id,
-        }
-    }
-}
 
 #[component]
 pub fn TextBlocksPage() -> impl IntoView {
@@ -59,7 +45,7 @@ pub fn TextBlocksPage() -> impl IntoView {
                 log!("create_hardcoded_columns_if_not_exist failed: {:?}", e);
             }
 
-            //create textblocks
+            //read textblocks from local sqliteb
             let arguments = ""; //gets all
             let columns_to_read = vec!["content".to_string(), "position".to_string()];
             let localdb_data =
@@ -72,7 +58,10 @@ pub fn TextBlocksPage() -> impl IntoView {
                         let content = owned_strings.next().unwrap();
                         let position = owned_strings.next().unwrap();
                         set_list.update(|l| {
-                            l.push(TextBlocks::new(content, position.parse().unwrap()))
+                            l.push(text_block::TextBlock::new(
+                                content,
+                                RwSignal::new(position.parse().unwrap()),
+                            ))
                         });
                     }
                 }
@@ -105,13 +94,10 @@ pub fn TextBlocksPage() -> impl IntoView {
                 <ForEnumerate
                     each=move || list.get()
                     key=|text_blocks| text_blocks.id
-                    let(index, _)
+                    let(index, text_block)
                 >
                     <TextArea
-                        index=index
-                        on_diff=move |diff: String| {
-                            set_last_diff.set(diff);
-                        }
+                        text_block=&text_block
                     />
                 </ForEnumerate>
             </ul>
@@ -120,15 +106,14 @@ pub fn TextBlocksPage() -> impl IntoView {
 }
 
 #[component]
-fn TextArea(index: ReadSignal<usize>, #[prop(into)] on_diff: Callback<String>) -> impl IntoView {
+fn TextArea(#[prop(into)] text_block: TextBlock) -> impl IntoView {
     view! {
-        <li class="text-container" data-id={move || index.get()}>
+        <li class="text-container" data-id={move || text_block.id.get()}>
             <div class="drag-handle">"⠿"</div>
 
             <div class="text-input-container">
                 <CustomTextArea
-                    box_index=index.get_untracked()
-                    on_diff=on_diff
+                    text_block=text_block
                     attr:class="textarea"
                     attr:id={move || index.get()}
                 />

@@ -35,7 +35,7 @@ pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
                     "content".to_string(),
                     "metadata".to_string(),
                 ];
-                for i in 0..5 {
+                for _ in 0..5 {
                     let column_values =
                         vec![position_ctr.to_string(), "".to_string(), "".to_string()];
                     position_ctr += 1;
