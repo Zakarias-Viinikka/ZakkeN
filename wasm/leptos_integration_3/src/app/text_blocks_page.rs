@@ -9,6 +9,7 @@ use text_diff2::custom_text_area::CustomTextArea;
 
 use leptos_meta::*;
 
+use crate::local_sqlite::local_sqlite_wrapper;
 //use js_sys::Array;
 //use wasm_bindgen::prelude::*;
 //use wasm_bindgen_futures::JsFuture;
@@ -20,9 +21,9 @@ struct TextBlocks {
 }
 
 impl TextBlocks {
-    fn new(id: usize) -> Self {
+    fn new(text: String, id: usize) -> Self {
         Self {
-            text: signal(String::new()),
+            text: signal(text),
             id,
         }
     }
@@ -34,11 +35,7 @@ pub fn TextBlocksPage() -> impl IntoView {
 
     let (list, set_list) = signal(Vec::new());
 
-    set_list.update(|l| {
-        for _ in 0..5 {
-            l.push(TextBlocks::new(l.len()));
-        }
-    });
+    let table_name = RwSignal::new("text_blocks");
 
     crate::javascript_take_the_wheel!("update_list_order", |js_value| {
         match js_value_parsing::js_value_to_usize_tuple(js_value) {
@@ -53,6 +50,7 @@ pub fn TextBlocksPage() -> impl IntoView {
     });
 
     Effect::new(move || {
+        let table_name = table_name.get();
         spawn_local(async move {
             if let Err(e) = helper::create_table_if_not_exist().await {
                 log!("create_table_if_not_exist failed: {:?}", e);
@@ -60,7 +58,27 @@ pub fn TextBlocksPage() -> impl IntoView {
             if let Err(e) = helper::create_hardcoded_columns_if_not_exist().await {
                 log!("create_hardcoded_columns_if_not_exist failed: {:?}", e);
             }
-        });
+
+            //create textblocks
+            let arguments = ""; //gets all
+            let columns_to_read = vec!["content".to_string(), "position".to_string()];
+            let localdb_data =
+                local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
+
+            match localdb_data {
+                Ok(data) => {
+                    for data in data.into_iter() {
+                        let mut owned_strings = data.into_iter();
+                        let content = owned_strings.next().unwrap();
+                        let position = owned_strings.next().unwrap();
+                        set_list.update(|l| {
+                            l.push(TextBlocks::new(content, position.parse().unwrap()))
+                        });
+                    }
+                }
+                Err(e) => log!("get_data failed: {:?}", e),
+            }
+        })
     });
 
     let (last_diff, set_last_diff) = signal(String::new());

@@ -28,14 +28,17 @@ pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
     let result = local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
     match result {
         Ok(result) => {
+            let mut position_ctr = 0;
             if result.into_iter().next().is_none() {
                 let column_names = vec![
                     "position".to_string(),
                     "content".to_string(),
                     "metadata".to_string(),
                 ];
-                let column_values = vec!["".to_string(), "".to_string(), "".to_string()];
                 for i in 0..5 {
+                    let column_values =
+                        vec![position_ctr.to_string(), "".to_string(), "".to_string()];
+                    position_ctr += 1;
                     local_sqlite_wrapper::insert_data(table_name, &column_names, &column_values)
                         .await
                         .map_err(|e| anyhow!(format! {"{:?}", e}))?;
