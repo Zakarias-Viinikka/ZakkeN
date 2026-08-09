@@ -5,26 +5,25 @@ use leptos::prelude::*;
 
 #[component]
 pub fn CustomTextArea(
-    /// Which box this is. Only used to label the diff so the parent knows where it came from.
-    #[prop(into)]
-    text_block: text_block::TextBlock,
+    on_diff_update: impl Fn(text_block::TextBlock, String) + 'static,
+    #[prop(into)] text_block: text_block::TextBlock,
     /// Extra attributes (class, id, etc.) forwarded from wherever this component is used.
     #[prop(attrs)]
     attrs: Vec<AnyAttribute>,
 ) -> impl IntoView {
-    let current_text = RwSignal::new(String::new());
     let node_ref = NodeRef::<leptos::html::Textarea>::new();
 
     view! {
-        <textarea
+        /*<textarea
             {..attrs}
             prop:value=move || current_text.get()
             on:input=move |ev| {
-                save_latest_change(current_text, event_target_value(&ev));
-                update_diff(&text_block, current_text.get());
+                let new_text = event_target_value(&ev);
+                on_diff_update(text_block, new_text.clone()); //updates the parents db.
+                update_diff(&text_block, new_text);
             }
 
-            on:keydown=move |ev: web_sys::KeyboardEvent| {
+            /*on:keydown=move |ev: web_sys::KeyboardEvent| {
                 /*
                  *
                  * field-sizing: content
@@ -37,8 +36,19 @@ pub fn CustomTextArea(
                 if ev.key() == "Tab" {
                     // TODO: flush any buffered changes for this box
                 }
-            }
+            }*/
 
+            node_ref=node_ref
+        ></textarea>*/
+
+        <textarea
+            {..attrs}
+            prop:value=move || text_block.text.0.get()
+            on:input=move |ev| {
+                let new_text = event_target_value(&ev);
+                on_diff_update(text_block.clone(), new_text.clone());
+                update_diff(&text_block, new_text);
+            }
             node_ref=node_ref
         ></textarea>
     }

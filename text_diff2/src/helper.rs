@@ -4,10 +4,6 @@ use crate::text_block;
 use leptos::logging::log;
 use leptos::prelude::*;
 
-pub fn save_latest_change(text: RwSignal<String>, value: String) {
-    text.set(value);
-}
-
 pub fn update_diff(text_block: &text_block::TextBlock, new_text: String) {
     let (text, _set_text) = &text_block.text; // destructure
     let diff = diff_logic::get_diff(&text.get(), &new_text);
