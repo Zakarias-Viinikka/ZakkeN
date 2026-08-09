@@ -30,6 +30,22 @@ pub fn TextBlocksPage() -> impl IntoView {
                     let item = v.remove(old_index);
                     v.insert(new_index, item);
                 });
+                let table_name = table_name.get();
+                let row_id_1 = old_index.to_string();
+                let row_id_2 = new_index.to_string();
+                let column = "position";
+                spawn_local(async move {
+                    if let Err(e) = local_sqlite_wrapper::swap_columns(
+                        &table_name,
+                        &row_id_1,
+                        &row_id_2,
+                        column,
+                    )
+                    .await
+                    {
+                        log!("javascript tried to swap two columns in the db: {:?}", e);
+                    }
+                });
             }
             Err(e) => log!("{}", e),
         }
@@ -97,7 +113,8 @@ pub fn TextBlocksPage() -> impl IntoView {
                     let(index, text_block)
                 >
                     <TextArea
-                        text_block=&text_block
+                        text_block=text_block
+                        view_id=index
                     />
                 </ForEnumerate>
             </ul>
@@ -106,16 +123,27 @@ pub fn TextBlocksPage() -> impl IntoView {
 }
 
 #[component]
-fn TextArea(#[prop(into)] text_block: TextBlock) -> impl IntoView {
+fn TextArea(
+    #[prop(into)] text_block: text_block::TextBlock,
+    #[prop(into)] view_id: ReadSignal<usize>,
+) -> impl IntoView {
     view! {
         <li class="text-container" data-id={move || text_block.id.get()}>
             <div class="drag-handle">"⠿"</div>
 
             <div class="text-input-container">
                 <CustomTextArea
+                    //leptos not happy with passing async fn to child component otherwise
+                    on_diff_update=move |tb, diff| {
+                        spawn_local(async move {
+                            if let Err(e) = helper::update_local_sqlite(tb, diff).await {
+                                log!("update_local_sqlite failed: {:?}", e);
+                            }
+                        });
+                    }
                     text_block=text_block
                     attr:class="textarea"
-                    attr:id={move || index.get()}
+                    attr:id={move || view_id.get()}
                 />
             </div>
         </li>

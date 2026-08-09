@@ -2,6 +2,8 @@ use crate::local_sqlite::column_helper;
 use crate::local_sqlite::local_sqlite_wrapper;
 use anyhow::{Result, anyhow};
 use leptos::logging::log;
+use leptos::prelude::*;
+use text_diff2::text_block::TextBlock;
 use wasm_bindgen::JsValue;
 
 pub async fn create_table_if_not_exist() -> Result<(), JsValue> {
@@ -23,7 +25,7 @@ pub async fn create_table_if_not_exist() -> Result<(), JsValue> {
 
 pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
     let table_name = "text_blocks";
-    let arguments = "position = content";
+    let arguments = "";
     let columns_to_read = vec!["".to_string()]; //returns all of them
     let result = local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
     match result {
@@ -61,4 +63,41 @@ fn new_text_block_columns() -> Vec<local_sqlite_wrapper::CreateTableColumnDef> {
         column_helper::column("content", "TEXT"),
         column_helper::column("metadata", "TEXT"),
     ]
+}
+
+pub async fn update_local_sqlite(text_block: TextBlock, new_text: String) -> Result<()> {
+    let table_name = "text_blocks";
+    let row_id = get_row_id_for_text_block(&text_block, table_name).await?;
+
+    local_sqlite_wrapper::edit_row(table_name, &row_id, "content", &new_text)
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
+
+    Ok(())
+}
+
+async fn get_row_id_for_text_block(text_block: &TextBlock, table_name: &str) -> Result<String> {
+    // Query the database for the row whose "position" matches the text_block's position
+    let argument = format!("position = {}", text_block.id.get_untracked());
+    let rows: Vec<Vec<String>> = local_sqlite_wrapper::get_data(
+        table_name,
+        &argument,
+        &["id".to_string()], // read only the "id" column
+    )
+    .await
+    .map_err(|e| anyhow!("get_data failed: {:?}", e))?;
+
+    let row = rows.into_iter().next().ok_or_else(|| {
+        anyhow!(
+            "no row found for position = {}",
+            text_block.id.get_untracked()
+        )
+    })?;
+
+    let id = row
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("row is missing the 'id' column"))?;
+
+    Ok(id)
 }
