@@ -1,6 +1,7 @@
 mod custom_text_area;
 use custom_text_area::CustomTextArea;
 use leptos::prelude::*;
+use text_diff2::text_block;
 const NUMBER_OF_TEXT_BOXES: usize = 5;
 fn main() {
     console_error_panic_hook::set_once();
@@ -30,7 +31,7 @@ fn App() -> impl IntoView {
                     view! {
                         <div>
                             <CustomTextArea
-                                box_index=box_index
+                                text_block=text_block::TextBlock::new("".to_string(), RwSignal::new(*box_index))
                                 on_diff=move |diff: String| {
                                     latest_diff.set(diff);
                                 }
