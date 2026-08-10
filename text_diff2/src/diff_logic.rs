@@ -7,6 +7,17 @@ pub fn get_diff(old_text: &str, new_text: &str) -> DiffResult {
     }
 
     let diff_amount = last_deviation.position - first_deviation.position;
+
+    if old_text.chars().count() == new_text.chars().count() {
+        let old_middle = string_from_diff_result(old_text, first_deviation.position, diff_amount);
+        let new_middle = string_from_diff_result(new_text, first_deviation.position, diff_amount);
+        return DiffResult::Replace {
+            old_text: old_middle,
+            new_text: new_middle,
+            position: first_deviation.position,
+        };
+    }
+
     if old_text.chars().count() < new_text.chars().count() {
         let diff_text = string_from_diff_result(new_text, first_deviation.position, diff_amount);
         DiffResult::Insert(diff_text, first_deviation.position)
@@ -93,12 +104,17 @@ struct DeviationResult {
 pub enum DiffResult {
     Insert(String, usize),
     Delete(String, usize),
+    Replace {
+        old_text: String,
+        new_text: String,
+        position: usize,
+    },
     NoDiff,
 }
 
 /*
  *
- * cargo test --lib helper --target x86_64-unknown-linux-gnu -- --nocapture
+ * cargo test --lib diff_logic --target x86_64-unknown-linux-gnu -- --nocapture
  *
  */
 #[cfg(test)]
@@ -182,5 +198,18 @@ mod tests {
         let str2 = "blg";
         let result = get_longest_str_len(str1, str2);
         assert_eq!(result, 5);
+    }
+
+    #[test]
+    fn test_replace() {
+        let before = "abc";
+        let after = "zzz";
+        let result = get_diff(before, after);
+        let expected_result = DiffResult::Replace {
+            old_text: "abc".to_string(),
+            new_text: "zzz".to_string(),
+            position: 0,
+        };
+        assert_eq!(result, expected_result);
     }
 }

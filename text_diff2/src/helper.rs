@@ -17,6 +17,14 @@ pub fn update_diff(text_block: &text_block::TextBlock, new_text: String) {
             log!("Delete: text={text}, position={position}");
             text_block.text.1.set(new_text)
         }
+        DiffResult::Replace {
+            old_text,
+            new_text,
+            position,
+        } => {
+            log!("Replace: old_text={old_text}, new_text={new_text}, position={position}");
+            text_block.text.1.set(new_text)
+        }
         DiffResult::NoDiff => {}
     }
     //text_block.latest_diff.set(diff);
