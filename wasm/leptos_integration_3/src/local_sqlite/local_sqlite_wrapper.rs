@@ -240,6 +240,56 @@ pub async fn get_data(
 }
 //get data
 
+// //get data ordered
+fn build_get_data_by_order_msg(
+    table_name: &str,
+    arguments: &str,
+    columns_to_read: &[String],
+    order_by: &str,
+) -> Vec<JsValue> {
+    let cols_arr = Array::new();
+    for c in columns_to_read {
+        cols_arr.push(&JsValue::from_str(c));
+    }
+    vec![
+        JsValue::from_str("get_data_by_order"),
+        JsValue::from_str(table_name),
+        JsValue::from_str(arguments),
+        cols_arr.into(),
+        JsValue::from_str(order_by),
+    ]
+}
+
+pub async fn get_data_by_order(
+    table_name: &str,
+    arguments: &str,
+    columns_to_read: &[String],
+    order_by: &str,
+) -> Result<Vec<Vec<String>>, JsValue> {
+    let raw = beg_js_to_work_the_worker(build_get_data_by_order_msg(
+        table_name,
+        arguments,
+        columns_to_read,
+        order_by,
+    ))
+    .await?;
+    let outer: Array = raw.dyn_into()?;
+    let rows: Array = outer.get(1).dyn_into()?;
+    rows.iter()
+        .map(|row_val| {
+            let row: Array = row_val.dyn_into()?;
+            row.iter()
+                .map(|cell| {
+                    cell.as_string().ok_or_else(|| {
+                        JsValue::from_str("expected string cell in get_data_by_order response")
+                    })
+                })
+                .collect()
+        })
+        .collect()
+}
+//get data ordered
+
 //delete table
 fn build_delete_table_msg(table_name: &str) -> Vec<JsValue> {
     vec![

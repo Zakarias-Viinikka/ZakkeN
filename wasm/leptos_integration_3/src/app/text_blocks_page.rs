@@ -24,26 +24,51 @@ pub fn TextBlocksPage() -> impl IntoView {
     let table_name = RwSignal::new("text_blocks");
 
     crate::javascript_take_the_wheel!("update_list_order", |js_value| {
+        /*
+         * logic gets a bit difficult to keep in my head so i figured i'd explain it a little.
+         *
+         * in a way the order of the textblocks are stored in 3 different ways.
+         * js has it's own order it keeps track.
+         * the rust list stores items in a specific order
+         * and a rust list item.id represents the position it has stored in the db
+         *
+         * the js and rust list are "manually" kept in sync and the reason for having to do that is so
+         * js can handle the reorder animation
+         *
+         * the reason the db has it's "weird" way of storing position is so i can move items by setting
+         * it's new position to the value between the item above and below it. otherwise i have to move
+         * every single item between it's old position and it's new position
+         *
+         * a detail that's worth mentioning is that before commits the reorder to it's own list,
+         * at that point the rust list and the js list order (should be) are the same,
+         *
+         * that's why rust_list[old_index_as_give_by_js]
+         *
+         * let's me use js the right item from the rust list
+         */
         match js_value_parsing::js_value_to_usize_tuple(js_value) {
             Ok((old_index, new_index)) => {
+                let text_block = list.get()[old_index]; //have to index by old_index before the js list and rust list are out of sync
+
                 set_list.update(|v| {
-                    let item = v.remove(old_index);
+                    let item: text_block::TextBlock = v.remove(old_index);
                     v.insert(new_index, item);
                 });
+                // for getting text_block above and below
+                let snapshot = list.get();
+                let above = new_index
+                    .checked_sub(1)
+                    .and_then(|i| snapshot.get(i))
+                    .cloned();
+                let below = snapshot.get(new_index + 1).cloned();
+                // for getting text_block above and below
+
                 let table_name = table_name.get();
-                let row_id_1 = old_index.to_string();
-                let row_id_2 = new_index.to_string();
-                let column = "position";
+
                 spawn_local(async move {
-                    if let Err(e) = local_sqlite_wrapper::swap_columns(
-                        &table_name,
-                        &row_id_1,
-                        &row_id_2,
-                        column,
-                    )
-                    .await
-                    {
-                        log!("javascript tried to swap two columns in the db: {:?}", e);
+                    let result = helper::move_row(&text_block, above, below, &table_name).await;
+                    if let Err(e) = result {
+                        log!("failed to move row in local db: {:?}", e);
                     }
                 });
             }
@@ -63,9 +88,15 @@ pub fn TextBlocksPage() -> impl IntoView {
 
             //read textblocks from local sqliteb
             let arguments = ""; //gets all
+            let order = "ORDER BY position";
             let columns_to_read = vec!["content".to_string(), "position".to_string()];
-            let localdb_data =
-                local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
+            let localdb_data = local_sqlite_wrapper::get_data_by_order(
+                table_name,
+                arguments,
+                &columns_to_read,
+                order,
+            )
+            .await;
 
             match localdb_data {
                 Ok(data) => {

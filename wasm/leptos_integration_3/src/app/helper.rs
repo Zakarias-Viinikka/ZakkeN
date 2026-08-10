@@ -1,8 +1,9 @@
 use crate::local_sqlite::column_helper;
 use crate::local_sqlite::local_sqlite_wrapper;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use leptos::logging::log;
 use leptos::prelude::*;
+use serde::de::Unexpected::NewtypeStruct;
 use text_diff2::text_block::TextBlock;
 use wasm_bindgen::JsValue;
 
@@ -100,4 +101,74 @@ async fn get_row_id_for_text_block(text_block: &TextBlock, table_name: &str) -> 
         .ok_or_else(|| anyhow!("row is missing the 'id' column"))?;
 
     Ok(id)
+}
+
+pub async fn move_row(
+    text_block: &TextBlock,
+    above: Option<TextBlock>,
+    below: Option<TextBlock>,
+    table_name: &str,
+) -> Result<()> {
+    let arguments = "";
+    let columns_to_read = vec!["id".to_string(), "position".to_string()];
+    /*let all_ids_n_positions =
+    local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read)
+        .await
+        .map_err(|e| anyhow!("failed moving row in local db: {:?}", e))?;*/
+
+    let id_of_row_to_move = get_row_id_for_text_block(text_block, table_name).await?;
+
+    let new_position;
+    match get_above_and_below_id(above, below) {
+        (Some(above_position), Some(below_position)) => {
+            new_position = above_position + below_position / 2.0;
+        }
+        (Some(above), None) => {
+            new_position = above + 0.5;
+        }
+        (None, Some(below)) => {
+            new_position = below - 0.5;
+        }
+        _ => {
+            bail!("move_row: should be impossible for below and above to be none");
+        }
+    }
+
+    let result = local_sqlite_wrapper::edit_row(
+        table_name,
+        &id_of_row_to_move,
+        "position",
+        &&new_position.to_string(),
+    )
+    .await
+    .map_err(|e| anyhow!(format!("{:?}", e)))?;
+
+    //pub async fn edit_row(table_name: &str, row_id: &str, column: &str, new_value: &str) -> Result<(), JsValue>
+
+    Ok(result)
+}
+
+fn get_above_and_below_id(
+    above: Option<TextBlock>,
+    below: Option<TextBlock>,
+) -> (Option<f64>, Option<f64>) {
+    match (above, below) {
+        (Some(above), Some(below)) => {
+            let above_position = above.id.get_untracked();
+            let below_position = below.id.get_untracked();
+            (Some(above_position), Some(below_position))
+        }
+        (Some(above), None) => {
+            let above_position = above.id.get_untracked();
+            (Some(above_position), None)
+        }
+        (None, Some(below)) => {
+            let below_position = below.id.get_untracked();
+            (None, Some(below_position))
+        }
+        (None, None) => {
+            log!("catastrophic error in find_above_and_below");
+            (None, None)
+        }
+    }
 }
