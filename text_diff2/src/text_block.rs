@@ -3,12 +3,12 @@ use leptos::prelude::*;
 #[derive(Copy, Clone)]
 pub struct TextBlock {
     pub text: (ReadSignal<String>, WriteSignal<String>),
-    pub id: RwSignal<usize>,
+    pub id: RwSignal<f64>,
     pub latest_diff: RwSignal<String>,
 }
 
 impl TextBlock {
-    pub fn new(text: String, id: RwSignal<usize>) -> Self {
+    pub fn new(text: String, id: RwSignal<f64>) -> Self {
         Self {
             text: signal(text),
             id,

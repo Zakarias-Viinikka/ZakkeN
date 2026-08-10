@@ -1,7 +1,7 @@
 use crate::create_table_col_def::ColumnDef;
 use crate::db_table::*;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::console;
+//use web_sys::console;
 
 // Builds CREATE TABLE SQL from a caller-supplied column list (replaces the old Table/Column version).
 pub fn generate_create_table_sql(table_name: &str, columns: &[ColumnDef]) -> String {
@@ -149,6 +149,45 @@ pub fn generate_read_from_table_sql(
         columns,
         table_name.as_ref(),
         where_clause
+    )
+}
+
+pub fn generate_get_data_by_order_sql(
+    table_name: impl AsRef<str>,
+    arguments: &[impl AsRef<str>],
+    columns_to_read: &[impl AsRef<str>],
+    order_by: &str,
+) -> String {
+    let valid_columns: Vec<&str> = columns_to_read
+        .iter()
+        .filter(|c| !c.as_ref().is_empty())
+        .map(|c| c.as_ref())
+        .collect();
+
+    let columns = if valid_columns.is_empty() {
+        "*".to_string()
+    } else {
+        valid_columns.join(", ")
+    };
+
+    let valid_conditions: Vec<&str> = arguments
+        .iter()
+        .filter(|a| !a.as_ref().is_empty())
+        .map(|a| a.as_ref())
+        .collect();
+
+    let where_clause = if valid_conditions.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", valid_conditions.join(" AND "))
+    };
+
+    format!(
+        "SELECT {} FROM {}{} ORDER BY {};",
+        columns,
+        table_name.as_ref(),
+        where_clause,
+        order_by
     )
 }
 
@@ -546,5 +585,53 @@ mod tests {
         // Basic happy path: explicit columns + single condition
         let sql = generate_read_from_table_sql("content", &["id = 1"], &["col1", "col2"]);
         assert_eq!(sql, "SELECT col1, col2 FROM content WHERE id = 1;");
+    }
+
+    // =========================================================================
+    //  generate_get_data_by_order_sql
+    // =========================================================================
+
+    #[test]
+    fn order_by_no_conditions_all_columns() {
+        let sql =
+            generate_get_data_by_order_sql("content", &[] as &[&str], &[] as &[&str], "position");
+        assert_eq!(sql, "SELECT * FROM content ORDER BY position;");
+    }
+
+    #[test]
+    fn order_by_with_condition() {
+        let sql =
+            generate_get_data_by_order_sql("content", &["id = 1"], &[] as &[&str], "position");
+        assert_eq!(sql, "SELECT * FROM content WHERE id = 1 ORDER BY position;");
+    }
+
+    #[test]
+    fn order_by_with_specific_columns() {
+        let sql = generate_get_data_by_order_sql(
+            "content",
+            &[] as &[&str],
+            &["content", "position"],
+            "position",
+        );
+        assert_eq!(
+            sql,
+            "SELECT content, position FROM content ORDER BY position;"
+        );
+    }
+
+    #[test]
+    fn order_by_with_columns_and_condition() {
+        let sql =
+            generate_get_data_by_order_sql("content", &["id = 1"], &["content"], "position DESC");
+        assert_eq!(
+            sql,
+            "SELECT content FROM content WHERE id = 1 ORDER BY position DESC;"
+        );
+    }
+
+    #[test]
+    fn order_by_empty_string_argument_omits_where() {
+        let sql = generate_get_data_by_order_sql("content", &[""], &[""], "position");
+        assert_eq!(sql, "SELECT * FROM content ORDER BY position;");
     }
 }

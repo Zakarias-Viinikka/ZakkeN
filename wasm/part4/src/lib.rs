@@ -49,6 +49,26 @@ impl LiveForever {
         Ok(result) //serde-wasm-bindgen = "0.6.5"
     }
 
+    pub async fn get_data_ordered(
+        &self,
+        table_name: String,
+        arguments: String,
+        columns_to_read: Vec<String>,
+        order_by: String,
+    ) -> Result<JsValue, JsValue> {
+        let result = black_magic_read::read_from_db_ordered(
+            self.db_conn,
+            table_name,
+            &[arguments.as_str()],
+            &columns_to_read,
+            &order_by,
+        )
+        .map_err(|e| JsValue::from(e.to_string()))?;
+        let result =
+            serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from(e.to_string()))?;
+        Ok(result)
+    }
+
     //console.log(state.change_data("new data"));
     pub async fn insert_data(
         &self,

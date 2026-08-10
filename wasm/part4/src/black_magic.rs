@@ -1,6 +1,5 @@
 //use js_sys::{Array, Uint8Array};
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{Blob, Url, console::log_1};
+use wasm_bindgen::JsValue;
 // new for sahpool
 use sqlite_wasm_rs::{
     self as ffi,
@@ -8,9 +7,9 @@ use sqlite_wasm_rs::{
 };
 //old //use sqlite_wasm_rs as ffi; //necessary as far as i can tell.
 
-use crate::black_magic_read::read_from_db;
+//use crate::black_magic_read::read_from_db;
 use crate::create_sql_statements::*;
-use crate::db_table::*;
+//use crate::db_table::*;
 
 use anyhow::{Result, anyhow, bail};
 use std::ffi::CString; //let sql_cstr = CString::new(sql).map_err(|e| anyhow!("CString conversion failed: {}", e))?;

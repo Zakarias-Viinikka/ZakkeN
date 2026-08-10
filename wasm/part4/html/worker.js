@@ -29,6 +29,7 @@ const handlers = {
   },
   check_table: (msg) => db_manager.check_table(msg[1]),
   get_data: (msg) => db_manager.get_data(msg[1], msg[2], msg[3]),
+  get_data_by_order: (msg) => db_manager.get_data_ordered(msg[1], msg[2], msg[3], msg[4]),
   insert_data: async (msg) => {
       // msg = ["insert_data", table_name, col_names_array, vals_array]
       await db_manager.insert_data(msg[1], msg[2], msg[3]);
@@ -79,6 +80,7 @@ const handlers = {
 
   // msg: ["list_tables"]
   list_tables: async () => db_manager.list_tables(),
+
 };
 
 self.onmessage = async (e) => {

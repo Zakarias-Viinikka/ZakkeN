@@ -88,13 +88,13 @@ pub fn TextBlocksPage() -> impl IntoView {
 
             //read textblocks from local sqliteb
             let arguments = ""; //gets all
-            let order = "ORDER BY position";
+            let order_by = "position";
             let columns_to_read = vec!["content".to_string(), "position".to_string()];
             let localdb_data = local_sqlite_wrapper::get_data_by_order(
                 table_name,
                 arguments,
                 &columns_to_read,
-                order,
+                order_by,
             )
             .await;
 
@@ -112,7 +112,7 @@ pub fn TextBlocksPage() -> impl IntoView {
                         });
                     }
                 }
-                Err(e) => log!("get_data failed: {:?}", e),
+                Err(e) => log!("get_data_by_order failed: {:?}", e),
             }
         })
     });
