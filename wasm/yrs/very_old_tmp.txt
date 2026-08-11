@@ -1,0 +1,31 @@
+
+i'm gonna figure this out later.
+
+from what i can tell.
+
+the way i'm suppoed to store my individual pages is basically by creating a doc for all of them that is stored wherever they're stored. probably need to use a database to keep track of that?
+
+but the actual doc once i have it in rust would hold a get_or_insert_array() instead of text. so i can have the block functionality notion has. i'm not entirely sure about the implications of text and whatnot. like from what i understand "collaborative workspaces" can work with users editing the same stuff, but i think it's just an easier thing for me to do, to do 'get_or_insert_array' and then inside of those is store the text.
+
+this is what the ai said when i asked for "how to store data about the block". gonna need to verify if it's making stuff up or if this is what i should do. i don't know the performance implications and whatnot of this.
+
+use yrs::{Array, MapPrelim, TextPrelim, Transact, GetString, ReadTxn, WriteTxn};
+
+let blocks = doc.get_or_insert_array("blocks");
+
+let mut txn = doc.transact_mut();
+
+// Create two blocks, each is a map with a "content" text and some metadata
+let block1 = MapPrelim::from([
+    ("content".into(), TextPrelim::new("hello world").into()),
+    ("type".into(), "paragraph".into()),
+    ("id".into(), "abc123".into()),
+]);
+blocks.push_back(&mut txn, block1);
+
+let block2 = MapPrelim::from([
+    ("content".into(), TextPrelim::new("bye jupiter").into()),
+    ("type".into(), "heading".into()),
+    ("id".into(), "def456".into()),
+]);
+blocks.push_back(&mut txn, block2);

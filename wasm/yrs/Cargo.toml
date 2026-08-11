@@ -1,0 +1,14 @@
+[package]
+name = "yrs"
+version = "0.1.0"
+edition = "2024"
+default-run = "yrs_test"
+
+[lib]
+name = "crdt_test"
+path = "src/lib.rs"
+
+[dependencies]
+yrs = "0.27.0"
+serde_json = "*"
+rand = "0.10.1"

@@ -1,0 +1,17 @@
+alright let me plan this.
+
+1. so i need to be able to read and write to a text file.
+
+2. i need to save information about the text in a specific block format. i don't wanna mess around with databases right now so i'm gonna save it as a json I guess?
+
+3. i make a method for adding a change to "the list of changes waiting to be made"
+
+3.5 I need a method for converting a String to a Crdt kind of object. that yrs can handle
+
+4. i make a method for refreshing the text file. basically closing and opening. so u can edit it again and queue up a new change.
+
+5. i try to figure out how pass all those changes to yrs?
+
+6. I try to figure out how to get "current version of text file" from yrs?
+
+am i missing something?
