@@ -10,8 +10,8 @@ use yrs::types::TypeRef::XmlText;
 use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
 use yrs::{
-    Any, Array, ArrayRef, Doc, GetString, Map, MapPrelim, ReadTxn, Text, TextPrelim, Transact,
-    Update, XmlElementPrelim, XmlElementRef, XmlTextPrelim,
+    Any, Array, ArrayRef, Doc, GetString, Map, MapPrelim, MapRef, ReadTxn, Text, TextPrelim,
+    Transact, Update, XmlElementPrelim, XmlElementRef, XmlTextPrelim, XmlTextRef,
 };
 
 /*
