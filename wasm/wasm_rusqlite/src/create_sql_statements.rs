@@ -1,13 +1,12 @@
 use crate::create_table_col_def::ColumnDef;
-use crate::db_table::*;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 //use web_sys::console;
 
 // Builds CREATE TABLE SQL from a caller-supplied column list (replaces the old Table/Column version).
 pub fn generate_create_table_sql(table_name: &str, columns: &[ColumnDef]) -> String {
     let mut col_defs = Vec::new();
     for col in columns {
-        let mut def = format!("{} {}", col.0, col.1);
+        let mut def = format!("{} {}", quote_ident(&col.0), col.1);
         if col.2 {
             def.push_str(" PRIMARY KEY");
         }
@@ -27,7 +26,7 @@ pub fn generate_create_table_sql(table_name: &str, columns: &[ColumnDef]) -> Str
     }
     format!(
         "CREATE TABLE IF NOT EXISTS {} ({});",
-        table_name,
+        quote_ident(table_name),
         col_defs.join(", ")
     )
 }
@@ -43,7 +42,7 @@ pub fn generate_insert_sql(table_name: &str, values: Vec<(String, String)>) -> S
         .collect();
     format!(
         "INSERT INTO {} ({}) VALUES ({});",
-        table_name,
+        quote_ident(table_name),
         columns.join(", "),
         quoted_values.join(", ")
     )
@@ -193,6 +192,10 @@ pub fn generate_get_data_by_order_sql(
 
 fn sanitize(input: &str) -> String {
     input.replace("'", "''")
+}
+
+fn quote_ident(ident: &str) -> String {
+    format!("\"{}\"", ident.replace('"', "\"\""))
 }
 
 /*

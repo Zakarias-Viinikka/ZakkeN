@@ -11,12 +11,11 @@ default = ["console_error_panic_hook"]
 
 [dependencies]
 wasm-bindgen = "0.2.84"
-web-sys = { version = "0.3.103", features = ["console", "SharedWorker", "WorkerGlobalScope", "MessageEvent", "MessagePort", "Event"] }
+web-sys = { version = "0.3.103", features = ["console"] }
 sqlite-wasm-rs = "0.5"
 sqlite-wasm-vfs = "0.2"
 anyhow = "1.0"
 serde = { version = "1.0.228", features = ["derive"] }
-js-sys = "0.3.103"
 wasm-bindgen-futures = "0.4.76" #so i can put async on the code under wasm_bindgen
 serde-wasm-bindgen = "0.6.5" #so Vec<Vec<String>> can turn into JsValue
 

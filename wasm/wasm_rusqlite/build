@@ -1,0 +1,1 @@
+CC_wasm32_unknown_unknown=clang wasm-pack build --target web --dev

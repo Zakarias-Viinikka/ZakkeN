@@ -1,9 +1,10 @@
+// worker.js – dedicated worker that owns the OPFS SQLite connection
 import init, { LiveForever } from '../pkg/part4.js';
 
 let db_manager = null;
 let wasmInitPromise = null;
+let connection_name = null;
 
-// Catch uncaught errors and unhandled rejections so they don't disappear silently.
 self.addEventListener('error', (e) => {
   console.error('[worker] UNCAUGHT ERROR:', e.message, e.filename, e.lineno, e.colno, e.error);
 });
@@ -12,24 +13,42 @@ self.addEventListener('unhandledrejection', (e) => {
   console.error('[worker] UNHANDLED PROMISE REJECTION:', e.reason);
 });
 
-// OPFS directory check – separate async IIFE, does not block worker startup.
 (async () => {
   try {
     const root = await navigator.storage.getDirectory();
-    console.log('[worker] OPFS root handle:', root);
+    console.log('[worker] OPFS available in js environment:', root);
   } catch (e) {
     console.error('[worker] OPFS NOT AVAILABLE:', e);
   }
 })();
 
-// Define handlers before onconnect; function declarations are hoisted,
-// but `handlers` object is a normal variable, so it must be defined here.
+async function tryReconnect() {
+  let attempts = 10;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      console.log(`[worker] reconnect attempt ${attempt + 1}/${attempts}`);
+      db_manager = await LiveForever.new(connection_name);
+      console.log('[worker] reconnect succeeded');
+      return true;
+    } catch (e) {
+
+    }
+
+    if (attempt < attempts - 1) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  return false;
+}
+
 const handlers = {
   initialize: async (msg) => {
     console.log('[worker] initialize handler called, full message:', JSON.stringify(msg));
     try {
-      console.log('[worker] calling LiveForever.new with db_conn_name:', msg[1]);
-      db_manager = await LiveForever.new(msg[1]);
+      connection_name = msg[1];
+      console.log('[worker] calling LiveForever.new with db_conn_name:', connection_name);
+      db_manager = await LiveForever.new(connection_name);
       console.log('[worker] LiveForever.new resolved successfully');
       return 'ok';
     } catch (e) {
@@ -38,9 +57,19 @@ const handlers = {
     }
   },
 
+  close_conn: async () => {
+    if (db_manager) {
+      console.log('[worker] attempting to give up conn');
+      await db_manager.close_conn();
+      db_manager = null;
+      return 'closed';
+    }
+    return 'already closed';
+  },
+
   drop_table: async () => {
     console.log('[worker] drop_table handler called');
-    await db_manager.drop_table();
+    await db_manager.drop_table(msg[1]);
     console.log('[worker] drop_table completed');
     return 'droppety woppetied all of it';
   },
@@ -117,69 +146,72 @@ const handlers = {
   },
 };
 
-// Register onconnect immediately – BEFORE awaiting anything – so we never miss it.
-self.onconnect = (e) => {
-  console.log('[worker] onconnect fired');
-  const port = e.ports[0];
+self.onmessage = async (event) => {
+  console.log('[worker] onmessage received:', JSON.stringify(event.data));
 
-  if (!port) {
-    console.error('[worker] no port found in connect event');
+  const msg = event.data;
+  const command = msg[0];
+
+  if (!wasmInitPromise) {
+    console.log('[worker] starting wasm init...');
+    wasmInitPromise = init()
+      .then(() => {
+        console.log('[worker] wasm init complete');
+      })
+      .catch((err) => {
+        console.error('[worker] wasm init FAILED:', err);
+        throw err;
+      });
+  }
+
+  try {
+    await wasmInitPromise;
+  } catch (err) {
+    console.error(`[worker] WASM init failed while handling command "${command}" (message: ${JSON.stringify(msg)})`, err);
+    self.postMessage(['error', `WASM initialization failed: ${err.toString()}`]);
     return;
   }
 
-  port.onmessage = async (event) => {
-    console.log('[worker] onmessage received:', JSON.stringify(event.data));
+  const handler = handlers[command];
 
-    // Start WASM init on first message, if not already started.
-    if (!wasmInitPromise) {
-      console.log('[worker] starting wasm init...');
-      wasmInitPromise = init()
-        .then(() => {
-          console.log('[worker] wasm init complete');
-        })
-        .catch((err) => {
-          console.error('[worker] wasm init FAILED:', err);
-          throw err;
-        });
-    }
+  if (!handler) {
+    console.warn('[worker] unknown command:', command);
+    self.postMessage(['error', 'unknown command']);
+    return;
+  }
 
-    try {
-      await wasmInitPromise; // ensure WASM is ready before handling any command
-    } catch (err) {
-      console.error(`[worker] WASM init failed while handling command "${command}" (message: ${JSON.stringify(msg)})`, err);
-      port.postMessage(['error', `WASM initialization failed: ${err.toString()}`]);
-      return;
-    }
-
-    const msg = event.data;
-    const command = msg[0];
-    const handler = handlers[command];
-
-    if (!handler) {
-      console.warn('[worker] unknown command:', command);
-      port.postMessage(['error', 'unknown command']);
-      return;
-    }
-
-    if (command !== 'initialize' && !db_manager) {
-      console.warn('[worker] db not initialized for command:', command);
-      port.postMessage(['error', "Database not initialised. Send an 'initialize' command first."]);
-      return;
-    }
-
+  if (command === 'initialize') {
     try {
       const data = await handler(msg);
-      console.log('[worker] handler succeeded for:', command, 'result:', JSON.stringify(data));
-      port.postMessage([command, data]);
+      console.log('[worker] initialize succeeded:', data);
+      self.postMessage([command, data]);
     } catch (err) {
-      console.error('[worker] handler error for:', command, err);
-      port.postMessage(['error', err.toString()]);
+      console.error('[worker] initialize error:', err);
+      self.postMessage(['error', err.toString()]);
     }
-  };
+    return;
+  }
 
-  console.log('[worker] port message listener attached; starting port...');
-  port.start();
-  console.log('[worker] port started');
+  if (!db_manager) {
+    console.log('[worker] no active connection, requesting want_conn');
+    self.postMessage(['want_conn']);
+
+    const ok = await tryReconnect();
+    if (!ok) {
+      self.postMessage(['error', "couldn't get sahpool back"]);
+      return;
+    }
+  }
+
+  try {
+    const data = await handler(msg);
+    console.log('[worker] handler succeeded for:', command, 'result:', JSON.stringify(data));
+    self.postMessage([command, data]);
+  } catch (err) {
+    console.error('[worker] handler error for:', command, err);
+    self.postMessage(['error', err.toString()]);
+  }
 };
 
-console.log('[worker] worker.js loaded, onconnect registered');
+console.log('[worker] worker.js loaded');
+self.postMessage(['ready']);
