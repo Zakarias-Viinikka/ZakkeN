@@ -1,23 +1,38 @@
+use anyhow::{Result, anyhow};
+use leptos::logging::log;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use leptos_integration_3::local_sqlite::column_helper;
 use leptos_integration_3::local_sqlite::local_sqlite_wrapper;
 use random_word::{self, Lang};
+
 #[component]
-pub fn Setup() -> impl IntoView {
-    create_table_if_not_exist();
+pub fn Setup(finished_setup: WriteSignal<bool>) -> impl IntoView {
+    Effect::new(move || {
+        let finished_setup = finished_setup.clone();
+        spawn_local(async move {
+            create_table_if_not_exist().await;
+            finished_setup.set(true);
+        });
+    });
 }
 
-pub async fn create_table_if_not_exist() -> Result<(), JsValue> {
-    let tables = local_sqlite_wrapper::list_tables().await?;
+pub async fn create_table_if_not_exist() -> Result<()> {
+    let tables = local_sqlite_wrapper::list_tables()
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
     if tables.iter().any(|t| t == "data") {
         log!("data table already exists");
         return Ok(());
     }
 
-    let columns = new_text_block_columns();
+    let columns = data_col_def();
 
-    let msg = local_sqlite_wrapper::create_table("data", &columns).await?;
+    let msg = local_sqlite_wrapper::create_table("data", &columns)
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
     log!("{}", msg);
-    create_hardcoded_columns_if_not_exist()?;
+    create_hardcoded_columns_if_not_exist().await?;
     Ok(())
 }
 
@@ -48,9 +63,16 @@ pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
 }
 
 fn generate_random_words() -> String {
-    let words = Vec::new();
-    for i in 0..5 {
+    let mut words = Vec::new();
+    for _ in 0..5 {
         words.push(random_word::get(Lang::En));
     }
     words.join(" ")
+}
+
+fn data_col_def() -> Vec<local_sqlite_wrapper::CreateTableColumnDef> {
+    vec![
+        column_helper::id_column(),
+        column_helper::column("random_words", "TEXT"),
+    ]
 }

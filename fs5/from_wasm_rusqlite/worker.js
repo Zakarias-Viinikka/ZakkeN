@@ -205,7 +205,7 @@ self.onmessage = async (event) => {
 
   try {
     const data = await handler(msg);
-    console.log('[worker] handler succeeded for:', command, 'result:', JSON.stringify(data));
+    //console.log('[worker] handler succeeded for:', command, 'result:', JSON.stringify(data));
     self.postMessage([command, data]);
   } catch (err) {
     console.error('[worker] handler error for:', command, err);

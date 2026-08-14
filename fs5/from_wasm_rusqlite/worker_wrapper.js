@@ -1,6 +1,6 @@
-import { GiveMeSahpool, DoesSomebodyElseWantSahpool } from './from_wasm_rusqlite/share_sahpool.js';
+import { GiveMeSahpool, DoesSomebodyElseWantSahpool } from './share_sahpool.js';
 
-const worker = new Worker('./from_wasm_rusqlite/worker.js', { type: 'module' });
+const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
 
 let askQueue = Promise.resolve();
 let readyResolve = null;
