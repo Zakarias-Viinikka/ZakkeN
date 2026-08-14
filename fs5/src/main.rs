@@ -1,0 +1,25 @@
+use leptos::prelude::*;
+use leptos_router::components::{A, Route, Router, Routes};
+use leptos_router::path; // for the path!() macro
+
+fn main() {
+    console_error_panic_hook::set_once();
+    mount_to_body(Main);
+}
+#[component]
+fn Main() -> impl IntoView {
+    view! {
+      <Router>
+        <nav>
+          /* ... */
+        </nav>
+        <main>
+            <Routes fallback=|| "Not found.">
+                <Route path=path!("/") view=fs5::app::App/>
+                //<Route path=path!("/page1") view=Page1/>        //<- both work
+                //<Route path=path!("/page2") view=page2::Page2/> //<- both work
+            </Routes>
+        </main>
+      </Router>
+    }
+}
