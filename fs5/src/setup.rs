@@ -17,6 +17,7 @@ pub async fn create_table_if_not_exist() -> Result<(), JsValue> {
 
     let msg = local_sqlite_wrapper::create_table("data", &columns).await?;
     log!("{}", msg);
+    create_hardcoded_columns_if_not_exist()?;
     Ok(())
 }
 
@@ -46,7 +47,7 @@ pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
     }
 }
 
-fn genereate_random_words() -> String {
+fn generate_random_words() -> String {
     let words = Vec::new();
     for i in 0..5 {
         words.push(random_word::get(Lang::En));

@@ -20,19 +20,16 @@ pub fn App() -> impl IntoView {
                 local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
             match data {
                 Ok(data) => {
-                    if let Some(data) = data.into_iter.next() {
-                        let ctr = 0;
+                    if let Some(data) = data.into_iter().next() {
                         let texts = data
                             .into_iter()
-                            .map(|text| {
-                                ctr = ctr + 1;
-                                Text {
-                                    id: ctr,
-                                    text: text,
-                                }
+                            .enumerate()
+                            .map(|(index, text)| Text {
+                                id: index,
+                                text: text,
                             })
-                            .collect::<Vec<_>>();
-                        set_texts.set(data);
+                            .collect();
+                        set_texts.set(texts);
                     }
                 }
                 Err(e) => eprintln!("Error: {}", e),
