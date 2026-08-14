@@ -1,0 +1,35 @@
+[package]
+name = "wasm_rusqlite"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+web-sys = { version = "0.3.103", features = ["console"] }
+sqlite-wasm-rs = "0.5"
+sqlite-wasm-vfs = "0.2"
+anyhow = "1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+wasm-bindgen-futures = "0.4.76" #so i can put async on the code under wasm_bindgen
+serde-wasm-bindgen = "0.6.5" #so Vec<Vec<String>> can turn into JsValue
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.7", optional = true }
+rusqlite = { version = "0.40.2", features = ["bundled"] } #rusqlite requires some clang install i had from before. i also had to do 'export CC_wasm32_unknown_unknown=clang'
+
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.76"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"

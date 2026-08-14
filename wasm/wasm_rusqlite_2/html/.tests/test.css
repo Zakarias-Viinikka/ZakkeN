@@ -1,0 +1,64 @@
+:root {
+  --bg: #14161a;
+  --panel: #1c1f26;
+  --border: #2c303a;
+  --text: #d8dce3;
+  --muted: #7b8291;
+  --accent: #5fd0b8;
+  --danger: #e0605a;
+  --mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Log output (same as main GUI) */
+#log {
+  background: #111318;
+  color: #d8dee9;
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+  white-space: normal; /* container ignores whitespace between children */
+}
+
+#log div {
+    white-space: pre-wrap;      /* each message preserves its own formatting */
+    margin-bottom: 0.4rem;      /* existing spacing */
+  margin-bottom: 0.4rem;
+}
+
+#log .tag {
+  color: #6ec1ff;
+}
+
+/* Table dump (same as main GUI .table-dumb) */
+.table-dumb {
+  background: #12181a;
+  color: #a8d8c9;
+  border-left: 3px solid #2a7f62;
+  border-radius: 6px;
+  padding: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.log-error {
+  color: var(--danger);   /* your existing red variable #e0605a */
+}
