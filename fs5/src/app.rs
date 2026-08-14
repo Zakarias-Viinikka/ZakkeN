@@ -13,6 +13,8 @@ pub fn App() -> impl IntoView {
     let (texts, set_texts) = signal(Vec::new());
     let (setup_finished, finished_setup_setter) = signal(false);
     Effect::new(move || {
+        //bug that's gonna create unwrap error if the table hasn't been populated and exists.
+        // the effect doesn't actually check if "setup_finished" is true or not
         let table_name = "data";
         let arguments = "";
         let columns_to_read = vec![];
