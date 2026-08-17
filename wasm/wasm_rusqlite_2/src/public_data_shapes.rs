@@ -23,7 +23,7 @@ pub struct ListTablesOut {
     pub table_names: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetDataIn {
     pub table_name: String,
     pub arguments: Vec<SelectArgument>,
@@ -40,7 +40,7 @@ pub enum SelectArgument {
     XLessThanOrEqualY { x: String, y: String },
     XLikeY { x: String, y: String },
     XInY { x: String, y: Vec<String> },
-    RawSql(String),
+    All,
 }
 
 impl SelectArgument {
@@ -61,13 +61,47 @@ impl SelectArgument {
                 let quoted_values: Vec<String> = y.iter().map(|v| quote_value(v)).collect();
                 format!("{} IN ({})", x, quoted_values.join(", "))
             }
-            SelectArgument::RawSql(sql) => sql.clone(),
+            SelectArgument::All => String::new(),
         }
     }
 }
 
+//let result: Vec<Vec<String>>
 #[derive(Serialize, Deserialize, Debug)]
-pub struct GetDataOut {}
+pub struct GetDataOut {
+    pub rows: Vec<table_row::Row>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GetDataOrderedIn {
+    pub table_name: String,
+    pub arguments: Vec<SelectArgument>,
+    pub columns_to_read: Vec<String>,
+    pub order_by: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ColumnValue {
+    pub column_name: String,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InsertDataIn {
+    pub table_name: String,
+    pub values: Vec<ColumnValue>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InsertDataOut {
+    pub result: Result<(), DbError>,
+}
+
+// public_data_shapes.rs
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DropTableIn {
+    pub table_name: String,
+}
 
 pub trait Convert: Serialize + DeserializeOwned {
     fn serialize_wrapper(&self) -> Vec<u8> {

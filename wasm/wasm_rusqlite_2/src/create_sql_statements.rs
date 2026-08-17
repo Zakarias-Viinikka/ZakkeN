@@ -194,7 +194,7 @@ fn sanitize(input: &str) -> String {
     input.replace("'", "''")
 }
 
-fn quote_ident(ident: &str) -> String {
+pub fn quote_ident(ident: &str) -> String {
     format!("\"{}\"", ident.replace('"', "\"\""))
 }
 

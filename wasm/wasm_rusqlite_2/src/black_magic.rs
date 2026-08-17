@@ -11,7 +11,7 @@ use crate::create_sql_statements::*;
 use anyhow::{Result, anyhow, bail};
 
 use crate::create_table::ColumnDef;
-use crate::public_data_shapes::DbError;
+use crate::public_data_shapes::*;
 
 pub async fn create_local_db_connection(
     conn_name: &str,
@@ -74,17 +74,24 @@ pub fn list_tables(conn: &rusqlite::Connection) -> Result<Vec<String>, DbError> 
 pub fn insert_into_table(
     conn: &rusqlite::Connection,
     table_name: &str,
-    values: Vec<(String, String)>,
-) -> Result<()> {
+    values: Vec<ColumnValue>,
+) -> Result<(), DbError> {
+    let values: Vec<(String, String)> = values
+        .into_iter()
+        .map(|cv| (cv.column_name, cv.value))
+        .collect();
+
     let sql = generate_insert_sql(table_name, values);
-    conn.execute(&sql, [])?;
+    conn.execute(&sql, []).map_err(|e| {
+        DbError::SqlExecuteFail(format!("insert_into_table failed: {}, sql: {}", e, sql))
+    })?;
     Ok(())
 }
 
-pub fn drop_table(conn: &rusqlite::Connection, table_name: &str) -> Result<(), JsValue> {
-    let sql = format!("DROP TABLE IF EXISTS {};", table_name);
+pub fn drop_table(conn: &rusqlite::Connection, table_name: &str) -> Result<(), DbError> {
+    let sql = format!("DROP TABLE IF EXISTS {};", quote_ident(table_name));
     conn.execute(&sql, [])
-        .map_err(|e| JsValue::from(e.to_string()))?;
+        .map_err(|e| DbError::SqlExecuteFail(format!("drop_table failed: {}, sql: {}", e, sql)))?;
     Ok(())
 }
 

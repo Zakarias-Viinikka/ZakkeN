@@ -58,7 +58,7 @@ impl LiveForever {
                 return DbError::ConnError(e.to_string()).serialize_wrapper();
             }
         }
-        public_data_shapes::ok_serialized()
+        ok_serialized()
     }
 
     pub async fn list_tables(&self) -> Vec<u8> /*Result<Vec<String>, JsValue>*/ {
@@ -72,73 +72,86 @@ impl LiveForever {
             Err(e) => return e.serialize_wrapper(),
         };
 
-        public_data_shapes::ListTablesOut {
+        ListTablesOut {
             table_names: list_of_table_names,
         }
         .serialize_wrapper()
     }
 
-    pub async fn get_data(
-        &self,
-        table_name: String,
-        arguments: String,
-        columns_to_read: Vec<String>,
-    ) -> Vec<u8> {
-        let conn = self.conn()?;
-        let result = black_magic_read::read_from_db(
-            conn,
-            table_name,            // String → impl AsRef<str>
-            &[arguments.as_str()], // single condition as a slice of &str
-            &columns_to_read,      // &Vec<String> → &[impl AsRef<str>]
-        )
-        .map_err(|e| JsValue::from(e.to_string()))?;
-        let result =
-            serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from(e.to_string()))?;
-        Ok(result) //serde-wasm-bindgen = "0.6.5"
+    pub async fn get_data(&self, data: Vec<u8>) -> Vec<u8> {
+        let get_data_in = match GetDataIn::deserialize_wrapper(&data) {
+            Ok(get_data_in) => get_data_in,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        let conn = match self.conn() {
+            Ok(c) => c,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        let result = black_magic_read::read_from_db(conn, &get_data_in);
+
+        match result {
+            //let result: Vec<Vec<String>>
+            Ok(result) => GetDataOut { rows: result }.serialize_wrapper(),
+            Err(e) => e.serialize_wrapper(),
+        }
     }
 
-    pub async fn get_data_ordered(
-        &self,
-        table_name: String,
-        arguments: String,
-        columns_to_read: Vec<String>,
-        order_by: String,
-    ) -> Result<JsValue, JsValue> {
-        let conn = self.conn()?;
-        let result = black_magic_read::read_from_db_ordered(
-            conn,
-            table_name,
-            &[arguments.as_str()],
-            &columns_to_read,
-            &order_by,
-        )
-        .map_err(|e| JsValue::from(e.to_string()))?;
-        let result =
-            serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from(e.to_string()))?;
-        Ok(result)
+    pub async fn get_data_ordered(&self, data: Vec<u8>) -> Vec<u8> {
+        let get_data_ordered_in = match GetDataOrderedIn::deserialize_wrapper(&data) {
+            Ok(inp) => inp,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        let conn = match self.conn() {
+            Ok(c) => c,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        let result = black_magic_read::read_from_db_ordered(conn, &get_data_ordered_in);
+
+        match result {
+            Ok(rows) => GetDataOut { rows }.serialize_wrapper(),
+            Err(e) => e.serialize_wrapper(),
+        }
     }
 
-    pub async fn insert_data(
-        &self,
-        table_name: String,
-        col_names: Vec<String>, // array of column names from JS
-        vals: Vec<String>,      // array of values from JS
-    ) -> Result<(), JsValue> {
-        let conn = self.conn()?;
-        // zip the two arrays into (column, value) pairs
-        let values: Vec<(String, String)> = col_names.into_iter().zip(vals.into_iter()).collect();
+    pub async fn insert_data(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = match InsertDataIn::deserialize_wrapper(&data) {
+            Ok(inp) => inp,
+            Err(e) => return e.serialize_wrapper(),
+        };
 
-        black_magic::insert_into_table(conn, &table_name, values)
-            .map_err(|e| JsValue::from(e.to_string()))?;
-        Ok(())
+        let conn = match self.conn() {
+            Ok(c) => c,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        match black_magic::insert_into_table(conn, &input.table_name, input.values) {
+            Ok(()) => ok_serialized(),
+            Err(e) => e.serialize_wrapper(),
+        }
     }
 
-    pub async fn drop_table(&self, table_name: String) -> Result<(), JsValue> {
-        let conn = self.conn()?;
-        black_magic::drop_table(conn, &table_name)?;
-        Ok(())
+    pub async fn drop_table(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = match DropTableIn::deserialize_wrapper(&data) {
+            Ok(inp) => inp,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        let conn = match self.conn() {
+            Ok(c) => c,
+            Err(e) => return e.serialize_wrapper(),
+        };
+
+        match black_magic::drop_table(conn, &input.table_name) {
+            Ok(()) => ok_serialized(),
+            Err(e) => e.serialize_wrapper(),
+        }
     }
 
+    //this one is next
     pub async fn edit_col_in_row(
         &self,
         table_name: String,
@@ -211,12 +224,6 @@ impl LiveForever {
         self.edit_col_in_row(table_name, row_id_2, column, value1)
             .await?;
 
-        Ok(())
-    }
-
-    pub async fn delete_table(&self, table_name: String) -> Result<(), JsValue> {
-        let conn = self.conn()?;
-        black_magic::drop_table(conn, &table_name)?; // already exists
         Ok(())
     }
 

@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Row {
-    cols: Vec<Col>,
+    pub cols: Vec<Col>,
 }
 
 impl Col {
@@ -32,6 +35,7 @@ impl Col {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Col {
     Null,
     Integer(i64),
