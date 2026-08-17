@@ -10,7 +10,8 @@ use crate::create_sql_statements::*;
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::create_table_col_def::ColumnDef;
+use crate::create_table::ColumnDef;
+use crate::public_data_shapes::DbError;
 
 pub async fn create_local_db_connection(
     conn_name: &str,
@@ -30,37 +31,42 @@ pub fn create_table(
     conn: &rusqlite::Connection,
     table_name: &str,
     columns: Vec<ColumnDef>,
-) -> Result<()> {
+) -> Result<(), DbError> {
     if table_name.is_empty() {
-        bail!("table_name is empty");
+        return Err(DbError::IllegalInput("table_name is empty".to_string()));
     }
     let sql = generate_create_table_sql(table_name, &columns);
-    conn.execute(&sql, [])?;
+    conn.execute(&sql, [])
+        .map_err(|e| DbError::SqlExecuteFail(format!("err: {}, sql: {}", e, sql)))?;
     Ok(())
 }
 
-pub fn close_conn(conn: rusqlite::Connection) -> Result<()> {
+pub fn close_conn(conn: rusqlite::Connection) -> Result<(), DbError> {
     conn.close()
-        .map_err(|(_, e)| anyhow!("Failed to close connection: {}", e))?;
+        .map_err(|(_, e)| DbError::ConnError(format!("Failed to close connection: {}", e)))?;
     Ok(())
 }
 
-pub fn list_tables(conn: &rusqlite::Connection) -> Result<Vec<String>, JsValue> {
+pub fn list_tables(conn: &rusqlite::Connection) -> Result<Vec<String>, DbError> {
     let sql = generate_read_from_table_sql(
         "sqlite_master",
         &["type = 'table'", "name NOT LIKE 'sqlite_%'"],
         &["name"],
     );
 
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|e| JsValue::from(e.to_string()))?;
+    let result = conn.prepare(&sql);
+    let Ok(mut stmt) = result else {
+        return Err(DbError::SqlExecuteFail(format!(
+            "failed to execute prepare when trying to list tables: {:?}, sql: {}",
+            result, sql
+        )));
+    };
 
     let tables = stmt
         .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|e| JsValue::from(e.to_string()))?
+        .map_err(|e| DbError::BadCode(format!("failed to query list tables: {}", e)))?
         .collect::<Result<Vec<String>, _>>()
-        .map_err(|e| JsValue::from(e.to_string()))?;
+        .map_err(|e| DbError::BadCode(format!("failed to query list tables: {}", e)))?;
 
     Ok(tables)
 }

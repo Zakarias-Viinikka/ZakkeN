@@ -1,11 +1,12 @@
 mod black_magic;
 mod black_magic_read;
 mod create_sql_statements;
-mod create_table_col_def;
+mod create_table;
 pub mod public_data_shapes;
 mod utils;
+use public_data_shapes::*;
 
-use create_table_col_def::ColumnDef;
+use create_table::ColumnDef;
 
 use wasm_bindgen::prelude::*;
 
@@ -28,36 +29,54 @@ impl LiveForever {
         })
     }
 
-    pub async fn create_table(&self, table_name: String, columns: JsValue) -> Result<(), JsValue> {
-        let columns: Vec<ColumnDef> =
-            serde_wasm_bindgen::from_value(columns).map_err(|e| JsValue::from(e.to_string()))?;
+    pub async fn create_table(&self, data: JsValue) -> Vec<u8> {
+        let result = CreateTableIn::cure_from_js_value(data);
+        let Ok(data) = result else {
+            let e = result.unwrap_err();
+            return DbError::CureFail(e.to_string()).serialize_wrapper();
+        };
 
-        let conn = self
-            .db_conn
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("Database not connected"))?;
+        let (table_name, columns) = (data.table_name, data.columns);
 
-        black_magic::create_table(conn, &table_name, columns)
-            .map_err(|e| JsValue::from(e.to_string()))?;
+        let Some(conn) = self.db_conn.as_ref() else {
+            return DbError::ConnError("Database not connected".to_string()).serialize_wrapper();
+        };
 
-        Ok(())
+        let result = black_magic::create_table(conn, &table_name, columns);
+        result.serialize_wrapper()
     }
 
-    pub async fn close_conn(&mut self) -> Result<(), JsValue> {
+    pub async fn close_conn(&mut self) -> Vec<u8> {
         if let Some(conn) = self.db_conn.take() {
-            black_magic::close_conn(conn).map_err(|e| JsValue::from(e.to_string()))?;
+            if let Err(e) = black_magic::close_conn(conn) {
+                return e.serialize_wrapper();
+            }
         }
 
         if let Some(util) = self.sahpool_util.take() {
-            util.pause_vfs().map_err(|e| JsValue::from(e.to_string()))?;
+            if let Err(e) = util.pause_vfs() {
+                return DbError::ConnError(e.to_string()).serialize_wrapper();
+            }
         }
-
-        Ok(())
+        public_data_shapes::ok_serialized()
     }
 
-    pub async fn list_tables(&self) -> Result<Vec<String>, JsValue> {
-        let conn = self.conn()?;
-        black_magic::list_tables(conn)
+    pub async fn list_tables(&self) -> Vec<u8> /*Result<Vec<String>, JsValue>*/ {
+        let result = self.conn();
+        let Ok(conn) = result else {
+            let e = result.unwrap_err();
+            return e.serialize_wrapper();
+        };
+
+        let result = black_magic::list_tables(conn);
+        let Ok(list_of_table_names) = result else {
+            let e = result.unwrap_err();
+            return e.serialize_wrapper();
+        };
+        public_data_shapes::ListTablesOut {
+            table_names: list_of_table_names,
+        }
+        .serialize_wrapper()
     }
 
     pub async fn get_data(
@@ -213,9 +232,9 @@ impl LiveForever {
         Ok(())
     }
 
-    fn conn(&self) -> Result<&rusqlite::Connection, JsValue> {
+    fn conn(&self) -> Result<&rusqlite::Connection, DbError> {
         self.db_conn
             .as_ref()
-            .ok_or_else(|| JsValue::from_str("Database not connected"))
+            .ok_or_else(|| DbError::ConnError("Database not connected".to_string()))
     }
 }

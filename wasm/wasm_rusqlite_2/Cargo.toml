@@ -25,6 +25,8 @@ serde-wasm-bindgen = "0.6.5" #so Vec<Vec<String>> can turn into JsValue
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
 rusqlite = { version = "0.40.2", features = ["bundled"] } #rusqlite requires some clang install i had from before. i also had to do 'export CC_wasm32_unknown_unknown=clang'
+bincode = "1.3.3"
+js-sys = "0.3.104"
 
 
 [dev-dependencies]

@@ -1,4 +1,4 @@
-use crate::create_table_col_def::ColumnDef;
+use crate::create_table::ColumnDef;
 use wasm_bindgen::JsValue;
 //use web_sys::console;
 
