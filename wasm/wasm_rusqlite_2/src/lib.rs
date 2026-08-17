@@ -3,6 +3,7 @@ mod black_magic_read;
 mod create_sql_statements;
 mod create_table;
 pub mod public_data_shapes;
+pub mod table_row;
 mod utils;
 use public_data_shapes::*;
 
@@ -82,7 +83,7 @@ impl LiveForever {
         table_name: String,
         arguments: String,
         columns_to_read: Vec<String>,
-    ) -> Result<JsValue, JsValue> {
+    ) -> Vec<u8> {
         let conn = self.conn()?;
         let result = black_magic_read::read_from_db(
             conn,

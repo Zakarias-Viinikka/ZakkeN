@@ -1,3 +1,4 @@
+use crate::table_row;
 use crate::{LiveForever, create_table};
 use anyhow::{Result, anyhow};
 use js_sys::Uint8Array;
@@ -21,7 +22,52 @@ pub struct CreateTableOut {
 pub struct ListTablesOut {
     pub table_names: Vec<String>,
 }
-/*Result<Vec<String>, JsValue>*/
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDataIn {
+    pub table_name: String,
+    pub arguments: Vec<SelectArgument>,
+    pub columns_to_read: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum SelectArgument {
+    XEqualY { x: String, y: String },
+    XNotEqualY { x: String, y: String },
+    XGreaterThanY { x: String, y: String },
+    XLessThanY { x: String, y: String },
+    XGreaterThanOrEqualY { x: String, y: String },
+    XLessThanOrEqualY { x: String, y: String },
+    XLikeY { x: String, y: String },
+    XInY { x: String, y: Vec<String> },
+    RawSql(String),
+}
+
+impl SelectArgument {
+    pub fn to_sql_condition(&self) -> String {
+        fn quote_value(value: &str) -> String {
+            format!("'{}'", value.replace('\'', "''"))
+        }
+
+        match self {
+            SelectArgument::XEqualY { x, y } => format!("{} = {}", x, quote_value(y)),
+            SelectArgument::XNotEqualY { x, y } => format!("{} != {}", x, quote_value(y)),
+            SelectArgument::XGreaterThanY { x, y } => format!("{} > {}", x, quote_value(y)),
+            SelectArgument::XLessThanY { x, y } => format!("{} < {}", x, quote_value(y)),
+            SelectArgument::XGreaterThanOrEqualY { x, y } => format!("{} >= {}", x, quote_value(y)),
+            SelectArgument::XLessThanOrEqualY { x, y } => format!("{} <= {}", x, quote_value(y)),
+            SelectArgument::XLikeY { x, y } => format!("{} LIKE {}", x, quote_value(y)),
+            SelectArgument::XInY { x, y } => {
+                let quoted_values: Vec<String> = y.iter().map(|v| quote_value(v)).collect();
+                format!("{} IN ({})", x, quoted_values.join(", "))
+            }
+            SelectArgument::RawSql(sql) => sql.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetDataOut {}
 
 pub trait Convert: Serialize + DeserializeOwned {
     fn serialize_wrapper(&self) -> Vec<u8> {

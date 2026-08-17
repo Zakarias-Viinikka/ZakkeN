@@ -1,4 +1,4 @@
-use crate::create_sql_statements::*;
+use crate::{create_sql_statements::*, public_data_shapes::DbError};
 use anyhow::Result;
 use rusqlite::Connection;
 
@@ -7,9 +7,10 @@ pub fn read_from_db(
     table_name: impl AsRef<str>,
     arguments: &[impl AsRef<str>],
     columns_to_read: &[impl AsRef<str>],
-) -> Result<Vec<Vec<String>>> {
+) -> Result<Vec<Vec<String>>, DbError> {
     let sql = generate_read_from_table_sql(&table_name, arguments, columns_to_read);
     query_strings(conn, &sql)
+        .map_err(|e| DbError::SqlExecuteFail(format!("read_from_db failed: {}, sql: {}", e, sql)))
 }
 
 pub fn read_from_db_ordered(
