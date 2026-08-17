@@ -33,11 +33,11 @@ pub trait Convert: Serialize + DeserializeOwned {
         })
     }
 
-    fn deserialize_wrapper(data: &[u8]) -> Result<Self> {
-        bincode::deserialize(data).map_err(|e| anyhow!(e))
+    fn deserialize_wrapper(data: &[u8]) -> Result<Self, DbError> {
+        bincode::deserialize(data).map_err(|e| DbError::CureFail(e.to_string()))
     }
 
-    fn cure_from_js_value(value: JsValue) -> Result<Self> {
+    fn cure_from_js_value(value: JsValue) -> Result<Self, DbError> {
         let bytes = Uint8Array::from(value).to_vec();
         <Self>::deserialize_wrapper(&bytes)
     }

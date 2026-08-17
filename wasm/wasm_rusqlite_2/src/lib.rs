@@ -30,10 +30,9 @@ impl LiveForever {
     }
 
     pub async fn create_table(&self, data: JsValue) -> Vec<u8> {
-        let result = CreateTableIn::cure_from_js_value(data);
-        let Ok(data) = result else {
-            let e = result.unwrap_err();
-            return DbError::CureFail(e.to_string()).serialize_wrapper();
+        let data = match CreateTableIn::cure_from_js_value(data) {
+            Ok(data) => data,
+            Err(e) => return e.serialize_wrapper(),
         };
 
         let (table_name, columns) = (data.table_name, data.columns);
@@ -62,17 +61,16 @@ impl LiveForever {
     }
 
     pub async fn list_tables(&self) -> Vec<u8> /*Result<Vec<String>, JsValue>*/ {
-        let result = self.conn();
-        let Ok(conn) = result else {
-            let e = result.unwrap_err();
-            return e.serialize_wrapper();
+        let conn = match self.conn() {
+            Ok(c) => c,
+            Err(e) => return e.serialize_wrapper(),
         };
 
-        let result = black_magic::list_tables(conn);
-        let Ok(list_of_table_names) = result else {
-            let e = result.unwrap_err();
-            return e.serialize_wrapper();
+        let list_of_table_names = match black_magic::list_tables(conn) {
+            Ok(l) => l,
+            Err(e) => return e.serialize_wrapper(),
         };
+
         public_data_shapes::ListTablesOut {
             table_names: list_of_table_names,
         }
