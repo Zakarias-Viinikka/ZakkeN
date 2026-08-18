@@ -4,16 +4,14 @@ mod create_sql_statements;
 mod create_table;
 pub mod public_data_shapes;
 pub mod table_row;
-mod utils;
 use public_data_shapes::*;
-
-use create_table::ColumnDef;
 
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct LiveForever {
     db_conn: Option<rusqlite::Connection>,
+    conn_name: String,
     sahpool_util: Option<sqlite_wasm_vfs::sahpool::OpfsSAHPoolUtil>,
 }
 
@@ -36,6 +34,7 @@ impl LiveForever {
         Ok(LiveForever {
             db_conn: Some(db_conn),
             sahpool_util: Some(sahpool_util),
+            conn_name,
         })
     }
 
@@ -130,91 +129,210 @@ impl LiveForever {
         }
     }
 
-    //this one is next
-    pub async fn edit_col_in_row(
-        &self,
-        table_name: String,
-        row_id: String,
-        column: String,
-        new_value: String,
-    ) -> Result<(), JsValue> {
-        let conn = self.conn()?;
-        black_magic::edit_col_in_row(conn, &table_name, &row_id, (column, new_value))
-            .map_err(|e| JsValue::from(e.to_string()))?;
-        Ok(())
+    pub async fn edit_col_in_row(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(EditColInRowIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::edit_col_in_row(
+            conn,
+            &input.table_name,
+            &input.row_id,
+            &input.column,
+            &input.new_value
+        ));
+
+        ok_serialized()
     }
 
-    pub async fn check_table(&self, table_name: &str) -> Result<Vec<String>, JsValue> {
-        let conn = self.conn()?;
-        black_magic::table_shape(conn, table_name)
+    pub async fn check_table(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(CheckTableIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        let result = black_magic::table_shape(conn, &input.table_name);
+        let columns = unwrap_or_bail!(result);
+
+        CheckTableOut { columns: columns }.serialize_wrapper()
     }
 
-    pub async fn delete_row(&self, table_name: String, row_id: String) -> Result<(), JsValue> {
-        let conn = self.conn()?;
-        black_magic::delete_row(conn, &table_name, &row_id)
-            .map_err(|e| JsValue::from(e.to_string()))?;
-        Ok(())
+    pub async fn delete_row(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(DeleteRowIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::delete_row(
+            conn,
+            &input.table_name,
+            &input.row_id
+        ));
+
+        ok_serialized()
     }
 
-    pub async fn swap_columns(
-        &self,
-        table_name: String,
-        row_id_1: String,
-        row_id_2: String,
-        column: String,
-    ) -> Result<(), JsValue> {
-        let value1 = self
-            .get_data(
-                table_name.clone(),
-                format!("id = {}", row_id_1),
-                vec![column.clone()],
-            )
-            .await?;
+    pub async fn swap_columns(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(SwapColumnsIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
 
-        let value2 = self
-            .get_data(
-                table_name.clone(),
-                format!("id = {}", row_id_2),
-                vec![column.clone()],
-            )
-            .await?;
+        let get_value = |row_id: &str| -> Result<table_row::Col, DbError> {
+            let get_data_in = GetDataIn {
+                table_name: input.table_name.clone(),
+                arguments: vec![SelectArgument::XEqualY {
+                    x: "id".to_string(),
+                    y: row_id.to_string(),
+                }],
+                columns_to_read: vec![input.column.clone()],
+            };
 
-        let value1: Vec<Vec<String>> =
-            serde_wasm_bindgen::from_value(value1).map_err(|e| JsValue::from(e.to_string()))?;
+            let rows = black_magic_read::read_from_db(conn, &get_data_in)?;
+            let row = rows
+                .into_iter()
+                .next()
+                .ok_or_else(|| DbError::IllegalInput(format!("No row found for id {}", row_id)))?;
 
-        let value2: Vec<Vec<String>> =
-            serde_wasm_bindgen::from_value(value2).map_err(|e| JsValue::from(e.to_string()))?;
+            let col = row.cols.into_iter().next().ok_or_else(|| {
+                DbError::IllegalInput(format!("No column value for id {}", row_id))
+            })?;
 
-        let value1 = value1
-            .into_iter()
-            .next()
-            .and_then(|mut row| row.pop())
-            .ok_or_else(|| JsValue::from_str("No row found for first id"))?;
+            Ok(col)
+        };
 
-        let value2 = value2
-            .into_iter()
-            .next()
-            .and_then(|mut row| row.pop())
-            .ok_or_else(|| JsValue::from_str("No row found for second id"))?;
+        let value1 = unwrap_or_bail!(get_value(&input.row_id_1));
+        let value2 = unwrap_or_bail!(get_value(&input.row_id_2));
 
-        self.edit_col_in_row(table_name.clone(), row_id_1, column.clone(), value2)
-            .await?;
+        unwrap_or_bail!(black_magic::edit_col_in_row(
+            conn,
+            &input.table_name,
+            &input.row_id_1,
+            &input.column,
+            &value2
+        ));
 
-        self.edit_col_in_row(table_name, row_id_2, column, value1)
-            .await?;
+        unwrap_or_bail!(black_magic::edit_col_in_row(
+            conn,
+            &input.table_name,
+            &input.row_id_2,
+            &input.column,
+            &value1
+        ));
 
-        Ok(())
+        ok_serialized()
     }
 
-    pub async fn create_index(
-        &self,
-        table_name: String,
-        column_name: String,
-    ) -> Result<(), JsValue> {
-        let conn = self.conn()?;
-        black_magic::create_index(conn, &table_name, &column_name) // PLACEHOLDER - doesn't exist yet
-            .map_err(|e| JsValue::from(e.to_string()))?;
-        Ok(())
+    pub async fn create_index(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(CreateIndexIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::create_index(
+            conn,
+            &input.table_name,
+            &input.column_name
+        ));
+
+        ok_serialized()
+    }
+
+    pub async fn check_index(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(CheckIndexIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        let is_indexed = unwrap_or_bail!(black_magic::check_index(
+            conn,
+            &input.table_name,
+            &input.column_name
+        ));
+
+        CheckIndexOut { is_indexed }.serialize_wrapper()
+    }
+
+    pub async fn add_column(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(AddColumnIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::add_column(
+            conn,
+            &input.table_name,
+            input.column
+        ));
+
+        ok_serialized()
+    }
+
+    pub async fn remove_column(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(RemoveColumnIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::remove_column(
+            conn,
+            &input.table_name,
+            &input.column_name
+        ));
+
+        ok_serialized()
+    }
+
+    pub async fn export_database(&self, _data: Vec<u8>) -> Vec<u8> {
+        let util = match self.sahpool_util.as_ref() {
+            Some(u) => u,
+            None => {
+                return DbError::ConnError("SAH pool not connected".to_string())
+                    .serialize_wrapper();
+            }
+        };
+
+        let bytes = unwrap_or_bail!(black_magic::export_database(util, &self.conn_name));
+
+        ExportDatabaseOut { data: bytes }.serialize_wrapper()
+    }
+
+    pub async fn export_tables(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(ExportTablesIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        let mut tables = Vec::new();
+
+        for table_name in input.table_names {
+            let columns = unwrap_or_bail!(black_magic::table_shape(conn, &table_name));
+
+            let get_in = GetDataIn {
+                table_name: table_name.clone(),
+                arguments: vec![SelectArgument::All],
+                columns_to_read: Vec::new(),
+            };
+
+            let rows = unwrap_or_bail!(black_magic_read::read_from_db(conn, &get_in));
+
+            tables.push(TableExport {
+                table_name,
+                columns,
+                rows,
+            });
+        }
+
+        ExportTablesOut { tables }.serialize_wrapper()
+    }
+
+    pub async fn create_table_from_export(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(CreateTableFromExportIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::create_table_from_export(
+            conn,
+            &input.table_name,
+            &input.table
+        ));
+
+        ok_serialized()
+    }
+
+    pub async fn copy_table(&self, data: Vec<u8>) -> Vec<u8> {
+        let input = unwrap_or_bail!(CopyTableIn::deserialize_wrapper(&data));
+        let conn = unwrap_or_bail!(self.conn());
+
+        unwrap_or_bail!(black_magic::copy_table(
+            conn,
+            &input.source_table_name,
+            &input.new_table_name
+        ));
+
+        ok_serialized()
     }
 
     fn conn(&self) -> Result<&rusqlite::Connection, DbError> {

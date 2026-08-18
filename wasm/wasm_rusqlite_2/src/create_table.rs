@@ -1,5 +1,5 @@
-//use serde_wasm_bindgen::to_value;
-use serde::{Deserialize, Serialize};
+#![warn(unused)]
+#![allow(dead_code)]
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct ColumnDef(
@@ -12,7 +12,7 @@ pub struct ColumnDef(
     pub bool,   // autoincrement
 );
 
-struct ColumnDefBuilder(
+pub struct ColumnDefBuilder(
     pub String,     // name
     pub ColumnType, // column type
     pub bool,       // primary key
@@ -58,7 +58,7 @@ pub fn col_with_default_value(column_type: ColumnType, default_value: String) ->
     ))
 }
 
-enum ColumnType {
+pub enum ColumnType {
     Integer,
     Text,
     Real,
