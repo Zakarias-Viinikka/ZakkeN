@@ -6,6 +6,21 @@ pub struct Row {
     pub cols: Vec<Col>,
 }
 
+impl Row {
+    pub fn to_string_vec(&self) -> Vec<String> {
+        self.cols
+            .iter()
+            .map(|col| match col {
+                Col::Null => String::new(),
+                Col::Integer(i) => i.to_string(),
+                Col::Real(f) => f.to_string(),
+                Col::Text(s) => s.clone(),
+                Col::Blob(b) => format!("{b:?}"),
+            })
+            .collect()
+    }
+}
+
 impl Col {
     pub fn as_str(&self) -> Result<&str, String> {
         match self {

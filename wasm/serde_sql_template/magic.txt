@@ -1,0 +1,8 @@
+#can just run this after editing the rusqlite_2 proj
+
+cd /home/zakke/ProgStuff/ZakkeN/wasm/wasm_rusqlite_2 && \
+wasm-pack build --target web --out-dir pkg --out-name part4 && \
+grep -n "close_conn_js" pkg/part4.js && \
+cp pkg/part4.js pkg/part4_bg.wasm /home/zakke/ProgStuff/ZakkeN/wasm/serde_sql_template/from_wasm_rusqlite_2/ && \
+cp html/worker.js html/worker_wrapper.js html/share_sahpool.js /home/zakke/ProgStuff/ZakkeN/wasm/serde_sql_template/from_wasm_rusqlite_2/ && \
+echo "Copied all DB files"

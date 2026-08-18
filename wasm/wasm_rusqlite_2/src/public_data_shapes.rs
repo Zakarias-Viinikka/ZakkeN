@@ -18,7 +18,7 @@ pub struct CreateTableOut {
     pub result: Result<(), DbError>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ListTablesOut {
     pub table_names: Vec<String>,
 }
@@ -67,7 +67,7 @@ impl SelectArgument {
 }
 
 //let result: Vec<Vec<String>>
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetDataOut {
     pub rows: Vec<table_row::Row>,
 }
@@ -80,13 +80,13 @@ pub struct GetDataOrderedIn {
     pub order_by: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ColumnValue {
     pub column_name: String,
     pub value: table_row::Col,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InsertDataIn {
     pub table_name: String,
     pub values: Vec<ColumnValue>,
@@ -98,12 +98,12 @@ pub struct InsertDataOut {
 }
 
 // public_data_shapes.rs
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DropTableIn {
     pub table_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EditColInRowIn {
     pub table_name: String,
     pub row_id: String,
@@ -111,12 +111,12 @@ pub struct EditColInRowIn {
     pub new_value: table_row::Col,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CheckTableIn {
     pub table_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TableColumnInfo {
     pub cid: i64,
     pub name: String,
@@ -126,18 +126,18 @@ pub struct TableColumnInfo {
     pub primary_key: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CheckTableOut {
     pub columns: Vec<TableColumnInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DeleteRowIn {
     pub table_name: String,
     pub row_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SwapColumnsIn {
     pub table_name: String,
     pub row_id_1: String,
@@ -145,19 +145,19 @@ pub struct SwapColumnsIn {
     pub column: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreateIndexIn {
     pub table_name: String,
     pub column_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CheckIndexIn {
     pub table_name: String,
     pub column_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CheckIndexOut {
     pub is_indexed: bool,
 }
@@ -168,44 +168,44 @@ pub struct AddColumnIn {
     pub column: create_table::ColumnDef,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExportDatabaseIn {}
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExportDatabaseOut {
     pub data: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RemoveColumnIn {
     pub table_name: String,
     pub column_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExportTablesIn {
     pub table_names: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TableExport {
     pub table_name: String,
     pub columns: Vec<TableColumnInfo>,
     pub rows: Vec<table_row::Row>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExportTablesOut {
     pub tables: Vec<TableExport>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreateTableFromExportIn {
     pub table_name: String,
     pub table: TableExport,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CopyTableIn {
     pub source_table_name: String,
     pub new_table_name: String,

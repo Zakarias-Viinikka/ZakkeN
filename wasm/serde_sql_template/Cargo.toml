@@ -1,0 +1,16 @@
+[package]
+name = "serde_sql_template"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+gloo-timers = { version = "0.4.0", features = ["futures"] }
+js-sys = "0.3.104"
+leptos = { version = "0.8.20", features = ["csr"] }
+leptos_meta = "0.8.6"
+leptos_router = "0.8.15"
+wasm-bindgen = "0.2.127"
+wasm-bindgen-futures = "0.4.77"
+wasm_rusqlite = { path = "../../wasm/wasm_rusqlite_2" }
+web-sys = { version = "0.3.104", features = ["Window"] }

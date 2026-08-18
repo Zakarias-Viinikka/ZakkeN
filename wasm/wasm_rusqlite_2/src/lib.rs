@@ -1,7 +1,7 @@
 mod black_magic;
 mod black_magic_read;
 mod create_sql_statements;
-mod create_table;
+pub mod create_table;
 pub mod public_data_shapes;
 pub mod table_row;
 use public_data_shapes::*;
