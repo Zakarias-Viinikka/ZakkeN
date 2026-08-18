@@ -87,40 +87,6 @@ pub fn generate_delete_sql(table_name: &str, id: &str) -> String {
     format!("DELETE FROM {} WHERE id = {};", quote_ident(table_name), id)
 }
 
-pub fn generate_update_sql<K, V>(
-    table_name: &str,
-    id: usize,
-    column_and_new_value: &(K, V),
-) -> String
-where
-    K: AsRef<str>,
-    V: AsRef<str>,
-{
-    let quoted_table = quote_ident(table_name);
-    let quoted_column = quote_ident(column_and_new_value.0.as_ref());
-    let sanitized_val = sanitize(column_and_new_value.1.as_ref());
-
-    let col_and_val = format!("{} = '{}'", quoted_column, sanitized_val);
-
-    #[cfg(all(debug_assertions, target_arch = "wasm32"))]
-    {
-        let tmp = format!(
-            "UPDATE {table} SET {col_and_val} WHERE id = {id};",
-            table = quoted_table,
-            col_and_val = col_and_val,
-            id = id
-        );
-        web_sys::console::log_1(&JsValue::from(tmp));
-    }
-
-    format!(
-        "UPDATE {table} SET {col_and_val} WHERE id = {id};",
-        table = quoted_table,
-        col_and_val = col_and_val,
-        id = id
-    )
-}
-
 pub fn generate_update_sql_typed(
     table_name: &str,
     id: usize,
@@ -453,31 +419,6 @@ mod tests {
         assert!(sql_a.contains("\"alpha\""));
         assert!(sql_b.contains("\"beta\""));
         assert_ne!(sql_a, sql_b);
-    }
-
-    // =========================================================================
-    //  generate_update_sql
-    // =========================================================================
-
-    #[wasm_bindgen_test]
-    pub fn test_generate_update_sql_single() {
-        let sql = generate_update_sql("employees", 5, &("name", "Alice"));
-        let expected = "UPDATE \"employees\" SET \"name\" = 'Alice' WHERE id = 5;";
-        assert_eq!(sql, expected);
-    }
-
-    #[wasm_bindgen_test]
-    pub fn test_generate_update_sql_single_column_different_types() {
-        let sql = generate_update_sql("products", 10, &("price", "99"));
-        let expected = "UPDATE \"products\" SET \"price\" = '99' WHERE id = 10;";
-        assert_eq!(sql, expected);
-    }
-
-    #[wasm_bindgen_test]
-    pub fn test_generate_update_sql_escapes_quotes() {
-        let sql = generate_update_sql("authors", 7, &("name", "O'Reilly"));
-        let expected = "UPDATE \"authors\" SET \"name\" = 'O''Reilly' WHERE id = 7;";
-        assert_eq!(sql, expected);
     }
 
     // =========================================================================

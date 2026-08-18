@@ -66,6 +66,22 @@ impl LiveForever {
         ok_serialized()
     }
 
+    pub async fn close_conn_js(&mut self) -> Result<(), JsValue> {
+        if let Some(conn) = self.db_conn.take() {
+            if let Err(e) = black_magic::close_conn(conn) {
+                return Err(JsValue::from(e));
+            }
+        }
+
+        if let Some(util) = self.sahpool_util.take() {
+            if let Err(e) = util.pause_vfs() {
+                return Err(JsValue::from(DbError::ConnError(e.to_string())));
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn list_tables(&self) -> Vec<u8> /*Result<Vec<String>, JsValue>*/ {
         let conn = unwrap_or_bail!(self.conn());
 
