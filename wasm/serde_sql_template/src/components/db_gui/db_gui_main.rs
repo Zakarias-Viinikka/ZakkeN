@@ -1,9 +1,10 @@
 use super::db_gui_assets::DbGuiAssets;
 use super::gui_components::*;
 use super::tmp_back_ground::TmpBackGround;
+use crate::ask_wrapper;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use wasm_rusqlite::public_data_shapes::TableColumnInfo;
+use wasm_rusqlite::public_data_shapes::SelectArgument;
 
 #[component]
 pub fn DbGui() -> impl IntoView {
@@ -21,9 +22,13 @@ pub fn DbGui() -> impl IntoView {
                 return Vec::new();
             }
 
-            // TODO: call check_table API here and return real columns
-            leptos::logging::log!("TODO: check_table for {table}");
-            Vec::<TableColumnInfo>::new()
+            match ask_wrapper::check_table(&table).await {
+                Ok(out) => out.columns,
+                Err(e) => {
+                    leptos::logging::log!("check_table failed: {:?}", e);
+                    Vec::new()
+                }
+            }
         }
     });
 
@@ -35,22 +40,31 @@ pub fn DbGui() -> impl IntoView {
                 return Vec::new();
             }
 
-            // TODO: call get_data API here and return real rows
-            leptos::logging::log!("TODO: get_data for {table}");
-            Vec::<Vec<String>>::new()
+            match ask_wrapper::get_data(&table, vec![SelectArgument::All], vec![]).await {
+                Ok(out) => out.rows.iter().map(|row| row.to_string_vec()).collect(),
+                Err(e) => {
+                    leptos::logging::log!("get_data failed: {:?}", e);
+                    Vec::new()
+                }
+            }
         }
     });
 
     Effect::new(move || {
         spawn_local(async move {
-            // TODO: call list_tables API here and set real table names
-            leptos::logging::log!("TODO: list_tables");
-            set_table_names.set(Vec::new());
+            match ask_wrapper::list_tables().await {
+                Ok(out) => {
+                    let names = out.table_names;
 
-            if table_selection.get_untracked().is_empty() {
-                if let Some(first) = table_names.get_untracked().first() {
-                    set_table_selection.set(first.clone());
+                    if table_selection.get_untracked().is_empty() {
+                        if let Some(first) = names.first() {
+                            set_table_selection.set(first.clone());
+                        }
+                    }
+
+                    set_table_names.set(names);
                 }
+                Err(e) => leptos::logging::log!("list_tables failed: {:?}", e),
             }
         });
     });

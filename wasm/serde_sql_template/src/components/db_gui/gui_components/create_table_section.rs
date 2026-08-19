@@ -69,11 +69,13 @@ pub fn CreateTableSection(set_table_names: WriteSignal<Vec<String>>) -> impl Int
         let cols: Vec<ColumnDef> = columns.get().iter().map(ColumnRow::to_column_def).collect();
 
         spawn_local(async move {
-            // TODO: call create_table API with name and cols
-            leptos::logging::log!("TODO: create_table {name} with {} columns", cols.len());
-
-            // TODO: refresh table_names after successful create
-            set_table_names.set(Vec::new());
+            match crate::ask_wrapper::create_table(&name, &cols).await {
+                Ok(()) => match crate::ask_wrapper::list_tables().await {
+                    Ok(out) => set_table_names.set(out.table_names),
+                    Err(e) => leptos::logging::log!("list_tables refresh failed: {:?}", e),
+                },
+                Err(e) => leptos::logging::log!("create_table failed: {:?}", e),
+            }
         });
     };
 

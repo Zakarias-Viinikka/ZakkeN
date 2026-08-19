@@ -30,15 +30,32 @@ pub fn DeleteTableSection(
                                 on_confirm: Callback::new(move |_| {
                                     let table = table_for_confirm.clone();
                                     spawn_local(async move {
-                                        // TODO: call drop_table API
-                                        let _ = table;
-                                        leptos::logging::log!("TODO: drop_table");
-                                        set_log_entries.update(|log| log.push(LogEntry {
-                                            tag: "drop_table".to_string(),
-                                            message: "TODO".to_string(),
-                                        }));
-                                        // TODO: refresh table_names
-                                        set_table_names.set(Vec::new());
+                                        match crate::ask_wrapper::drop_table(&table).await {
+                                            Ok(()) => {
+                                                set_log_entries.update(|log| {
+                                                    log.push(LogEntry {
+                                                        tag: "drop_table".to_string(),
+                                                        message: "ok".to_string(),
+                                                    })
+                                                });
+
+                                                match crate::ask_wrapper::list_tables().await {
+                                                    Ok(out) => set_table_names.set(out.table_names),
+                                                    Err(e) => set_log_entries.update(|log| {
+                                                        log.push(LogEntry {
+                                                            tag: "list_tables".to_string(),
+                                                            message: format!("{:?}", e),
+                                                        })
+                                                    }),
+                                                }
+                                            }
+                                            Err(e) => set_log_entries.update(|log| {
+                                                log.push(LogEntry {
+                                                    tag: "drop_table".to_string(),
+                                                    message: format!("{:?}", e),
+                                                })
+                                            }),
+                                        }
                                     });
                                 }),
                             }));

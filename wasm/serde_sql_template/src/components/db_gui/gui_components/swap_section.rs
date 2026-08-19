@@ -20,16 +20,25 @@ pub fn SwapSection(
         let col = column.get();
 
         spawn_local(async move {
-            // TODO: call swap_columns API
-            let _ = (table, id1, id2, col);
-            leptos::logging::log!("TODO: swap_columns");
-            table_dump_refresh.update(|n| *n += 1);
-            set_log_entries.update(|log| {
-                log.push(LogEntry {
-                    tag: "swap_columns".to_string(),
-                    message: "TODO".to_string(),
-                })
-            });
+            match crate::ask_wrapper::swap_columns(&table, &id1, &id2, &col).await {
+                Ok(()) => {
+                    table_dump_refresh.update(|n| *n += 1);
+                    set_log_entries.update(|log| {
+                        log.push(LogEntry {
+                            tag: "swap_columns".to_string(),
+                            message: "ok".to_string(),
+                        })
+                    });
+                }
+                Err(e) => {
+                    set_log_entries.update(|log| {
+                        log.push(LogEntry {
+                            tag: "swap_columns".to_string(),
+                            message: format!("{:?}", e),
+                        })
+                    });
+                }
+            }
         });
     };
 

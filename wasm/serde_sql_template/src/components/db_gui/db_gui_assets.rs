@@ -13,7 +13,7 @@ pub fn DbGuiAssets(loaded: WriteSignal<bool>) -> impl IntoView {
     });
 
     view! {
-        <Stylesheet href="/css/db_gui/style.css" />
+        <Stylesheet href="/css/dbgui.css" />
     }
 }
 
@@ -22,7 +22,7 @@ async fn wait_for_stylesheet(set_loaded: WriteSignal<bool>) {
         let found = window()
             .and_then(|w| w.document())
             .and_then(|d| {
-                d.query_selector("link[href='/css/db_gui/style.css']")
+                d.query_selector("link[href='/css/dbgui.css']")
                     .ok()
                     .flatten()
             })

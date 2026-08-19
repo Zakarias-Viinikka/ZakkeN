@@ -6,7 +6,7 @@ pub fn IndexPage() -> impl IntoView {
     view! {
         <br/> <br/> <br/>
         <h2>"Navigation"</h2>
-        <A href="/">"DB Admin GUI | Todo"</A>
+        <A href="/dbgui">"DB Admin GUI | Todo"</A>
         <br/>
         <A href="/">"Tests | Todo"</A>
         <br/>

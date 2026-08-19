@@ -1,6 +1,8 @@
 use super::LogEntry;
+use crate::ask_wrapper;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use wasm_rusqlite::public_data_shapes::ColumnValue;
 use wasm_rusqlite::public_data_shapes::TableColumnInfo;
 use wasm_rusqlite::table_row::Col;
 
@@ -27,19 +29,36 @@ pub fn InsertSection(
 
     let do_insert = move |_| {
         let table = table_selection.get();
-        let vals = values.get();
+        let vals = values.get_untracked();
 
         spawn_local(async move {
-            // TODO: build Vec<ColumnValue> from vals and call insert API
-            let _ = (table, vals);
-            leptos::logging::log!("TODO: insert data");
-            table_dump_refresh.update(|n| *n += 1);
-            set_log_entries.update(|log| {
-                log.push(LogEntry {
-                    tag: "insert".to_string(),
-                    message: "TODO".to_string(),
+            let column_values: Vec<ColumnValue> = vals
+                .into_iter()
+                .map(|(name, val_signal)| ColumnValue {
+                    column_name: name,
+                    value: Col::Text(val_signal.get_untracked()),
                 })
-            });
+                .collect();
+
+            match ask_wrapper::insert_data(&table, column_values).await {
+                Ok(()) => {
+                    table_dump_refresh.update(|n| *n += 1);
+                    set_log_entries.update(|log| {
+                        log.push(LogEntry {
+                            tag: "insert".to_string(),
+                            message: "ok".to_string(),
+                        })
+                    });
+                }
+                Err(e) => {
+                    set_log_entries.update(|log| {
+                        log.push(LogEntry {
+                            tag: "insert".to_string(),
+                            message: format!("{:?}", e),
+                        })
+                    });
+                }
+            }
         });
     };
 

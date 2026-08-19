@@ -13,9 +13,13 @@ pub fn IndexSection(table_names: ReadSignal<Vec<String>>) -> impl IntoView {
             if table.is_empty() {
                 return Vec::new();
             }
-            // TODO: call check_table API
-            leptos::logging::log!("TODO: check_table for index section");
-            Vec::<TableColumnInfo>::new()
+            match crate::ask_wrapper::check_table(&table).await {
+                Ok(out) => out.columns,
+                Err(e) => {
+                    leptos::logging::log!("check_table failed: {:?}", e);
+                    Vec::new()
+                }
+            }
         }
     });
 
@@ -24,9 +28,10 @@ pub fn IndexSection(table_names: ReadSignal<Vec<String>>) -> impl IntoView {
         let col = selected_column.get();
 
         spawn_local(async move {
-            // TODO: call create_index API
-            let _ = (table, col);
-            leptos::logging::log!("TODO: create_index");
+            match crate::ask_wrapper::create_index(&table, &col).await {
+                Ok(()) => leptos::logging::log!("index created"),
+                Err(e) => leptos::logging::log!("create_index failed: {:?}", e),
+            }
         });
     };
 

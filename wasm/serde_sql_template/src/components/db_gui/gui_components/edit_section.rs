@@ -19,16 +19,32 @@ pub fn EditSection(
         let val = new_value.get();
 
         spawn_local(async move {
-            // TODO: call edit_row API with table, id, col, Col::Text(val)
-            let _ = (table, id, col, val);
-            leptos::logging::log!("TODO: edit_row");
-            table_dump_refresh.update(|n| *n += 1);
-            set_log_entries.update(|log| {
-                log.push(LogEntry {
-                    tag: "edit_row".to_string(),
-                    message: "TODO".to_string(),
-                })
-            });
+            match crate::ask_wrapper::edit_col_in_row(
+                &table,
+                &id,
+                &col,
+                wasm_rusqlite::table_row::Col::Text(val),
+            )
+            .await
+            {
+                Ok(()) => {
+                    table_dump_refresh.update(|n| *n += 1);
+                    set_log_entries.update(|log| {
+                        log.push(LogEntry {
+                            tag: "edit_row".to_string(),
+                            message: "ok".to_string(),
+                        })
+                    });
+                }
+                Err(e) => {
+                    set_log_entries.update(|log| {
+                        log.push(LogEntry {
+                            tag: "edit_row".to_string(),
+                            message: format!("{:?}", e),
+                        })
+                    });
+                }
+            }
         });
     };
 

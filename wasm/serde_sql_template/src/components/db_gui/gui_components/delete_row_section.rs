@@ -26,16 +26,25 @@ pub fn DeleteRowSection(
                 let table = table.clone();
                 let id = id_for_confirm.clone();
                 spawn_local(async move {
-                    // TODO: call delete_row API
-                    let _ = (table, id);
-                    leptos::logging::log!("TODO: delete_row");
-                    table_dump_refresh.update(|n| *n += 1);
-                    set_log_entries.update(|log| {
-                        log.push(LogEntry {
-                            tag: "delete_row".to_string(),
-                            message: "TODO".to_string(),
-                        })
-                    });
+                    match crate::ask_wrapper::delete_row(&table, &id).await {
+                        Ok(()) => {
+                            table_dump_refresh.update(|n| *n += 1);
+                            set_log_entries.update(|log| {
+                                log.push(LogEntry {
+                                    tag: "delete_row".to_string(),
+                                    message: "ok".to_string(),
+                                })
+                            });
+                        }
+                        Err(e) => {
+                            set_log_entries.update(|log| {
+                                log.push(LogEntry {
+                                    tag: "delete_row".to_string(),
+                                    message: format!("{:?}", e),
+                                })
+                            });
+                        }
+                    }
                 });
             }),
         }));
