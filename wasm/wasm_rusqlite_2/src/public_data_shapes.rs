@@ -1,3 +1,6 @@
+// TODO: SQL injection - generate_delete_sql's `id` and generate_get_data_by_order_sql's
+// `order_by` are spliced in raw, unquoted/unvalidated.
+
 use crate::create_table;
 use crate::table_row;
 use anyhow::Result;
@@ -48,18 +51,33 @@ impl SelectArgument {
         fn quote_value(value: &str) -> String {
             format!("'{}'", value.replace('\'', "''"))
         }
+        fn quote_ident(ident: &str) -> String {
+            format!("\"{}\"", ident.replace('"', "\"\""))
+        }
 
         match self {
-            SelectArgument::XEqualY { x, y } => format!("{} = {}", x, quote_value(y)),
-            SelectArgument::XNotEqualY { x, y } => format!("{} != {}", x, quote_value(y)),
-            SelectArgument::XGreaterThanY { x, y } => format!("{} > {}", x, quote_value(y)),
-            SelectArgument::XLessThanY { x, y } => format!("{} < {}", x, quote_value(y)),
-            SelectArgument::XGreaterThanOrEqualY { x, y } => format!("{} >= {}", x, quote_value(y)),
-            SelectArgument::XLessThanOrEqualY { x, y } => format!("{} <= {}", x, quote_value(y)),
-            SelectArgument::XLikeY { x, y } => format!("{} LIKE {}", x, quote_value(y)),
+            SelectArgument::XEqualY { x, y } => format!("{} = {}", quote_ident(x), quote_value(y)),
+            SelectArgument::XNotEqualY { x, y } => {
+                format!("{} != {}", quote_ident(x), quote_value(y))
+            }
+            SelectArgument::XGreaterThanY { x, y } => {
+                format!("{} > {}", quote_ident(x), quote_value(y))
+            }
+            SelectArgument::XLessThanY { x, y } => {
+                format!("{} < {}", quote_ident(x), quote_value(y))
+            }
+            SelectArgument::XGreaterThanOrEqualY { x, y } => {
+                format!("{} >= {}", quote_ident(x), quote_value(y))
+            }
+            SelectArgument::XLessThanOrEqualY { x, y } => {
+                format!("{} <= {}", quote_ident(x), quote_value(y))
+            }
+            SelectArgument::XLikeY { x, y } => {
+                format!("{} LIKE {}", quote_ident(x), quote_value(y))
+            }
             SelectArgument::XInY { x, y } => {
                 let quoted_values: Vec<String> = y.iter().map(|v| quote_value(v)).collect();
-                format!("{} IN ({})", x, quoted_values.join(", "))
+                format!("{} IN ({})", quote_ident(x), quoted_values.join(", "))
             }
             SelectArgument::All => String::new(),
         }

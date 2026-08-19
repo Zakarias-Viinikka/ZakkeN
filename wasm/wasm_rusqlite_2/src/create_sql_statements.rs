@@ -1,6 +1,4 @@
 use crate::create_table::ColumnDef;
-use wasm_bindgen::JsValue;
-//use web_sys::console;
 
 // Builds CREATE TABLE SQL from a caller-supplied column list (replaces the old Table/Column version).
 pub fn generate_create_table_sql(table_name: &str, columns: &[ColumnDef]) -> String {
@@ -98,17 +96,6 @@ pub fn generate_update_sql_typed(
     let value_literal = col_to_sql_literal(new_value);
 
     let col_and_val = format!("{} = {}", quoted_column, value_literal);
-
-    #[cfg(all(debug_assertions, target_arch = "wasm32"))]
-    {
-        let tmp = format!(
-            "UPDATE {table} SET {col_and_val} WHERE id = {id};",
-            table = quoted_table,
-            col_and_val = col_and_val,
-            id = id
-        );
-        web_sys::console::log_1(&JsValue::from(tmp));
-    }
 
     format!(
         "UPDATE {table} SET {col_and_val} WHERE id = {id};",
