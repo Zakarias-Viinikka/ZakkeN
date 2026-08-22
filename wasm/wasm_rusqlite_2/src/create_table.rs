@@ -2,15 +2,15 @@
 #![allow(dead_code)]
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct ColumnDef(
-    pub String, // name
-    pub String, // column type
-    pub bool,   // primary key
-    pub bool,   // not null
-    pub bool,   // unique
-    pub String, // default value
-    pub bool,   // autoincrement
-);
+pub struct ColumnDef {
+    pub name: String,          // name
+    pub column_type: String,   // column type
+    pub primary_key: bool,     // primary key
+    pub not_null: bool,        // not null
+    pub unique: bool,          // unique
+    pub default_value: String, // default value
+    pub autoincrement: bool,   // autoincrement
+}
 
 pub struct ColumnDefBuilder(
     pub String,     // name
@@ -72,13 +72,14 @@ pub fn builder_to_column_def(builder: ColumnDefBuilder) -> ColumnDef {
         ColumnType::Real => "REAL".to_string(),
         ColumnType::Blob => "BLOB".to_string(),
     };
-    ColumnDef(
-        builder.0,
+
+    ColumnDef {
+        name: builder.0,
         column_type,
-        builder.2,
-        builder.3,
-        builder.4,
-        builder.5,
-        builder.6,
-    )
+        primary_key: builder.2,
+        not_null: builder.3,
+        unique: builder.4,
+        default_value: builder.5,
+        autoincrement: builder.6,
+    }
 }

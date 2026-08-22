@@ -4,21 +4,21 @@ use crate::create_table::ColumnDef;
 pub fn generate_create_table_sql(table_name: &str, columns: &[ColumnDef]) -> String {
     let mut col_defs = Vec::new();
     for col in columns {
-        let mut def = format!("{} {}", quote_ident(&col.0), col.1);
-        if col.2 {
+        let mut def = format!("{} {}", quote_ident(&col.name), col.column_type);
+        if col.primary_key {
             def.push_str(" PRIMARY KEY");
         }
-        if col.6 {
+        if col.autoincrement {
             def.push_str(" AUTOINCREMENT");
         }
-        if col.3 {
+        if col.not_null {
             def.push_str(" NOT NULL");
         }
-        if col.4 {
+        if col.unique {
             def.push_str(" UNIQUE");
         }
-        if !col.5.is_empty() {
-            def.push_str(&format!(" DEFAULT {}", col.5));
+        if !col.default_value.is_empty() {
+            def.push_str(&format!(" DEFAULT {}", col.default_value));
         }
         col_defs.push(def);
     }
@@ -30,21 +30,21 @@ pub fn generate_create_table_sql(table_name: &str, columns: &[ColumnDef]) -> Str
 }
 
 pub fn generate_add_column_sql(table_name: &str, column: &ColumnDef) -> String {
-    let mut def = format!("{} {}", quote_ident(&column.0), column.1);
-    if column.2 {
+    let mut def = format!("{} {}", quote_ident(&column.name), column.column_type);
+    if column.primary_key {
         def.push_str(" PRIMARY KEY");
     }
-    if column.6 {
+    if column.autoincrement {
         def.push_str(" AUTOINCREMENT");
     }
-    if column.3 {
+    if column.not_null {
         def.push_str(" NOT NULL");
     }
-    if column.4 {
+    if column.unique {
         def.push_str(" UNIQUE");
     }
-    if !column.5.is_empty() {
-        def.push_str(&format!(" DEFAULT {}", column.5));
+    if !column.default_value.is_empty() {
+        def.push_str(&format!(" DEFAULT {}", column.default_value));
     }
 
     format!(
@@ -242,15 +242,15 @@ mod tests {
             default: &str,
             autoinc: bool,
         ) -> ColumnDef {
-            ColumnDef(
-                name.to_string(),
-                col_type.to_string(),
-                pk,
+            ColumnDef {
+                name: name.to_string(),
+                column_type: col_type.to_string(),
+                primary_key: pk,
                 not_null,
                 unique,
-                default.to_string(),
-                autoinc,
-            )
+                default_value: default.to_string(),
+                autoincrement: autoinc,
+            }
         }
 
         #[wasm_bindgen_test]
@@ -597,15 +597,15 @@ mod tests {
             default: &str,
             autoinc: bool,
         ) -> ColumnDef {
-            ColumnDef(
-                name.to_string(),
-                col_type.to_string(),
-                pk,
+            ColumnDef {
+                name: name.to_string(),
+                column_type: col_type.to_string(),
+                primary_key: pk,
                 not_null,
                 unique,
-                default.to_string(),
-                autoinc,
-            )
+                default_value: default.to_string(),
+                autoincrement: autoinc,
+            }
         }
 
         #[wasm_bindgen_test]

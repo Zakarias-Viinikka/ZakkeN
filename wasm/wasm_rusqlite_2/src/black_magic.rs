@@ -230,22 +230,22 @@ pub fn add_column(
         return Err(DbError::IllegalInput("table_name is empty".to_string()));
     }
 
-    if column.2 {
+    if column.primary_key {
         return Err(DbError::IllegalInput(
             "ADD COLUMN does not support PRIMARY KEY".to_string(),
         ));
     }
-    if column.6 {
+    if column.autoincrement {
         return Err(DbError::IllegalInput(
             "ADD COLUMN does not support AUTOINCREMENT".to_string(),
         ));
     }
-    if column.4 {
+    if column.unique {
         return Err(DbError::IllegalInput(
             "ADD COLUMN does not support UNIQUE".to_string(),
         ));
     }
-    if column.3 && column.5.is_empty() {
+    if column.not_null && column.default_value.is_empty() {
         return Err(DbError::IllegalInput(
             "NOT NULL column requires a DEFAULT value when adding to an existing table".to_string(),
         ));
@@ -299,16 +299,21 @@ pub fn create_table_from_export(
 
     let mut columns: Vec<ColumnDef> = Vec::new();
     for col in &table_export.columns {
-        columns.push(ColumnDef(
-            col.name.clone(),
-            col.type_name.clone(),
-            col.primary_key,
-            col.not_null,
-            false,
-            col.default_value.clone().unwrap_or_default(),
-            false,
-        ));
+        columns.push(ColumnDef {
+            name: col.name.clone(),
+            column_type: col.type_name.clone(),
+            primary_key: col.primary_key,
+            not_null: col.not_null,
+            unique: false,
+            default_value: col.default_value.clone().unwrap_or_default(),
+            autoincrement: false,
+        });
     }
+
+    /*
+    *
+
+    */
 
     create_table(conn, table_name, columns)?;
 
