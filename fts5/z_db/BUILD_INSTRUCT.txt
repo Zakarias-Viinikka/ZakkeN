@@ -1,6 +1,8 @@
 #Web build instructions for db_wrapper
 #1. Build the web files (run from inside db_wrapper/):
    cd db_wrapper
-   wasm-pack build --target web --out-dir src/web_output --out-name db_wrapper --features web --no-typescript --no-pack
+   wasm-pack build --target web --out-dir src/web_output --out-name db_wrapper --no-typescript --no-pack --features web
+
 #2. Copy the entire web_output/ folder into your web project and make it visible to Trunk or whatever is relevant
+
 #3. call worker_wrapper.js to send commands to the database worker and receive responses.

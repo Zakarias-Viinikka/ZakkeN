@@ -1,25 +1,28 @@
 #!/bin/sh
 set -e
 
-REPO="Zakarias-Viinikka/z_db"
+ZDB_PATH="${ZDB_PATH:-$HOME/ProgStuff/z_db}"
+
 SUBPATH="db_wrapper/src/web_output"
 DEST="z_db"
 HASH_FILE=".last_web_output_hash"
 
-LATEST=$(curl -s "https://api.github.com/repos/$REPO/commits?path=$SUBPATH&per_page=1" | jq -r '.[0].sha')
+# Calculate a hash of all file contents in the source directory (recursive)
+# Ignores metadata, only content matters.
+LATEST=$(find "$ZDB_PATH/$SUBPATH" -type f -print0 \
+    | sort -z \
+    | xargs -0 sha256sum \
+    | sha256sum \
+    | cut -d' ' -f1)
 
 OLD=$(cat "$HASH_FILE" 2>/dev/null || echo "")
 
 if [ "$LATEST" = "$OLD" ]; then
     echo "web_output unchanged, skipping copy"
 else
-    TMP_DIR=$(mktemp -d)
-    git clone --depth 1 --filter=blob:none --sparse "https://github.com/$REPO.git" "$TMP_DIR" > /dev/null 2>&1
-    cd "$TMP_DIR"
-    git sparse-checkout set "$SUBPATH"
-    cd - > /dev/null
-    cp -r "$TMP_DIR/$SUBPATH/." "$DEST"
+    cp -r "$ZDB_PATH/$SUBPATH/." "$DEST"
     echo "$LATEST" > "$HASH_FILE"
-    rm -rf "$TMP_DIR"
     echo "web_output updated"
+    # Uncomment the next line if you still want to update the protocol dependency
+    # cargo update -p protocol
 fi

@@ -3,9 +3,3 @@
 stage = "pre_build"
 command = "sh"
 command_arguments = ["-c", "./sync_zdb.sh"]
-
-# run cargo update to update the protocol dependency
-[[hooks]]
-stage = "pre_build"
-command = "cargo"
-command_arguments = ["update", "-p", "protocol"]

@@ -1,4 +1,7 @@
 use leptos::prelude::*;
+use protocol::{payload, serialization::Convert};
+
+use crate::ask_js::ask;
 
 //use leptos_integration_3::local_sqlite::local_sqlite_wrapper;
 
@@ -16,19 +19,32 @@ pub fn App() -> impl IntoView {
         //bug that's gonna create unwrap error if the table hasn't been populated and exists.
         // the effect doesn't actually check if "setup_finished" is true or not
         let table_name = "data";
-        let arguments = "";
+        let arguments = payload::SelectArgument::All;
         let columns_to_read = vec![];
         let set_texts = set_texts;
         leptos::task::spawn_local(async move {
-            let data =
-                local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
+            let get_data_in = payload::GetDataIn {
+                table_name: table_name.to_string(),
+                arguments: vec![payload::SelectArgument::All], // adjust if needed
+                columns_to_read: columns_to_read.to_vec(),
+            };
+            let data = ask("get_data", Some(get_data_in.to_payload()))
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+                .and_then(|bytes| {
+                    payload::GetDataOut::un_payloadify(&bytes).map_err(anyhow::Error::from)
+                })
+                .map(|out| out.rows);
             match data {
                 Ok(data) => {
                     let texts: Vec<Text> = data
                         .into_iter() // iterate over all rows
-                        .map(|row| Text {
-                            id: row[0].parse().unwrap(),
-                            text: row[1].to_string(),
+                        .map(|row| {
+                            let row_strings = row.to_string_vec();
+                            Text {
+                                id: row_strings[0].parse().unwrap(),
+                                text: row_strings[1].clone(),
+                            }
                         })
                         .collect();
 
@@ -80,6 +96,11 @@ pub fn App() -> impl IntoView {
                 <br/><br/><br/><br/><br/><br/>
                 "search:"<br/>
                 <input type="text" />
+                <br/>
+                <br/>
+                <span>"search result goes here:"</span>
+                <br/>
+                <div id="search-result"></div>
             </div>
         </div>
     }

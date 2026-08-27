@@ -1,64 +1,87 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use leptos::logging::log;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 //use leptos_integration_3::local_sqlite::column_helper;
 //use leptos_integration_3::local_sqlite::local_sqlite_wrapper;
+use crate::ask_js::ask;
+use protocol::{payload, row_col, serialization::Convert};
 use random_word::{self, Lang};
+
+const TABLE_NAME: &str = "data";
 
 #[component]
 pub fn Setup(finished_setup: WriteSignal<bool>) -> impl IntoView {
     Effect::new(move || {
         let finished_setup = finished_setup.clone();
         spawn_local(async move {
-            create_table_if_not_exist().await;
+            let create_table_result = create_table_if_not_exist().await;
+            create_table_result
+                .err()
+                .map(|e| log!("create_table_if_not_exist error: {}", e));
             finished_setup.set(true);
         });
     });
 }
 
 pub async fn create_table_if_not_exist() -> Result<()> {
-    let tables = local_sqlite_wrapper::list_tables()
+    let response = ask("list_tables", None)
         .await
-        .map_err(|e| anyhow!("{:?}", e))?;
-    if tables.iter().any(|t| t == "data") {
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let tables = payload::ListTablesOut::un_payloadify(&response)?;
+
+    if tables.table_names.iter().any(|t| t == TABLE_NAME) {
         log!("data table already exists");
         return Ok(());
     }
 
     let columns = data_col_def();
+    let create_table_payload = payload::CreateTableIn {
+        table_name: TABLE_NAME.into(),
+        columns: columns,
+    }
+    .to_payload();
 
-    let msg = local_sqlite_wrapper::create_table("data", &columns)
+    ask("create_table", Some(create_table_payload))
         .await
-        .map_err(|e| anyhow!("{:?}", e))?;
-    log!("{}", msg);
+        .map_err(|e| anyhow::anyhow!(e))?;
     create_hardcoded_columns_if_not_exist().await?;
     Ok(())
 }
 
 pub async fn create_hardcoded_columns_if_not_exist() -> Result<()> {
-    let table_name = "data";
-    let arguments = "";
-    let columns_to_read = vec!["".to_string()]; //returns all of them
-    let result = local_sqlite_wrapper::get_data(table_name, arguments, &columns_to_read).await;
-    match result {
-        Ok(result) => {
-            if result.into_iter().next().is_none() {
-                for _ in 0..100 {
-                    let column_names = vec!["random_words".to_string()];
-                    let column_values = vec![generate_random_words()];
-                    local_sqlite_wrapper::insert_data(table_name, &column_names, &column_values)
-                        .await
-                        .map_err(|e| anyhow!(format!("{:?}", e)))?;
-                }
-                log!("created 5 columns");
-                Ok(())
-            } else {
-                log!("columns exist in db already");
-                Ok(())
+    let get_data_payload = payload::GetDataIn {
+        table_name: "data".to_string(),
+        arguments: vec![payload::SelectArgument::All],
+        columns_to_read: vec!["".to_string()], // empty string to get all columns
+    }
+    .to_payload();
+
+    let response = ask("get_data", Some(get_data_payload))
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+    let get_data_out = payload::GetDataOut::un_payloadify(&response)?;
+
+    if get_data_out.rows.is_empty() {
+        for _ in 0..100 {
+            let insert_payload = payload::InsertDataIn {
+                table_name: "data".to_string(),
+                values: vec![payload::ColumnValue {
+                    column_name: "random_words".to_string(),
+                    value: row_col::Col::Text(generate_random_words()), // adjust variant if needed
+                }],
             }
+            .to_payload();
+
+            ask("insert_data", Some(insert_payload))
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?;
         }
-        Err(e) => Err(anyhow!(format!("{:?}", e))),
+        log!("inserted 100 random word rows");
+        Ok(())
+    } else {
+        log!("columns exist in db already");
+        Ok(())
     }
 }
 
@@ -70,9 +93,10 @@ fn generate_random_words() -> String {
     words.join(" ")
 }
 
-fn data_col_def() -> Vec<local_sqlite_wrapper::CreateTableColumnDef> {
+use protocol::new_table;
+fn data_col_def() -> Vec<new_table::ColumnDef> {
     vec![
-        column_helper::id_column(),
-        column_helper::column("random_words", "TEXT"),
+        new_table::id_column(),
+        new_table::default_col(new_table::ColumnType::Text, "random_words"),
     ]
 }

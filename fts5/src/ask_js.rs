@@ -8,7 +8,7 @@ extern "C" {
     fn javascript_im_begging_you(args: &JsValue) -> Result<js_sys::Promise, JsValue>;
 }
 
-pub async fn ask(command: &str, payload: Option<Vec<u8>>) -> Result<Vec<u8>, JsValue> {
+pub async fn ask(command: &str, payload: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
     let args = Array::new();
     args.push(&JsValue::from_str(command));
     if let Some(bytes) = payload {
@@ -16,11 +16,13 @@ pub async fn ask(command: &str, payload: Option<Vec<u8>>) -> Result<Vec<u8>, JsV
         args.push(&u8array);
     }
 
-    let promise = javascript_im_begging_you(&args)?;
-    let result = JsFuture::from(promise).await?;
+    let promise = javascript_im_begging_you(&args).map_err(|e| format!("{:?}", e))?;
+    let result = JsFuture::from(promise)
+        .await
+        .map_err(|e| format!("{:?}", e))?;
 
     if !Array::is_array(&result) {
-        return Err(JsValue::from_str("worker returned malformed response"));
+        return Err("worker returned malformed response".to_string());
     }
     let result_array = Array::from(&result);
 
@@ -30,14 +32,16 @@ pub async fn ask(command: &str, payload: Option<Vec<u8>>) -> Result<Vec<u8>, JsV
             .get(1)
             .as_string()
             .unwrap_or_else(|| "unknown worker error".to_string());
-        return Err(JsValue::from_str(&message));
+        return Err(message);
     }
 
     let raw = result_array.get(1);
     if raw.is_undefined() {
         return Ok(Vec::new());
     }
-    let u8array = raw.dyn_into::<Uint8Array>()?;
+    let u8array = raw
+        .dyn_into::<Uint8Array>()
+        .map_err(|e| format!("{:?}", e))?;
     let mut out = vec![0u8; u8array.length() as usize];
     u8array.copy_to(&mut out);
     Ok(out)
