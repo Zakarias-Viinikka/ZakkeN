@@ -13,15 +13,6 @@ self.addEventListener('unhandledrejection', (e) => {
   console.error('[worker] UNHANDLED PROMISE REJECTION:', e.reason);
 });
 
-(async () => {
-  try {
-    const root = await navigator.storage.getDirectory();
-    console.log('[worker] OPFS available in js environment:', root);
-  } catch (e) {
-    console.error('[worker] OPFS NOT AVAILABLE:', e);
-  }
-})();
-
 async function tryReconnect() {
   if (!connection_name) {
     return false;
@@ -30,12 +21,13 @@ async function tryReconnect() {
   let attempts = 10;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      console.log(`[worker] reconnect attempt ${attempt + 1}/${attempts}`);
       db_manager = await LiveForever.new(connection_name);
-      console.log('[worker] reconnect succeeded');
       return true;
     } catch (e) {
-      console.warn('[worker] reconnect attempt failed:', e);
+      // Only log the first failure; avoid spamming on every retry
+      if (attempt === 0) {
+        console.warn('[worker] reconnect attempt failed:', e);
+      }
     }
 
     if (attempt < attempts - 1) {
@@ -67,6 +59,9 @@ const serializedCommands = {
   export_tables: (msg) => db_manager.export_tables(msg[1]),
   create_table_from_export: (msg) => db_manager.create_table_from_export(msg[1]),
   copy_table: (msg) => db_manager.copy_table(msg[1]),
+  create_fts5_table: (msg) => db_manager.create_fts5_table(msg[1]),
+  search_fts5: (msg) => db_manager.search_fts5(msg[1]),
+  rebuild_fts5_index: (msg) => db_manager.rebuild_fts5_index(msg[1]),
 };
 
 // These commands take no serialized payload.
@@ -76,30 +71,20 @@ const noInputCommands = {
 };
 
 self.onmessage = async (event) => {
-  console.log('[worker] onmessage received:', JSON.stringify(event.data));
-
   const msg = event.data;
   const command = msg[0];
 
   if (!wasmInitPromise) {
-    console.log('[worker] starting wasm init...');
-    wasmInitPromise = init()
-      .then(() => {
-        console.log('[worker] wasm init complete');
-      })
-      .catch((err) => {
-        console.error('[worker] wasm init FAILED:', err);
-        throw err;
-      });
+    wasmInitPromise = init().catch((err) => {
+      console.error('[worker] wasm init FAILED:', err);
+      throw err;
+    });
   }
 
   try {
     await wasmInitPromise;
   } catch (err) {
-    console.error(
-      `[worker] WASM init failed while handling command "${command}" (message: ${JSON.stringify(msg)})`,
-      err
-    );
+    console.error(`[worker] WASM init failed while handling command "${command}"`, err);
     self.postMessage(['error', `WASM initialization failed: ${err.toString()}`]);
     return;
   }
@@ -108,9 +93,7 @@ self.onmessage = async (event) => {
   if (command === 'initialize') {
     try {
       connection_name = msg[1];
-      console.log('[worker] calling LiveForever.new with db_conn_name:', connection_name);
       db_manager = await LiveForever.new(connection_name);
-      console.log('[worker] LiveForever.new resolved successfully');
       self.postMessage(['initialize', 'ok']);
     } catch (err) {
       console.error('[worker] LiveForever.new failed:', err);
@@ -122,7 +105,6 @@ self.onmessage = async (event) => {
   if (command === 'close_conn') {
     try {
       if (db_manager) {
-        console.log('[worker] attempting to give up conn');
         await db_manager.close_conn_js();
         db_manager = null;
         self.postMessage(['close_conn', 'closed']);
@@ -138,9 +120,7 @@ self.onmessage = async (event) => {
 
   // Ensure connection exists for DB commands.
   if (!db_manager) {
-    console.log('[worker] no active connection, requesting want_conn');
     self.postMessage(['want_conn']);
-
     const ok = await tryReconnect();
     if (!ok) {
       self.postMessage(['error', "couldn't get sahpool back"]);
@@ -159,7 +139,6 @@ self.onmessage = async (event) => {
 
   try {
     const result = await handler(msg);
-    console.log('[worker] handler succeeded for:', command, 'result type:', typeof result);
     self.postMessage([command, result]);
   } catch (err) {
     console.error('[worker] handler error for:', command, err);
@@ -167,5 +146,5 @@ self.onmessage = async (event) => {
   }
 };
 
-console.log('[worker] worker.js loaded');
+console.log('[worker] worker.js loaded');   // one-time startup log – you can remove if desired
 self.postMessage(['ready']);

@@ -1,106 +1,181 @@
-use leptos::prelude::*;
+use leptos::{logging::log, prelude::*};
 use protocol::{payload, serialization::Convert};
 
 use crate::ask_js::ask;
 
-//use leptos_integration_3::local_sqlite::local_sqlite_wrapper;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Text {
     id: usize,
     text: String,
 }
 
+async fn load_texts() -> Result<Vec<Text>, String> {
+    let get_data_in = payload::GetDataIn {
+        table_name: "data".to_string(),
+        arguments: vec![payload::SelectArgument::All],
+        columns_to_read: Vec::new(),
+    };
+
+    let bytes = ask("get_data", Some(get_data_in.to_payload()))
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+
+    let out = payload::GetDataOut::un_payloadify(&bytes).map_err(|e| format!("{e:?}"))?;
+
+    Ok(out
+        .rows
+        .into_iter()
+        .filter_map(|row| {
+            let values = row.to_string_vec();
+
+            let id = values.first()?.parse::<usize>().ok()?;
+            let text = values.get(1)?.clone();
+
+            Some(Text { id, text })
+        })
+        .collect())
+}
+
+async fn search_texts(query: String) -> Result<Vec<Text>, String> {
+    let search_in = payload::SearchFts5In {
+        table_name: "data".to_string(),
+        text_to_lookup: query,
+    };
+
+    let response = ask("search_fts5", Some(search_in.to_payload()))
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+
+    let out = payload::GetDataOut::un_payloadify(&response).map_err(|e| format!("{e:?}"))?;
+
+    Ok(out
+        .rows
+        .into_iter()
+        .filter_map(|row| {
+            let values = row.to_string_vec();
+
+            let id = values.first()?.parse::<usize>().ok()?;
+            let text = values.get(1)?.clone();
+
+            Some(Text { id, text })
+        })
+        .collect())
+}
+
 #[component]
 pub fn App() -> impl IntoView {
-    let (texts, set_texts) = signal(Vec::new());
-    let (setup_finished, finished_setup_setter) = signal(false);
-    Effect::new(move || {
-        //bug that's gonna create unwrap error if the table hasn't been populated and exists.
-        // the effect doesn't actually check if "setup_finished" is true or not
-        let table_name = "data";
-        let arguments = payload::SelectArgument::All;
-        let columns_to_read = vec![];
-        let set_texts = set_texts;
-        leptos::task::spawn_local(async move {
-            let get_data_in = payload::GetDataIn {
-                table_name: table_name.to_string(),
-                arguments: vec![payload::SelectArgument::All], // adjust if needed
-                columns_to_read: columns_to_read.to_vec(),
-            };
-            let data = ask("get_data", Some(get_data_in.to_payload()))
-                .await
-                .map_err(|e| anyhow::anyhow!(e))
-                .and_then(|bytes| {
-                    payload::GetDataOut::un_payloadify(&bytes).map_err(anyhow::Error::from)
-                })
-                .map(|out| out.rows);
-            match data {
-                Ok(data) => {
-                    let texts: Vec<Text> = data
-                        .into_iter() // iterate over all rows
-                        .map(|row| {
-                            let row_strings = row.to_string_vec();
-                            Text {
-                                id: row_strings[0].parse().unwrap(),
-                                text: row_strings[1].clone(),
-                            }
-                        })
-                        .collect();
+    let (texts, set_texts) = signal(Vec::<Text>::new());
+    let (setup_finished, set_setup_finished) = signal(false);
 
-                    set_texts.set(texts);
-                }
-                Err(e) => eprintln!("Error: {:?}", e),
+    let (search_query, set_search_query) = signal(String::new());
+    let (search_results, set_search_results) = signal(Vec::<Text>::new());
+
+    // Initial data load.
+    //
+    // This Effect reads no reactive values, so it runs once.
+    Effect::new(move || {
+        leptos::task::spawn_local(async move {
+            match load_texts().await {
+                Ok(new_texts) => set_texts.set(new_texts),
+                Err(error) => eprintln!("Failed to load data: {error}"),
             }
-            // Perform an async call or fetch
-            // let result = fetch_from_api().await;
-            // set_data.set(Some(result));
         });
     });
+
+    // Search effect — runs when search_query changes.
+    Effect::new(move || {
+        let query = search_query.get();
+
+        if query.trim().is_empty() {
+            set_search_results.set(Vec::new());
+            return;
+        }
+
+        let set_search_results = set_search_results;
+        leptos::task::spawn_local(async move {
+            match search_texts(query).await {
+                Ok(results) => set_search_results.set(results),
+                Err(error) => eprintln!("Search failed: {error}"),
+            }
+        });
+    });
+
     view! {
-        <crate::setup::Setup finished_setup=finished_setup_setter/>
+        <crate::setup::Setup finished_setup=set_setup_finished/>
+
         <div class="split">
             <div class="left">
-                {move ||
+                {move || {
                     if setup_finished.get() {
                         view! {
+                            <br/>
+                            <br/>
+                            <br/>
 
-                        <br/>   <br/>   <br/>
-                        <h2> "Default Page" </h2>
-                        <For
-                            // a function that returns the items we're iterating over; a signal is fine
-                            each=move || texts.get()
-                            // a unique key for each item
-                            key=|text| text.id
-                            // renders each item to a view
-                            children=move |text: Text| {
-                            view! {
-                                "id: " {text.id}
-                                <div class="happy_little_div_holding_all_the_text">
-                                    {text.text}
-                                </div>
-                                <br/>
-                            }
-                            }
-                        />
-                        }.into_any()
+                            <h2>"Default Page"</h2>
+
+                            <For
+                                each=move || texts.get()
+                                key=|text| text.id
+                                children=move |text| {
+                                    view! {
+                                        "id: " {text.id}
+
+                                        <div class="happy_little_div_holding_all_the_text">
+                                            {text.text}
+                                        </div>
+
+                                        <br/>
+                                    }
+                                }
+                            />
+                        }
+                        .into_any()
                     } else {
                         view! {
-                            <p> "Waiting for setup to finish..." </p>
-                        }.into_any()
+                            <p>"Waiting for setup to finish..."</p>
+                        }
+                        .into_any()
                     }
-                }
+                }}
             </div>
 
             <div class="right">
-                <br/><br/><br/><br/><br/><br/>
-                "search:"<br/>
-                <input type="text" />
                 <br/>
                 <br/>
+                <br/>
+                <br/>
+                <br/>
+                <br/>
+
+                "search:"
+                <br/>
+
+                <input
+                    type="text"
+                    on:input:target=move |ev| {
+                        set_search_query.set(ev.target().value());
+                    }
+                    prop:value=move || search_query.get()
+                />
+
+                <br/>
+                <br/>
+
                 <span>"search result goes here:"</span>
                 <br/>
-                <div id="search-result"></div>
+
+                <For
+                    each=move || search_results.get()
+                    key=|text| text.id
+                    children=move |text| {
+                        view! {
+                            "id: " {text.id}
+                            <div>{text.text}</div>
+                            <br/>
+                        }
+                    }
+                />
             </div>
         </div>
     }
