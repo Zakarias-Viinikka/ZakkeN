@@ -31,15 +31,15 @@ impl ColumnRow {
     }
 
     fn to_column_def(&self) -> ColumnDef {
-        ColumnDef(
-            self.name.get(),
-            self.col_type.get(),
-            self.primary_key.get(),
-            self.not_null.get(),
-            self.unique.get(),
-            self.default_value.get(),
-            self.autoincrement.get(),
-        )
+        ColumnDef {
+            name: self.name.get(),
+            column_type: self.col_type.get(),
+            primary_key: self.primary_key.get(),
+            not_null: self.not_null.get(),
+            unique: self.unique.get(),
+            default_value: self.default_value.get(),
+            autoincrement: self.autoincrement.get(),
+        }
     }
 }
 

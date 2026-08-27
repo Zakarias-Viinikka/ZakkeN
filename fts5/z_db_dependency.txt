@@ -1,0 +1,33 @@
+(z_db/) folder is a manual copy of db_wrapper/src/web_output in:
+https://github.com/Zakarias-Viinikka/z_db
+
+can run this to manually copy it, or use the build script. edit the Trunk.toml to disable/enable it:
+
+#the script.sh requires jq
+#run:
+which jq
+#to check
+
+REPO_URL="https://github.com/Zakarias-Viinikka/z_db.git"
+SUBPATH="db_wrapper/src/web_output"
+DEST="z_db"
+HASH_FILE=".last_web_output_hash"
+
+TMP_DIR=$(mktemp -d)
+git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" "$TMP_DIR"
+cd "$TMP_DIR"
+git sparse-checkout set "$SUBPATH"
+LATEST=$(git log -1 --format=%H -- "$SUBPATH")
+cd - > /dev/null
+
+OLD=$(cat "$HASH_FILE" 2>/dev/null || echo "")
+
+if [ "$LATEST" = "$OLD" ]; then
+    echo "web_output unchanged, skipping copy"
+else
+    cp -r "$TMP_DIR/$SUBPATH/." "$DEST"
+    echo "$LATEST" > "$HASH_FILE"
+    echo "web_output updated"
+fi
+
+rm -rf "$TMP_DIR"

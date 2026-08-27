@@ -1,0 +1,11 @@
+#check if the z_db/db_wrapper/src/web_output has changed and if so update the files in z_db over here
+[[hooks]]
+stage = "pre_build"
+command = "sh"
+command_arguments = ["-c", "./sync_zdb.sh"]
+
+# run cargo update to update the protocol dependency
+[[hooks]]
+stage = "pre_build"
+command = "cargo"
+command_arguments = ["update", "-p", "protocol"]
