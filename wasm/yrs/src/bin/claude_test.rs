@@ -14,7 +14,7 @@ pub fn generate_diff_snapshot(boss: &BossOfYrs, remote_sv_bytes: &[u8]) -> Vec<u
     let remote_sv = read_sync_point(remote_sv_bytes);
     boss.doc.transact().encode_diff_v1(&remote_sv)
 }
-
+//
 #[cfg(test)]
 mod tests {
     use super::*;
