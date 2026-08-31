@@ -9,3 +9,4 @@ js-sys = "0.3.104"
 leptos = { version = "0.8.20", features = ["csr"] }
 leptos_router = "0.8.15"
 rapier2d = "0.35.3"
+stylist = "0.15.1"
