@@ -2,7 +2,7 @@
 #![allow(unused_variables)]
 #![allow(unused)]
 
-use crate::{helper, yrs_wrapper};
+use crate::yrs_wrapper;
 
 use serde_json::json;
 use std::collections::HashMap;

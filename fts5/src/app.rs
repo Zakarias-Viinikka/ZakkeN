@@ -1,4 +1,5 @@
 use leptos::{logging::log, prelude::*};
+use leptos_router::components::A;
 use protocol::{payload, serialization::Convert};
 
 use crate::ask_js::ask;
@@ -36,7 +37,7 @@ async fn load_texts() -> Result<Vec<Text>, String> {
         .collect())
 }
 
-async fn search_texts(query: String) -> Result<Vec<Text>, String> {
+/*async fn search_texts(query: String) -> Result<Vec<Text>, String> {
     let search_in = payload::SearchFts5In {
         table_name: "data".to_string(),
         text_to_lookup: query,
@@ -46,7 +47,7 @@ async fn search_texts(query: String) -> Result<Vec<Text>, String> {
         .await
         .map_err(|e| format!("{e:?}"))?;
 
-    let out = payload::GetDataOut::un_payloadify(&response).map_err(|e| format!("{e:?}"))?;
+    let out = payload::SearchFts5Out::un_payloadify(&response).map_err(|e| format!("{e:?}"))?;
 
     Ok(out
         .rows
@@ -60,6 +61,68 @@ async fn search_texts(query: String) -> Result<Vec<Text>, String> {
             Some(Text { id, text })
         })
         .collect())
+}*/
+async fn search_texts(query: String) -> Result<Vec<Text>, String> {
+    log!("search_texts: query = {:?}", query);
+
+    let search_in = payload::SearchFts5In {
+        table_name: "data".to_string(),
+        text_to_lookup: query.clone(),
+    };
+
+    let response = ask("search_fts5", Some(search_in.to_payload()))
+        .await
+        .map_err(|e| {
+            log!("search_texts: ask failed: {:?}", e);
+            format!("{e:?}")
+        })?;
+
+    log!("search_texts: response bytes length = {}", response.len());
+
+    let out = payload::GetDataOut::un_payloadify(&response).map_err(|e| {
+        log!("search_texts: un_payloadify failed: {:?}", e);
+        format!("{e:?}")
+    })?;
+
+    log!("search_texts: returned {} rows", out.rows.len());
+
+    let mut texts = Vec::new();
+    for (idx, row) in out.rows.into_iter().enumerate() {
+        let values = row.to_string_vec();
+        log!("search_texts: row {} -> {:?}", idx, values);
+
+        let id = match values.first() {
+            Some(id_str) => match id_str.parse::<usize>() {
+                Ok(id) => id,
+                Err(e) => {
+                    log!(
+                        "search_texts: row {} parse id failed: {:?} (id_str={:?})",
+                        idx,
+                        e,
+                        id_str
+                    );
+                    continue;
+                }
+            },
+            None => {
+                log!("search_texts: row {} missing id", idx);
+                continue;
+            }
+        };
+
+        let text = match values.get(1) {
+            Some(t) => t.clone(),
+            None => {
+                log!("search_texts: row {} missing text", idx);
+                continue;
+            }
+        };
+
+        texts.push(Text { id, text });
+    }
+
+    log!("search_texts: successfully parsed {} texts", texts.len());
+    Ok(texts)
 }
 
 #[component]
@@ -102,7 +165,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         <crate::setup::Setup finished_setup=set_setup_finished/>
-
+        <A href="/dbgui">"Db Gui"</A>
         <div class="split">
             <div class="left">
                 {move || {

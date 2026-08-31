@@ -62,6 +62,7 @@ const serializedCommands = {
   create_fts5_table: (msg) => db_manager.create_fts5_table(msg[1]),
   search_fts5: (msg) => db_manager.search_fts5(msg[1]),
   rebuild_fts5_index: (msg) => db_manager.rebuild_fts5_index(msg[1]),
+  force_drop_table: (msg) => db_manager.force_drop_table(msg[1]),
 };
 
 // These commands take no serialized payload.

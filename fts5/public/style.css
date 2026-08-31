@@ -8,3 +8,27 @@
   border: 1px solid black;
   padding: 2px;
 }
+
+.container {
+    border: 5px skyblue solid;
+    padding: 5px;
+    margin: 2px;
+}
+
+body {
+    border: 5px orangered solid;
+
+    font-size: 22px;
+
+    display: flex;
+    justify-content: center; /* horizontal centering */
+    align-items: center; /* vertical centering */
+    min-height: 100vh; /* full viewport height */
+    margin: 0; /* remove default margin */
+    padding: 0;
+    box-sizing: border-box;
+}
+
+button {
+    font-size: 20px;
+}

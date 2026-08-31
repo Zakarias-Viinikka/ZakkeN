@@ -16,3 +16,6 @@ protocol = { git = "https://github.com/Zakarias-Viinikka/z_db" }
 wasm-bindgen = "0.2.127"
 js-sys = "0.3.104"
 wasm-bindgen-futures = "0.4.77"
+leptos_meta = "0.8.6"
+web-sys = "0.3.104"
+gloo-timers = { version = "0.4.0", features = ["futures"] }

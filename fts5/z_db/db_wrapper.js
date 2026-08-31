@@ -181,6 +181,18 @@ export class LiveForever {
      * @param {Uint8Array} data
      * @returns {Uint8Array}
      */
+    force_drop_table(data) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.liveforever_force_drop_table(this.__wbg_ptr, ptr0, len0);
+        var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v2;
+    }
+    /**
+     * @param {Uint8Array} data
+     * @returns {Uint8Array}
+     */
     get_data(data) {
         const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
         const len0 = WASM_VECTOR_LEN;
@@ -576,7 +588,7 @@ function __wbg_get_imports() {
             return ret;
         }, arguments); },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 733, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 734, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_5e1939e4e0db5e94___convert__closures_____invoke___wasm_bindgen_5e1939e4e0db5e94___JsValue__core_e2d3324fa3b902cb___result__Result_____wasm_bindgen_5e1939e4e0db5e94___JsError___true_);
             return ret;
         },

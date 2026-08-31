@@ -13,6 +13,18 @@ const TABLE_NAME: &str = "data";
 #[component]
 pub fn Setup(finished_setup: WriteSignal<bool>) -> impl IntoView {
     Effect::new(move || {
+        //force drop fts5_data table
+        /*
+        {
+            spawn_local(async move {
+                if let Err(e) = crate::ask_wrapper::force_drop_table("fts5_data").await {
+                    log!("force_drop_table failed: {}", e);
+                } else {
+                    log!("force_drop_table succeeded");
+                }
+            });
+        }
+        */
         spawn_local(async move {
             if let Err(e) = create_table_if_not_exist().await {
                 log!("create_table_if_not_exist error: {}", e);
