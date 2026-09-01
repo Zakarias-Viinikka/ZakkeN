@@ -1,5 +1,5 @@
 use rapier2d::geometry::ColliderBuilder;
-use rapier2d::math::Vector;
+use rapier2d::math::{Vec2, Vector};
 use rapier2d::prelude::ColliderSet;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -56,7 +56,7 @@ pub fn FunDragTestContainer() -> impl IntoView {
                 container_size,
                 mouse_position,
                 boxes,
-                1.0 / 60.0, // fixed timestep
+                boxes_set,
                 actively_moving_boxes,
                 actively_moving_boxes_set,
             );
@@ -134,7 +134,8 @@ fn MenuComponent(
                     width: b_settings.width,
                     height: b_settings.height,
                     position: RwSignal::new((position.0 as f32, position.1 as f32)),
-                    animation_state: AnimationState::Still,
+                    animation_state: RwSignal::new(AnimationState::Still),
+                    velocity: RwSignal::new(Vec2::new(0.0, 0.0)),
                 });
             });
         });
@@ -227,7 +228,7 @@ fn WorldComponent(
                 }
                 world_boxes_set.update(|boxes| {
                     if let Some(world_box) = boxes.iter_mut().find(|b| Some(b.id) == box_being_dragged.get()) {
-                        world_box.animation_state = AnimationState::Still;
+                        world_box.animation_state.set(AnimationState::Still);
                     }
                 });
                 box_being_dragged_set.set(None);
@@ -253,7 +254,7 @@ fn WorldComponent(
                         //update the enum for the correct box in the list of all the WorldBoxes
                         world_boxes_set.update(|boxes| {
                             if let Some(world_box) = boxes.iter_mut().find(|b| b.id == world_box.id) {
-                                world_box.animation_state = AnimationState::ActivelyDragged;
+                                world_box.animation_state.set(AnimationState::ActivelyDragged);
                             }
                         });
                     }
