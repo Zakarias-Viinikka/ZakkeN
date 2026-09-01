@@ -682,6 +682,10 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_backlinks(
     ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_every_block_in_existence_columns(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence(
+    ): Int
     external fun uniffi_client_table_blueprints_checksum_func_pages_columns(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_uncommitted_diffs_columns(
@@ -703,6 +707,10 @@ internal object UniffiLib {
     external fun uniffi_client_table_blueprints_fn_func_backlinks_columns(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_backlinks(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_every_block_in_existence_columns(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_pages_columns(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -831,6 +839,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_backlinks() != 39081) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_every_block_in_existence_columns() != 64356) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence() != 65402) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_pages_columns() != 42358) {
@@ -1061,6 +1075,26 @@ public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List
             return FfiConverterSequenceTypeForeignKeyDef.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_get_foreign_def_backlinks(
+    
+        _status)
+}
+    )
+    }
+    
+ fun `everyBlockInExistenceColumns`(): List<ColumnDef> {
+            return FfiConverterSequenceTypeColumnDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_every_block_in_existence_columns(
+    
+        _status)
+}
+    )
+    }
+    
+ fun `getForeignDefEveryBlockInExistence`(): List<ForeignKeyDef> {
+            return FfiConverterSequenceTypeForeignKeyDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(
     
         _status)
 }

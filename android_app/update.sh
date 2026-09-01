@@ -1,26 +1,38 @@
 #!/bin/bash
 
-BASE_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/z_db/main/db_wrapper/android_output"
+# URLs
+Z_DB_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/z_db/main/db_wrapper/android_output"
+BLUEPRINTS_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/ZakkeN/main/client_table_blueprints/android_output"
+
 JNI_DEST="app/src/main/jniLibs/arm64-v8a"
 KOTLIN_DEST="app/src/main/java"
 
-echo "Cleaning and updating database library for Zndroid..."
+echo "Updating native libraries and bindings for Zndroid..."
 
 # 1. Clear old versions to avoid conflicts
 rm -rf "$KOTLIN_DEST/com/z_db/android_mascot"
+rm -rf "$KOTLIN_DEST/rustlib/client_table_blueprints"
 rm -rf "$KOTLIN_DEST/uniffi/protocol"
 
 # 2. Re-create folders
 mkdir -p "$JNI_DEST"
 mkdir -p "$KOTLIN_DEST/com/z_db/android_mascot"
+mkdir -p "$KOTLIN_DEST/rustlib/client_table_blueprints"
 mkdir -p "$KOTLIN_DEST/uniffi/protocol"
 
-# 3. Download the SO files
-curl -L "$BASE_URL/jniLibs/arm64-v8a/libdb_wrapper.so" -o "$JNI_DEST/libdb_wrapper.so"
-curl -L "$BASE_URL/jniLibs/arm64-v8a/libprotocol.so" -o "$JNI_DEST/libprotocol.so"
+# 3. Download z_db (LiveForever)
+echo "Fetching z_db..."
+curl -L "$Z_DB_URL/jniLibs/arm64-v8a/libdb_wrapper.so" -o "$JNI_DEST/libdb_wrapper.so"
+curl -L "$Z_DB_URL/jniLibs/arm64-v8a/libprotocol.so" -o "$JNI_DEST/libprotocol.so"
+curl -L "$Z_DB_URL/kotlin/com/z_db/android_mascot/db_wrapper.kt" -o "$KOTLIN_DEST/com/z_db/android_mascot/db_wrapper.kt"
 
-# 4. Download Kotlin Bindings
-curl -L "$BASE_URL/kotlin/com/z_db/android_mascot/db_wrapper.kt" -o "$KOTLIN_DEST/com/z_db/android_mascot/db_wrapper.kt"
-curl -L "$BASE_URL/kotlin/uniffi/protocol/protocol.kt" -o "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
+# 4. Download client_table_blueprints
+echo "Fetching client_table_blueprints..."
+curl -L "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libclient_table_blueprints.so" -o "$JNI_DEST/libclient_table_blueprints.so"
+curl -L "$BLUEPRINTS_URL/kotlin/rustlib/client_table_blueprints/client_table_blueprints.kt" -o "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
 
-echo "Done! Your library is now clean and synchronized for Zndroid."
+# 5. Download shared protocol
+echo "Fetching shared protocol..."
+curl -L "$BLUEPRINTS_URL/kotlin/uniffi/protocol/protocol.kt" -o "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
+
+echo "Done! Native infrastructure synchronized for Zndroid."

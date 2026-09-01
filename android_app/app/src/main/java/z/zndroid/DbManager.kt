@@ -3,8 +3,8 @@ package z.zndroid
 import android.content.Context
 import com.z_db.android_mascot.LiveForever
 import uniffi.protocol.CreateTableIn
-import z.zndroid.schema.testTableDef
-import z.zndroid.schema.testTableName
+import rustlib.client_table_blueprints.pagesColumns
+import rustlib.client_table_blueprints.uncommittedDiffsColumns
 
 object DbManager {
     // This holds the connection to your Rust library
@@ -17,10 +17,13 @@ object DbManager {
             val dbPath = context.getDatabasePath("my_database.db").absolutePath
             db = LiveForever(dbPath)
         }
-        val create_table_in = CreateTableIn(
-            testTableName(),
-            testTableDef()
-        )
-        db.createTable(create_table_in)
+
+        // Initialize Independent Tables from Rust Blueprints
+        db.createTable(CreateTableIn("pages", pagesColumns()))
+        db.createTable(CreateTableIn("uncommitted_diffs", uncommittedDiffsColumns()))
+
+        // TODO: Initialize tables with Foreign Keys when db_wrapper supports it:
+        // - backlinks (depends on pages)
+        // - every_block_in_existence (depends on pages)
     }
 }

@@ -2,6 +2,7 @@ package z.zndroid
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
@@ -20,7 +21,11 @@ import androidx.compose.ui.unit.dp
 import z.zndroid.ui.theme.ZndroidTheme
 
 @Composable
-fun DbGui(modifier: Modifier = Modifier, onInspectTable: (String) -> Unit = {}) {
+fun DbGui(
+    modifier: Modifier = Modifier,
+    onInspectTable: (String) -> Unit = {},
+    onViewSchema: () -> Unit = {}
+) {
     // Fetch table names from your Rust library
     val tableNames = remember {
         try {
@@ -39,10 +44,19 @@ fun DbGui(modifier: Modifier = Modifier, onInspectTable: (String) -> Unit = {}) 
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Database GUI",
-                style = MaterialTheme.typography.headlineMedium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Database GUI",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Button(onClick = onViewSchema) {
+                    Text("View Schema")
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
