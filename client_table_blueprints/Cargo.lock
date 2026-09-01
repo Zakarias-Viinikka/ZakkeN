@@ -354,7 +354,7 @@ dependencies = [
 [[package]]
 name = "protocol"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#f44eeef779fca3f29386036ce5e1bb4a9194cc23"
+source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#036b687010bee135a0269ce5f6559c9f43b97287"
 dependencies = [
  "base64",
  "bincode",
