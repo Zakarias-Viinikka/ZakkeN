@@ -1,0 +1,6 @@
+[crate-roots]
+client_table_blueprints = "."
+
+[crates.client_table_blueprints.bindings.kotlin]
+package_name = "rustlib.client_table_blueprints"
+android = true

@@ -1,0 +1,11 @@
+[package]
+name = "client_table_blueprints"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "cdylib"]   # cdylib needed for Android .so
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+protocol = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
