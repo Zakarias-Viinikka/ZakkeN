@@ -1,21 +1,52 @@
 #![allow(unused_labels)]
-use leptos::logging::log;
 use leptos::prelude::*;
+use rapier2d::dynamics::{CCDSolver, ImpulseJointSet, IslandManager, MultibodyJointSet};
+use rapier2d::geometry::{BroadPhaseBvh, NarrowPhase};
 use rapier2d::prelude::*;
+use std::sync::RwLock;
 
-use crate::{
-    collider_library::update_collider_set,
-    fun_drag::{BoxSettings, ContainerSize, ImmovableObjectSettings},
-};
+use crate::fun_drag::BoxSettings;
 
 #[derive(Clone, Debug)]
 pub struct WorldBox {
     pub id: u32,
     pub width: u32,
     pub height: u32,
-    pub position: RwSignal<(f32, f32)>,
+    pub rigid_body_handle: RigidBodyHandle,
+    pub position: RwSignal<(f32, f32)>, // for UI rendering
     pub animation_state: RwSignal<AnimationState>,
-    pub velocity: RwSignal<Vec2>,
+}
+
+pub struct RapierContext {
+    pub colliders: RwLock<ColliderSet>,
+    pub rigid_bodies: RwLock<RigidBodySet>,
+    pub pipeline: RwLock<PhysicsPipeline>,
+    pub params: RwLock<IntegrationParameters>,
+    pub hooks: RwLock<()>,
+    pub islands: RwLock<IslandManager>,
+    pub broad_phase: RwLock<BroadPhaseBvh>,
+    pub narrow_phase: RwLock<NarrowPhase>,
+    pub impulse_joints: RwLock<ImpulseJointSet>,
+    pub multibody_joints: RwLock<MultibodyJointSet>,
+    pub ccd_solver: RwLock<CCDSolver>,
+}
+
+impl RapierContext {
+    pub fn new() -> Self {
+        Self {
+            colliders: RwLock::new(ColliderSet::new()),
+            rigid_bodies: RwLock::new(RigidBodySet::new()),
+            pipeline: RwLock::new(PhysicsPipeline::new()),
+            params: RwLock::new(IntegrationParameters::default()),
+            hooks: RwLock::new(()),
+            islands: RwLock::new(IslandManager::new()),
+            broad_phase: RwLock::new(BroadPhaseBvh::new()),
+            narrow_phase: RwLock::new(NarrowPhase::new()),
+            impulse_joints: RwLock::new(ImpulseJointSet::new()),
+            multibody_joints: RwLock::new(MultibodyJointSet::new()),
+            ccd_solver: RwLock::new(CCDSolver::new()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -64,156 +95,148 @@ pub fn check_if_colliding_with_another_box(
     false
 }
 
-/*
-//DBG
-use std::sync::atomic::{AtomicU64, Ordering};
-
-static DBG_CTR: AtomicU64 = AtomicU64::new(0);
-//DBG
-*/
-
 pub fn update_world(
-    colliders: RwSignal<ColliderSet>,
-    container_size: RwSignal<ContainerSize>,
+    rapier_ctx: ArcRwSignal<RapierContext>,
     mouse_pos: ReadSignal<(f32, f32)>,
     boxes: ReadSignal<Vec<WorldBox>>,
     set_boxes: WriteSignal<Vec<WorldBox>>,
     actively_moving_boxes: ReadSignal<ActivelyMovingBoxes>,
     actively_moving_boxes_set: WriteSignal<ActivelyMovingBoxes>,
-    immovable_obj_settings: RwSignal<ImmovableObjectSettings>,
 ) {
-    /*
-    // Increment debug counter
-    let call_count = DBG_CTR.fetch_add(1, Ordering::Relaxed) + 1;
-
-    // Log every 60 calls (roughly once per second at 60 FPS)
-    if call_count % 60 == 0 {
-        let boxes_snapshot = boxes.get_untracked();
-        let active_ids = &actively_moving_boxes.get_untracked().box_ids;
-
-        if let Some(first_box) = boxes_snapshot.iter().find(|b| active_ids.contains(&b.id)) {
-            log!(
-                "DBG #{}, first active box: id={}, pos={:?}, vel={:?}, state={:?}",
-                call_count,
-                first_box.id,
-                first_box.position.get_untracked(),
-                first_box.velocity.get_untracked(),
-                first_box.animation_state.get_untracked(),
-            );
-        } else {
-            log!("DBG #{}, no active boxes", call_count);
-        }
-    }
-    */
-
     let mouse = mouse_pos.get_untracked();
-    // Original update loop
+    let mut active_handles = Vec::new();
+
+    // Phase 1 – set velocities for all active boxes
     for box_id in actively_moving_boxes.get_untracked().box_ids.iter() {
-        'block: {
-            let boxes = boxes.get_untracked();
-            let box_item = if let Some(item) = boxes.iter().find(|box_item| &box_item.id == box_id)
-            {
-                item
-            } else {
-                break 'block;
-            };
+        let boxes_snapshot = boxes.get_untracked();
+        let box_item = if let Some(item) = boxes_snapshot.iter().find(|b| &b.id == box_id) {
+            item
+        } else {
+            continue;
+        };
 
-            let is_touching = || {
-                let current_pos = box_item.position.get_untracked();
-                is_box_touching_mouse(IsBoxTouchingMouseCtx {
-                    mouse_x: mouse.0,
-                    mouse_y: mouse.1,
-                    box_x: current_pos.0,
-                    box_y: current_pos.1,
-                    box_height: box_item.height as f32,
-                    box_width: box_item.width as f32,
-                })
-            };
+        let pos = box_item.position.get_untracked();
+        let ctx = FigureOutDrag {
+            box_x_middle: pos.0 + (box_item.width as f32) / 2.0,
+            box_y_middle: pos.1 + (box_item.height as f32) / 2.0,
+            mouse_x: mouse.0,
+            mouse_y: mouse.1,
+            old_velocity: Vec2::new(0.0, 0.0),
+        };
 
-            let mouse = mouse_pos.get_untracked();
-            let pos = box_item.position.get_untracked();
-
-            let figure_out_drag_ctx = FigureOutDrag {
-                box_x_middle: pos.0 + (box_item.width as f32) / 2.0,
-                box_y_middle: pos.1 + (box_item.height as f32) / 2.0,
-                mouse_x: mouse.0,
-                mouse_y: mouse.1,
-                old_velocity: box_item.velocity.get_untracked(),
-            };
-
-            match box_item.animation_state.get_untracked() {
-                AnimationState::ActivelyDragged => {
-                    let new_velocity = figure_out_new_drag_velocity(figure_out_drag_ctx);
-                    box_item.velocity.set(new_velocity);
-                }
-                AnimationState::Still => {
-                    break 'block;
-                }
-                AnimationState::TouchingMouse => {
-                    if !is_touching() {
-                        box_item
-                            .animation_state
-                            .set(AnimationState::ActivelyDragged);
-                    } else {
-                        crawl_to_a_stop(figure_out_drag_ctx, box_item.id, set_boxes);
-                    }
-                }
-                _ => break 'block, // todo
+        let desired_velocity = match box_item.animation_state.get_untracked() {
+            AnimationState::ActivelyDragged => {
+                let current_vel = rapier_ctx.with_untracked(|ctx| {
+                    let rb = ctx.rigid_bodies.read().unwrap();
+                    rb.get(box_item.rigid_body_handle)
+                        .map(|body| body.linvel())
+                        .unwrap_or(Vec2::new(0.0, 0.0))
+                });
+                let ctx_with_vel = FigureOutDrag {
+                    old_velocity: current_vel,
+                    ..ctx
+                };
+                figure_out_new_drag_velocity(ctx_with_vel)
             }
+            AnimationState::TouchingMouse => crawl_to_a_stop(ctx),
+            _ => continue,
+        };
 
-            // --- move the box --- //
-            let current_pos = box_item.position.get_untracked();
-            let velocity = box_item.velocity.get_untracked();
-            let new_pos = (current_pos.0 + velocity.x, current_pos.1 + velocity.y);
-            box_item.position.set(new_pos);
-            // Optional: apply damping (e.g., reduce velocity)
-            // box_item.velocity.set(velocity * 0.9);
-            // --- move the box --- /
-
-            // // Sync the Rapier collider with the new position
-            update_collider_set(colliders, &boxes, *box_id, Vec2::new(new_pos.0, new_pos.1));
-            // // Sync the Rapier collider with the new position
-
-            // -- check if the box is touching the cursor after movement is applied //
-            if AnimationState::ActivelyDragged == box_item.animation_state.get_untracked() {
-                if is_touching() {
-                    box_item.animation_state.set(AnimationState::TouchingMouse);
-                }
+        // Apply velocity to rigid body
+        rapier_ctx.update(|ctx| {
+            let mut rb = ctx.rigid_bodies.write().unwrap();
+            if let Some(body) = rb.get_mut(box_item.rigid_body_handle) {
+                body.set_linvel(desired_velocity, true);
             }
-        }
+        });
+
+        active_handles.push((*box_id, box_item.rigid_body_handle));
     }
-}
 
-fn crawl_to_a_stop(ctx: FigureOutDrag, box_id: u32, set_boxes: WriteSignal<Vec<WorldBox>>) {
-    let mut ctx = ctx;
-    ctx.old_velocity = ctx.old_velocity * 0.7;
+    // Phase 2 – step physics and read positions
+    let mut new_positions = Vec::new();
+    rapier_ctx.update(|ctx| {
+        let mut rigid_bodies = ctx.rigid_bodies.write().unwrap();
+        let mut colliders = ctx.colliders.write().unwrap();
+        let mut pipeline = ctx.pipeline.write().unwrap();
+        let params = ctx.params.read().unwrap();
+        let mut islands = ctx.islands.write().unwrap();
+        let mut broad_phase = ctx.broad_phase.write().unwrap();
+        let mut narrow_phase = ctx.narrow_phase.write().unwrap();
+        let mut impulse_joints = ctx.impulse_joints.write().unwrap();
+        let mut multibody_joints = ctx.multibody_joints.write().unwrap();
+        let mut ccd_solver = ctx.ccd_solver.write().unwrap();
 
-    set_boxes.update(|boxes_vec| {
-        if let Some(box_item) = boxes_vec.iter_mut().find(|b| b.id == box_id) {
-            let dx = ctx.box_x_middle - ctx.mouse_x;
-            let dy = ctx.box_y_middle - ctx.mouse_y;
-            let distance = (dx * dx + dy * dy).sqrt();
+        let gravity = Vector::new(0.0, -9.81); // or your desired gravity
 
-            // Stop completely when very close to the mouse center
-            const DEAD_ZONE: f32 = 3.0; // adjust pixels as needed
-            if distance < DEAD_ZONE {
-                box_item.velocity.set(Vec2::new(0.0, 0.0));
-                return;
-            }
+        pipeline.step(
+            gravity,
+            &params,
+            &mut islands,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut rigid_bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut ccd_solver,
+            &(), // no custom hooks
+            &(), // no event handler
+        );
 
-            // Otherwise, apply dynamic minimum speed
-            let min_speed = distance * 0.2;
-            let new_vel = figure_out_new_drag_velocity(ctx);
-            let speed = new_vel.length();
+        // Drop read locks so we can read from rigid_bodies later
+        drop(pipeline);
+        drop(params);
 
-            if speed < min_speed {
-                let dir = new_vel.try_normalize().unwrap_or(Vec2::new(0.0, 0.0));
-                box_item.velocity.set(dir * min_speed);
-            } else {
-                box_item.velocity.set(new_vel);
+        // Read new positions
+        for (box_id, handle) in &active_handles {
+            if let Some(body) = rigid_bodies.get(*handle) {
+                let translation = body.translation();
+                // find box dimensions from boxes signal
+                let box_item = boxes
+                    .get_untracked()
+                    .iter()
+                    .find(|b| b.id == *box_id)
+                    .cloned();
+                if let Some(box_item) = box_item {
+                    let top_left_x = translation.x - (box_item.width as f32) / 2.0;
+                    let top_left_y = translation.y - (box_item.height as f32) / 2.0;
+                    new_positions.push((*box_id, (top_left_x, top_left_y)));
+                }
             }
         }
     });
+
+    // Update UI position signals
+    set_boxes.update(|boxes_vec| {
+        for (id, new_pos) in new_positions {
+            if let Some(box_item) = boxes_vec.iter_mut().find(|b| b.id == id) {
+                box_item.position.set(new_pos);
+            }
+        }
+    });
+}
+
+fn crawl_to_a_stop(ctx: FigureOutDrag) -> Vec2 {
+    let mut vel = ctx.old_velocity * 0.7;
+    let dx = ctx.box_x_middle - ctx.mouse_x;
+    let dy = ctx.box_y_middle - ctx.mouse_y;
+    let distance = (dx * dx + dy * dy).sqrt();
+
+    const DEAD_ZONE: f32 = 3.0;
+    if distance < DEAD_ZONE {
+        return Vec2::new(0.0, 0.0);
+    }
+
+    let min_speed = distance * 0.2;
+    let new_vel = figure_out_new_drag_velocity(ctx);
+    let speed = new_vel.length();
+    if speed < min_speed {
+        let dir = new_vel.try_normalize().unwrap_or(Vec2::new(0.0, 0.0));
+        dir * min_speed
+    } else {
+        new_vel
+    }
 }
 
 struct IsBoxTouchingMouseCtx {

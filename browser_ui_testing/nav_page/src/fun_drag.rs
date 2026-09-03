@@ -1,8 +1,10 @@
-use rapier2d::geometry::{ColliderBuilder, ColliderHandle};
-use rapier2d::math::{Vec2, Vector};
-use rapier2d::prelude::ColliderSet;
-use std::cell::RefCell;
+use rapier2d::dynamics::{RigidBodyBuilder, RigidBodyHandle};
+use rapier2d::geometry::ColliderBuilder;
+use rapier2d::math::Vector;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use stylist::style;
 use wasm_bindgen::JsCast; // <-- add this at the top of your file
 
@@ -38,11 +40,12 @@ impl ImmovableObjectSettings {
 
 fn create_immovable_object(
     container_size: RwSignal<ContainerSize>,
-    colliders: RwSignal<ColliderSet>,
+    rapier_ctx: ArcRwSignal<RapierContext>,
 ) -> RwSignal<ImmovableObjectSettings> {
     let immovable_obj_settings = RwSignal::new(ImmovableObjectSettings::new(300u16, 500u16));
 
-    let immovable_collider_handle = RwSignal::new(None::<ColliderHandle>);
+    // Store the rigid body handle so we can update its position on resize
+    let immovable_body_handle = RwSignal::new(None::<RigidBodyHandle>);
 
     Effect::new(move |_| {
         let c_size = container_size.get();
@@ -52,24 +55,22 @@ fn create_immovable_object(
         let imm_height = imm.height as f32;
         let x = (c_size.width as f32 - imm_width) / 2.0;
         let y = c_size.height as f32 - imm_height;
-
         let translation = Vector::new(x + imm_width / 2.0, y + imm_height / 2.0);
 
-        colliders.update(|set| {
-            if let Some(handle) = immovable_collider_handle.get_untracked() {
-                if let Some(collider) = set.get_mut(handle) {
-                    collider.set_translation(translation);
-                    // If size changes too, you can set the shape:
-                    // if let Some(cuboid) = collider.shape_mut().as_cuboid_mut() {
-                    //     cuboid.half_extents = Vector::new(imm_width / 2.0, imm_height / 2.0);
-                    // }
+        rapier_ctx.update(|ctx| {
+            let mut rigid_bodies = ctx.rigid_bodies.write().unwrap();
+            let mut colliders = ctx.colliders.write().unwrap();
+
+            if let Some(body_handle) = immovable_body_handle.get_untracked() {
+                if let Some(body) = rigid_bodies.get_mut(body_handle) {
+                    body.set_translation(translation, true);
                 }
             } else {
-                let collider = ColliderBuilder::cuboid(imm_width / 2.0, imm_height / 2.0)
-                    .translation(translation)
-                    .build();
-                let new_handle = set.insert(collider);
-                immovable_collider_handle.set(Some(new_handle));
+                let body_handle =
+                    rigid_bodies.insert(RigidBodyBuilder::fixed().translation(translation).build());
+                let collider = ColliderBuilder::cuboid(imm_width / 2.0, imm_height / 2.0).build();
+                colliders.insert_with_parent(collider, body_handle, &mut rigid_bodies);
+                immovable_body_handle.set(Some(body_handle));
             }
         });
     });
@@ -79,14 +80,13 @@ fn create_immovable_object(
 
 #[component]
 pub fn UltimateParent() -> impl IntoView {
-    let colliders = RwSignal::new(ColliderSet::new());
-
     let container_size = RwSignal::new(ContainerSize {
         height: 800,
         width: 1200,
     });
 
-    let immovable_obj_settings = create_immovable_object(container_size, colliders);
+    let rapier_ctx = ArcRwSignal::new(RapierContext::new());
+    let immovable_obj_settings = create_immovable_object(container_size, rapier_ctx.clone());
 
     let box_settings = RwSignal::new(BoxSettings {
         height: 100,
@@ -101,24 +101,28 @@ pub fn UltimateParent() -> impl IntoView {
         box_ids: Vec::new(),
     });
 
+    let rapier_ctx_for_effect = rapier_ctx.clone();
     Effect::new(move |_| {
-        // Self‑scheduling animation loop using requestAnimationFrame
-        let cb: Rc<RefCell<Option<std::boxed::Box<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
-        let cb_clone = cb.clone();
-
-        *cb_clone.borrow_mut() = Some(std::boxed::Box::new(move || {
+        let rapier_ctx = rapier_ctx_for_effect.clone();
+        let running = Arc::new(AtomicBool::new(true));
+        let running_cleanup = running.clone();
+        on_cleanup(move || running_cleanup.store(false, Ordering::Relaxed));
+        let cb: Rc<RefCell<Option<Box<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
+        let cb_for_frame = cb.clone();
+        let cb_request = cb.clone();
+        *cb.borrow_mut() = Some(Box::new(move || {
+            if !running.load(Ordering::Relaxed) {
+                return;
+            }
             update_world(
-                colliders,
-                container_size,
+                rapier_ctx.clone(),
                 mouse_position,
                 boxes,
                 boxes_set,
                 actively_moving_boxes,
                 actively_moving_boxes_set,
-                immovable_obj_settings,
             );
-
-            let cb_weak = Rc::downgrade(&cb);
+            let cb_weak = Rc::downgrade(&cb_for_frame);
             request_animation_frame(move || {
                 if let Some(cb) = cb_weak.upgrade() {
                     if let Some(callback) = cb.borrow_mut().as_mut() {
@@ -127,17 +131,17 @@ pub fn UltimateParent() -> impl IntoView {
                 }
             });
         }));
-
         request_animation_frame(move || {
-            if let Some(callback) = cb_clone.borrow_mut().as_mut() {
+            if let Some(callback) = cb_request.borrow_mut().as_mut() {
                 callback();
             }
         });
     });
 
+    let rapier_ctx_for_menu = rapier_ctx.clone();
     view! {
         <MenuComponent
-            colliders=colliders
+            rapier_ctx=rapier_ctx_for_menu
             container_size=container_size
             box_settings=box_settings
             boxes=boxes_set
@@ -155,7 +159,7 @@ pub fn UltimateParent() -> impl IntoView {
 
 #[component]
 fn MenuComponent(
-    colliders: RwSignal<ColliderSet>,
+    rapier_ctx: ArcRwSignal<RapierContext>,
     container_size: RwSignal<ContainerSize>,
     box_settings: RwSignal<BoxSettings>,
     boxes: WriteSignal<Vec<WorldBox>>,
@@ -166,24 +170,34 @@ fn MenuComponent(
 
         let mut position = get_random_position_within_constraints(&c_size, &b_settings);
 
-        colliders.update(|colliders| {
+        // Spawn collision check
+        rapier_ctx.update(|ctx| {
+            let colliders = ctx.colliders.read().unwrap();
             for _ in 0..20 {
-                if !check_if_colliding_with_another_box(colliders, position, &b_settings) {
+                if !check_if_colliding_with_another_box(&*colliders, position, &b_settings) {
                     break;
                 }
                 position = get_random_position_within_constraints(&c_size, &b_settings);
             }
+        });
 
-            let half_width = b_settings.width as f32 / 2.0;
-            let half_height = b_settings.height as f32 / 2.0;
-            let center_x = position.0 as f32 + half_width;
-            let center_y = position.1 as f32 + half_height;
+        let half_width = b_settings.width as f32 / 2.0;
+        let half_height = b_settings.height as f32 / 2.0;
+        let center_x = position.0 as f32 + half_width;
+        let center_y = position.1 as f32 + half_height;
+        let translation = Vector::new(center_x, center_y);
 
-            let collider = ColliderBuilder::cuboid(half_width, half_height)
-                .translation(Vector::new(center_x, center_y))
-                .build();
+        // Create dynamic rigid body and attach collider
+        rapier_ctx.update(|ctx| {
+            let mut rigid_bodies = ctx.rigid_bodies.write().unwrap();
+            let mut colliders = ctx.colliders.write().unwrap();
 
-            let collider_handle = colliders.insert(collider);
+            let rb_handle =
+                rigid_bodies.insert(RigidBodyBuilder::dynamic().translation(translation).build());
+
+            let collider = ColliderBuilder::cuboid(half_width, half_height).build();
+            let collider_handle =
+                colliders.insert_with_parent(collider, rb_handle, &mut rigid_bodies);
             let id = collider_handle.into_raw_parts().0;
 
             boxes.update(|boxes| {
@@ -191,9 +205,9 @@ fn MenuComponent(
                     id,
                     width: b_settings.width,
                     height: b_settings.height,
+                    rigid_body_handle: rb_handle,
                     position: RwSignal::new((position.0 as f32, position.1 as f32)),
                     animation_state: RwSignal::new(AnimationState::Still),
-                    velocity: RwSignal::new(Vec2::new(0.0, 0.0)),
                 });
             });
         });
