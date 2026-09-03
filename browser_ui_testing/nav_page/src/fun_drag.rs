@@ -24,6 +24,18 @@ pub struct BoxSettings {
     pub width: u32,
 }
 
+#[derive(Clone)]
+pub struct ImmovableObjectSettings {
+    pub width: u16,
+    pub height: u16,
+}
+
+impl ImmovableObjectSettings {
+    pub fn new(width: u16, height: u16) -> Self {
+        Self { width, height }
+    }
+}
+
 #[component]
 pub fn FunDragTestContainer() -> impl IntoView {
     let colliders = RwSignal::new(ColliderSet::new());
@@ -32,6 +44,8 @@ pub fn FunDragTestContainer() -> impl IntoView {
         height: 800,
         width: 1200,
     });
+
+    let immovable_obj_settings = RwSignal::new(ImmovableObjectSettings::new(300u16, 500u16));
 
     let box_settings = RwSignal::new(BoxSettings {
         height: 100,
@@ -60,6 +74,7 @@ pub fn FunDragTestContainer() -> impl IntoView {
                 boxes_set,
                 actively_moving_boxes,
                 actively_moving_boxes_set,
+                immovable_obj_settings,
             );
 
             let cb_weak = Rc::downgrade(&cb);
@@ -92,6 +107,7 @@ pub fn FunDragTestContainer() -> impl IntoView {
             world_boxes=boxes
             actively_moving_boxes=actively_moving_boxes_set
             mouse_pos=mouse_position_set
+            immovable_object_settings=immovable_obj_settings
         />
     }
 }
@@ -205,6 +221,7 @@ fn WorldComponent(
     world_boxes: ReadSignal<Vec<WorldBox>>,
     actively_moving_boxes: WriteSignal<ActivelyMovingBoxes>,
     mouse_pos: WriteSignal<(f32, f32)>,
+    immovable_object_settings: RwSignal<ImmovableObjectSettings>,
 ) -> impl IntoView {
     let update_mouse_position = move |e: web_sys::MouseEvent| {
         let container = e
@@ -270,6 +287,24 @@ fn WorldComponent(
                     }
                 />
             )}
+            <ImmovableObject immovable_obj_settings=immovable_object_settings />
+        </div>
+    }
+}
+
+#[component]
+fn ImmovableObject(immovable_obj_settings: RwSignal<ImmovableObjectSettings>) -> impl IntoView {
+    view! {
+        <div
+            style:position="absolute"
+            style:bottom="0"
+            style:left="50%"
+            style:transform="translateX(-50%)"
+            style:width=move || format!("{}px", immovable_obj_settings.get().width)
+            style:height=move || format!("{}px", immovable_obj_settings.get().height)
+            style:border="1px solid black"
+            style:border-bottom="none"
+        >
         </div>
     }
 }

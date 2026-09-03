@@ -3,7 +3,7 @@ use leptos::logging::log;
 use leptos::prelude::*;
 use rapier2d::prelude::*;
 
-use crate::fun_drag::{BoxSettings, ContainerSize};
+use crate::fun_drag::{BoxSettings, ContainerSize, ImmovableObjectSettings};
 
 #[derive(Clone, Debug)]
 pub struct WorldBox {
@@ -61,11 +61,13 @@ pub fn check_if_colliding_with_another_box(
     false
 }
 
+/*
 //DBG
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static DBG_CTR: AtomicU64 = AtomicU64::new(0);
 //DBG
+*/
 
 pub fn update_world(
     colliders: RwSignal<ColliderSet>,
@@ -75,7 +77,9 @@ pub fn update_world(
     set_boxes: WriteSignal<Vec<WorldBox>>,
     actively_moving_boxes: ReadSignal<ActivelyMovingBoxes>,
     actively_moving_boxes_set: WriteSignal<ActivelyMovingBoxes>,
+    immovable_obj_settings: RwSignal<ImmovableObjectSettings>,
 ) {
+    /*
     // Increment debug counter
     let call_count = DBG_CTR.fetch_add(1, Ordering::Relaxed) + 1;
 
@@ -97,6 +101,7 @@ pub fn update_world(
             log!("DBG #{}, no active boxes", call_count);
         }
     }
+    */
 
     let mouse = mouse_pos.get_untracked();
     // Original update loop
