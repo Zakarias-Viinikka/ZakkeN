@@ -1,0 +1,31 @@
+$base-size: 4px;
+$ratio: 1.333;
+$steps: 10;
+
+$font-base: 16px;
+$font-step: 2px;
+$font-steps: 10;
+
+:root {
+  $space-value: $base-size;
+  @for $i from 1 through $steps {
+    --space#{$i}: #{$space-value};
+    $space-value: $space-value * $ratio; // multiply for next step
+  }
+  @for $i from 1 through $font-steps {
+    --font#{$i}: #{$font-base + ($i - 1) * $font-step};
+  }
+}
+
+// Usage:
+//   Spacing: var(--space1) through var(--space10) — exponential scale (ratio: 1.333)
+//   Font sizes: var(--font1) through var(--font10) — linear scale (starts at 16px, +2px each step)
+
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: var(--space4);
+  box-sizing: border-box;
+}
