@@ -1119,6 +1119,8 @@ dependencies = [
  "leptos_router",
  "rapier2d",
  "stylist",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

@@ -98,6 +98,7 @@ pub fn update_world(
         }
     }
 
+    let mouse = mouse_pos.get_untracked();
     // Original update loop
     for box_id in actively_moving_boxes.get_untracked().box_ids.iter() {
         'block: {
@@ -111,7 +112,6 @@ pub fn update_world(
 
             let is_touching = || {
                 let current_pos = box_item.position.get_untracked();
-                let mouse = mouse_pos.get_untracked();
                 is_box_touching_mouse(IsBoxTouchingMouseCtx {
                     mouse_x: mouse.0,
                     mouse_y: mouse.1,
@@ -122,19 +122,19 @@ pub fn update_world(
                 })
             };
 
+            let mouse = mouse_pos.get_untracked();
+            let pos = box_item.position.get_untracked();
+
+            let figure_out_drag_ctx = FigureOutDrag {
+                box_x_middle: pos.0 + (box_item.width as f32) / 2.0,
+                box_y_middle: pos.1 + (box_item.height as f32) / 2.0,
+                mouse_x: mouse.0,
+                mouse_y: mouse.1,
+                old_velocity: box_item.velocity.get_untracked(),
+            };
+
             match box_item.animation_state.get_untracked() {
                 AnimationState::ActivelyDragged => {
-                    let pos = box_item.position.get_untracked();
-                    let mouse = mouse_pos.get_untracked();
-
-                    let figure_out_drag_ctx = FigureOutDrag {
-                        box_x_middle: pos.0 + (box_item.width as f32) / 2.0,
-                        box_y_middle: pos.1 + (box_item.height as f32) / 2.0,
-                        mouse_x: mouse.0,
-                        mouse_y: mouse.1,
-                        old_velocity: box_item.velocity.get_untracked(),
-                    };
-
                     let new_velocity = figure_out_new_drag_velocity(figure_out_drag_ctx);
                     box_item.velocity.set(new_velocity);
                 }
@@ -147,7 +147,7 @@ pub fn update_world(
                             .animation_state
                             .set(AnimationState::ActivelyDragged);
                     } else {
-                        crawl_to_a_stop(box_item.id, set_boxes);
+                        crawl_to_a_stop(figure_out_drag_ctx, box_item.id, set_boxes);
                     }
                 }
                 _ => break 'block, // todo
@@ -172,13 +172,34 @@ pub fn update_world(
     }
 }
 
-fn crawl_to_a_stop(box_id: u32, set_boxes: WriteSignal<Vec<WorldBox>>) {
+fn crawl_to_a_stop(ctx: FigureOutDrag, box_id: u32, set_boxes: WriteSignal<Vec<WorldBox>>) {
+    let mut ctx = ctx;
+    ctx.old_velocity = ctx.old_velocity * 0.7;
+
     set_boxes.update(|boxes_vec| {
         if let Some(box_item) = boxes_vec.iter_mut().find(|b| b.id == box_id) {
-            let vel = box_item.velocity.get_untracked();
-            let damping = 0.9; // reduce speed by 10% each call
-            let new_vel = Vec2::new(vel.x * damping, vel.y * damping);
-            box_item.velocity.set(new_vel);
+            let dx = ctx.box_x_middle - ctx.mouse_x;
+            let dy = ctx.box_y_middle - ctx.mouse_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            // Stop completely when very close to the mouse center
+            const DEAD_ZONE: f32 = 3.0; // adjust pixels as needed
+            if distance < DEAD_ZONE {
+                box_item.velocity.set(Vec2::new(0.0, 0.0));
+                return;
+            }
+
+            // Otherwise, apply dynamic minimum speed
+            let min_speed = distance * 0.2;
+            let new_vel = figure_out_new_drag_velocity(ctx);
+            let speed = new_vel.length();
+
+            if speed < min_speed {
+                let dir = new_vel.try_normalize().unwrap_or(Vec2::new(0.0, 0.0));
+                box_item.velocity.set(dir * min_speed);
+            } else {
+                box_item.velocity.set(new_vel);
+            }
         }
     });
 }

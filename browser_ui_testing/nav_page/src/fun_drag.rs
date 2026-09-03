@@ -4,6 +4,7 @@ use rapier2d::prelude::ColliderSet;
 use std::cell::RefCell;
 use std::rc::Rc;
 use stylist::style;
+use wasm_bindgen::JsCast; // <-- add this at the top of your file
 
 use leptos::prelude::*;
 
@@ -205,8 +206,17 @@ fn WorldComponent(
     actively_moving_boxes: WriteSignal<ActivelyMovingBoxes>,
     mouse_pos: WriteSignal<(f32, f32)>,
 ) -> impl IntoView {
-    let update_mouse_position = move |pos: (f32, f32)| {
-        mouse_pos.set(pos);
+    let update_mouse_position = move |e: web_sys::MouseEvent| {
+        let container = e
+            .current_target()
+            .expect("current_target should exist")
+            .dyn_into::<web_sys::Element>() // dynamic cast
+            .expect("target should be an Element");
+
+        let rect = container.get_bounding_client_rect();
+        let x = e.client_x() as f32 - rect.left() as f32;
+        let y = e.client_y() as f32 - rect.top() as f32;
+        mouse_pos.set((x, y));
     };
 
     let (world_item_style, _) = signal(get_style!(style_for_world_item!()));
@@ -219,7 +229,7 @@ fn WorldComponent(
             style:height=move || format!("{}px", container_size.get().height)
             style:width=move || format!("{}px", container_size.get().width)
             style:border="1px black solid"
-            on:mousemove=move |e| update_mouse_position((e.offset_x() as f32, e.offset_y() as f32))
+            on:mousemove=move |e| update_mouse_position(e)
             on:mouseup=move |_| {
                 if let Some(dragged_id) = box_being_dragged.get() {
                     actively_moving_boxes.update(|boxes| {
