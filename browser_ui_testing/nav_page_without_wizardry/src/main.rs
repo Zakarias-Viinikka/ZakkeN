@@ -3,11 +3,10 @@ use leptos_meta::Stylesheet;
 use nav_page_without_wizardry::background_dots::BackgroundDots;
 use nav_page_without_wizardry::menu_position::MenuPosition;
 use nav_page_without_wizardry::nav_content::NavContent;
+use nav_page_without_wizardry::search_bar::SearchBar;
 
 fn main() {
     console_error_panic_hook::set_once();
-    //  trunk serve --open
-
     mount_to_body(App);
 }
 
@@ -15,14 +14,32 @@ fn main() {
 fn App() -> impl IntoView {
     view! {
         <GradientBackground />
+
+        // Outer container: column layout, centered, full height
         <div
             style:display = "flex"
+            style:flex-direction = "column"
             style:gap = "12px"
-            style:width = "1200px"          // decide the width here
-            style:margin = "0 auto"         // center the whole container
+            style:max-width = "1200px"
+            style:width = "100%"
+            style:margin = "0 auto"
+            style:height = "100%"          // fills the available body height
+            style:box-sizing = "border-box"
         >
-            <MenuPosition />
-            <NavContent />
+            // Search bar at the top (natural height)
+            <SearchBar />
+
+            // Main content row: MenuPosition + NavContent
+            <div
+                style:display = "flex"
+                style:gap = "12px"
+                style:align-items = "stretch"
+                style:flex = "1"           // take up remaining vertical space
+                style:min-height = "0"     // allow inner scroll if needed
+            >
+                <MenuPosition />
+                <NavContent />
+            </div>
         </div>
     }
 }

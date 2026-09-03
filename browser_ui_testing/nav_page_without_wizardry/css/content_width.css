@@ -1,0 +1,11 @@
+.content-normal-width {
+  width: 100%;
+  flex: 1;
+}
+
+.content-zoomed-in-width {
+  width: 90%;
+  max-width: 400px;
+  margin: 0 auto;
+  flex: 0 0 auto;
+}

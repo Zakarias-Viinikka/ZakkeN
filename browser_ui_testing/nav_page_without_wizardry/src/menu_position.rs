@@ -1,7 +1,5 @@
 use leptos::prelude::*;
 
-use leptos::prelude::*;
-
 #[component]
 pub fn MenuPosition() -> impl IntoView {
     view! {
@@ -9,7 +7,7 @@ pub fn MenuPosition() -> impl IntoView {
             style:width = "4px"
             style:background = "#4a7984"
             style:flex-shrink = "0"
-            style:align-self = "stretch"   // overrides parent's align-items
+            style:align-self = "stretch"
         ></div>
     }
 }
