@@ -5,7 +5,7 @@ use rapier2d::geometry::{BroadPhaseBvh, NarrowPhase};
 use rapier2d::prelude::*;
 use std::sync::RwLock;
 
-use crate::fun_drag::BoxSettings;
+use crate::fun_drag::{BoxSettings, ContainerSize};
 
 #[derive(Clone, Debug)]
 pub struct WorldBox {
@@ -13,6 +13,7 @@ pub struct WorldBox {
     pub width: u32,
     pub height: u32,
     pub rigid_body_handle: RigidBodyHandle,
+    pub collider_handle: ColliderHandle,
     pub position: RwSignal<(f32, f32)>, // for UI rendering
     pub animation_state: RwSignal<AnimationState>,
 }
@@ -146,7 +147,7 @@ pub fn update_world(
         rapier_ctx.update(|ctx| {
             let mut rb = ctx.rigid_bodies.write().unwrap();
             if let Some(body) = rb.get_mut(box_item.rigid_body_handle) {
-                body.set_linvel(desired_velocity, true);
+                body.set_linvel(desired_velocity, true); // <-- direct
             }
         });
 
@@ -167,7 +168,7 @@ pub fn update_world(
         let mut multibody_joints = ctx.multibody_joints.write().unwrap();
         let mut ccd_solver = ctx.ccd_solver.write().unwrap();
 
-        let gravity = Vector::new(0.0, -9.81); // or your desired gravity
+        let gravity = Vector::new(0.0, 0.0 /*-9.81*/); // or your desired gravity
 
         pipeline.step(
             gravity,
@@ -215,6 +216,20 @@ pub fn update_world(
             }
         }
     });
+}
+
+fn desired_drag_velocity(mouse_pos: (f32, f32), item_pos: (f32, f32)) -> Vec2 {
+    let dx = mouse_pos.0 - item_pos.0;
+    let dy = mouse_pos.1 - item_pos.1;
+
+    let max_speed = 600.0; // pixels per second
+    let speed_factor = 300.0; // per second
+
+    let mut desired = Vec2::new(dx * speed_factor, dy * speed_factor);
+    if desired.length() > max_speed {
+        desired = desired.normalize() * max_speed;
+    }
+    desired
 }
 
 fn crawl_to_a_stop(ctx: FigureOutDrag) -> Vec2 {
@@ -275,18 +290,4 @@ fn figure_out_new_drag_velocity(ctx: FigureOutDrag) -> Vec2 {
         Vec2::new(new_x, new_y)
     };
     new_velocity
-}
-
-fn desired_drag_velocity(mouse_pos: (f32, f32), item_pos: (f32, f32)) -> Vec2 {
-    let dx = mouse_pos.0 - item_pos.0;
-    let dy = mouse_pos.1 - item_pos.1;
-
-    let max_speed = 10.0;
-    let speed_factor = 5.0;
-
-    let mut desired = Vec2::new(dx * speed_factor, dy * speed_factor);
-    if desired.length() > max_speed {
-        desired = desired.normalize() * max_speed;
-    }
-    desired
 }

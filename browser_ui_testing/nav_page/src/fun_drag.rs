@@ -1,7 +1,8 @@
+use crate::collider_stuff::*;
 use rapier2d::dynamics::{RigidBodyBuilder, RigidBodyHandle};
 use rapier2d::geometry::ColliderBuilder;
 use rapier2d::math::Vector;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -87,6 +88,7 @@ pub fn UltimateParent() -> impl IntoView {
 
     let rapier_ctx = ArcRwSignal::new(RapierContext::new());
     let immovable_obj_settings = create_immovable_object(container_size, rapier_ctx.clone());
+    create_borders(container_size, rapier_ctx.clone());
 
     let box_settings = RwSignal::new(BoxSettings {
         height: 100,
@@ -206,6 +208,7 @@ fn MenuComponent(
                     width: b_settings.width,
                     height: b_settings.height,
                     rigid_body_handle: rb_handle,
+                    collider_handle,
                     position: RwSignal::new((position.0 as f32, position.1 as f32)),
                     animation_state: RwSignal::new(AnimationState::Still),
                 });
