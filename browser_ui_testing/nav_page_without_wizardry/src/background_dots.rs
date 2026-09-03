@@ -4,7 +4,6 @@ use leptos_meta::Stylesheet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-// Global counter for unique dot IDs
 static DOT_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug)]
@@ -16,39 +15,55 @@ struct DotSpec {
     height: String,
     tx: String,
     ty: String,
-    duration: f64, // seconds, stored as number for timeout calculation
+    duration: f64, // seconds of movement
     direction: String,
+    fading: bool, // whether the fade‑out class should be applied
 }
 
 #[component]
 pub fn BackgroundDots() -> impl IntoView {
     let (dots, set_dots) = signal(Vec::<DotSpec>::new());
 
+    // Spawn a dot every 800 ms with 40% chance
     set_interval(
         move || {
             if Math::random() < 0.4 {
                 let dot = generate_dot();
-                let duration = dot.duration;
                 let id = dot.id;
+                let duration = dot.duration;
 
-                // Add dot to list
+                // Add the new dot to the list
                 set_dots.update(|dots_vec| {
+                    // Keep the list bounded (optional)
                     if dots_vec.len() >= 50 {
                         dots_vec.remove(0);
                     }
                     dots_vec.push(dot);
                 });
 
-                // Schedule removal after animation completes
+                // After its movement duration, start the fade‑out
                 set_timeout(
                     move || {
+                        // Set fading = true for the dot with this id
                         set_dots.update(|dots_vec| {
-                            if let Some(pos) = dots_vec.iter().position(|d| d.id == id) {
-                                dots_vec.remove(pos);
+                            if let Some(dot) = dots_vec.iter_mut().find(|d| d.id == id) {
+                                dot.fading = true;
                             }
                         });
+
+                        // After the fade‑out animation finishes, delete the dot
+                        set_timeout(
+                            move || {
+                                set_dots.update(|dots_vec| {
+                                    if let Some(pos) = dots_vec.iter().position(|d| d.id == id) {
+                                        dots_vec.remove(pos);
+                                    }
+                                });
+                            },
+                            Duration::from_millis(500), // match the CSS fade‑out duration
+                        );
                     },
-                    Duration::from_millis((duration * 1000.0) as u64 + 100), // add small buffer
+                    Duration::from_millis((duration * 1000.0) as u64),
                 );
             }
         },
@@ -58,19 +73,23 @@ pub fn BackgroundDots() -> impl IntoView {
     view! {
         <Stylesheet href="/css/background_dots.css" />
         <div class="background-dots" aria-hidden="true">
-            {move || dots.get().iter().map(|dot| {
-                // Animation runs once and ends at opacity 0 (see CSS)
-                let style = format!(
-                    "left: {}; top: {}; width: {}; height: {}; \
-                     animation: floatRandom {:.1}s linear 1 {} forwards; \
-                     --tx: {}; --ty: {};",
-                    dot.left, dot.top, dot.width, dot.height,
-                    dot.duration, dot.direction, dot.tx, dot.ty
-                );
-                view! {
-                    <div class="dot" style={style}></div>
-                }
-            }).collect::<Vec<_>>()}
+            <For
+                each=move || dots.get()
+                key=|dot| dot.id
+                let(dot)
+            >
+                <div
+                    class="dot"
+                    class:fade-out=dot.fading
+                    style=format!(
+                        "left: {}; top: {}; width: {}; height: {}; \
+                         animation: floatRandom {:.1}s ease-in-out 1 {} forwards; \
+                         --tx: {}; --ty: {};",
+                        dot.left, dot.top, dot.width, dot.height,
+                        dot.duration, dot.direction, dot.tx, dot.ty
+                    )
+                ></div>
+            </For>
         </div>
     }
 }
@@ -80,17 +99,16 @@ fn generate_dot() -> DotSpec {
     let left = format!("{:.1}%", Math::random() * 100.0);
     let top = format!("{:.1}%", Math::random() * 100.0);
 
-    // Size between 2px and 5px (smaller in general)
+    // Size between 2px and 5px
     let size = 2.0 + Math::random() * 3.0;
 
-    // Random translation target: -150px to 150px in both axes
+    // Random translation target: -150px to 150px
     let tx = format!("{:.0}px", (Math::random() - 0.5) * 300.0);
     let ty = format!("{:.0}px", (Math::random() - 0.5) * 300.0);
 
-    // Duration between 8s and 20s
+    // Movement duration between 8s and 20s
     let duration = 8.0 + Math::random() * 12.0;
 
-    // Randomly choose normal or reverse animation direction
     let direction = if Math::random() < 0.5 {
         "normal"
     } else {
@@ -107,5 +125,6 @@ fn generate_dot() -> DotSpec {
         ty,
         duration,
         direction: direction.to_string(),
+        fading: false,
     }
 }

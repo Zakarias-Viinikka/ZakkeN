@@ -1,28 +1,46 @@
-/* Container for all floating dots */
 .background-dots {
   position: absolute;
   inset: 0;
-  z-index: 7;          /* above gradient layers, below content */
+  z-index: 7;
   pointer-events: none;
   overflow: hidden;
 }
 
-/* Base style for each dot */
 .dot {
   position: absolute;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.6);
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+  opacity: 0; /* will be set by animation */
 }
 
-/* Animation that moves a dot from (0,0) to (var(--tx), var(--ty)) */
+/* Main movement: fade in, drift, and end with a visible opacity (no fade to zero) */
 @keyframes floatRandom {
   0% {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0) scale(0.8);
+    opacity: 0;
+  }
+  20% {
     opacity: 0.7;
+    transform: translate(calc(var(--tx) * 0.2), calc(var(--ty) * 0.2)) scale(1);
+  }
+  70% {
+    opacity: 0.6;
   }
   100% {
     transform: translate(var(--tx), var(--ty)) scale(0.6);
-    opacity: 0.3;
+    opacity: 0.5; /* stays visible until fade-out starts */
   }
+}
+
+/* Fade‑out animation triggered by the `.fade-out` class */
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-in forwards !important;
 }
