@@ -1,7 +1,8 @@
 use leptos::prelude::*;
 use leptos_meta::Stylesheet;
-use nav_page_without_wizardry::main_nav::MainNavPage;
+use nav_page_without_wizardry::background_dots::BackgroundDots;
 use nav_page_without_wizardry::menu_position::MenuPosition;
+use nav_page_without_wizardry::nav_content::NavContent;
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -15,14 +16,13 @@ fn App() -> impl IntoView {
     view! {
         <GradientBackground />
         <div
-            style:position = "relative"
-            style:z-index = "1"
             style:display = "flex"
-            style:height = "100%"
-            style:width = "100%"
+            style:gap = "12px"
+            style:width = "1200px"          // decide the width here
+            style:margin = "0 auto"         // center the whole container
         >
             <MenuPosition />
-            <MainNavPage />
+            <NavContent />
         </div>
     }
 }
@@ -49,5 +49,6 @@ fn GradientBackground() -> impl IntoView {
             <div class="noise"></div>
             <div class="halftone"></div>
         </div>
+        <BackgroundDots />
     }
 }

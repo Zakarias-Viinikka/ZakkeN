@@ -1,2 +1,3 @@
-pub mod main_nav;
+pub mod background_dots;
 pub mod menu_position;
+pub mod nav_content;
