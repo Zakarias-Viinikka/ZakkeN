@@ -4,7 +4,7 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path; // for the path!() macro
 
 //use leptos_starter::routing::r2_folder_routing::page1_and_page2::{page1::Page1, page2};
-use nav_page::fun_drag::FunDragTestContainer;
+use nav_page::fun_drag::UltimateParent;
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -18,7 +18,7 @@ fn App() -> impl IntoView {
         <main>
             <Routes fallback=|| "Not found.">
                 <Route path=path!("/") view=DefaultPage/>
-                <Route path=path!("/fun_drag") view=FunDragTestContainer/>
+                <Route path=path!("/fun_drag") view=UltimateParent/>
             </Routes>
         </main>
       </Router>

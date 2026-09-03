@@ -3,7 +3,10 @@ use leptos::logging::log;
 use leptos::prelude::*;
 use rapier2d::prelude::*;
 
-use crate::fun_drag::{BoxSettings, ContainerSize, ImmovableObjectSettings};
+use crate::{
+    collider_library::update_collider_set,
+    fun_drag::{BoxSettings, ContainerSize, ImmovableObjectSettings},
+};
 
 #[derive(Clone, Debug)]
 pub struct WorldBox {
@@ -165,7 +168,11 @@ pub fn update_world(
             box_item.position.set(new_pos);
             // Optional: apply damping (e.g., reduce velocity)
             // box_item.velocity.set(velocity * 0.9);
-            // --- move the box --- //
+            // --- move the box --- /
+
+            // // Sync the Rapier collider with the new position
+            update_collider_set(colliders, &boxes, *box_id, Vec2::new(new_pos.0, new_pos.1));
+            // // Sync the Rapier collider with the new position
 
             // -- check if the box is touching the cursor after movement is applied //
             if AnimationState::ActivelyDragged == box_item.animation_state.get_untracked() {

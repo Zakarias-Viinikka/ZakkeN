@@ -1,4 +1,4 @@
-use rapier2d::geometry::ColliderBuilder;
+use rapier2d::geometry::{ColliderBuilder, ColliderHandle};
 use rapier2d::math::{Vec2, Vector};
 use rapier2d::prelude::ColliderSet;
 use std::cell::RefCell;
@@ -36,8 +36,49 @@ impl ImmovableObjectSettings {
     }
 }
 
+fn create_immovable_object(
+    container_size: RwSignal<ContainerSize>,
+    colliders: RwSignal<ColliderSet>,
+) -> RwSignal<ImmovableObjectSettings> {
+    let immovable_obj_settings = RwSignal::new(ImmovableObjectSettings::new(300u16, 500u16));
+
+    let immovable_collider_handle = RwSignal::new(None::<ColliderHandle>);
+
+    Effect::new(move |_| {
+        let c_size = container_size.get();
+        let imm = immovable_obj_settings.get();
+
+        let imm_width = imm.width as f32;
+        let imm_height = imm.height as f32;
+        let x = (c_size.width as f32 - imm_width) / 2.0;
+        let y = c_size.height as f32 - imm_height;
+
+        let translation = Vector::new(x + imm_width / 2.0, y + imm_height / 2.0);
+
+        colliders.update(|set| {
+            if let Some(handle) = immovable_collider_handle.get_untracked() {
+                if let Some(collider) = set.get_mut(handle) {
+                    collider.set_translation(translation);
+                    // If size changes too, you can set the shape:
+                    // if let Some(cuboid) = collider.shape_mut().as_cuboid_mut() {
+                    //     cuboid.half_extents = Vector::new(imm_width / 2.0, imm_height / 2.0);
+                    // }
+                }
+            } else {
+                let collider = ColliderBuilder::cuboid(imm_width / 2.0, imm_height / 2.0)
+                    .translation(translation)
+                    .build();
+                let new_handle = set.insert(collider);
+                immovable_collider_handle.set(Some(new_handle));
+            }
+        });
+    });
+
+    immovable_obj_settings
+}
+
 #[component]
-pub fn FunDragTestContainer() -> impl IntoView {
+pub fn UltimateParent() -> impl IntoView {
     let colliders = RwSignal::new(ColliderSet::new());
 
     let container_size = RwSignal::new(ContainerSize {
@@ -45,7 +86,7 @@ pub fn FunDragTestContainer() -> impl IntoView {
         width: 1200,
     });
 
-    let immovable_obj_settings = RwSignal::new(ImmovableObjectSettings::new(300u16, 500u16));
+    let immovable_obj_settings = create_immovable_object(container_size, colliders);
 
     let box_settings = RwSignal::new(BoxSettings {
         height: 100,
