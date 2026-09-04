@@ -39,6 +39,7 @@ import uniffi.protocol.CheckIndexOut
 import uniffi.protocol.CheckTableIn
 import uniffi.protocol.CheckTableOut
 import uniffi.protocol.CopyTableIn
+import uniffi.protocol.CreateForeignTableIn
 import uniffi.protocol.CreateIndexIn
 import uniffi.protocol.CreateTableFromExportIn
 import uniffi.protocol.CreateTableIn
@@ -55,6 +56,7 @@ import uniffi.protocol.FfiConverterTypeCheckIndexOut
 import uniffi.protocol.FfiConverterTypeCheckTableIn
 import uniffi.protocol.FfiConverterTypeCheckTableOut
 import uniffi.protocol.FfiConverterTypeCopyTableIn
+import uniffi.protocol.FfiConverterTypeCreateForeignTableIn
 import uniffi.protocol.FfiConverterTypeCreateIndexIn
 import uniffi.protocol.FfiConverterTypeCreateTableFromExportIn
 import uniffi.protocol.FfiConverterTypeCreateTableIn
@@ -85,6 +87,7 @@ import uniffi.protocol.RustBuffer as RustBufferCheckIndexOut
 import uniffi.protocol.RustBuffer as RustBufferCheckTableIn
 import uniffi.protocol.RustBuffer as RustBufferCheckTableOut
 import uniffi.protocol.RustBuffer as RustBufferCopyTableIn
+import uniffi.protocol.RustBuffer as RustBufferCreateForeignTableIn
 import uniffi.protocol.RustBuffer as RustBufferCreateIndexIn
 import uniffi.protocol.RustBuffer as RustBufferCreateTableFromExportIn
 import uniffi.protocol.RustBuffer as RustBufferCreateTableIn
@@ -752,6 +755,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_db_wrapper_checksum_method_liveforever_copy_table(
     ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table(
+    ): Int
     external fun uniffi_db_wrapper_checksum_method_liveforever_create_index(
     ): Int
     external fun uniffi_db_wrapper_checksum_method_liveforever_create_table(
@@ -814,6 +819,8 @@ internal object UniffiLib {
     external fun uniffi_db_wrapper_fn_method_liveforever_check_table(`ptr`: Long,`data`: RustBufferCheckTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferCheckTableOut.ByValue
     external fun uniffi_db_wrapper_fn_method_liveforever_copy_table(`ptr`: Long,`data`: RustBufferCopyTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_db_wrapper_fn_method_liveforever_create_foreign_table(`ptr`: Long,`payload`: RustBufferCreateForeignTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_db_wrapper_fn_method_liveforever_create_index(`ptr`: Long,`data`: RustBufferCreateIndexIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -972,6 +979,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_db_wrapper_checksum_method_liveforever_copy_table() != 11694) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table() != 19659) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_db_wrapper_checksum_method_liveforever_create_index() != 42700) {
@@ -1339,6 +1349,8 @@ public interface LiveForeverInterface {
     
     fun `copyTable`(`data`: CopyTableIn)
     
+    fun `createForeignTable`(`payload`: CreateForeignTableIn)
+    
     fun `createIndex`(`data`: CreateIndexIn)
     
     fun `createTable`(`data`: CreateTableIn)
@@ -1533,6 +1545,20 @@ open class LiveForever: Disposable, AutoCloseable, LiveForeverInterface
         it,
         
         FfiConverterTypeCopyTableIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `createForeignTable`(`payload`: CreateForeignTableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_foreign_table(
+        it,
+        
+        FfiConverterTypeCreateForeignTableIn.lower(`payload`),_status)
 }
     }
     
@@ -1774,6 +1800,8 @@ public object FfiConverterTypeLiveForever: FfiConverter<LiveForever, Long> {
         buf.putLong(lower(value))
     }
 }
+
+
 
 
 

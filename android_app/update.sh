@@ -33,6 +33,6 @@ curl -L "$BLUEPRINTS_URL/kotlin/rustlib/client_table_blueprints/client_table_blu
 
 # 5. Download shared protocol
 echo "Fetching shared protocol..."
-curl -L "$BLUEPRINTS_URL/kotlin/uniffi/protocol/protocol.kt" -o "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
+curl -L "$Z_DB_URL/kotlin/uniffi/protocol/protocol.kt" -o "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
 
 echo "Done! Native infrastructure synchronized for Zndroid."
