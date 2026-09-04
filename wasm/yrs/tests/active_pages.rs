@@ -1,4 +1,4 @@
-use crdt_test::yrs_active_pages::YrsActivePages;
+use my_yrs_lib::yrs_active_pages::YrsActivePages;
 
 #[cfg(test)]
 mod tests {

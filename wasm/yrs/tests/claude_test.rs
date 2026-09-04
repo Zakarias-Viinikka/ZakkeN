@@ -1,4 +1,4 @@
-use crdt_test::yrs_wrapper::*;
+use my_yrs_lib::yrs_wrapper::*;
 use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
 use yrs::{ReadTxn, StateVector, Transact};

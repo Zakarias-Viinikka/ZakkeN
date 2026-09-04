@@ -3,7 +3,7 @@
 #![allow(warnings)]
 #![allow(unused)]
 
-use crdt_test::yrs_wrapper::{self, *};
+use my_yrs_lib::yrs_wrapper::{self, *};
 
 fn main() -> Result<(), String> {
     let mut boss_of_yrs = BossOfYrs::new();

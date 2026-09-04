@@ -1,7 +1,9 @@
-use crdt_test::yrs_wrapper::*;
+use my_yrs_lib::yrs_wrapper::*;
 use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
 use yrs::{ReadTxn, StateVector, Transact};
+
+fn main() {}
 
 pub fn get_sync_point(boss: &BossOfYrs) -> Vec<u8> {
     boss.doc.transact().state_vector().encode_v1()

@@ -1,4 +1,4 @@
-use crdt_test::yrs_backlinks::YrsBacklinks;
+use my_yrs_lib::yrs_backlinks::YrsBacklinks;
 
 #[cfg(test)]
 mod tests {

@@ -25,7 +25,7 @@ fn main() {
 
  */
 
-use crdt_test::yrs_wrapper::*;
+use my_yrs_lib::yrs_wrapper::*;
 
 #[cfg(test)]
 mod tests {
