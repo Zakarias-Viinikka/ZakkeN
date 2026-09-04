@@ -1,0 +1,36 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    overflow: hidden; /* Prevent scrollbars */
+}
+
+body {
+    min-height: 100vh;
+    background: #ffffff;
+    position: relative;
+}
+
+.box {
+    position: fixed;
+    width: 100vmin;
+    height: 100vmin;
+    border: 2px solid #333;
+    background: rgba(0, 0, 0, 0.05);
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* Half diagonal of 100vmin square = 50 * √2 ≈ 70.71vmin.
+   To create a small gap (≈5vmin), offset each center by 70.71 + 2.5 ≈ 73vmin. */
+.box1 {
+    left: calc(50% - 73vmin);
+    top: calc(50% + 73vmin);
+}
+
+.box2 {
+    left: calc(50% + 73vmin);
+    top: calc(50% - 73vmin);
+}

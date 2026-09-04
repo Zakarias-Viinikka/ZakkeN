@@ -1,0 +1,28 @@
+/* Background with subtle diagonal stripes */
+.bg-stripe {
+    background: #fafafa;
+    position: relative;
+}
+
+.bg-stripe::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0.02) 0px,
+        rgba(0, 0, 0, 0.02) 2px,
+        transparent 2px,
+        transparent 10px
+    );
+    pointer-events: none;
+}
+
+/* Make body transparent so the html background shows through */
+.bg-stripe body {
+    background: transparent;
+}

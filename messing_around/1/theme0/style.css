@@ -1,0 +1,66 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.nav-container {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    background: #1a1a22;
+    padding: 1.5rem 2rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    border: 1px solid #2e2e3a;
+}
+
+.nav-btn {
+    padding: 0.8rem 1.8rem;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #e0e0e0;
+    background: #262633;
+    border: 1px solid #3a3a4a;
+    border-radius: 10px;
+    cursor: pointer;
+    transition:
+        transform 0.15s ease,
+        background 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        color 0.25s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.nav-btn:hover {
+    background: #323242;
+    border-color: #5a5a72;
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.nav-btn:active {
+    transform: scale(0.93);
+    background: #3d3d50;
+    border-color: #7c7c9a;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+    transition-duration: 0.05s;
+}
+
+.nav-btn:focus-visible {
+    outline: 2px solid #8a8aff;
+    outline-offset: 3px;
+}
