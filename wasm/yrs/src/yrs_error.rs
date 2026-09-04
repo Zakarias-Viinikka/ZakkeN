@@ -28,6 +28,9 @@ pub enum YrsError {
     GenericError {
         info: ErrorInfo,
     },
+    YrsInternalError {
+        info: ErrorInfo,
+    },
     Deadlock {
         prediction: DeadlockPrediction,
         info: ErrorInfo,
@@ -38,6 +41,7 @@ impl fmt::Display for YrsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             YrsError::GenericError { info } => write!(f, "Generic error: {}", info),
+            YrsError::YrsInternalError { info } => write!(f, "Yrs internal error: {}", info),
             YrsError::Deadlock { prediction, info } => {
                 write!(f, "Deadlock predicted as {:?} (info: {})", prediction, info)
             }

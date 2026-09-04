@@ -31,6 +31,12 @@ fn error_info(error_msg: impl Into<String>, method: &str) -> ErrorInfo {
     }
 }
 
+fn yrs_error(error_msg: impl Into<String>, method: &str) -> YrsError {
+    YrsError::YrsInternalError {
+        info: error_info(error_msg, method),
+    }
+}
+
 // ------------------------------------------------------------
 // UniFFI‑exported types
 // ------------------------------------------------------------
@@ -80,6 +86,139 @@ const META_KEY: &str = "meta";
 const ID_KEY: &str = "id";
 
 // ------------------------------------------------------------
+// Internal helper functions (no locking)
+// ------------------------------------------------------------
+
+fn generate_key(doc: &Doc) -> String {
+    let mut rng = rand::rng();
+    let rnd_something: u64 = rng.random();
+    rnd_something.to_string() + "userid" + &doc.client_id().to_string()
+}
+
+fn block_from_block_id(doc: &Doc, block_id: &str, array_ref: ArrayRef) -> Option<MapRef> {
+    let txn = doc.transact();
+    for block in array_ref.iter(&txn) {
+        if let Ok(block_map) = block.cast::<MapRef>() {
+            let id = block_map
+                .get(&txn, ID_KEY)
+                .and_then(|v| v.cast::<String>().ok());
+            if id.as_deref() == Some(block_id) {
+                return Some(block_map);
+            }
+        }
+    }
+    None
+}
+
+fn edit_block(
+    doc: &Doc,
+    block: MapRef,
+    edit: TextEdit,
+    edit_target: EditTarget,
+) -> Result<(), YrsError> {
+    let mut txn = doc.transact_mut();
+
+    match edit_target {
+        EditTarget::Text => {
+            let text_ref = block
+                .get(&txn, &CONTENT_KEY)
+                .ok_or_else(|| YrsError::GenericError {
+                    info: error_info("edit_block: no text field", "edit_block"),
+                })?
+                .cast::<XmlTextRef>()
+                .map_err(|_| YrsError::GenericError {
+                    info: error_info(
+                        "edit_block: failed to cast text field to XmlTextRef",
+                        "edit_block",
+                    ),
+                })?;
+
+            match edit {
+                TextEdit::Insert { text, position } => text_ref.insert(&mut txn, position, &text),
+                TextEdit::Delete { text, position } => {
+                    text_ref.remove_range(&mut txn, position, text.chars().count() as u32)
+                }
+                TextEdit::Replace {
+                    old_text,
+                    new_text,
+                    position,
+                } => {
+                    text_ref.remove_range(&mut txn, position, old_text.chars().count() as u32);
+                    text_ref.insert(&mut txn, position, &new_text)
+                }
+            }
+            Ok(())
+        }
+        EditTarget::Meta => {
+            let current_meta = block
+                .get(&txn, &META_KEY)
+                .ok_or_else(|| YrsError::GenericError {
+                    info: error_info("edit_block: no meta field", "edit_block"),
+                })?
+                .cast::<String>()
+                .map_err(|_| YrsError::GenericError {
+                    info: error_info(
+                        "edit_block: failed to cast meta field to String",
+                        "edit_block",
+                    ),
+                })?;
+
+            let new_meta = apply_edit_to_string(current_meta, edit)?;
+            block.insert(&mut txn, META_KEY.to_string(), In::from(new_meta));
+            Ok(())
+        }
+    }
+}
+
+fn apply_edit_to_string(old_meta: String, edit: TextEdit) -> Result<String, YrsError> {
+    let mut chars: Vec<char> = old_meta.chars().collect();
+
+    match edit {
+        TextEdit::Insert { text, position } => {
+            let pos = position as usize;
+            if pos > chars.len() {
+                return Err(YrsError::GenericError {
+                    info: error_info(
+                        "insert position exceeds string length",
+                        "apply_edit_to_string",
+                    ),
+                });
+            }
+            chars.splice(pos..pos, text.chars());
+        }
+        TextEdit::Delete { text, position } => {
+            let pos = position as usize;
+            let delete_len = text.chars().count();
+            if pos + delete_len > chars.len() {
+                return Err(YrsError::GenericError {
+                    info: error_info("delete range exceeds string length", "apply_edit_to_string"),
+                });
+            }
+            chars.drain(pos..(pos + delete_len));
+        }
+        TextEdit::Replace {
+            old_text,
+            new_text,
+            position,
+        } => {
+            let pos = position as usize;
+            let old_len = old_text.chars().count();
+            if pos + old_len > chars.len() {
+                return Err(YrsError::GenericError {
+                    info: error_info(
+                        "replace range exceeds string length",
+                        "apply_edit_to_string",
+                    ),
+                });
+            }
+            chars.splice(pos..(pos + old_len), new_text.chars());
+        }
+    }
+
+    Ok(chars.into_iter().collect())
+}
+
+// ------------------------------------------------------------
 // Exportable methods
 // ------------------------------------------------------------
 
@@ -107,8 +246,7 @@ impl BossOfYrs {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "insert_new_block"),
                 })?;
-                let block_id =
-                    Arc::clone(&self).generate_key()? + "_clientid" + &doc.client_id().to_string();
+                let block_id = generate_key(&doc) + "_clientid" + &doc.client_id().to_string();
 
                 let text_as_xml_text_ref = XmlTextPrelim::new(block_content);
                 let yrs_array_ref = doc.get_or_insert_array(BLOCKS_KEY.to_string());
@@ -228,20 +366,21 @@ impl BossOfYrs {
                 DeadlockPrediction::ProbablyJustADeadlock,
             ),
             move || {
-                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                // acquire write lock once
+                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "edit_text_block_insert"),
                 })?;
                 let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
-                let block = Arc::clone(&self)
-                    .block_from_block_id(block_id.clone(), array)?
-                    .ok_or_else(|| YrsError::GenericError {
+                let block = block_from_block_id(&doc, &block_id, array).ok_or_else(|| {
+                    YrsError::GenericError {
                         info: error_info(
                             format!("found no block with id: {block_id}"),
                             "edit_text_block_insert",
                         ),
-                    })?;
+                    }
+                })?;
 
-                Arc::clone(&self).edit_block(block, text_edit, edit_target)
+                edit_block(&doc, block, text_edit, edit_target)
             },
         )
     }
@@ -257,9 +396,7 @@ impl BossOfYrs {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "generate_key"),
                 })?;
-                let mut rng = rand::rng();
-                let rnd_something: u64 = rng.random();
-                Ok(rnd_something.to_string() + "userid" + &doc.client_id().to_string())
+                Ok(generate_key(&doc))
             },
         )
     }
@@ -307,167 +444,19 @@ impl BossOfYrs {
                 let doc = self.doc.write().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "merge_with_snapshot"),
                 })?;
-                let update = Update::decode_v1(&snapshot).map_err(|e| YrsError::GenericError {
-                    info: error_info(
+                let update = Update::decode_v1(&snapshot).map_err(|e| {
+                    yrs_error(
                         format!("merge_with_snapshot: failed to decode update: {e}"),
                         "merge_with_snapshot",
-                    ),
+                    )
                 })?;
-                doc.transact_mut()
-                    .apply_update(update)
-                    .map_err(|e| YrsError::GenericError {
-                        info: error_info(
-                            format!("merge_with_snapshot: failed to apply update: {e}"),
-                            "merge_with_snapshot",
-                        ),
-                    })?;
+                doc.transact_mut().apply_update(update).map_err(|e| {
+                    yrs_error(
+                        format!("merge_with_snapshot: failed to apply update: {e}"),
+                        "merge_with_snapshot",
+                    )
+                })?;
                 Ok(())
-            },
-        )
-    }
-}
-
-// ------------------------------------------------------------
-// Non‑exported methods (internal helpers)
-// ------------------------------------------------------------
-
-impl BossOfYrs {
-    fn edit_block(
-        self: Arc<Self>,
-        block: MapRef,
-        edit: TextEdit,
-        edit_target: EditTarget,
-    ) -> Result<(), YrsError> {
-        prevent_deadlock(
-            DeadlockCtx::new(
-                "edit_block",
-                file!(),
-                DeadlockPrediction::ProbablyJustADeadlock,
-            ),
-            move || {
-                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "edit_block"),
-                })?;
-                let mut txn = doc.transact_mut();
-
-                match edit_target {
-                    EditTarget::Text => {
-                        let text_ref = block
-                            .get(&txn, &CONTENT_KEY)
-                            .ok_or_else(|| YrsError::GenericError {
-                                info: error_info("edit_block: no text field", "edit_block"),
-                            })?
-                            .cast::<XmlTextRef>()
-                            .map_err(|_| YrsError::GenericError {
-                                info: error_info(
-                                    "edit_block: failed to cast text field to XmlTextRef",
-                                    "edit_block",
-                                ),
-                            })?;
-
-                        match edit {
-                            TextEdit::Insert { text, position } => {
-                                text_ref.insert(&mut txn, position, &text)
-                            }
-                            TextEdit::Delete { text, position } => text_ref.remove_range(
-                                &mut txn,
-                                position,
-                                text.chars().count() as u32,
-                            ),
-                            TextEdit::Replace {
-                                old_text,
-                                new_text,
-                                position,
-                            } => {
-                                text_ref.remove_range(
-                                    &mut txn,
-                                    position,
-                                    old_text.chars().count() as u32,
-                                );
-                                text_ref.insert(&mut txn, position, &new_text)
-                            }
-                        }
-                        Ok(())
-                    }
-                    EditTarget::Meta => {
-                        let current_meta = block
-                            .get(&txn, &META_KEY)
-                            .ok_or_else(|| YrsError::GenericError {
-                                info: error_info("edit_block: no meta field", "edit_block"),
-                            })?
-                            .cast::<String>()
-                            .map_err(|_| YrsError::GenericError {
-                                info: error_info(
-                                    "edit_block: failed to cast meta field to String",
-                                    "edit_block",
-                                ),
-                            })?;
-
-                        let new_meta =
-                            Self::apply_edit_to_string(current_meta, edit).map_err(|e| {
-                                YrsError::GenericError {
-                                    info: error_info(e, "apply_edit_to_string"),
-                                }
-                            })?;
-                        block.insert(&mut txn, META_KEY.to_string(), In::from(new_meta));
-                        Ok(())
-                    }
-                }
-            },
-        )
-    }
-
-    fn apply_edit_to_string(old_meta: String, edit: TextEdit) -> Result<String, String> {
-        let mut chars: Vec<char> = old_meta.chars().collect();
-
-        match edit {
-            TextEdit::Insert { text, position } => {
-                let pos = position as usize;
-                if pos > chars.len() {
-                    return Err("insert position exceeds string length".to_string());
-                }
-                chars.splice(pos..pos, text.chars());
-            }
-            TextEdit::Delete { text, position } => {
-                let pos = position as usize;
-                let delete_len = text.chars().count();
-                if pos + delete_len > chars.len() {
-                    return Err("delete range exceeds string length".to_string());
-                }
-                chars.drain(pos..(pos + delete_len));
-            }
-            TextEdit::Replace {
-                old_text,
-                new_text,
-                position,
-            } => {
-                let pos = position as usize;
-                let old_len = old_text.chars().count();
-                if pos + old_len > chars.len() {
-                    return Err("replace range exceeds string length".to_string());
-                }
-                chars.splice(pos..(pos + old_len), new_text.chars());
-            }
-        }
-
-        Ok(chars.into_iter().collect())
-    }
-
-    pub fn read_block(
-        self: Arc<Self>,
-        page_id: u32,
-        block_id: String,
-    ) -> Result<Option<String>, YrsError> {
-        prevent_deadlock(
-            DeadlockCtx::new(
-                "read_block",
-                file!(),
-                DeadlockPrediction::ProbablyJustADeadlock,
-            ),
-            move || {
-                Err(YrsError::GenericError {
-                    info: error_info("read_block not implemented", "read_block"),
-                })
             },
         )
     }
@@ -492,56 +481,60 @@ impl BossOfYrs {
                     })?;
                     other_doc.transact().encode_diff_v1(&sv)
                 };
-                let update = Update::decode_v1(&diff).map_err(|e| YrsError::GenericError {
-                    info: error_info(
+                let update = Update::decode_v1(&diff).map_err(|e| {
+                    yrs_error(
                         format!("merge_with: failed to decode update: {e}"),
                         "merge_with",
-                    ),
+                    )
                 })?;
                 let doc = self.doc.write().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "merge_with"),
                 })?;
-                doc.transact_mut()
-                    .apply_update(update)
-                    .map_err(|e| YrsError::GenericError {
-                        info: error_info(
-                            format!("merge_with: failed to apply update: {e}"),
-                            "merge_with",
-                        ),
-                    })?;
+                doc.transact_mut().apply_update(update).map_err(|e| {
+                    yrs_error(
+                        format!("merge_with: failed to apply update: {e}"),
+                        "merge_with",
+                    )
+                })?;
                 Ok(())
             },
         )
     }
 
-    fn block_from_block_id(
-        self: Arc<Self>,
-        block_id: String,
-        array_ref: ArrayRef,
-    ) -> Result<Option<MapRef>, YrsError> {
+    pub fn read_block(self: Arc<Self>, block_id: String) -> Result<Option<String>, YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
-                "block_from_block_id",
+                "read_block",
                 file!(),
                 DeadlockPrediction::ProbablyJustADeadlock,
             ),
             move || {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "block_from_block_id"),
+                    info: error_info("lock poisoned", "read_block"),
                 })?;
-                let txn = doc.transact();
+                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+                let block = block_from_block_id(&doc, &block_id, array);
 
-                for block in array_ref.iter(&txn) {
-                    if let Ok(block_map) = block.cast::<MapRef>() {
-                        let id = block_map
-                            .get(&txn, ID_KEY)
-                            .and_then(|v| v.cast::<String>().ok());
-                        if id.as_deref() == Some(&block_id) {
-                            return Ok(Some(block_map));
-                        }
+                match block {
+                    None => Ok(None),
+                    Some(block_map) => {
+                        let txn = doc.transact();
+                        let text = block_map
+                            .get(&txn, &CONTENT_KEY)
+                            .ok_or_else(|| YrsError::GenericError {
+                                info: error_info("read_block: no content field", "read_block"),
+                            })?
+                            .cast::<XmlTextRef>()
+                            .map_err(|_| YrsError::GenericError {
+                                info: error_info(
+                                    "read_block: failed to cast content field to XmlTextRef",
+                                    "read_block",
+                                ),
+                            })?
+                            .get_string(&txn);
+                        Ok(Some(text))
                     }
                 }
-                Ok(None)
             },
         )
     }
@@ -561,20 +554,18 @@ pub fn doc_from_snapshot(snapshot: Vec<u8>) -> Result<BossOfYrs, YrsError> {
         ),
         move || {
             let doc = yrs::Doc::new();
-            let update = Update::decode_v1(&snapshot).map_err(|e| YrsError::GenericError {
-                info: error_info(
+            let update = Update::decode_v1(&snapshot).map_err(|e| {
+                yrs_error(
                     format!("doc_from_snapshot: failed to decode update: {e}"),
                     "doc_from_snapshot",
-                ),
+                )
             })?;
-            doc.transact_mut()
-                .apply_update(update)
-                .map_err(|e| YrsError::GenericError {
-                    info: error_info(
-                        format!("doc_from_snapshot: failed to apply update: {e}"),
-                        "doc_from_snapshot",
-                    ),
-                })?;
+            doc.transact_mut().apply_update(update).map_err(|e| {
+                yrs_error(
+                    format!("doc_from_snapshot: failed to apply update: {e}"),
+                    "doc_from_snapshot",
+                )
+            })?;
             Ok(BossOfYrs {
                 doc: RwLock::new(doc),
             })
@@ -620,12 +611,11 @@ pub fn generate_diff_snapshot(
     )
 }
 
-// Private helper – not exported because StateVector isn’t a UniFFI type
 fn deserialize_bookmark(bytes: &[u8]) -> Result<StateVector, YrsError> {
-    StateVector::decode_v1(bytes).map_err(|e| YrsError::GenericError {
-        info: error_info(
+    StateVector::decode_v1(bytes).map_err(|e| {
+        yrs_error(
             format!("deserialize_bookmark: failed to decode: {e}"),
             "deserialize_bookmark",
-        ),
+        )
     })
 }
