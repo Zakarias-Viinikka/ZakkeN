@@ -1,4 +1,5 @@
 use my_yrs_lib::yrs_backlinks::YrsBacklinks;
+use std::sync::Arc;
 
 #[cfg(test)]
 mod tests {
@@ -6,53 +7,75 @@ mod tests {
 
     #[test]
     fn create_doc_and_add_backlink() {
-        let mut backlinks = YrsBacklinks::new_empty();
-        backlinks.add_backlink("id_of_the_linker", "id_of_the_linked_page");
-        let result = backlinks.get_backlinks_for_page("id_of_the_linked_page");
+        let backlinks = Arc::new(YrsBacklinks::new_empty());
+        Arc::clone(&backlinks)
+            .add_backlink(
+                "id_of_the_linker".to_string(),
+                "id_of_the_linked_page".to_string(),
+            )
+            .unwrap();
+        let result = Arc::clone(&backlinks)
+            .get_backlinks_for_page("id_of_the_linked_page".to_string())
+            .unwrap();
         assert_eq!(result, vec!["id_of_the_linker"]);
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn remove_back_link() {
-        let mut backlinks = YrsBacklinks::new_empty();
-        backlinks.add_backlink("id_of_the_linker", "id_of_the_linked_page");
-        let amount_of_links = backlinks
-            .get_backlinks_for_page("id_of_the_linked_page")
+        let backlinks = Arc::new(YrsBacklinks::new_empty());
+        Arc::clone(&backlinks)
+            .add_backlink(
+                "id_of_the_linker".to_string(),
+                "id_of_the_linked_page".to_string(),
+            )
+            .unwrap();
+        let amount = Arc::clone(&backlinks)
+            .get_backlinks_for_page("id_of_the_linked_page".to_string())
+            .unwrap()
             .len();
-        assert_eq!(amount_of_links, 1);
-        backlinks.remove_backlink("id_of_the_linker", "id_of_the_linked_page");
-        let amount_of_links = backlinks
-            .get_backlinks_for_page("id_of_the_linked_page")
+        assert_eq!(amount, 1);
+
+        Arc::clone(&backlinks)
+            .remove_backlink(
+                "id_of_the_linker".to_string(),
+                "id_of_the_linked_page".to_string(),
+            )
+            .unwrap();
+        let amount = Arc::clone(&backlinks)
+            .get_backlinks_for_page("id_of_the_linked_page".to_string())
+            .unwrap()
             .len();
-        assert_eq!(amount_of_links, 0);
+        assert_eq!(amount, 0);
     }
 
     #[test]
     fn concurrent_adds_to_same_target_page_merge_correctly() {
-        // Setup: base state with one backlink A -> B
-        let mut base = YrsBacklinks::new_empty();
-        base.add_backlink("page_A", "page_B");
-        let baseline_snapshot = base.snapshot();
+        let base = Arc::new(YrsBacklinks::new_empty());
+        Arc::clone(&base)
+            .add_backlink("page_A".to_string(), "page_B".to_string())
+            .unwrap();
+        let baseline_snapshot = Arc::clone(&base).snapshot().unwrap();
 
-        // Two offline copies from that snapshot
-        let mut offline1 = YrsBacklinks::new(baseline_snapshot.clone());
-        let mut offline2 = YrsBacklinks::new(baseline_snapshot.clone());
+        let offline1 = Arc::new(YrsBacklinks::new(baseline_snapshot.clone()).unwrap());
+        let offline2 = Arc::new(YrsBacklinks::new(baseline_snapshot.clone()).unwrap());
 
-        // Offline1 adds C -> B, offline2 adds D -> B
-        offline1.add_backlink("page_C", "page_B");
-        offline2.add_backlink("page_D", "page_B");
+        Arc::clone(&offline1)
+            .add_backlink("page_C".to_string(), "page_B".to_string())
+            .unwrap();
+        Arc::clone(&offline2)
+            .add_backlink("page_D".to_string(), "page_B".to_string())
+            .unwrap();
 
-        // Generate snapshots from each offline doc
-        let snapshot1 = offline1.snapshot();
-        let snapshot2 = offline2.snapshot();
+        let snapshot1 = Arc::clone(&offline1).snapshot().unwrap();
+        let snapshot2 = Arc::clone(&offline2).snapshot().unwrap();
 
-        // Merge both snapshots back into base
-        base.merge_with_snapshot(&snapshot1).unwrap();
-        base.merge_with_snapshot(&snapshot2).unwrap();
+        Arc::clone(&base).merge_with_snapshot(snapshot1).unwrap();
+        Arc::clone(&base).merge_with_snapshot(snapshot2).unwrap();
 
-        // Assert final backlinks for page_B
-        let backlinks = base.get_backlinks_for_page("page_B");
+        let backlinks = Arc::clone(&base)
+            .get_backlinks_for_page("page_B".to_string())
+            .unwrap();
         assert!(backlinks.contains(&"page_A".to_string()));
         assert!(backlinks.contains(&"page_C".to_string()));
         assert!(backlinks.contains(&"page_D".to_string()));
@@ -61,30 +84,34 @@ mod tests {
 
     #[test]
     fn concurrent_remove_and_add_on_different_keys_merge_correctly() {
-        // Setup: base state with backlinks A -> B and C -> B
-        let mut base = YrsBacklinks::new_empty();
-        base.add_backlink("page_A", "page_B");
-        base.add_backlink("page_C", "page_B");
-        let baseline_snapshot = base.snapshot();
+        let base = Arc::new(YrsBacklinks::new_empty());
+        Arc::clone(&base)
+            .add_backlink("page_A".to_string(), "page_B".to_string())
+            .unwrap();
+        Arc::clone(&base)
+            .add_backlink("page_C".to_string(), "page_B".to_string())
+            .unwrap();
+        let baseline_snapshot = Arc::clone(&base).snapshot().unwrap();
 
-        // Two offline copies
-        let mut offline1 = YrsBacklinks::new(baseline_snapshot.clone());
-        let mut offline2 = YrsBacklinks::new(baseline_snapshot.clone());
+        let offline1 = Arc::new(YrsBacklinks::new(baseline_snapshot.clone()).unwrap());
+        let offline2 = Arc::new(YrsBacklinks::new(baseline_snapshot.clone()).unwrap());
 
-        // Offline1 removes A -> B, offline2 adds D -> B
-        offline1.remove_backlink("page_A", "page_B");
-        offline2.add_backlink("page_D", "page_B");
+        Arc::clone(&offline1)
+            .remove_backlink("page_A".to_string(), "page_B".to_string())
+            .unwrap();
+        Arc::clone(&offline2)
+            .add_backlink("page_D".to_string(), "page_B".to_string())
+            .unwrap();
 
-        // Snapshots
-        let snapshot1 = offline1.snapshot();
-        let snapshot2 = offline2.snapshot();
+        let snapshot1 = Arc::clone(&offline1).snapshot().unwrap();
+        let snapshot2 = Arc::clone(&offline2).snapshot().unwrap();
 
-        // Merge into base
-        base.merge_with_snapshot(&snapshot1).unwrap();
-        base.merge_with_snapshot(&snapshot2).unwrap();
+        Arc::clone(&base).merge_with_snapshot(snapshot1).unwrap();
+        Arc::clone(&base).merge_with_snapshot(snapshot2).unwrap();
 
-        // Expected: A is gone, C remains, D is added
-        let backlinks = base.get_backlinks_for_page("page_B");
+        let backlinks = Arc::clone(&base)
+            .get_backlinks_for_page("page_B".to_string())
+            .unwrap();
         assert!(!backlinks.contains(&"page_A".to_string()));
         assert!(backlinks.contains(&"page_C".to_string()));
         assert!(backlinks.contains(&"page_D".to_string()));

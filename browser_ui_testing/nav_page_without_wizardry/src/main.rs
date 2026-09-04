@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_meta::Stylesheet;
 use nav_page_without_wizardry::background_dots::BackgroundDots;
+use nav_page_without_wizardry::droplet::Droplet;
 use nav_page_without_wizardry::menu_position::MenuPosition;
 use nav_page_without_wizardry::nav_content::NavContent;
 use nav_page_without_wizardry::search_bar::SearchBar;
@@ -37,8 +38,19 @@ fn App() -> impl IntoView {
                 style:flex = "1"           // take up remaining vertical space
                 style:min-height = "0"     // allow inner scroll if needed
             >
+            <div
+                style:display = "flex"
+                style:gap = "12px"
+                style:align-items = "stretch"
+                style:flex = "1"
+                style:min-height = "0"
+            >
                 <MenuPosition />
-                <NavContent />
+                <div style="position: relative; flex: 1; min-width: 0;">
+                    <NavContent />
+                    <Droplet />
+                </div>
+            </div>
             </div>
         </div>
     }

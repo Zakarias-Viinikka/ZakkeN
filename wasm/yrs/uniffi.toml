@@ -1,6 +1,0 @@
-[crate-roots]
-my_yrs_lib = "."                     # Your library crate name (matches [lib] name)
-
-[crates.my_yrs_lib.bindings.kotlin]
-package_name = "rustlib.my_yrs_lib"  # Desired Kotlin package
-android = true                       # Enable Android‑specific bindings

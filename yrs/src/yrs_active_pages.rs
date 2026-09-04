@@ -1,65 +1,159 @@
+use std::sync::{Arc, RwLock};
 use yrs::updates::decoder::Decode;
 use yrs::{Doc, In, Map, ReadTxn, StateVector, Transact, Update};
 
-pub struct YrsActivePages {
-    doc: Doc,
-}
+use crate::anti_deadlock::{prevent_deadlock, DeadlockCtx};
+use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
 
 const ACTIVE_PAGES_KEY: &str = "active_pages";
 
+fn error_info(error_msg: impl Into<String>, method: &str) -> ErrorInfo {
+    ErrorInfo {
+        error_msg: error_msg.into(),
+        file: file!().to_string(),
+        method: method.to_string(),
+    }
+}
+
+fn yrs_error(error_msg: impl Into<String>, method: &str) -> YrsError {
+    YrsError::YrsInternalError {
+        info: error_info(error_msg, method),
+    }
+}
+
+#[derive(uniffi::Object)]
+pub struct YrsActivePages {
+    doc: RwLock<Doc>,
+}
+
+#[uniffi::export]
 impl YrsActivePages {
-    pub fn new(loaded_from_db: Vec<u8>) -> Self {
+    #[uniffi::constructor]
+    pub fn new_empty() -> Self {
+        Self {
+            doc: RwLock::new(Doc::new()),
+        }
+    }
+
+    #[uniffi::constructor]
+    pub fn new(loaded_from_db: Vec<u8>) -> Result<Self, YrsError> {
         let doc = Doc::new();
         if !loaded_from_db.is_empty() {
-            let update =
-                Update::decode_v1(&loaded_from_db).expect("Failed to decode active pages snapshot");
-            doc.transact_mut()
-                .apply_update(update)
-                .expect("Failed to apply active pages snapshot");
+            let update = Update::decode_v1(&loaded_from_db).map_err(|e| {
+                yrs_error(
+                    format!("Failed to decode active pages snapshot: {e}"),
+                    "new",
+                )
+            })?;
+            doc.transact_mut().apply_update(update).map_err(|e| {
+                yrs_error(format!("Failed to apply active pages snapshot: {e}"), "new")
+            })?;
         }
-        Self { doc }
+        Ok(Self {
+            doc: RwLock::new(doc),
+        })
     }
 
-    pub fn new_empty() -> Self {
-        Self { doc: Doc::new() }
+    pub fn mark_page_active(self: Arc<Self>, page_id: String) -> Result<(), YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "mark_page_active",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "mark_page_active"),
+                })?;
+                let map = doc.get_or_insert_map(ACTIVE_PAGES_KEY);
+                let mut txn = doc.transact_mut();
+                map.insert(&mut txn, page_id, In::from(true));
+                Ok(())
+            },
+        )
     }
 
-    /// Mark a page as active (inserts or updates the key to `true`).
-    pub fn mark_page_active(&mut self, page_id: &str) {
-        let map = self.doc.get_or_insert_map(ACTIVE_PAGES_KEY);
-        let mut txn = self.doc.transact_mut();
-        map.insert(&mut txn, page_id.to_string(), In::from(true));
+    pub fn mark_page_deleted(self: Arc<Self>, page_id: String) -> Result<(), YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "mark_page_deleted",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "mark_page_deleted"),
+                })?;
+                let map = doc.get_or_insert_map(ACTIVE_PAGES_KEY);
+                let mut txn = doc.transact_mut();
+                map.insert(&mut txn, page_id, In::from(false));
+                Ok(())
+            },
+        )
     }
 
-    /// Mark a page as deleted (inserts or updates the key to `false`).
-    pub fn mark_page_deleted(&mut self, page_id: &str) {
-        let map = self.doc.get_or_insert_map(ACTIVE_PAGES_KEY);
-        let mut txn = self.doc.transact_mut();
-        map.insert(&mut txn, page_id.to_string(), In::from(false));
+    pub fn is_page_active(self: Arc<Self>, page_id: String) -> Result<bool, YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "is_page_active",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "is_page_active"),
+                })?;
+                let map = doc.get_or_insert_map(ACTIVE_PAGES_KEY);
+                let txn = doc.transact();
+                Ok(match map.get(&txn, &page_id) {
+                    Some(value) => value.cast::<bool>().unwrap_or(true),
+                    None => true,
+                })
+            },
+        )
     }
 
-    /// Returns `true` if the page is active, `false` if deleted.
-    /// If the page is not in the map, returns `true` (assumed active by default).
-    pub fn is_page_active(&self, page_id: &str) -> bool {
-        let map = self.doc.get_or_insert_map(ACTIVE_PAGES_KEY);
-        let txn = self.doc.transact();
-        match map.get(&txn, page_id) {
-            Some(value) => value.cast::<bool>().unwrap_or(true),
-            None => true,
-        }
+    pub fn snapshot(self: Arc<Self>) -> Result<Vec<u8>, YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "snapshot",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "snapshot"),
+                })?;
+                Ok(doc.transact().encode_diff_v1(&StateVector::default()))
+            },
+        )
     }
 
-    pub fn snapshot(&self) -> Vec<u8> {
-        self.doc.transact().encode_diff_v1(&StateVector::default())
-    }
-
-    pub fn merge_with_snapshot(&mut self, snapshot: &Vec<u8>) -> Result<(), String> {
-        let update = Update::decode_v1(snapshot)
-            .map_err(|e| format!("merge_with_snapshot: failed to decode update: {e}"))?;
-        self.doc
-            .transact_mut()
-            .apply_update(update)
-            .map_err(|e| format!("merge_with_snapshot: failed to apply update: {e}"))?;
-        Ok(())
+    pub fn merge_with_snapshot(self: Arc<Self>, snapshot: Vec<u8>) -> Result<(), YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "merge_with_snapshot",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "merge_with_snapshot"),
+                })?;
+                let update = Update::decode_v1(&snapshot).map_err(|e| {
+                    yrs_error(
+                        format!("merge_with_snapshot: failed to decode update: {e}"),
+                        "merge_with_snapshot",
+                    )
+                })?;
+                doc.transact_mut().apply_update(update).map_err(|e| {
+                    yrs_error(
+                        format!("merge_with_snapshot: failed to apply update: {e}"),
+                        "merge_with_snapshot",
+                    )
+                })?;
+                Ok(())
+            },
+        )
     }
 }

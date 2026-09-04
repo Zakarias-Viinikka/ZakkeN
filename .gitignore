@@ -1,21 +1,19 @@
-# Rust
-**/target
+# --- Your Custom Rules ---
+**/target/
+**/pkg/
+**/dist/
+**/node_modules/
+**/*.env
+**/.zed/
+**/.DS_Store
+**/Thumbs.db
 
-# WASM
-**/pkg
-
-# Trunk
-**/dist
-
-# Node (if using Tailwind)
-node_modules/
-
-# Environment
-.env
-
-# Zed (only if using project settings)
-.zed/
-
-# OS
-.DS_Store
-Thumbs.db
+# --- Essential Android/Gradle Junk ---
+**/.gradle/
+**/build/
+**/local.properties
+**/.idea/
+**/*.iml
+.cxx/
+.externalNativeBuild/
+**/*ip.kt
