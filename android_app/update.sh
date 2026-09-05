@@ -32,6 +32,7 @@ curl -L "$Z_DB_URL/kotlin/com/z_db/android_mascot/db_wrapper.kt" -o "$KOTLIN_DES
 # 4. Download client_table_blueprints
 echo "Fetching client_table_blueprints..."
 curl -L "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libclient_table_blueprints.so" -o "$JNI_DEST/libclient_table_blueprints.so"
+curl -L "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libmy_yrs_lib-bced72b5f489fa65.so" -o "$JNI_DEST/libmy_yrs_lib-bced72b5f489fa65.so"
 curl -L "$BLUEPRINTS_URL/kotlin/rustlib/client_table_blueprints/client_table_blueprints.kt" -o "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
 
 # 5. Download shared protocol
