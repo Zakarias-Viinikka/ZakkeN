@@ -703,8 +703,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block_insert(
     ): Int
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_generate_key(
-    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_user_id(
@@ -715,11 +713,15 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot(
     ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_user_id(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new(
     ): Int
@@ -789,31 +791,33 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_my_yrs_lib_fn_free_bossofyrs(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block_insert(`ptr`: Long,`blockId`: RustBuffer.ByValue,`textEdit`: RustBuffer.ByValue,`editTarget`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_generate_key(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_func_create_bookmark_of_synced_state(`boss`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_my_yrs_lib_fn_func_doc_from_snapshot(`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_my_yrs_lib_fn_func_doc_from_snapshot(`snapshot`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
     external fun uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(`boss`: Long,`bookmarkSerialized`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -939,7 +943,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_func_create_bookmark_of_synced_state() != 56192) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() != 21577) {
+    if (lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() != 20978) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot() != 46939) {
@@ -978,22 +982,22 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block_insert() != 21363) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_generate_key() != 28836) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 48765) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_user_id() != 42986) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 20480) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 18942) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with() != 23671) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot() != 57849) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id() != 29118) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block() != 8607) {
@@ -1003,6 +1007,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot() != 16472) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_user_id() != 41008) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new() != 5945) {
@@ -1017,7 +1024,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new_empty() != 36623) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new() != 18169) {
+    if (lib.uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new() != 9243) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1422,23 +1429,25 @@ public interface BossOfYrsInterface {
     
     fun `editTextBlockInsert`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
     
-    fun `generateKey`(): kotlin.String
-    
     fun `getEntirePage`(): List<Block>
     
     fun `getUserId`(): kotlin.ULong
     
-    fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String)
+    fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
     
     fun `mergeWith`(`other`: BossOfYrs)
     
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
+    
+    fun `pageId`(): kotlin.String
     
     fun `readBlock`(`blockId`: kotlin.String): kotlin.String?
     
     fun `showDocInfo`()
     
     fun `snapshot`(): kotlin.ByteArray
+    
+    fun `userId`(): kotlin.String
     
     companion object
 }
@@ -1467,12 +1476,13 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
         this.handle = 0
         this.cleanable = null
     }
-    constructor() :
+    constructor(`userId`: kotlin.String) :
         this(UniffiWithHandle, 
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(
     
-        _status)
+        
+        FfiConverterString.lower(`userId`),_status)
 }
     )
 
@@ -1569,20 +1579,6 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     
 
     
-    @Throws(YrsException::class)override fun `generateKey`(): kotlin.String {
-            return FfiConverterString.lift(
-    callWithHandle {
-    uniffiRustCallWithError(YrsException) { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_generate_key(
-        it,
-        _status)
-}
-    }
-    )
-    }
-    
-
-    
     @Throws(YrsException::class)override fun `getEntirePage`(): List<Block> {
             return FfiConverterSequenceTypeBlock.lift(
     callWithHandle {
@@ -1611,18 +1607,20 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     
 
     
-    @Throws(YrsException::class)override fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String)
-        = 
+    @Throws(YrsException::class)override fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String {
+            return FfiConverterString.lift(
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(
         it,
         
         FfiConverterString.lower(`blockContent`),
-        FfiConverterString.lower(`blockMetaData`),_status)
+        FfiConverterString.lower(`blockMetaData`),
+        FfiConverterTypePositionToInsert.lower(`position`),_status)
 }
     }
-    
+    )
+    }
     
 
     
@@ -1651,6 +1649,19 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
 }
     }
     
+    
+
+    override fun `pageId`(): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(
+        it,
+        _status)
+}
+    }
+    )
+    }
     
 
     
@@ -1687,6 +1698,19 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `userId`(): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(
         it,
         _status)
 }
@@ -2605,6 +2629,79 @@ public object FfiConverterTypeEditTarget: FfiConverterRustBuffer<EditTarget> {
 
 
 
+sealed class PositionToInsert {
+    
+    object AtEnd : PositionToInsert()
+    
+    
+    data class SpecificPosition(
+        val v1: kotlin.UInt) : PositionToInsert()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<PositionToInsert>{
+    override fun read(buf: ByteBuffer): PositionToInsert {
+        return when(buf.getInt()) {
+            1 -> PositionToInsert.AtEnd
+            2 -> PositionToInsert.SpecificPosition(
+                FfiConverterUInt.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: PositionToInsert): ULong = when(value) {
+        is PositionToInsert.AtEnd -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is PositionToInsert.SpecificPosition -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: PositionToInsert, buf: ByteBuffer) {
+        when(value) {
+            is PositionToInsert.AtEnd -> {
+                buf.putInt(1)
+                Unit
+            }
+            is PositionToInsert.SpecificPosition -> {
+                buf.putInt(2)
+                FfiConverterUInt.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
 sealed class TextEdit {
     
     data class Insert(
@@ -2906,13 +3003,15 @@ public object FfiConverterSequenceTypeBlock: FfiConverterRustBuffer<List<Block>>
     }
     
 
-    @Throws(YrsException::class) fun `docFromSnapshot`(`snapshot`: kotlin.ByteArray): BossOfYrs {
+    @Throws(YrsException::class) fun `docFromSnapshot`(`snapshot`: kotlin.ByteArray, `userId`: kotlin.String, `pageId`: kotlin.String): BossOfYrs {
             return FfiConverterTypeBossOfYrs.lift(
     uniffiRustCallWithError(YrsException) { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_func_doc_from_snapshot(
     
         
-        FfiConverterByteArray.lower(`snapshot`),_status)
+        FfiConverterByteArray.lower(`snapshot`),
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`pageId`),_status)
 }
     )
     }
