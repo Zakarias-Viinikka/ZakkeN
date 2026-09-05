@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import android.util.Log
+import z.zndroid.BuildConfig
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 
@@ -32,6 +34,9 @@ object GlobalPopupManager {
      * Shows a popup with the given message.
      */
     suspend fun show(message: String) {
+        if (BuildConfig.DEBUG) {
+            Log.e("GlobalPopup", message)
+        }
         messages.emit(message)
     }
 

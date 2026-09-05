@@ -30,12 +30,18 @@ import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
+import rustlib.my_yrs_lib.FfiConverterTypeYrsError
+import rustlib.my_yrs_lib.YrsException
 import uniffi.protocol.ColumnDef
 import uniffi.protocol.FfiConverterTypeColumnDef
 import uniffi.protocol.FfiConverterTypeForeignKeyDef
+import uniffi.protocol.FfiConverterTypeRow
 import uniffi.protocol.ForeignKeyDef
+import uniffi.protocol.Row
+import rustlib.my_yrs_lib.RustBuffer as RustBufferYrsError
 import uniffi.protocol.RustBuffer as RustBufferColumnDef
 import uniffi.protocol.RustBuffer as RustBufferForeignKeyDef
+import uniffi.protocol.RustBuffer as RustBufferRow
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
 // A rust-owned buffer is represented by its capacity, its current length, and a
@@ -678,6 +684,14 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_client_table_blueprints_checksum_func_new_backlink_row(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_page_row(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row(
+    ): Int
     external fun uniffi_client_table_blueprints_checksum_func_backlinks_columns(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_backlinks(
@@ -701,9 +715,18 @@ internal object UniffiLib {
 
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "client_table_blueprints"))
+        rustlib.my_yrs_lib.uniffiEnsureInitialized()
         uniffi.protocol.uniffiEnsureInitialized()
         
     }
+    external fun uniffi_client_table_blueprints_fn_func_new_backlink_row(`pageThatHoldsLinkId`: RustBuffer.ByValue,`pageBeingLinkedToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`pageThatOwnsMe`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`idOfBlockThatOwns`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(`snapshotOfEdit`: RustBuffer.ByValue,`editEnum`: RustBuffer.ByValue,`sessionId`: Long,`targetId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_backlinks_columns(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_backlinks(uniffi_out_err: UniffiRustCallStatus, 
@@ -835,6 +858,18 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 31918) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 24963) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_page_row() != 49017) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row() != 9302) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_client_table_blueprints_checksum_func_backlinks_columns() != 34845) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -949,6 +984,52 @@ object NoHandle
 /**
  * @suppress
  */
+public object FfiConverterLong: FfiConverter<Long, Long> {
+    override fun lift(value: Long): Long {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Long {
+        return buf.getLong()
+    }
+
+    override fun lower(value: Long): Long {
+        return value
+    }
+
+    override fun allocationSize(value: Long) = 8UL
+
+    override fun write(value: Long, buf: ByteBuffer) {
+        buf.putLong(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
+    override fun lift(value: Byte): Boolean {
+        return value.toInt() != 0
+    }
+
+    override fun read(buf: ByteBuffer): Boolean {
+        return lift(buf.get())
+    }
+
+    override fun lower(value: Boolean): Byte {
+        return if (value) 1.toByte() else 0.toByte()
+    }
+
+    override fun allocationSize(value: Boolean) = 1UL
+
+    override fun write(value: Boolean, buf: ByteBuffer) {
+        buf.put(lower(value))
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
@@ -1000,6 +1081,25 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
+    override fun read(buf: ByteBuffer): ByteArray {
+        val len = buf.getInt()
+        val byteArr = ByteArray(len)
+        buf.get(byteArr)
+        return byteArr
+    }
+    override fun allocationSize(value: ByteArray): ULong {
+        return 4UL + value.size.toULong()
+    }
+    override fun write(value: ByteArray, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        buf.put(value)
     }
 }
 
@@ -1061,6 +1161,76 @@ public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List
 
 
 
+
+
+
+
+
+
+object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsException> {
+    override fun lift(error_buf: RustBuffer.ByValue): YrsException =
+        rustlib.my_yrs_lib.YrsException.ErrorHandler.lift(
+            RustBufferYrsError.ByValue().apply {
+                capacity = error_buf.capacity
+                len = error_buf.len
+                data = error_buf.data
+            }
+        )
+}
+    @Throws(YrsException::class) fun `newBacklinkRow`(`pageThatHoldsLinkId`: kotlin.String, `pageBeingLinkedToId`: kotlin.String): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_backlink_row(
+    
+        
+        FfiConverterString.lower(`pageThatHoldsLinkId`),
+        FfiConverterString.lower(`pageBeingLinkedToId`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`pageThatOwnsMe`: kotlin.String, `content`: kotlin.String, `idOfBlockThatOwns`: kotlin.String): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
+    
+        
+        FfiConverterString.lower(`pageThatOwnsMe`),
+        FfiConverterString.lower(`content`),
+        FfiConverterString.lower(`idOfBlockThatOwns`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `newPageRow`(`pageId`: kotlin.String, `isMainMenuPage`: kotlin.Boolean): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_page_row(
+    
+        
+        FfiConverterString.lower(`pageId`),
+        FfiConverterBoolean.lower(`isMainMenuPage`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `newUncommittedDiffRow`(`snapshotOfEdit`: kotlin.ByteArray, `editEnum`: kotlin.ByteArray, `sessionId`: kotlin.Long, `targetId`: kotlin.String): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(
+    
+        
+        FfiConverterByteArray.lower(`snapshotOfEdit`),
+        FfiConverterByteArray.lower(`editEnum`),
+        FfiConverterLong.lower(`sessionId`),
+        FfiConverterString.lower(`targetId`),_status)
+}
+    )
+    }
+    
  fun `backlinksColumns`(): List<ColumnDef> {
             return FfiConverterSequenceTypeColumnDef.lift(
     uniffiRustCall() { _status ->

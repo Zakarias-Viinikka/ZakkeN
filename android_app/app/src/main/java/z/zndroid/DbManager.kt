@@ -62,18 +62,17 @@ object DbManager {
     }
 
     /**
-     * Dynamically adds a new page by finding the first non-primary-key column.
+     * Proper way to add a new page using Yrs initial snapshots from blueprints.
      */
-    fun addPage(title: String): Result<Unit> = execute { db ->
-        val cols = db.checkTable(CheckTableIn("pages")).columns
-        val titleCol = cols.firstOrNull { !it.primaryKey } ?: cols.firstOrNull()
-        
-        val values = if (titleCol != null) {
-            listOf(ColumnValue(titleCol.name, Col.Text(title)))
-        } else {
-            emptyList()
+    fun addPage(pageId: String, isMainMenu: Boolean = false): Result<Unit> = execute { db ->
+        val row = newPageRow(pageId, isMainMenu)
+        val columnDefs = pagesColumns()
+
+        // Skip index 0 because it's the auto-increment 'id' column
+        val values = row.cols.mapIndexed { index, col ->
+            ColumnValue(columnDefs[index + 1].name, col)
         }
-        
+
         db.insertData(InsertDataIn("pages", values))
     }
 }

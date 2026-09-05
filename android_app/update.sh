@@ -35,6 +35,9 @@ curl -L "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libclient_table_blueprints.so" -o "$J
 curl -L "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libmy_yrs_lib-bced72b5f489fa65.so" -o "$JNI_DEST/libmy_yrs_lib-bced72b5f489fa65.so"
 curl -L "$BLUEPRINTS_URL/kotlin/rustlib/client_table_blueprints/client_table_blueprints.kt" -o "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
 
+# Patch the package mismatch for my_yrs_lib
+sed -i 's/uniffi\.my_yrs_lib/rustlib.my_yrs_lib/g' "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
+
 # 5. Download shared protocol
 echo "Fetching shared protocol..."
 curl -L "$Z_DB_URL/kotlin/uniffi/protocol/protocol.kt" -o "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
