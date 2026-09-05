@@ -84,6 +84,13 @@ pub fn new_backlink_row(
     })
 }
 
+#[uniffi::export]
+pub fn new_key_value_item(key: String, value: String) -> Result<Row, YrsError> {
+    Ok(Row {
+        cols: vec![Col::Text(key), Col::Text(value)],
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +183,20 @@ mod tests {
 
         assert!(matches!(row.cols[2], Col::Blob(_)));
         assert!(matches!(row.cols[3], Col::Blob(_)));
+    }
+
+    #[test]
+    fn test_new_key_value_item() {
+        let key = "user_id".to_string();
+        let value = "12345".to_string();
+
+        let row = new_key_value_item(key.clone(), value.clone()).unwrap();
+
+        let expected_0 = Col::Text(key);
+        let expected_1 = Col::Text(value);
+
+        assert_eq!(row.cols[0], expected_0);
+        assert_eq!(row.cols[1], expected_1);
+        assert_eq!(row.cols.len(), 2);
     }
 }

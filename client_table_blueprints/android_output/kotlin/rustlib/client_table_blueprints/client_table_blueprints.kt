@@ -684,9 +684,13 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_client_table_blueprints_checksum_func_key_value_storage_columns(
+    ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_backlink_row(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_key_value_item(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_page_row(
     ): Int
@@ -719,9 +723,13 @@ internal object UniffiLib {
         uniffi.protocol.uniffiEnsureInitialized()
         
     }
+    external fun uniffi_client_table_blueprints_fn_func_key_value_storage_columns(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_backlink_row(`pageThatHoldsLinkId`: RustBuffer.ByValue,`pageBeingLinkedToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`pageThatOwnsMe`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`idOfBlockThatOwns`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_key_value_item(`key`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
@@ -858,10 +866,16 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_key_value_storage_columns() != 28354) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 18562) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 7488) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_key_value_item() != 9008) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_new_page_row() != 36971) {
@@ -1153,7 +1167,17 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
                 data = error_buf.data
             }
         )
+} fun `keyValueStorageColumns`(): List<ColumnDef> {
+            return FfiConverterSequenceTypeColumnDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_key_value_storage_columns(
+    
+        _status)
 }
+    )
+    }
+    
+
     @Throws(YrsException::class) fun `newBacklinkRow`(`pageThatHoldsLinkId`: kotlin.String, `pageBeingLinkedToId`: kotlin.String): Row {
             return FfiConverterTypeRow.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
@@ -1176,6 +1200,19 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
         FfiConverterString.lower(`pageThatOwnsMe`),
         FfiConverterString.lower(`content`),
         FfiConverterString.lower(`idOfBlockThatOwns`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `newKeyValueItem`(`key`: kotlin.String, `value`: kotlin.String): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_key_value_item(
+    
+        
+        FfiConverterString.lower(`key`),
+        FfiConverterString.lower(`value`),_status)
 }
     )
     }
