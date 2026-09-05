@@ -184,3 +184,4 @@ mod tests {
         assert!(matches!(row.cols[3], Col::Blob(_)));
     }
 }
+//
