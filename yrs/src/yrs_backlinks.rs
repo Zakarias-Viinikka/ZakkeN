@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 use yrs::updates::decoder::Decode;
-use yrs::{Doc, In, Map, ReadTxn, StateVector, Transact, Update};
+use yrs::updates::encoder::Encode;
+use yrs::{Doc, Map, ReadTxn, StateVector, Transact, Update};
 
 use crate::anti_deadlock::{DeadlockCtx, prevent_deadlock};
 use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
@@ -134,6 +135,22 @@ impl YrsBacklinks {
                     )
                 })?;
                 Ok(())
+            },
+        )
+    }
+
+    pub fn create_bookmark_of_synced_state(self: Arc<Self>) -> Result<Vec<u8>, YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "create_bookmark_of_synced_state",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "create_bookmark_of_synced_state"),
+                })?;
+                Ok(doc.transact().state_vector().encode_v1())
             },
         )
     }

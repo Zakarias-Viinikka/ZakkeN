@@ -9,3 +9,4 @@ crate-type = ["rlib", "cdylib"]   # cdylib needed for Android .so
 [dependencies]
 uniffi = { version = "0.32", features = ["cli"] }
 protocol = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
+my_yrs_lib = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main", package = "yrs" }
