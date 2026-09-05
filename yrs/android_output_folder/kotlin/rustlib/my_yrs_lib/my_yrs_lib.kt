@@ -691,13 +691,13 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_snapshot(
     ): Int
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_add_backlink(
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark_of_synced_state(
     ): Int
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_get_backlinks_for_page(
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_merge_with_snapshot(
     ): Int
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_remove_backlink(
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_set_disabled(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot(
     ): Int
@@ -775,13 +775,13 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new_empty(uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_add_backlink(`ptr`: Long,`ownerOfBacklinkId`: RustBuffer.ByValue,`pageImLinkingToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_get_backlinks_for_page(`ptr`: Long,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark_of_synced_state(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
     external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_remove_backlink(`ptr`: Long,`ownerOfBacklinkId`: RustBuffer.ByValue,`pageImLinkingToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_set_disabled(`ptr`: Long,`disabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_snapshot(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -960,16 +960,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_snapshot() != 25643) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_add_backlink() != 60319) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark_of_synced_state() != 57945) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_get_backlinks_for_page() != 61317) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled() != 54983) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_merge_with_snapshot() != 50359) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_remove_backlink() != 33094) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_set_disabled() != 10063) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot() != 22743) {
@@ -2170,13 +2170,13 @@ public object FfiConverterTypeYrsActivePages: FfiConverter<YrsActivePages, Long>
 
 public interface YrsBacklinksInterface {
     
-    fun `addBacklink`(`ownerOfBacklinkId`: kotlin.String, `pageImLinkingToId`: kotlin.String)
+    fun `createBookmarkOfSyncedState`(): kotlin.ByteArray
     
-    fun `getBacklinksForPage`(`pageId`: kotlin.String): List<kotlin.String>
+    fun `isDisabled`(): kotlin.Boolean
     
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
     
-    fun `removeBacklink`(`ownerOfBacklinkId`: kotlin.String, `pageImLinkingToId`: kotlin.String)
+    fun `setDisabled`(`disabled`: kotlin.Boolean)
     
     fun `snapshot`(): kotlin.ByteArray
     
@@ -2294,29 +2294,27 @@ open class YrsBacklinks: Disposable, AutoCloseable, YrsBacklinksInterface
     }
 
     
-    @Throws(YrsException::class)override fun `addBacklink`(`ownerOfBacklinkId`: kotlin.String, `pageImLinkingToId`: kotlin.String)
-        = 
+    @Throws(YrsException::class)override fun `createBookmarkOfSyncedState`(): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_add_backlink(
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark_of_synced_state(
         it,
-        
-        FfiConverterString.lower(`ownerOfBacklinkId`),
-        FfiConverterString.lower(`pageImLinkingToId`),_status)
+        _status)
 }
     }
-    
+    )
+    }
     
 
     
-    @Throws(YrsException::class)override fun `getBacklinksForPage`(`pageId`: kotlin.String): List<kotlin.String> {
-            return FfiConverterSequenceString.lift(
+    @Throws(YrsException::class)override fun `isDisabled`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_get_backlinks_for_page(
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(
         it,
-        
-        FfiConverterString.lower(`pageId`),_status)
+        _status)
 }
     }
     )
@@ -2338,15 +2336,14 @@ open class YrsBacklinks: Disposable, AutoCloseable, YrsBacklinksInterface
     
 
     
-    @Throws(YrsException::class)override fun `removeBacklink`(`ownerOfBacklinkId`: kotlin.String, `pageImLinkingToId`: kotlin.String)
+    @Throws(YrsException::class)override fun `setDisabled`(`disabled`: kotlin.Boolean)
         = 
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_remove_backlink(
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_set_disabled(
         it,
         
-        FfiConverterString.lower(`ownerOfBacklinkId`),
-        FfiConverterString.lower(`pageImLinkingToId`),_status)
+        FfiConverterBoolean.lower(`disabled`),_status)
 }
     }
     
@@ -2866,34 +2863,6 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         } else {
             buf.put(1)
             FfiConverterString.write(value, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.String>> {
-    override fun read(buf: ByteBuffer): List<kotlin.String> {
-        val len = buf.getInt()
-        return List<kotlin.String>(len) {
-            FfiConverterString.read(buf)
-        }
-    }
-
-    override fun allocationSize(value: List<kotlin.String>): ULong {
-        val sizeForLength = 4UL
-        val sizeForItems = value.map { FfiConverterString.allocationSize(it) }.sum()
-        return sizeForLength + sizeForItems
-    }
-
-    override fun write(value: List<kotlin.String>, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        value.iterator().forEach {
-            FfiConverterString.write(it, buf)
         }
     }
 }
