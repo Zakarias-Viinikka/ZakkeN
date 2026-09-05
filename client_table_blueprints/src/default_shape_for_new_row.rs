@@ -22,7 +22,6 @@ pub fn new_page_row(page_id: String, is_main_menu_page: bool) -> Result<Row, Str
             Col::Blob(blobbed_page),
             Col::Blob(page_status),
             Col::Blob(version),
-            Col::Integer(0),
             Col::Text(if is_main_menu_page {
                 "true".to_string()
             } else {
@@ -102,7 +101,7 @@ mod tests {
         for menu_flag in [false, true] {
             let row = make_page_row(menu_flag);
 
-            let expected_0 = 6;
+            let expected_0 = 5;
             assert_eq!(row.cols.len(), expected_0);
 
             let expected_1 = Col::Text("test_page".to_string());
@@ -112,15 +111,12 @@ mod tests {
             assert!(matches!(row.cols[2], Col::Blob(_)));
             assert!(matches!(row.cols[3], Col::Blob(_)));
 
-            let expected_5 = Col::Integer(0);
-            assert_eq!(row.cols[4], expected_5);
-
-            let expected_6 = if menu_flag {
+            let expected_4 = if menu_flag {
                 Col::Text("true".to_string())
             } else {
                 Col::Text("false".to_string())
             };
-            assert_eq!(row.cols[5], expected_6);
+            assert_eq!(row.cols[4], expected_4);
         }
     }
 

@@ -8,7 +8,6 @@ pub fn pages_columns() -> Vec<ColumnDef> {
         not_null_col(ColumnType::Blob, "blobbed_page"),
         not_null_col(ColumnType::Blob, "page_status"),
         not_null_col(ColumnType::Blob, "version"),
-        not_null_col(ColumnType::Integer, "date_of_disabled"),
         not_null_col(ColumnType::Text, "is_main_menu_page"),
     ]
 }
