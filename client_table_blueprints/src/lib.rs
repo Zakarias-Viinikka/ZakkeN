@@ -1,6 +1,6 @@
 uniffi::setup_scaffolding!();
 
-pub mod default_shape_for_new_row;
+pub mod new_row_helper;
 pub mod tbl_backlinks;
 pub mod tbl_every_block_in_existence;
 pub mod tbl_pages;

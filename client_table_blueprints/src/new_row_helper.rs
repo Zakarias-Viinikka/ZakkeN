@@ -1,20 +1,18 @@
 use my_yrs_lib::yrs_backlinks::YrsBacklinks;
 use my_yrs_lib::yrs_wrapper::create_bookmark_of_synced_state;
-use my_yrs_lib::{BossOfYrs, YrsActivePages};
+use my_yrs_lib::{BossOfYrs, YrsActivePages, YrsError};
 use protocol::row_col::{Col, Row};
 use std::sync::Arc;
 
 #[uniffi::export]
-pub fn new_page_row(page_id: String, is_main_menu_page: bool) -> Result<Row, String> {
+pub fn new_page_row(page_id: String, is_main_menu_page: bool) -> Result<Row, YrsError> {
     let page_doc = Arc::new(BossOfYrs::new());
-    let blobbed_page = Arc::clone(&page_doc)
-        .snapshot()
-        .map_err(|e| e.to_string())?;
+    let blobbed_page = Arc::clone(&page_doc).snapshot()?;
 
-    let version = create_bookmark_of_synced_state(page_doc).map_err(|e| e.to_string())?;
+    let version = create_bookmark_of_synced_state(page_doc)?;
 
     let active_doc = Arc::new(YrsActivePages::new_empty());
-    let page_status = active_doc.snapshot().map_err(|e| e.to_string())?;
+    let page_status = active_doc.snapshot()?;
 
     Ok(Row {
         cols: vec![
@@ -36,7 +34,7 @@ pub fn new_every_block_in_existence_row(
     page_that_owns_me: String,
     content: String,
     id_of_block_that_owns: String,
-) -> Result<Row, String> {
+) -> Result<Row, YrsError> {
     Ok(Row {
         cols: vec![
             Col::Text(page_that_owns_me),
@@ -52,7 +50,7 @@ pub fn new_uncommitted_diff_row(
     edit_enum: Vec<u8>,
     session_id: i64,
     target_id: String,
-) -> Result<Row, String> {
+) -> Result<Row, YrsError> {
     Ok(Row {
         cols: vec![
             Col::Blob(snapshot_of_edit),
@@ -67,15 +65,10 @@ pub fn new_uncommitted_diff_row(
 pub fn new_backlink_row(
     page_that_holds_link_id: String,
     page_being_linked_to_id: String,
-) -> Result<Row, String> {
+) -> Result<Row, YrsError> {
     let backlinks_doc = Arc::new(YrsBacklinks::new_empty());
-    let disabled = backlinks_doc
-        .clone()
-        .snapshot()
-        .map_err(|e| e.to_string())?;
-    let version = backlinks_doc
-        .create_bookmark_of_synced_state()
-        .map_err(|e| e.to_string())?;
+    let disabled = backlinks_doc.clone().snapshot()?;
+    let version = backlinks_doc.create_bookmark_of_synced_state()?;
 
     Ok(Row {
         cols: vec![
@@ -180,4 +173,3 @@ mod tests {
         assert!(matches!(row.cols[3], Col::Blob(_)));
     }
 }
-//

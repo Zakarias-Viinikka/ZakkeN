@@ -1437,6 +1437,49 @@ public object FfiConverterTypeCopyTableIn: FfiConverterRustBuffer<CopyTableIn> {
 
 
 
+data class CreateForeignTableIn (
+    var `tableName`: kotlin.String
+    , 
+    var `columns`: List<ColumnDef>
+    , 
+    var `foreignKeys`: List<ForeignKeyDef>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCreateForeignTableIn: FfiConverterRustBuffer<CreateForeignTableIn> {
+    override fun read(buf: ByteBuffer): CreateForeignTableIn {
+        return CreateForeignTableIn(
+            FfiConverterString.read(buf),
+            FfiConverterSequenceTypeColumnDef.read(buf),
+            FfiConverterSequenceTypeForeignKeyDef.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: CreateForeignTableIn) = (
+            FfiConverterString.allocationSize(value.`tableName`) +
+            FfiConverterSequenceTypeColumnDef.allocationSize(value.`columns`) +
+            FfiConverterSequenceTypeForeignKeyDef.allocationSize(value.`foreignKeys`)
+    )
+
+    override fun write(value: CreateForeignTableIn, buf: ByteBuffer) {
+            FfiConverterString.write(value.`tableName`, buf)
+            FfiConverterSequenceTypeColumnDef.write(value.`columns`, buf)
+            FfiConverterSequenceTypeForeignKeyDef.write(value.`foreignKeys`, buf)
+    }
+}
+
+
+
 data class CreateFts5TableIn (
     var `sourceTableName`: kotlin.String
     , 
@@ -3626,6 +3669,34 @@ public object FfiConverterSequenceTypeColumnValue: FfiConverterRustBuffer<List<C
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeColumnValue.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List<ForeignKeyDef>> {
+    override fun read(buf: ByteBuffer): List<ForeignKeyDef> {
+        val len = buf.getInt()
+        return List<ForeignKeyDef>(len) {
+            FfiConverterTypeForeignKeyDef.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ForeignKeyDef>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeForeignKeyDef.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ForeignKeyDef>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeForeignKeyDef.write(it, buf)
         }
     }
 }
