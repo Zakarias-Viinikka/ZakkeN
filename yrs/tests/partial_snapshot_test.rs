@@ -9,7 +9,11 @@ mod tests {
     fn client_server_diff_sync() {
         let server = Arc::new(BossOfYrs::new("test_user".to_string()));
         Arc::clone(&server)
-            .insert_new_block("server text".to_string(), "".to_string())
+            .insert_new_block(
+                "server text".to_string(),
+                "".to_string(),
+                PositionToInsert::AtEnd,
+            )
             .unwrap();
 
         let block_id = Arc::clone(&server).get_entire_page().unwrap()[0]

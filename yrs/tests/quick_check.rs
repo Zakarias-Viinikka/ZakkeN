@@ -8,7 +8,11 @@ fn call_all_methods_and_helpers_without_errors() {
 
     // Insert a block to have something to work with
     Arc::clone(&boss)
-        .insert_new_block("hello".to_string(), "meta".to_string())
+        .insert_new_block(
+            "hello".to_string(),
+            "meta".to_string(),
+            PositionToInsert::AtEnd,
+        )
         .unwrap();
 
     // Get a block id for later use
@@ -52,7 +56,7 @@ fn call_all_methods_and_helpers_without_errors() {
     // merge_with_snapshot
     let other_boss = Arc::new(BossOfYrs::new("test_user".to_string()));
     Arc::clone(&other_boss)
-        .insert_new_block("other".to_string(), "".to_string())
+        .insert_new_block("other".to_string(), "".to_string(), PositionToInsert::AtEnd)
         .unwrap();
     let other_snapshot = Arc::clone(&other_boss).snapshot().unwrap();
     Arc::clone(&boss)

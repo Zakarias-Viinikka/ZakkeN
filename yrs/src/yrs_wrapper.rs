@@ -235,7 +235,8 @@ impl BossOfYrs {
         self: Arc<Self>,
         block_content: String,
         block_meta_data: String,
-    ) -> Result<(), YrsError> {
+        position: PositionToInsert,
+    ) -> Result<String, YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
                 "insert_new_block",
@@ -252,15 +253,28 @@ impl BossOfYrs {
                 let yrs_array_ref = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                 let mut txn = doc.transact_mut();
 
-                yrs_array_ref.push_back(
+                let insert_at = match position {
+                    PositionToInsert::AtEnd => yrs_array_ref.len(&txn) as u32,
+                    PositionToInsert::SpecificPosition(pos) => pos,
+                };
+
+                if insert_at > yrs_array_ref.len(&txn) as u32 {
+                    return Err(YrsError::GenericError {
+                        info: error_info("insert position out of bounds", "insert_new_block"),
+                    });
+                }
+
+                yrs_array_ref.insert(
                     &mut txn,
+                    insert_at,
                     MapPrelim::from([
-                        (ID_KEY.to_string(), In::from(block_id)),
+                        (ID_KEY.to_string(), In::from(block_id.clone())),
                         (CONTENT_KEY.to_string(), In::from(text_as_xml_text_ref)),
                         (META_KEY.to_string(), In::from(block_meta_data)),
                     ]),
                 );
-                Ok(())
+
+                Ok(block_id)
             },
         )
     }
@@ -603,4 +617,10 @@ fn deserialize_bookmark(bytes: &[u8]) -> Result<StateVector, YrsError> {
             "deserialize_bookmark",
         )
     })
+}
+
+#[derive(uniffi::Enum)]
+pub enum PositionToInsert {
+    AtEnd,
+    SpecificPosition(u32),
 }
