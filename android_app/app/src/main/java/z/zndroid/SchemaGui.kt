@@ -18,7 +18,8 @@ fun SchemaGui(onBack: () -> Unit) {
         TableSchema("pages", pagesColumns(), emptyList()),
         TableSchema("uncommitted_diffs", uncommittedDiffsColumns(), emptyList()),
         TableSchema("backlinks", backlinksColumns(), getForeignDefBacklinks()),
-        // TODO: Add every_block_in_existence when it is exported by the library
+        TableSchema("every_block_in_existence", everyBlockInExistenceColumns(), getForeignDefEveryBlockInExistence()),
+        TableSchema("key_value_storage", keyValueStorageColumns(), emptyList())
     )
 
     Scaffold(

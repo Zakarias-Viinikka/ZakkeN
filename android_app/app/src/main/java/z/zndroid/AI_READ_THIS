@@ -1,0 +1,77 @@
+ZakkeN Project – Library Guide for AI
+
+This project uses Rust libraries exposed to Android via UniFFI. The main ones:
+
+- z_db: SQLite database wrapper
+    - db: raw SQL execution
+    - protocol: data types (records, enums) and serialization
+    - db_wrapper: high‑level API (LiveForever object)
+- client_table_blueprints: table schemas and row creation helpers
+- yrs: Yrs CRDT wrappers for page content and sync
+
+Kotlin generated bindings:
+- com.z_db.android_mascot (from db_wrapper)
+- uniffi.protocol (from protocol)
+- rustlib.client_table_blueprints (from client_table_blueprints)
+- rustlib.my_yrs_lib (from yrs)
+
+Core database object: LiveForever
+Methods include: create_table, create_foreign_table, list_tables, get_data,
+get_data_ordered, insert_data, drop_table, edit_col_in_row, check_table,
+delete_row, swap_columns, create_index, check_index, add_column, remove_column,
+export_database, export_tables, create_table_from_export, copy_table.
+
+Important types (from protocol):
+- Col: Null, Integer(i64), Real(f64), Text(String), Blob(Vec<u8>)
+- Row: contains Vec<Col>
+- GetDataIn: table_name, arguments (SelectArgument), columns_to_read
+- SelectArgument: XEqualY, XNotEqualY, XGreaterThanY, XLessThanY, etc. Or All.
+- InsertDataIn: table_name, values (Vec<ColumnValue>)
+- EditColInRowIn: table_name, row_id, column, new_value (Col)
+
+Table blueprints (client_table_blueprints):
+- pages: page_id, blobbed_page, page_status, version, is_main_menu_page
+- backlinks: page_that_holds_link_id, page_being_linked_to_id, disabled, version
+- every_block_in_existence: page_that_owns_me, content, id_of_block_that_owns
+- uncommitted_diffs: snapshot_of_edit, edit_enum, session_id, target_id
+- key_value_storage: key, value
+
+Row creation helpers:
+- new_page_row(page_id, is_main_menu_page, user_id)
+- new_backlink_row(owner, target)
+- new_key_value_item(key, value)
+- etc.
+
+Yrs library:
+- BossOfYrs: main page document (insert blocks, edit text, snapshot, merge)
+- YrsActivePages: mark pages active/deleted, snapshot
+- YrsBacklinks: disabled flag, snapshot, bookmark
+
+Android side:
+- DbManager (singleton) holds a LiveForever instance
+- init in MainApplication creates tables using blueprints
+- StorageAccess/StorageInitializer manage key_value_storage (user_id)
+
+Common patterns:
+- Create tables with CreateTableIn + column defs from blueprints
+- Insert rows: get Row from new_* helper, map cols to ColumnValue (skip id column)
+- Query: GetDataIn + SelectArgument (All or XEqualY)
+- Yrs snapshots stored as blobs in columns like blobbed_page, page_status, disabled
+
+When to use what:
+- Need table schema? client_table_blueprints column functions
+- Need to query or modify DB? LiveForever methods via DbManager
+- Need page content CRDT? BossOfYrs
+- Need page active status? YrsActivePages
+- Need backlink state? YrsBacklinks
+
+AI memory file:
+Create AI_MEMORY.md in project root. Read it at start of every conversation.
+Update it when you learn new details about the libraries or usage.
+Keep it short and useful.
+
+Notification rule:
+If you notice the Rust library or its exported API has changed (new functions, altered types)
+and AI_MEMORY.md is outdated, tell the user:
+"Notice: [library] seems to have changed. Consider updating AI_MEMORY.md with [change]."
+Do this only for important changes.
