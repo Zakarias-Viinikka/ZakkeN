@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yin Yang Swirl</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg class="swirl" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <filter id="seamBlur" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+    		<feGaussianBlur stdDeviation="6"/>
+		</filter>
+        <radialGradient id="edgeFade" gradientUnits="userSpaceOnUse" cx="100" cy="100" r="100">
+            <stop offset="0%" stop-color="#fff" stop-opacity="1"/>
+            <stop offset="75%" stop-color="#fff" stop-opacity="1"/>
+            <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+        </radialGradient>
+        <mask id="edgeMask">
+            <rect x="0" y="0" width="200" height="200" fill="url(#edgeFade)"/>
+        </mask>
+    </defs>
+    <g mask="url(#edgeMask)">
+        <g filter="url(#seamBlur)">
+            <path fill="#f5f4f0" d="M100,0 A100,100 0 0 1 100,200 A50,50 0 0 1 100,100 A50,50 0 0 0 100,0 Z"/>
+            <g transform="rotate(180 100 100)">
+                <path fill="#9a9890" d="M100,0 A100,100 0 0 1 100,200 A50,50 0 0 1 100,100 A50,50 0 0 0 100,0 Z"/>
+            </g>
+        </g>
+    </g>
+</svg>
+</body>
+</html>
