@@ -3,6 +3,7 @@
 #![allow(unused)]
 
 use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 use yrs::block::Item;
 use yrs::types::ToJson;
 use yrs::types::TypeRef::XmlText;
@@ -19,10 +20,6 @@ use rand::prelude::*;
 use crate::anti_deadlock::{DeadlockCtx, DurationSettings, prevent_deadlock};
 use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
 
-// ------------------------------------------------------------
-// Helper to build ErrorInfo
-// ------------------------------------------------------------
-
 fn error_info(error_msg: impl Into<String>, method: &str) -> ErrorInfo {
     ErrorInfo {
         error_msg: error_msg.into(),
@@ -37,13 +34,11 @@ fn yrs_error(error_msg: impl Into<String>, method: &str) -> YrsError {
     }
 }
 
-// ------------------------------------------------------------
-// UniFFI‑exported types
-// ------------------------------------------------------------
-
 #[derive(uniffi::Object)]
 pub struct BossOfYrs {
     pub doc: RwLock<Doc>,
+    pub page_id: String,
+    pub user_id: String,
 }
 
 #[derive(uniffi::Record)]
@@ -76,23 +71,22 @@ pub enum EditTarget {
     Meta,
 }
 
-// ------------------------------------------------------------
-// Constants
-// ------------------------------------------------------------
-
 const BLOCKS_KEY: &str = "blocks";
 const CONTENT_KEY: &str = "text";
 const META_KEY: &str = "meta";
 const ID_KEY: &str = "id";
 
-// ------------------------------------------------------------
-// Internal helper functions (no locking)
-// ------------------------------------------------------------
+fn generate_unique_key(user_id: &str) -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
+        .to_string();
 
-fn generate_key(doc: &Doc) -> String {
     let mut rng = rand::rng();
-    let rnd_something: u64 = rng.random();
-    rnd_something.to_string() + "userid" + &doc.client_id().to_string()
+    let random_part: u64 = rng.random();
+
+    format!("{timestamp}-{random_part}-{user_id}")
 }
 
 fn block_from_block_id(doc: &Doc, block_id: &str, array_ref: ArrayRef) -> Option<MapRef> {
@@ -218,17 +212,23 @@ fn apply_edit_to_string(old_meta: String, edit: TextEdit) -> Result<String, YrsE
     Ok(chars.into_iter().collect())
 }
 
-// ------------------------------------------------------------
-// Exportable methods
-// ------------------------------------------------------------
-
 #[uniffi::export]
 impl BossOfYrs {
     #[uniffi::constructor]
-    pub fn new() -> Self {
+    pub fn new(user_id: String) -> Self {
         Self {
             doc: RwLock::new(Doc::new()),
+            page_id: generate_unique_key(&user_id),
+            user_id,
         }
+    }
+
+    pub fn page_id(self: Arc<Self>) -> String {
+        self.page_id.clone()
+    }
+
+    pub fn user_id(self: Arc<Self>) -> String {
+        self.user_id.clone()
     }
 
     pub fn insert_new_block(
@@ -246,7 +246,7 @@ impl BossOfYrs {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "insert_new_block"),
                 })?;
-                let block_id = generate_key(&doc) + "_clientid" + &doc.client_id().to_string();
+                let block_id = generate_unique_key(&self.user_id);
 
                 let text_as_xml_text_ref = XmlTextPrelim::new(block_content);
                 let yrs_array_ref = doc.get_or_insert_array(BLOCKS_KEY.to_string());
@@ -366,7 +366,6 @@ impl BossOfYrs {
                 DeadlockPrediction::ProbablyJustADeadlock,
             ),
             move || {
-                // acquire write lock once
                 let doc = self.doc.write().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "edit_text_block_insert"),
                 })?;
@@ -381,22 +380,6 @@ impl BossOfYrs {
                 })?;
 
                 edit_block(&doc, block, text_edit, edit_target)
-            },
-        )
-    }
-
-    pub fn generate_key(self: Arc<Self>) -> Result<String, YrsError> {
-        prevent_deadlock(
-            DeadlockCtx::new(
-                "generate_key",
-                file!(),
-                DeadlockPrediction::ProbablyJustADeadlock,
-            ),
-            move || {
-                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "generate_key"),
-                })?;
-                Ok(generate_key(&doc))
             },
         )
     }
@@ -540,12 +523,12 @@ impl BossOfYrs {
     }
 }
 
-// ------------------------------------------------------------
-// Free functions
-// ------------------------------------------------------------
-
 #[uniffi::export]
-pub fn doc_from_snapshot(snapshot: Vec<u8>) -> Result<BossOfYrs, YrsError> {
+pub fn doc_from_snapshot(
+    snapshot: Vec<u8>,
+    user_id: String,
+    page_id: String,
+) -> Result<BossOfYrs, YrsError> {
     prevent_deadlock(
         DeadlockCtx::new(
             "doc_from_snapshot",
@@ -568,6 +551,8 @@ pub fn doc_from_snapshot(snapshot: Vec<u8>) -> Result<BossOfYrs, YrsError> {
             })?;
             Ok(BossOfYrs {
                 doc: RwLock::new(doc),
+                page_id,
+                user_id,
             })
         },
     )

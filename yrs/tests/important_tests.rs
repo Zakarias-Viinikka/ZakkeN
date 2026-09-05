@@ -5,9 +5,19 @@ use std::sync::Arc;
 mod tests {
     use super::*;
 
+    fn new_test_boss() -> Arc<BossOfYrs> {
+        Arc::new(BossOfYrs::new("test_user".to_string()))
+    }
+
+    fn new_test_doc_from_snapshot(snapshot: Vec<u8>) -> Arc<BossOfYrs> {
+        Arc::new(
+            doc_from_snapshot(snapshot, "test_user".to_string(), "test_page".to_string()).unwrap(),
+        )
+    }
+
     #[test]
     fn create_page_n_insert_two_blocks() {
-        let boss = Arc::new(BossOfYrs::new());
+        let boss = new_test_boss();
 
         let text1 = "mock data".to_string();
         let text2 = "dock data".to_string();
@@ -33,7 +43,7 @@ mod tests {
 
     #[test]
     fn textblocks_collaborative_conflict_resolution() {
-        let initial_doc = Arc::new(BossOfYrs::new());
+        let initial_doc = new_test_boss();
         Arc::clone(&initial_doc)
             .insert_new_block("hello".to_string(), "".to_string())
             .unwrap();
@@ -44,8 +54,8 @@ mod tests {
 
         let snapshot = Arc::clone(&initial_doc).snapshot().unwrap();
 
-        let offline_doc_1 = Arc::new(doc_from_snapshot(snapshot.clone()).unwrap());
-        let offline_doc_2 = Arc::new(doc_from_snapshot(snapshot).unwrap());
+        let offline_doc_1 = new_test_doc_from_snapshot(snapshot.clone());
+        let offline_doc_2 = new_test_doc_from_snapshot(snapshot);
 
         Arc::clone(&offline_doc_1)
             .edit_text_block_insert(
@@ -86,7 +96,7 @@ mod tests {
 
     #[test]
     fn metablocks_overwrite_on_conflict() {
-        let initial_doc = Arc::new(BossOfYrs::new());
+        let initial_doc = new_test_boss();
         Arc::clone(&initial_doc)
             .insert_new_block("".to_string(), "hello".to_string())
             .unwrap();
@@ -97,8 +107,8 @@ mod tests {
 
         let snapshot = Arc::clone(&initial_doc).snapshot().unwrap();
 
-        let offline_doc_1 = Arc::new(doc_from_snapshot(snapshot.clone()).unwrap());
-        let offline_doc_2 = Arc::new(doc_from_snapshot(snapshot).unwrap());
+        let offline_doc_1 = new_test_doc_from_snapshot(snapshot.clone());
+        let offline_doc_2 = new_test_doc_from_snapshot(snapshot);
 
         Arc::clone(&offline_doc_1)
             .edit_text_block_insert(

@@ -4,7 +4,7 @@ use std::sync::Arc;
 #[test]
 fn call_all_methods_and_helpers_without_errors() {
     // Create a fresh document
-    let boss = Arc::new(BossOfYrs::new());
+    let boss = Arc::new(BossOfYrs::new("test_user".to_string()));
 
     // Insert a block to have something to work with
     Arc::clone(&boss)
@@ -19,7 +19,6 @@ fn call_all_methods_and_helpers_without_errors() {
     // Public methods on BossOfYrs
     let _ = Arc::clone(&boss).get_entire_page().unwrap();
     let _ = Arc::clone(&boss).show_doc_info().unwrap();
-    let _ = Arc::clone(&boss).generate_key().unwrap();
     let _ = Arc::clone(&boss).get_user_id().unwrap();
     let _ = Arc::clone(&boss).snapshot().unwrap();
 
@@ -51,8 +50,7 @@ fn call_all_methods_and_helpers_without_errors() {
     let _ = Arc::clone(&boss).read_block(block_id.clone()).unwrap();
 
     // merge_with_snapshot
-    // Use a fresh snapshot from another doc to test merge
-    let other_boss = Arc::new(BossOfYrs::new());
+    let other_boss = Arc::new(BossOfYrs::new("test_user".to_string()));
     Arc::clone(&other_boss)
         .insert_new_block("other".to_string(), "".to_string())
         .unwrap();
@@ -62,7 +60,7 @@ fn call_all_methods_and_helpers_without_errors() {
         .unwrap();
 
     // merge_with
-    let other_boss2 = Arc::new(BossOfYrs::new());
+    let other_boss2 = Arc::new(BossOfYrs::new("test_user".to_string()));
     Arc::clone(&boss).merge_with(other_boss2).unwrap();
 
     // Free functions
@@ -71,7 +69,12 @@ fn call_all_methods_and_helpers_without_errors() {
 
     // doc_from_snapshot
     let snapshot_for_new = Arc::clone(&boss).snapshot().unwrap();
-    let _new_boss = doc_from_snapshot(snapshot_for_new).unwrap();
+    let _new_boss = doc_from_snapshot(
+        snapshot_for_new,
+        "test_user".to_string(),
+        "test_page".to_string(),
+    )
+    .unwrap();
 
     // If we reach here, no errors occurred
 }

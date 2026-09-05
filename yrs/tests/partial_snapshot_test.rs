@@ -7,7 +7,7 @@ mod tests {
 
     #[test]
     fn client_server_diff_sync() {
-        let server = Arc::new(BossOfYrs::new());
+        let server = Arc::new(BossOfYrs::new("test_user".to_string()));
         Arc::clone(&server)
             .insert_new_block("server text".to_string(), "".to_string())
             .unwrap();
@@ -16,7 +16,7 @@ mod tests {
             .id_in_yrs
             .clone();
 
-        let client = Arc::new(BossOfYrs::new());
+        let client = Arc::new(BossOfYrs::new("test_user".to_string()));
         let snapshot = Arc::clone(&server).snapshot().unwrap();
         Arc::clone(&client).merge_with_snapshot(snapshot).unwrap();
 
