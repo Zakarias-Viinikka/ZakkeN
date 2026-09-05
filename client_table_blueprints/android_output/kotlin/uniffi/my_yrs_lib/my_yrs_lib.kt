@@ -797,8 +797,8 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -986,7 +986,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_user_id() != 42986) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 20480) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 18942) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with() != 23671) {
@@ -1431,7 +1431,7 @@ public interface BossOfYrsInterface {
     
     fun `getUserId`(): kotlin.ULong
     
-    fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String)
+    fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
     
     fun `mergeWith`(`other`: BossOfYrs)
     
@@ -1605,18 +1605,20 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     
 
     
-    @Throws(YrsException::class)override fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String)
-        = 
+    @Throws(YrsException::class)override fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String {
+            return FfiConverterString.lift(
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(
         it,
         
         FfiConverterString.lower(`blockContent`),
-        FfiConverterString.lower(`blockMetaData`),_status)
+        FfiConverterString.lower(`blockMetaData`),
+        FfiConverterTypePositionToInsert.lower(`position`),_status)
 }
     }
-    
+    )
+    }
     
 
     
@@ -2618,6 +2620,79 @@ public object FfiConverterTypeEditTarget: FfiConverterRustBuffer<EditTarget> {
 
     override fun write(value: EditTarget, buf: ByteBuffer) {
         buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+sealed class PositionToInsert {
+    
+    object AtEnd : PositionToInsert()
+    
+    
+    data class SpecificPosition(
+        val v1: kotlin.UInt) : PositionToInsert()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<PositionToInsert>{
+    override fun read(buf: ByteBuffer): PositionToInsert {
+        return when(buf.getInt()) {
+            1 -> PositionToInsert.AtEnd
+            2 -> PositionToInsert.SpecificPosition(
+                FfiConverterUInt.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: PositionToInsert): ULong = when(value) {
+        is PositionToInsert.AtEnd -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is PositionToInsert.SpecificPosition -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: PositionToInsert, buf: ByteBuffer) {
+        when(value) {
+            is PositionToInsert.AtEnd -> {
+                buf.putInt(1)
+                Unit
+            }
+            is PositionToInsert.SpecificPosition -> {
+                buf.putInt(2)
+                FfiConverterUInt.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 }
 

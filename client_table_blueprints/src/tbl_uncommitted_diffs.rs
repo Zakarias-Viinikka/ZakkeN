@@ -6,7 +6,7 @@ pub fn uncommitted_diffs_columns() -> Vec<ColumnDef> {
         id_column(),
         not_null_col(ColumnType::Blob, "snapshot_of_edit"),
         not_null_col(ColumnType::Blob, "edit_enum"),
-        not_null_col(ColumnType::Integer, "session_id"),
+        not_null_col(ColumnType::Text, "session_id"),
         not_null_col(ColumnType::Text, "target_id"),
     ]
 }
