@@ -723,7 +723,7 @@ internal object UniffiLib {
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`pageThatOwnsMe`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`idOfBlockThatOwns`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(`snapshotOfEdit`: RustBuffer.ByValue,`editEnum`: RustBuffer.ByValue,`sessionId`: Long,`targetId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
@@ -858,16 +858,16 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 31918) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 18562) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 24963) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 7488) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_page_row() != 49017) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_page_row() != 36971) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row() != 9302) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row() != 41168) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_backlinks_columns() != 34845) {
@@ -1204,14 +1204,15 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newPageRow`(`pageId`: kotlin.String, `isMainMenuPage`: kotlin.Boolean): Row {
+    @Throws(YrsException::class) fun `newPageRow`(`pageId`: kotlin.String, `isMainMenuPage`: kotlin.Boolean, `userId`: kotlin.String): Row {
             return FfiConverterTypeRow.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_page_row(
     
         
         FfiConverterString.lower(`pageId`),
-        FfiConverterBoolean.lower(`isMainMenuPage`),_status)
+        FfiConverterBoolean.lower(`isMainMenuPage`),
+        FfiConverterString.lower(`userId`),_status)
 }
     )
     }

@@ -5,8 +5,12 @@ use protocol::row_col::{Col, Row};
 use std::sync::Arc;
 
 #[uniffi::export]
-pub fn new_page_row(page_id: String, is_main_menu_page: bool) -> Result<Row, YrsError> {
-    let page_doc = Arc::new(BossOfYrs::new());
+pub fn new_page_row(
+    page_id: String,
+    is_main_menu_page: bool,
+    user_id: String,
+) -> Result<Row, YrsError> {
+    let page_doc = Arc::new(BossOfYrs::new(user_id));
     let blobbed_page = Arc::clone(&page_doc).snapshot()?;
 
     let version = create_bookmark_of_synced_state(page_doc)?;
@@ -86,7 +90,8 @@ mod tests {
     use protocol::row_col::{Col, Row};
 
     fn make_page_row(is_main_menu_page: bool) -> Row {
-        new_page_row("test_page".to_string(), is_main_menu_page).unwrap()
+        let user_id = "".to_string();
+        new_page_row("test_page".to_string(), is_main_menu_page, user_id).unwrap()
     }
 
     #[test]
