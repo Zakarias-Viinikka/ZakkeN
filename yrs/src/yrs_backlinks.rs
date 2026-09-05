@@ -1,11 +1,12 @@
 use std::sync::{Arc, RwLock};
 use yrs::updates::decoder::Decode;
-use yrs::{Doc, In, Map, MapRef, ReadTxn, StateVector, Transact, Update};
+use yrs::{Doc, In, Map, ReadTxn, StateVector, Transact, Update};
 
 use crate::anti_deadlock::{DeadlockCtx, prevent_deadlock};
 use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
 
-const BACKLINKS_KEY: &str = "backlinks";
+const STATE_MAP_KEY: &str = "state";
+const DISABLED_KEY: &str = "disabled";
 
 fn error_info(error_msg: impl Into<String>, method: &str) -> ErrorInfo {
     ErrorInfo {
@@ -51,88 +52,44 @@ impl YrsBacklinks {
         })
     }
 
-    pub fn add_backlink(
-        self: Arc<Self>,
-        owner_of_backlink_id: String,
-        page_im_linking_to_id: String,
-    ) -> Result<(), YrsError> {
+    pub fn set_disabled(self: Arc<Self>, disabled: bool) -> Result<(), YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
-                "add_backlink",
+                "set_disabled",
                 file!(),
                 DeadlockPrediction::ProbablyJustADeadlock,
             ),
             move || {
                 let doc = self.doc.write().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "add_backlink"),
+                    info: error_info("lock poisoned", "set_disabled"),
                 })?;
-                let backlinks_map = doc.get_or_insert_map(BACKLINKS_KEY);
+                let state_map = doc.get_or_insert_map(STATE_MAP_KEY);
                 let mut txn = doc.transact_mut();
-                let inner_map: MapRef =
-                    backlinks_map.get_or_init(&mut txn, page_im_linking_to_id.as_str());
-                inner_map.insert(&mut txn, owner_of_backlink_id, In::from(true));
+                state_map.insert(&mut txn, DISABLED_KEY, disabled);
                 Ok(())
             },
         )
     }
 
-    pub fn remove_backlink(
-        self: Arc<Self>,
-        owner_of_backlink_id: String,
-        page_im_linking_to_id: String,
-    ) -> Result<(), YrsError> {
+    pub fn is_disabled(self: Arc<Self>) -> Result<bool, YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
-                "remove_backlink",
-                file!(),
-                DeadlockPrediction::ProbablyJustADeadlock,
-            ),
-            move || {
-                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "remove_backlink"),
-                })?;
-                let backlinks_map = doc.get_or_insert_map(BACKLINKS_KEY);
-                let mut txn = doc.transact_mut();
-
-                if let Some(inner_map_ref) = backlinks_map.get(&txn, &page_im_linking_to_id) {
-                    if let Ok(inner_map) = inner_map_ref.cast::<MapRef>() {
-                        inner_map.remove(&mut txn, &owner_of_backlink_id);
-                        if inner_map.len(&txn) == 0 {
-                            backlinks_map.remove(&mut txn, &page_im_linking_to_id);
-                        }
-                    }
-                }
-                Ok(())
-            },
-        )
-    }
-
-    pub fn get_backlinks_for_page(
-        self: Arc<Self>,
-        page_id: String,
-    ) -> Result<Vec<String>, YrsError> {
-        prevent_deadlock(
-            DeadlockCtx::new(
-                "get_backlinks_for_page",
+                "is_disabled",
                 file!(),
                 DeadlockPrediction::ProbablyJustADeadlock,
             ),
             move || {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "get_backlinks_for_page"),
+                    info: error_info("lock poisoned", "is_disabled"),
                 })?;
-                let backlinks_map = doc.get_or_insert_map(BACKLINKS_KEY);
+                let state_map = doc.get_or_insert_map(STATE_MAP_KEY);
                 let txn = doc.transact();
-                let mut result = Vec::new();
-
-                if let Some(inner_map_ref) = backlinks_map.get(&txn, &page_id) {
-                    if let Ok(inner_map) = inner_map_ref.cast::<MapRef>() {
-                        for (key, _) in inner_map.iter(&txn) {
-                            result.push(key.to_string());
-                        }
-                    }
+                match state_map.get(&txn, DISABLED_KEY) {
+                    Some(value) => value.cast::<bool>().map_err(|_| YrsError::GenericError {
+                        info: error_info("failed to cast disabled to bool", "is_disabled"),
+                    }),
+                    None => Ok(false), // default: not disabled
                 }
-                Ok(result)
             },
         )
     }
