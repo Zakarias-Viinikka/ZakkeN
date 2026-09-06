@@ -26,9 +26,9 @@ fn call_all_methods_and_helpers_without_errors() {
     let _ = Arc::clone(&boss).get_user_id().unwrap();
     let _ = Arc::clone(&boss).snapshot().unwrap();
 
-    // edit_text_block_insert (both Text and Meta targets)
+    // edit_text_block (both Text and Meta targets)
     Arc::clone(&boss)
-        .edit_text_block_insert(
+        .edit_text_block(
             block_id.clone(),
             TextEdit::Insert {
                 text: " world".to_string(),
@@ -39,7 +39,7 @@ fn call_all_methods_and_helpers_without_errors() {
         .unwrap();
 
     Arc::clone(&boss)
-        .edit_text_block_insert(
+        .edit_text_block(
             block_id.clone(),
             TextEdit::Replace {
                 old_text: "meta".to_string(),

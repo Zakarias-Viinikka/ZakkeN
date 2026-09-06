@@ -367,7 +367,7 @@ impl BossOfYrs {
         )
     }
 
-    pub fn edit_text_block_insert(
+    pub fn edit_text_block(
         self: Arc<Self>,
         block_id: String,
         text_edit: TextEdit,

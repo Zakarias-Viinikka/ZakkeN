@@ -58,7 +58,7 @@ mod tests {
         let offline_doc_2 = new_test_doc_from_snapshot(snapshot);
 
         Arc::clone(&offline_doc_1)
-            .edit_text_block_insert(
+            .edit_text_block(
                 block_id.clone(),
                 TextEdit::Insert {
                     text: " world".to_string(),
@@ -69,7 +69,7 @@ mod tests {
             .unwrap();
 
         Arc::clone(&offline_doc_2)
-            .edit_text_block_insert(
+            .edit_text_block(
                 block_id.clone(),
                 TextEdit::Insert {
                     text: "greetings, ".to_string(),
@@ -111,7 +111,7 @@ mod tests {
         let offline_doc_2 = new_test_doc_from_snapshot(snapshot);
 
         Arc::clone(&offline_doc_1)
-            .edit_text_block_insert(
+            .edit_text_block(
                 block_id.clone(),
                 TextEdit::Insert {
                     text: " world".to_string(),
@@ -122,7 +122,7 @@ mod tests {
             .unwrap();
 
         Arc::clone(&offline_doc_2)
-            .edit_text_block_insert(
+            .edit_text_block(
                 block_id.clone(),
                 TextEdit::Insert {
                     text: "greetings, ".to_string(),

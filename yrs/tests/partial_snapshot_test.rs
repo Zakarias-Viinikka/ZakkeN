@@ -27,7 +27,7 @@ mod tests {
         let sync_point_sv_bytes = create_bookmark_of_synced_state(Arc::clone(&client)).unwrap();
 
         Arc::clone(&client)
-            .edit_text_block_insert(
+            .edit_text_block(
                 block_id.clone(),
                 TextEdit::Insert {
                     text: " hello".to_string(),
