@@ -1022,7 +1022,7 @@ dependencies = [
 [[package]]
 name = "yrs"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#3a7f4f2ecb5541632ff17ee7386175e02ef0ab74"
+source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#cd1e07f9b3f0b7f548be2b447ad057a62b8bf15e"
 dependencies = [
  "rand",
  "serde",
