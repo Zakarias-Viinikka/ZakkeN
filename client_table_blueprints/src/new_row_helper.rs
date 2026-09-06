@@ -51,14 +51,14 @@ pub fn new_every_block_in_existence_row(
 #[uniffi::export]
 pub fn new_uncommitted_diff_row(
     snapshot_of_edit: Vec<u8>,
-    edit_enum: Vec<u8>,
+    love_letter_sketch: Vec<u8>,
     session_id: String,
     target_id: String,
 ) -> Result<Row, YrsError> {
     Ok(Row {
         cols: vec![
             Col::Blob(snapshot_of_edit),
-            Col::Blob(edit_enum),
+            Col::Blob(love_letter_sketch),
             Col::Text(session_id),
             Col::Text(target_id),
         ],
@@ -146,20 +146,20 @@ mod tests {
     #[test]
     fn test_new_uncommitted_diff_row() {
         let snapshot = vec![1, 2, 3];
-        let edit_enum = vec![4, 5, 6];
+        let love_letter_sketch = vec![4, 5, 6];
         let session_id = "42".to_string();
         let target_id = "target".to_string();
 
         let row = new_uncommitted_diff_row(
             snapshot.clone(),
-            edit_enum.clone(),
+            love_letter_sketch.clone(),
             session_id.clone(),
             target_id.clone(),
         )
         .unwrap();
 
         let expected_0 = Col::Blob(snapshot);
-        let expected_1 = Col::Blob(edit_enum);
+        let expected_1 = Col::Blob(love_letter_sketch);
         let expected_2 = Col::Text(session_id);
         let expected_3 = Col::Text(target_id);
 
