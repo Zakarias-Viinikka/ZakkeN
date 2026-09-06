@@ -7,6 +7,28 @@ uniffi::setup_scaffolding!();
 // the love letter is just the contract for
 // "this is how the client describes an edit so the server knows how to apply it"
 // ## --
+
+#[derive(Debug, uniffi::Error)]
+pub enum BrokenHeart {
+    Error(String),
+}
+
+impl std::fmt::Display for BrokenHeart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BrokenHeart::Error(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl std::error::Error for BrokenHeart {}
+
+impl From<bincode::Error> for BrokenHeart {
+    fn from(err: bincode::Error) -> Self {
+        BrokenHeart::Error(err.to_string())
+    }
+}
+
 #[derive(uniffi::Enum, Serialize, Deserialize)]
 pub enum LoveLetterSketch {
     EditBlock {
@@ -99,21 +121,21 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
 }
 
 #[uniffi::export]
-pub fn sketch_to_bytes(sketch: &LoveLetterSketch) -> Vec<u8> {
-    bincode::serialize(sketch).expect("Failed to serialize LoveLetterSketch")
+pub fn sketch_to_bytes(sketch: &LoveLetterSketch) -> Result<Vec<u8>, BrokenHeart> {
+    bincode::serialize(sketch).map_err(Into::into)
 }
 
 #[uniffi::export]
-pub fn love_letter_to_bytes(letter: &LoveLetter) -> Vec<u8> {
-    bincode::serialize(letter).expect("Failed to serialize LoveLetter")
+pub fn love_letter_to_bytes(letter: &LoveLetter) -> Result<Vec<u8>, BrokenHeart> {
+    bincode::serialize(letter).map_err(Into::into)
 }
 
 #[uniffi::export]
-pub fn deserialize_sketch(bytes: Vec<u8>) -> Result<LoveLetterSketch, String> {
-    bincode::deserialize(&bytes).map_err(|e| e.to_string())
+pub fn deserialize_sketch(bytes: Vec<u8>) -> Result<LoveLetterSketch, BrokenHeart> {
+    bincode::deserialize(&bytes).map_err(Into::into)
 }
 
 #[uniffi::export]
-pub fn deserialize_love_letter(bytes: Vec<u8>) -> Result<LoveLetter, String> {
-    bincode::deserialize(&bytes).map_err(|e| e.to_string())
+pub fn deserialize_love_letter(bytes: Vec<u8>) -> Result<LoveLetter, BrokenHeart> {
+    bincode::deserialize(&bytes).map_err(Into::into)
 }

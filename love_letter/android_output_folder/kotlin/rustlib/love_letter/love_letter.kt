@@ -683,7 +683,11 @@ internal object IntegrityCheckingUniffiLib {
     }
     external fun uniffi_love_letter_checksum_func_build_a_love_letter(
     ): Int
-    external fun uniffi_love_letter_checksum_func_love_letter_bytes(
+    external fun uniffi_love_letter_checksum_func_deserialize_love_letter(
+    ): Int
+    external fun uniffi_love_letter_checksum_func_deserialize_sketch(
+    ): Int
+    external fun uniffi_love_letter_checksum_func_love_letter_to_bytes(
     ): Int
     external fun uniffi_love_letter_checksum_func_sketch_to_bytes(
     ): Int
@@ -703,7 +707,11 @@ internal object UniffiLib {
     }
     external fun uniffi_love_letter_fn_func_build_a_love_letter(`loveLetter`: RustBuffer.ByValue,`snapshotOfEdit`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_love_letter_fn_func_love_letter_bytes(`letter`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_love_letter_fn_func_deserialize_love_letter(`bytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_love_letter_fn_func_deserialize_sketch(`bytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_love_letter_fn_func_love_letter_to_bytes(`letter`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_love_letter_fn_func_sketch_to_bytes(`sketch`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -829,10 +837,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_love_letter_checksum_func_build_a_love_letter() != 16803) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_love_letter_checksum_func_love_letter_bytes() != 50063) {
+    if (lib.uniffi_love_letter_checksum_func_deserialize_love_letter() != 62268) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_love_letter_checksum_func_sketch_to_bytes() != 20850) {
+    if (lib.uniffi_love_letter_checksum_func_deserialize_sketch() != 47737) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_love_letter_checksum_func_love_letter_to_bytes() != 14070) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_love_letter_checksum_func_sketch_to_bytes() != 57076) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1025,6 +1039,68 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
         buf.putInt(value.size)
         buf.put(value)
     }
+}
+
+
+
+
+
+sealed class BrokenHeart: kotlin.Exception() {
+    
+    class Exception(
+        
+        val v1: kotlin.String
+        ) : BrokenHeart() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+
+    
+
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<BrokenHeart> {
+        override fun lift(error_buf: RustBuffer.ByValue): BrokenHeart = FfiConverterTypeBrokenHeart.lift(error_buf)
+    }
+
+    
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeBrokenHeart : FfiConverterRustBuffer<BrokenHeart> {
+    override fun read(buf: ByteBuffer): BrokenHeart {
+        
+
+        return when(buf.getInt()) {
+            1 -> BrokenHeart.Exception(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: BrokenHeart): ULong {
+        return when(value) {
+            is BrokenHeart.Exception -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+        }
+    }
+
+    override fun write(value: BrokenHeart, buf: ByteBuffer) {
+        when(value) {
+            is BrokenHeart.Exception -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
 }
 
 
@@ -1405,10 +1481,35 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
     )
     }
     
- fun `loveLetterBytes`(`letter`: LoveLetter): kotlin.ByteArray {
+
+    @Throws(BrokenHeart::class) fun `deserializeLoveLetter`(`bytes`: kotlin.ByteArray): LoveLetter {
+            return FfiConverterTypeLoveLetter.lift(
+    uniffiRustCallWithError(BrokenHeart) { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_deserialize_love_letter(
+    
+        
+        FfiConverterByteArray.lower(`bytes`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BrokenHeart::class) fun `deserializeSketch`(`bytes`: kotlin.ByteArray): LoveLetterSketch {
+            return FfiConverterTypeLoveLetterSketch.lift(
+    uniffiRustCallWithError(BrokenHeart) { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_deserialize_sketch(
+    
+        
+        FfiConverterByteArray.lower(`bytes`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BrokenHeart::class) fun `loveLetterToBytes`(`letter`: LoveLetter): kotlin.ByteArray {
             return FfiConverterByteArray.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_love_letter_fn_func_love_letter_bytes(
+    uniffiRustCallWithError(BrokenHeart) { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_love_letter_to_bytes(
     
         
         FfiConverterTypeLoveLetter.lower(`letter`),_status)
@@ -1416,9 +1517,10 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
     )
     }
     
- fun `sketchToBytes`(`sketch`: LoveLetterSketch): kotlin.ByteArray {
+
+    @Throws(BrokenHeart::class) fun `sketchToBytes`(`sketch`: LoveLetterSketch): kotlin.ByteArray {
             return FfiConverterByteArray.lift(
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(BrokenHeart) { _status ->
     UniffiLib.uniffi_love_letter_fn_func_sketch_to_bytes(
     
         
