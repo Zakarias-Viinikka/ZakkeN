@@ -1,3 +1,16 @@
+#[derive(Debug, PartialEq, uniffi::Enum)]
+pub enum DiffResult {
+    Insert(String, u32),
+    Delete(String, u32),
+    Replace {
+        old_text: String,
+        new_text: String,
+        position: u32,
+    },
+    NoDiff,
+}
+
+#[uniffi::export]
 pub fn get_diff(old_text: &str, new_text: &str) -> DiffResult {
     let first_deviation = find_first_deviation(old_text, new_text);
     let last_deviation = find_last_deviation(old_text, new_text);
@@ -14,16 +27,16 @@ pub fn get_diff(old_text: &str, new_text: &str) -> DiffResult {
         return DiffResult::Replace {
             old_text: old_middle,
             new_text: new_middle,
-            position: first_deviation.position,
+            position: first_deviation.position as u32,
         };
     }
 
     if old_text.chars().count() < new_text.chars().count() {
         let diff_text = string_from_diff_result(new_text, first_deviation.position, diff_amount);
-        DiffResult::Insert(diff_text, first_deviation.position)
+        DiffResult::Insert(diff_text, first_deviation.position as u32)
     } else {
         let diff_text = string_from_diff_result(old_text, first_deviation.position, diff_amount);
-        DiffResult::Delete(diff_text, first_deviation.position)
+        DiffResult::Delete(diff_text, first_deviation.position as u32)
     }
 }
 
@@ -37,7 +50,7 @@ fn find_first_deviation(old_text: &str, new_text: &str) -> DeviationResult {
         let next_new_char = new_text.next();
         if next_old_char != next_new_char {
             return DeviationResult {
-                position: position,
+                position,
                 identical_strings: false,
             };
         } else {
@@ -63,7 +76,7 @@ fn find_last_deviation(old_text: &str, new_text: &str) -> DeviationResult {
         let next_new_char = new_text.next();
         if next_old_char != next_new_char {
             return DeviationResult {
-                position: position,
+                position,
                 identical_strings: false,
             };
         } else {
@@ -100,22 +113,8 @@ struct DeviationResult {
     identical_strings: bool,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum DiffResult {
-    Insert(String, usize),
-    Delete(String, usize),
-    Replace {
-        old_text: String,
-        new_text: String,
-        position: usize,
-    },
-    NoDiff,
-}
-
 /*
- *
  * cargo test --lib diff_logic --target x86_64-unknown-linux-gnu -- --nocapture
- *
  */
 #[cfg(test)]
 mod tests {
@@ -123,23 +122,19 @@ mod tests {
 
     #[test]
     fn test_string_from_diff_result_1() {
-        //let input = ("abcdef", 0, 1);
         let old_text = "abcdef";
         let position_to_start_from = 0;
         let amount = 1;
         let result = string_from_diff_result(old_text, position_to_start_from, amount);
-
         assert_eq!(result, "a");
     }
 
     #[test]
     fn test_string_from_diff_result_2() {
-        //let input = ("abcdef", 0, 1);
         let old_text = "abcdef";
         let position_to_start_from = 3;
         let amount = 3;
         let result = string_from_diff_result(old_text, position_to_start_from, amount);
-
         assert_eq!(result, "def");
     }
 
@@ -164,7 +159,6 @@ mod tests {
         let old_text = "abcdef";
         let new_text = "abcdefgh";
         let result = get_diff(old_text, new_text);
-        //println!("{:?}", result);
         assert_eq!(result, DiffResult::Insert("gh".to_string(), 6));
     }
 

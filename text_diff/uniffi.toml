@@ -1,0 +1,6 @@
+[crate-roots]
+text_diff = "."
+
+[crates.text_diff.bindings.kotlin]
+package_name = "rustlib.text_diff"
+android = true
