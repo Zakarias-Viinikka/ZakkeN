@@ -2,6 +2,8 @@
 #![allow(unused_variables)]
 #![allow(unused)]
 
+use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use yrs::block::Item;
@@ -14,8 +16,6 @@ use yrs::{
     Transact, Update, XmlElementPrelim, XmlElementRef, XmlTextPrelim, XmlTextRef,
 };
 use yrs::{StateVector, Transaction};
-
-use rand::prelude::*;
 
 use crate::anti_deadlock::{DeadlockCtx, DurationSettings, prevent_deadlock};
 use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
@@ -48,7 +48,7 @@ pub struct Block {
     pub id_in_yrs: String,
 }
 
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Serialize, Deserialize)]
 pub enum TextEdit {
     Insert {
         text: String,
@@ -65,7 +65,7 @@ pub enum TextEdit {
     },
 }
 
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Serialize, Deserialize)]
 pub enum EditTarget {
     Text,
     Meta,
@@ -619,7 +619,7 @@ fn deserialize_bookmark(bytes: &[u8]) -> Result<StateVector, YrsError> {
     })
 }
 
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Serialize, Deserialize)]
 pub enum PositionToInsert {
     AtEnd,
     SpecificPosition(u32),

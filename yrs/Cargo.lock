@@ -1207,6 +1207,7 @@ name = "yrs"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "serde",
  "serde_json",
  "uniffi",
  "yrs 0.27.0",

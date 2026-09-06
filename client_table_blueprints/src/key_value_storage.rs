@@ -1,4 +1,4 @@
-use protocol::new_table::{ColumnDef, ColumnType};
+use protocol::new_table::ColumnDef;
 
 #[uniffi::export]
 pub fn key_value_storage_columns() -> Vec<ColumnDef> {

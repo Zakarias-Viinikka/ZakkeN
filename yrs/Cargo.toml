@@ -11,5 +11,6 @@ crate-type = ["rlib", "cdylib"]   # cdylib needed for Android .so
 [dependencies]
 yrs = "0.27.0"
 serde_json = "*"
+serde = { version = "1.0", features = ["derive"] }
 rand = "0.10.1"
 uniffi = { version = "0.32", features = ["cli"] }

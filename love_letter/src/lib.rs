@@ -1,4 +1,5 @@
 use my_yrs_lib::{EditTarget, TextEdit, yrs_wrapper::PositionToInsert};
+use serde::{Deserialize, Serialize};
 
 uniffi::setup_scaffolding!();
 
@@ -6,7 +7,7 @@ uniffi::setup_scaffolding!();
 // the love letter is just the contract for
 // "this is how the client describes an edit so the server knows how to apply it"
 // ## --
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Serialize, Deserialize)]
 pub enum LoveLetterSketch {
     EditBlock {
         text_edit: TextEdit,
@@ -29,7 +30,7 @@ pub enum LoveLetterSketch {
     },
 }
 
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Serialize, Deserialize)]
 pub enum LoveLetter {
     EditBlock {
         text_edit: TextEdit,
@@ -95,4 +96,24 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
             snapshot_of_edit,
         },
     }
+}
+
+#[uniffi::export]
+pub fn sketch_to_bytes(sketch: &LoveLetterSketch) -> Vec<u8> {
+    bincode::serialize(sketch).expect("Failed to serialize LoveLetterSketch")
+}
+
+#[uniffi::export]
+pub fn love_letter_to_bytes(letter: &LoveLetter) -> Vec<u8> {
+    bincode::serialize(letter).expect("Failed to serialize LoveLetter")
+}
+
+#[uniffi::export]
+pub fn deserialize_sketch(bytes: Vec<u8>) -> Result<LoveLetterSketch, String> {
+    bincode::deserialize(&bytes).map_err(|e| e.to_string())
+}
+
+#[uniffi::export]
+pub fn deserialize_love_letter(bytes: Vec<u8>) -> Result<LoveLetter, String> {
+    bincode::deserialize(&bytes).map_err(|e| e.to_string())
 }

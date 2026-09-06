@@ -683,6 +683,10 @@ internal object IntegrityCheckingUniffiLib {
     }
     external fun uniffi_love_letter_checksum_func_build_a_love_letter(
     ): Int
+    external fun uniffi_love_letter_checksum_func_love_letter_bytes(
+    ): Int
+    external fun uniffi_love_letter_checksum_func_sketch_to_bytes(
+    ): Int
     external fun ffi_love_letter_uniffi_contract_version(
     ): Int
 
@@ -698,6 +702,10 @@ internal object UniffiLib {
         
     }
     external fun uniffi_love_letter_fn_func_build_a_love_letter(`loveLetter`: RustBuffer.ByValue,`snapshotOfEdit`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_love_letter_fn_func_love_letter_bytes(`letter`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_love_letter_fn_func_sketch_to_bytes(`sketch`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_love_letter_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -819,6 +827,12 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_love_letter_checksum_func_build_a_love_letter() != 16803) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_love_letter_checksum_func_love_letter_bytes() != 50063) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_love_letter_checksum_func_sketch_to_bytes() != 20850) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1387,6 +1401,28 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
         
         FfiConverterTypeLoveLetterSketch.lower(`loveLetter`),
         FfiConverterByteArray.lower(`snapshotOfEdit`),_status)
+}
+    )
+    }
+    
+ fun `loveLetterBytes`(`letter`: LoveLetter): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_love_letter_bytes(
+    
+        
+        FfiConverterTypeLoveLetter.lower(`letter`),_status)
+}
+    )
+    }
+    
+ fun `sketchToBytes`(`sketch`: LoveLetterSketch): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_sketch_to_bytes(
+    
+        
+        FfiConverterTypeLoveLetterSketch.lower(`sketch`),_status)
 }
     )
     }
