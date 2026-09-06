@@ -255,9 +255,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.22"
+version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
+checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
 name = "dashmap"
@@ -1022,9 +1022,10 @@ dependencies = [
 [[package]]
 name = "yrs"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#b364ac02e65230d74da2e712b1577168465e1c8c"
+source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#3a7f4f2ecb5541632ff17ee7386175e02ef0ab74"
 dependencies = [
  "rand",
+ "serde",
  "serde_json",
  "uniffi",
  "yrs 0.27.4",
