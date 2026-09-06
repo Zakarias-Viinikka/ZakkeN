@@ -15,6 +15,8 @@ import androidx.navigation.navArgument
 import z.zndroid.MainPages.NavPage
 import z.zndroid.MainPages.ViewPage
 import z.zndroid.components.MainContainer
+import androidx.compose.runtime.LaunchedEffect
+import z.zndroid.Storage.SessionManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,6 +26,13 @@ class MainActivity : ComponentActivity() {
             ZndroidTheme {
                 MainContainer {
                     val navController = rememberNavController()
+                    
+                    LaunchedEffect(navController) {
+                        navController.addOnDestinationChangedListener { _, _, _ ->
+                            SessionManager.incrementAndStore()
+                        }
+                    }
+
                     NavHost(
                         navController = navController,
                         startDestination = "nav_page",

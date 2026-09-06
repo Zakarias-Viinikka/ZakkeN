@@ -4,6 +4,7 @@ import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.PositionToInsert
 import rustlib.my_yrs_lib.createBookmarkOfSyncedState
 import rustlib.my_yrs_lib.generateDiffSnapshot
+import rustlib.love_letter.*
 import rustlib.client_table_blueprints.newEveryBlockInExistenceRow
 import rustlib.client_table_blueprints.newUncommittedDiffRow
 import rustlib.client_table_blueprints.everyBlockInExistenceColumns
@@ -12,6 +13,7 @@ import z.zndroid.DbManager
 import uniffi.protocol.InsertDataIn
 import uniffi.protocol.ColumnValue
 import z.zndroid.components.GlobalPopupManager
+import z.zndroid.Storage.SessionManager
 
 /**
  * Context required to add a new block to a page.
@@ -43,10 +45,17 @@ object AddBlock {
 
             // 3. Generate the binary diff update for synchronization
             val diff = generateDiffSnapshot(ctx.boss, bookmark)
-            val sessionId = System.currentTimeMillis().toString()
+            val sessionId = SessionManager.currentSessionId
             val pageId = ctx.boss.pageId()
+
+            // 4. Construct the LoveLetter intent (sketch)
+            val sketch = LoveLetterSketch.CreateNewBlock(
+                positionToInsert = PositionToInsert.AtEnd,
+                targetPageId = pageId
+            )
+            val sketchBytes = sketchToBytes(sketch)
             
-            // 4. Build the data row for 'every_block_in_existence'
+            // 5. Build the data row for 'every_block_in_existence'
             val blockRow = newEveryBlockInExistenceRow(
                 pageThatOwnsMe = pageId,
                 content = ctx.content,
@@ -58,10 +67,10 @@ object AddBlock {
                 ColumnValue(blockCols[index + 1].name, col)
             }
 
-            // 5. Build the sync row for 'uncommitted_diffs'
+            // 6. Build the sync row for 'uncommitted_diffs'
             val diffRow = newUncommittedDiffRow(
                 snapshotOfEdit = diff,
-                editEnum = "add_block".toByteArray(),
+                loveLetterSketch = sketchBytes,
                 sessionId = sessionId,
                 targetId = blockId 
             )
@@ -71,11 +80,11 @@ object AddBlock {
                 ColumnValue(diffCols[index + 1].name, col)
             }
 
-            // 6. Persistence to SQLite
+            // 7. Persistence to SQLite
             DbManager.insertData(InsertDataIn("every_block_in_existence", blockValues)).getOrThrow()
             DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
             
-            // 7. Update the full page snapshot in the 'pages' table
+            // 8. Update the full page snapshot in the 'pages' table
             val newSnapshot = ctx.boss.snapshot()
             DbManager.updatePageSnapshot(pageId, newSnapshot).getOrThrow()
 

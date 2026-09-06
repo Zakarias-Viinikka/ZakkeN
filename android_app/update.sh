@@ -4,7 +4,7 @@
 Z_DB_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/z_db/main/db_wrapper/android_output"
 BLUEPRINTS_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/ZakkeN/main/client_table_blueprints/android_output"
 YRS_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/ZakkeN/main/yrs/android_output_folder"
-LOVE_LETTER_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/ZakkeN/main/love_letter/android_output"
+LOVE_LETTER_URL="https://raw.githubusercontent.com/Zakarias-Viinikka/ZakkeN/main/love_letter/android_output_folder"
 
 JNI_DEST="app/src/main/jniLibs/arm64-v8a"
 KOTLIN_DEST="app/src/main/java"
@@ -54,5 +54,8 @@ curl -L "$YRS_URL/kotlin/rustlib/my_yrs_lib/my_yrs_lib.kt" -o "$KOTLIN_DEST/rust
 echo "Fetching love_letter..."
 curl -L "$LOVE_LETTER_URL/jniLibs/arm64-v8a/liblove_letter.so" -o "$JNI_DEST/liblove_letter.so"
 curl -L "$LOVE_LETTER_URL/kotlin/rustlib/love_letter/love_letter.kt" -o "$KOTLIN_DEST/rustlib/love_letter/love_letter.kt"
+
+# Patch the package mismatch for love_letter
+sed -i 's/uniffi\.my_yrs_lib/rustlib.my_yrs_lib/g' "$KOTLIN_DEST/rustlib/love_letter/love_letter.kt"
 
 echo "Done! Native infrastructure synchronized for Zndroid."

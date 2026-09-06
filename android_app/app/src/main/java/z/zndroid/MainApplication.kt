@@ -7,6 +7,7 @@ import uniffi.protocol.uniffiEnsureInitialized as ensureProtocolInitialized
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import z.zndroid.Storage.SessionManager
 
 class MainApplication : Application() {
     override fun onCreate() {
@@ -20,6 +21,7 @@ class MainApplication : Application() {
         // Initialize the database once for the entire app lifecycle on a background thread
         CoroutineScope(Dispatchers.IO).launch {
             DbManager.init(this@MainApplication)
+            SessionManager.initialize()
         }
     }
 }

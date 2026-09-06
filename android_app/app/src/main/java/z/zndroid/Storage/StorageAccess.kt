@@ -1,8 +1,8 @@
 package z.zndroid.Storage
 
-import uniffi.protocol.Col
-import uniffi.protocol.GetDataIn
-import uniffi.protocol.SelectArgument
+import uniffi.protocol.*
+import rustlib.client_table_blueprints.keyValueStorageColumns
+import rustlib.client_table_blueprints.newKeyValueItem
 import z.zndroid.DbManager
 
 /**
@@ -15,6 +15,16 @@ object StorageAccess {
      * Callers must match against the returned [RummageResult] to handle the different outcomes.
      */
     fun rummage_in_storage(key: StorageKey): RummageResult {
+        // 1. Check if this is a FastStorage-enabled key
+        val fastKey = FastStorageKey.fromStorageKey(key)
+        if (fastKey != null) {
+            val inMemoryValue = FastStorage.get(key)
+            if (inMemoryValue != null) {
+                return RummageResult.StringValue(inMemoryValue)
+            }
+        }
+
+        // 2. Fallback to SQLite
         val result = DbManager.getData(GetDataIn(
             "key_value_storage",
             listOf(SelectArgument.XEqualY("key", key.keyName)),
@@ -50,6 +60,33 @@ object StorageAccess {
         return when (val res = rummage_in_storage(StorageKey.USER_ID)) {
             is RummageResult.StringValue -> res.value
             else -> ""
+        }
+    }
+
+    /**
+     * Persists or updates a value in the key-value storage for a given [StorageKey].
+     */
+    fun setValue(key: StorageKey, value: String) {
+        // Update memory cache if applicable
+        if (FastStorageKey.fromStorageKey(key) != null) {
+            FastStorage.set(key, value)
+        }
+
+        val current = rummage_in_storage(key)
+        if (current is RummageResult.StringValue) {
+            DbManager.editColInRow(EditColInRowIn(
+                tableName = "key_value_storage",
+                rowId = key.keyName,
+                column = "value",
+                newValue = Col.Text(value)
+            ))
+        } else {
+            val row = newKeyValueItem(key.keyName, value)
+            val columnDefs = keyValueStorageColumns()
+            val values = row.cols.mapIndexed { index, col ->
+                ColumnValue(columnDefs[index].name, col)
+            }
+            DbManager.insertData(InsertDataIn("key_value_storage", values))
         }
     }
 }

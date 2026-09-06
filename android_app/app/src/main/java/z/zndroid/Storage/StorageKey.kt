@@ -10,5 +10,10 @@ enum class StorageKey(val keyName: String) {
      * Generated on the first app launch and used for all Yrs document operations
      * to ensure consistent identity across sync sessions.
      */
-    USER_ID("user_id")
+    USER_ID("user_id"),
+
+    /**
+     * The current session counter. Increments on app launches and screen changes.
+     */
+    SESSION_ID("session_id")
 }
