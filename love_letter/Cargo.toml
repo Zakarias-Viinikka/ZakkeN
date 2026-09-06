@@ -1,0 +1,11 @@
+[package]
+name = "love_letter"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+my_yrs_lib = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main", package = "yrs" }

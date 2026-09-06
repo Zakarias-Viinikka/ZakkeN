@@ -1,0 +1,6 @@
+[crate-roots]
+love_letter = "."
+
+[crates.love_letter.bindings.kotlin]
+package_name = "rustlib.love_letter"
+android = true
