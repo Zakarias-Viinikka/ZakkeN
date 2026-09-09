@@ -1996,6 +1996,7 @@ dependencies = [
  "leptos-use",
  "leptos_router",
  "uniffi",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
