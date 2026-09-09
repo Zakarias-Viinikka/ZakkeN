@@ -10,3 +10,7 @@ pub mod helper;
 
 #[cfg(target_arch = "wasm32")]
 pub mod text_block;
+
+pub mod when_to_diff;
+
+pub mod when_to_diff_timer;
