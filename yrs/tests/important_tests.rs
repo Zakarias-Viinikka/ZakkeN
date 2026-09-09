@@ -201,4 +201,45 @@ mod tests {
         assert_eq!(page[2].text, expected_2_text);
         assert_eq!(page[2].metadata, expected_2_meta);
     }
+
+    #[test]
+    fn delete_block_removes_middle_and_keeps_order() {
+        let boss = new_test_boss();
+
+        let text_a = "A".to_string();
+        let text_b = "B".to_string();
+        let text_c = "C".to_string();
+
+        let meta_a = "meta_a".to_string();
+        let meta_b = "meta_b".to_string();
+        let meta_c = "meta_c".to_string();
+
+        // Insert three blocks
+        Arc::clone(&boss)
+            .insert_new_block(text_a.clone(), meta_a.clone(), PositionToInsert::AtEnd)
+            .unwrap();
+        Arc::clone(&boss)
+            .insert_new_block(text_b.clone(), meta_b.clone(), PositionToInsert::AtEnd)
+            .unwrap();
+        Arc::clone(&boss)
+            .insert_new_block(text_c.clone(), meta_c.clone(), PositionToInsert::AtEnd)
+            .unwrap();
+
+        // Get the middle block's id (index 1)
+        let middle_block_id = Arc::clone(&boss).get_entire_page().unwrap()[1]
+            .id_in_yrs
+            .clone();
+
+        // Delete the middle block
+        Arc::clone(&boss).delete_block(middle_block_id).unwrap();
+
+        // Verify remaining blocks
+        let page = Arc::clone(&boss).get_entire_page().unwrap();
+
+        assert_eq!(page.len(), 2);
+        assert_eq!(page[0].text, text_a);
+        assert_eq!(page[0].metadata, meta_a);
+        assert_eq!(page[1].text, text_c);
+        assert_eq!(page[1].metadata, meta_c);
+    }
 }

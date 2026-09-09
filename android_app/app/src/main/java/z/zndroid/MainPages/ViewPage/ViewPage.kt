@@ -1,4 +1,4 @@
-package z.zndroid.MainPages
+package z.zndroid.MainPages.ViewPage
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,7 +9,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import rustlib.my_yrs_lib.Block
 import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.docFromSnapshot
 import uniffi.protocol.Col
@@ -17,24 +16,27 @@ import z.zndroid.DbManager
 import z.zndroid.DocEvents.AddBlock
 import z.zndroid.DocEvents.AddBlockCtx
 import z.zndroid.Storage.StorageAccess
+import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
-import z.zndroid.retryUntilReady
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewPage(
-    pageTitle: String, // This is the page_id
+    pageId: String, 
     onBack: () -> Unit
 ) {
     var boss by remember { mutableStateOf<BossOfYrs?>(null) }
-    var blocks by remember { mutableStateOf(emptyList<Block>()) }
+    var uiStates by remember { mutableStateOf(emptyList<BlockUiState>()) }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
 
-    fun refreshBlocks() {
+    fun refreshBlocksFromBoss() {
         boss?.let {
             try {
-                blocks = it.getEntirePage()
+                val blocks = it.getEntirePage()
+                uiStates = blocks.map { b -> 
+                    BlockUiState(b.idInYrs, b.text, b.metadata)
+                }
             } catch (e: Exception) {
                 coroutineScope.launch {
                     GlobalPopupManager.show("Failed to load blocks: ${e.message}")
@@ -43,12 +45,15 @@ fun ViewPage(
         }
     }
 
-    LaunchedEffect(pageTitle) {
+    LaunchedEffect(pageId) {
+        // Update current document in both FastStorage and KeyValueStorage
+        StorageAccess.setValue(StorageKey.CURRENT_DOCUMENT, pageId)
+
         isLoading = true
-        retryUntilReady {
-            DbManager.getPage(pageTitle)
-        }.onSuccess { row ->
-            val userIdRes = StorageAccess.rummage_in_storage(z.zndroid.Storage.StorageKey.USER_ID)
+        DbManager.awaitReady()
+        
+        DbManager.getPage(pageId).onSuccess { row ->
+            val userIdRes = StorageAccess.rummage_in_storage(StorageKey.USER_ID)
             val userId = when (userIdRes) {
                 is z.zndroid.Storage.RummageResult.StringValue -> userIdRes.value
                 else -> {
@@ -62,14 +67,17 @@ fun ViewPage(
             val blob = (row.cols.getOrNull(2) as? Col.Blob)?.v1
             if (blob != null) {
                 try {
-                    val newBoss = docFromSnapshot(blob, userId, pageTitle)
+                    val newBoss = docFromSnapshot(blob, userId, pageId)
                     boss = newBoss
-                    blocks = newBoss.getEntirePage()
+                    val blocks = newBoss.getEntirePage()
+                    uiStates = blocks.map { b -> 
+                        BlockUiState(b.idInYrs, b.text, b.metadata)
+                    }
                 } catch (e: Exception) {
                     GlobalPopupManager.show("Failed to instance Yrs Doc: ${e.message}")
                 }
             } else {
-                GlobalPopupManager.show("Error: Snapshot blob not found for page $pageTitle")
+                GlobalPopupManager.show("Error: Snapshot blob not found for page $pageId")
             }
             isLoading = false
         }.onFailure { error ->
@@ -88,7 +96,7 @@ fun ViewPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(pageTitle) },
+                title = { Text(pageId) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Text("←")
@@ -100,11 +108,13 @@ fun ViewPage(
             FloatingActionButton(onClick = {
                 val currentBoss = boss ?: return@FloatingActionButton
                 coroutineScope.launch {
+                    // Create an empty block as requested
                     AddBlock.execute(AddBlockCtx(
                         boss = currentBoss,
-                        content = "New Block at ${System.currentTimeMillis()}"
+                        content = "" 
                     )).onSuccess {
-                        refreshBlocks()
+                        // Refresh the entire list from the CRDT to pick up the new block
+                        refreshBlocksFromBoss()
                     }
                 }
             }) {
@@ -126,7 +136,7 @@ fun ViewPage(
             ) {
                 item {
                     Text(
-                        text = "Welcome to $pageTitle",
+                        text = "Welcome to $pageId",
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -138,7 +148,7 @@ fun ViewPage(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 }
 
-                if (blocks.isEmpty()) {
+                if (uiStates.isEmpty()) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -155,35 +165,11 @@ fun ViewPage(
                         }
                     }
                 } else {
-                    items(blocks) { block ->
-                        BlockCard(block)
+                    items(uiStates, key = { it.blockId }) { state ->
+                        EditableBlock(state, boss!!, coroutineScope)
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun BlockCard(block: Block) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = block.text, style = MaterialTheme.typography.bodyLarge)
-            if (block.metadata.isNotEmpty()) {
-                Text(
-                    text = block.metadata,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-            Text(
-                text = "ID: ${block.idInYrs}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-            )
         }
     }
 }

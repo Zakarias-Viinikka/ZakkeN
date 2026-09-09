@@ -89,21 +89,6 @@ fn generate_unique_key(user_id: &str) -> String {
     format!("{timestamp}-{random_part}-{user_id}")
 }
 
-fn block_from_block_id(doc: &Doc, block_id: &str, array_ref: ArrayRef) -> Option<MapRef> {
-    let txn = doc.transact();
-    for block in array_ref.iter(&txn) {
-        if let Ok(block_map) = block.cast::<MapRef>() {
-            let id = block_map
-                .get(&txn, ID_KEY)
-                .and_then(|v| v.cast::<String>().ok());
-            if id.as_deref() == Some(block_id) {
-                return Some(block_map);
-            }
-        }
-    }
-    None
-}
-
 fn edit_block(
     doc: &Doc,
     block: MapRef,
@@ -210,6 +195,41 @@ fn apply_edit_to_string(old_meta: String, edit: TextEdit) -> Result<String, YrsE
     }
 
     Ok(chars.into_iter().collect())
+}
+
+// ===== Helpers (defined after impl, but usable because module order doesn't matter) =====
+fn get_block_index_from_id(doc: &Doc, block_id: &str) -> Option<u32> {
+    let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+    let txn = doc.transact();
+    for (idx, block) in array.iter(&txn).enumerate() {
+        if let Ok(block_map) = block.cast::<MapRef>() {
+            if let Some(id_val) = block_map.get(&txn, ID_KEY) {
+                if let Ok(id_str) = id_val.cast::<String>() {
+                    if id_str == block_id {
+                        return Some(idx as u32);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_block_from_id(doc: &Doc, block_id: &str) -> Option<MapRef> {
+    let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+    let txn = doc.transact();
+    for block in array.iter(&txn) {
+        if let Ok(block_map) = block.cast::<MapRef>() {
+            if let Some(id_val) = block_map.get(&txn, ID_KEY) {
+                if let Ok(id_str) = id_val.cast::<String>() {
+                    if id_str == block_id {
+                        return Some(block_map);
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 #[uniffi::export]
@@ -383,18 +403,45 @@ impl BossOfYrs {
                 let doc = self.doc.write().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "edit_text_block_insert"),
                 })?;
-                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
-                let block = block_from_block_id(&doc, &block_id, array).ok_or_else(|| {
-                    YrsError::GenericError {
+                // Use new helper
+                let block =
+                    get_block_from_id(&doc, &block_id).ok_or_else(|| YrsError::GenericError {
                         info: error_info(
                             format!("found no block with id: {block_id}"),
                             "edit_text_block_insert",
                         ),
-                    }
-                })?;
+                    })?;
 
                 edit_block(&doc, block, text_edit, edit_target)
             },
+        )
+    }
+
+    pub fn delete_block(self: Arc<Self>, block_id: String) -> Result<(), YrsError> {
+        let do_delete = move || -> Result<(), YrsError> {
+            let doc = self.doc.write().map_err(|_| YrsError::GenericError {
+                info: error_info("lock poisoned", "delete_block"),
+            })?;
+            let idx =
+                get_block_index_from_id(&doc, &block_id).ok_or_else(|| YrsError::GenericError {
+                    info: error_info(
+                        format!("found no block with id: {block_id}"),
+                        "delete_block",
+                    ),
+                })?;
+            let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+            let mut txn = doc.transact_mut();
+            array.remove(&mut txn, idx);
+            Ok(())
+        };
+
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "delete_block",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            do_delete,
         )
     }
 
@@ -509,8 +556,8 @@ impl BossOfYrs {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "read_block"),
                 })?;
-                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
-                let block = block_from_block_id(&doc, &block_id, array);
+                // Use new helper
+                let block = get_block_from_id(&doc, &block_id);
 
                 match block {
                     None => Ok(None),

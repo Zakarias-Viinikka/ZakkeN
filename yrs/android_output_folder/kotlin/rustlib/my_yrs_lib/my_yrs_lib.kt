@@ -701,6 +701,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot(
     ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(
@@ -793,6 +795,8 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,`textEdit`: RustBuffer.ByValue,`editTarget`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -977,6 +981,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot() != 22743) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block() != 64348) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block() != 42943) {
@@ -1427,6 +1434,8 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 
 public interface BossOfYrsInterface {
     
+    fun `deleteBlock`(`blockId`: kotlin.String)
+    
     fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
     
     fun `getEntirePage`(): List<Block>
@@ -1561,6 +1570,20 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
             UniffiLib.uniffi_my_yrs_lib_fn_clone_bossofyrs(handle, status)
         }
     }
+
+    
+    @Throws(YrsException::class)override fun `deleteBlock`(`blockId`: kotlin.String)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),_status)
+}
+    }
+    
+    
 
     
     @Throws(YrsException::class)override fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
