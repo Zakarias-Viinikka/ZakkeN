@@ -1,0 +1,14 @@
+[package]
+name = "testing_wasm32_template"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+futures-timer = "3.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.4", features = ["futures"] }
+
+[dev-dependencies]
+futures = "0.3"
+wasm-bindgen-test = "0.3"
