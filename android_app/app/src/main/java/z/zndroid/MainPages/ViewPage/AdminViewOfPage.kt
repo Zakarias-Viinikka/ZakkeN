@@ -1,6 +1,7 @@
 package z.zndroid.MainPages.ViewPage
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,6 +9,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import rustlib.my_yrs_lib.Block
 import rustlib.my_yrs_lib.docFromSnapshot
@@ -91,6 +94,9 @@ fun AdminViewOfPage(
 
 @Composable
 fun ComparisonCard(comp: BlockComparison) {
+    var showOptions by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+
     // Use Material 3 error colors for mismatches, and standard surface for matches
     val containerColor = if (comp.isMatch) {
         MaterialTheme.colorScheme.surface
@@ -105,7 +111,13 @@ fun ComparisonCard(comp: BlockComparison) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .combinedClickable(
+                onClick = { /* Could expand here if we wanted */ },
+                onLongClick = { showOptions = true }
+            ),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = if (!comp.isMatch) CardDefaults.outlinedCardBorder() else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -160,7 +172,7 @@ fun ComparisonCard(comp: BlockComparison) {
                         .width(1.dp)
                         .height(40.dp)
                         .padding(horizontal = 8.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
+                        .background(androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.3f))
                 )
 
                 // CRDT Column
@@ -178,5 +190,29 @@ fun ComparisonCard(comp: BlockComparison) {
                 }
             }
         }
+    }
+
+    if (showOptions) {
+        AlertDialog(
+            onDismissRequest = { showOptions = false },
+            title = { Text("Block Options") },
+            text = { Text("Copy content to clipboard for manual recovery?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    comp.sqliteContent?.let { clipboardManager.setText(AnnotatedString(it)) }
+                    showOptions = false
+                }) {
+                    Text("Copy SQLite")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    comp.crdtContent?.let { clipboardManager.setText(AnnotatedString(it)) }
+                    showOptions = false
+                }) {
+                    Text("Copy CRDT")
+                }
+            }
+        )
     }
 }
