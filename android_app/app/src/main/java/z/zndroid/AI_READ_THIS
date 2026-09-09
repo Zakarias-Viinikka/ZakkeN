@@ -27,8 +27,12 @@ rustlib.my_yrs_lib (from yrs)
 
 rustlib.love_letter (from love_letter)
 
+rustlib.text_diff (from text_diff)
+
 Core database object: LiveForever
 Methods include: create_table, create_foreign_table, list_tables, get_data, get_data_ordered, insert_data, drop_table, edit_col_in_row, check_table, delete_row, swap_columns, create_index, check_index, add_column, remove_column, export_database, export_tables, create_table_from_export, copy_table.
+
+Use `awaitReady()` before calling DB methods in UI components to ensure initialization is complete.
 
 Important types (from protocol):
 
@@ -143,6 +147,11 @@ Need page active status? YrsActivePages
 Need backlink state? YrsBacklinks
 
 Need to represent an edit intent or the full edit message? LoveLetterSketch / LoveLetter from love_letter
+
+Need text diffing or custom text area logic? rustlib.text_diff
+
+Internal Tests:
+Located in `z.zndroid.Tests`. These are production-set tests that can be run from within the app for real-time verification of DB/CRDT state.
 
 AI memory file:
 Create AI_MEMORY.md in project root. Read it at start of every conversation.

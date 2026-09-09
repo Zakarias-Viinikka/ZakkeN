@@ -5,13 +5,11 @@ import rustlib.my_yrs_lib.PositionToInsert
 import rustlib.my_yrs_lib.createBookmarkOfSyncedState
 import rustlib.my_yrs_lib.generateDiffSnapshot
 import rustlib.love_letter.*
-import rustlib.client_table_blueprints.newEveryBlockInExistenceRow
 import rustlib.client_table_blueprints.newUncommittedDiffRow
 import rustlib.client_table_blueprints.everyBlockInExistenceColumns
 import rustlib.client_table_blueprints.uncommittedDiffsColumns
 import z.zndroid.DbManager
-import uniffi.protocol.InsertDataIn
-import uniffi.protocol.ColumnValue
+import uniffi.protocol.*
 import z.zndroid.components.GlobalPopupManager
 import z.zndroid.Storage.SessionManager
 
@@ -21,6 +19,7 @@ import z.zndroid.Storage.SessionManager
 data class AddBlockCtx(
     val boss: BossOfYrs,          // The active Yrs document for the page
     val content: String,          // The text content of the block
+    val position: PositionToInsert = PositionToInsert.AtEnd, // Where to insert
     val metadata: String = "",    // Extra metadata (JSON, styling, etc)
     val parentBlockId: String = "root" // Hierarchy parent
 )
@@ -40,7 +39,7 @@ object AddBlock {
             val blockId = ctx.boss.insertNewBlock(
                 blockContent = ctx.content,
                 blockMetaData = ctx.metadata,
-                position = PositionToInsert.AtEnd
+                position = ctx.position
             )
 
             // 3. Generate the binary diff update for synchronization
@@ -50,22 +49,20 @@ object AddBlock {
 
             // 4. Construct the LoveLetter intent (sketch)
             val sketch = LoveLetterSketch.CreateNewBlock(
-                positionToInsert = PositionToInsert.AtEnd,
+                positionToInsert = ctx.position,
                 targetPageId = pageId
             )
             val sketchBytes = sketchToBytes(sketch)
             
             // 5. Build the data row for 'every_block_in_existence'
-            val blockRow = newEveryBlockInExistenceRow(
-                pageThatOwnsMe = pageId,
-                content = ctx.content,
-                idOfBlockThatOwns = ctx.parentBlockId
+            // We build the ColumnValue list manually because the Row helper is currently out of sync with the schema
+            val blockValues = listOf(
+                ColumnValue("title", Col.Text(ctx.content)),
+                ColumnValue("page_that_owns_me", Col.Text(pageId)),
+                ColumnValue("content", Col.Text(ctx.content)),
+                ColumnValue("my_id_as_given_by_yrs", Col.Text(blockId)),
+                ColumnValue("id_of_page_i_belong_to", Col.Text(pageId))
             )
-            val blockCols = everyBlockInExistenceColumns()
-            val blockValues = blockRow.cols.mapIndexed { index, col ->
-                // index + 1 to skip the auto-increment 'id' column
-                ColumnValue(blockCols[index + 1].name, col)
-            }
 
             // 6. Build the sync row for 'uncommitted_diffs'
             val diffRow = newUncommittedDiffRow(

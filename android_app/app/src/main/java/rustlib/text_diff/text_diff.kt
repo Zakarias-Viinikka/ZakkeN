@@ -3,7 +3,7 @@
 
 @file:Suppress("NAME_SHADOWING")
 
-package rustlib.client_table_blueprints
+package rustlib.text_diff
 
 // Common helper code.
 //
@@ -30,18 +30,6 @@ import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
-import rustlib.my_yrs_lib.FfiConverterTypeYrsError
-import rustlib.my_yrs_lib.YrsException
-import uniffi.protocol.ColumnDef
-import uniffi.protocol.FfiConverterTypeColumnDef
-import uniffi.protocol.FfiConverterTypeForeignKeyDef
-import uniffi.protocol.FfiConverterTypeRow
-import uniffi.protocol.ForeignKeyDef
-import uniffi.protocol.Row
-import rustlib.my_yrs_lib.RustBuffer as RustBufferYrsError
-import uniffi.protocol.RustBuffer as RustBufferColumnDef
-import uniffi.protocol.RustBuffer as RustBufferForeignKeyDef
-import uniffi.protocol.RustBuffer as RustBufferRow
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
 // A rust-owned buffer is represented by its capacity, its current length, and a
@@ -70,7 +58,7 @@ open class RustBuffer : Structure() {
     companion object {
         internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
             // Note: need to convert the size to a `Long` value to make this work with JVM.
-            UniffiLib.ffi_client_table_blueprints_rustbuffer_alloc(size.toLong(), status)
+            UniffiLib.ffi_text_diff_rustbuffer_alloc(size.toLong(), status)
         }.also {
             if(it.data == null) {
                throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
@@ -86,7 +74,7 @@ open class RustBuffer : Structure() {
         }
 
         internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
-            UniffiLib.ffi_client_table_blueprints_rustbuffer_free(buf, status)
+            UniffiLib.ffi_text_diff_rustbuffer_free(buf, status)
         }
     }
 
@@ -403,7 +391,7 @@ private fun findLibraryName(componentName: String): String {
     if (libOverride != null) {
         return libOverride
     }
-    return "client_table_blueprints"
+    return "text_diff"
 }
 
 // Define FFI callback types
@@ -680,35 +668,13 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 // We now use JNA's "direct mapping" - unclear if same considerations apply exactly.
 internal object IntegrityCheckingUniffiLib {
     init {
-        Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "client_table_blueprints"))
+        Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "text_diff"))
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
-    external fun uniffi_client_table_blueprints_checksum_func_key_value_storage_columns(
+    external fun uniffi_text_diff_checksum_func_get_diff(
     ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_backlink_row(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_key_value_item(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_page_row(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_backlinks_columns(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_backlinks(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_every_block_in_existence_columns(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_pages_columns(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_uncommitted_diffs_columns(
-    ): Int
-    external fun ffi_client_table_blueprints_uniffi_contract_version(
+    external fun ffi_text_diff_uniffi_contract_version(
     ): Int
 
         
@@ -718,138 +684,114 @@ internal object UniffiLib {
     
 
     init {
-        Native.register(UniffiLib::class.java, findLibraryName(componentName = "client_table_blueprints"))
-        rustlib.my_yrs_lib.uniffiEnsureInitialized()
-        uniffi.protocol.uniffiEnsureInitialized()
+        Native.register(UniffiLib::class.java, findLibraryName(componentName = "text_diff"))
         
     }
-    external fun uniffi_client_table_blueprints_fn_func_key_value_storage_columns(uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_text_diff_fn_func_get_diff(`oldText`: RustBuffer.ByValue,`newText`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_backlink_row(`pageThatHoldsLinkId`: RustBuffer.ByValue,`pageBeingLinkedToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`title`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_key_value_item(`key`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(`snapshotOfEdit`: RustBuffer.ByValue,`loveLetterSketch`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`targetId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_backlinks_columns(uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_backlinks(uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_every_block_in_existence_columns(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_pages_columns(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_uncommitted_diffs_columns(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_client_table_blueprints_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_client_table_blueprints_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_client_table_blueprints_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    external fun ffi_client_table_blueprints_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun ffi_client_table_blueprints_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_u8(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_u8(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_u8(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_u8(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    external fun ffi_client_table_blueprints_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_i8(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_i8(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_i8(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_i8(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-    external fun ffi_client_table_blueprints_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_u16(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_u16(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_u16(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_u16(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    external fun ffi_client_table_blueprints_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_i16(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_i16(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_i16(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_i16(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-    external fun ffi_client_table_blueprints_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_u32(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_u32(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_u32(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_u32(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    external fun ffi_client_table_blueprints_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_i32(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_i32(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_i32(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_i32(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    external fun ffi_client_table_blueprints_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_u64(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_u64(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_u64(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_u64(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    external fun ffi_client_table_blueprints_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_i64(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_i64(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_i64(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_i64(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    external fun ffi_client_table_blueprints_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_f32(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_f32(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_f32(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_f32(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Float
-    external fun ffi_client_table_blueprints_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_f64(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_f64(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_f64(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_f64(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Double
-    external fun ffi_client_table_blueprints_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_rust_buffer(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_rust_buffer(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_rust_buffer(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_rust_buffer(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun ffi_client_table_blueprints_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    external fun ffi_text_diff_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_cancel_void(`handle`: Long,
+    external fun ffi_text_diff_rust_future_cancel_void(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_free_void(`handle`: Long,
+    external fun ffi_text_diff_rust_future_free_void(`handle`: Long,
     ): Unit
-    external fun ffi_client_table_blueprints_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun ffi_text_diff_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
 
         
@@ -859,47 +801,14 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
     // Get the bindings contract version from our ComponentInterface
     val bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
-    val scaffolding_contract_version = lib.ffi_client_table_blueprints_uniffi_contract_version()
+    val scaffolding_contract_version = lib.ffi_text_diff_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_client_table_blueprints_checksum_func_key_value_storage_columns() != 28354) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 18562) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 52600) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_key_value_item() != 9008) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_page_row() != 36971) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row() != 6299) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_backlinks_columns() != 34845) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_backlinks() != 39081) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_every_block_in_existence_columns() != 64356) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence() != 65402) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_pages_columns() != 42358) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_client_table_blueprints_checksum_func_uncommitted_diffs_columns() != 23197) {
+    if (lib.uniffi_text_diff_checksum_func_get_diff() != 64334) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -998,23 +907,23 @@ object NoHandle
 /**
  * @suppress
  */
-public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
-    override fun lift(value: Byte): Boolean {
-        return value.toInt() != 0
+public object FfiConverterUInt: FfiConverter<UInt, Int> {
+    override fun lift(value: Int): UInt {
+        return value.toUInt()
     }
 
-    override fun read(buf: ByteBuffer): Boolean {
-        return lift(buf.get())
+    override fun read(buf: ByteBuffer): UInt {
+        return lift(buf.getInt())
     }
 
-    override fun lower(value: Boolean): Byte {
-        return if (value) 1.toByte() else 0.toByte()
+    override fun lower(value: UInt): Int {
+        return value.toInt()
     }
 
-    override fun allocationSize(value: Boolean) = 1UL
+    override fun allocationSize(value: UInt) = 4UL
 
-    override fun write(value: Boolean, buf: ByteBuffer) {
-        buf.put(lower(value))
+    override fun write(value: UInt, buf: ByteBuffer) {
+        buf.putInt(value.toInt())
     }
 }
 
@@ -1075,234 +984,149 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     }
 }
 
+
+
+sealed class DiffResult {
+    
+    data class Insert(
+        val v1: kotlin.String, 
+        val v2: kotlin.UInt) : DiffResult()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class Delete(
+        val v1: kotlin.String, 
+        val v2: kotlin.UInt) : DiffResult()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class Replace(
+        val `oldText`: kotlin.String, 
+        val `newText`: kotlin.String, 
+        val `position`: kotlin.UInt) : DiffResult()
+        
+    {
+        
+
+        companion object
+    }
+    
+    object NoDiff : DiffResult()
+    
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
 /**
  * @suppress
  */
-public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
-    override fun read(buf: ByteBuffer): ByteArray {
-        val len = buf.getInt()
-        val byteArr = ByteArray(len)
-        buf.get(byteArr)
-        return byteArr
-    }
-    override fun allocationSize(value: ByteArray): ULong {
-        return 4UL + value.size.toULong()
-    }
-    override fun write(value: ByteArray, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        buf.put(value)
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<ColumnDef>> {
-    override fun read(buf: ByteBuffer): List<ColumnDef> {
-        val len = buf.getInt()
-        return List<ColumnDef>(len) {
-            FfiConverterTypeColumnDef.read(buf)
+public object FfiConverterTypeDiffResult : FfiConverterRustBuffer<DiffResult>{
+    override fun read(buf: ByteBuffer): DiffResult {
+        return when(buf.getInt()) {
+            1 -> DiffResult.Insert(
+                FfiConverterString.read(buf),
+                FfiConverterUInt.read(buf),
+                )
+            2 -> DiffResult.Delete(
+                FfiConverterString.read(buf),
+                FfiConverterUInt.read(buf),
+                )
+            3 -> DiffResult.Replace(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                FfiConverterUInt.read(buf),
+                )
+            4 -> DiffResult.NoDiff
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: List<ColumnDef>): ULong {
-        val sizeForLength = 4UL
-        val sizeForItems = value.map { FfiConverterTypeColumnDef.allocationSize(it) }.sum()
-        return sizeForLength + sizeForItems
-    }
-
-    override fun write(value: List<ColumnDef>, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        value.iterator().forEach {
-            FfiConverterTypeColumnDef.write(it, buf)
+    override fun allocationSize(value: DiffResult): ULong = when(value) {
+        is DiffResult.Insert -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+                + FfiConverterUInt.allocationSize(value.v2)
+            )
+        }
+        is DiffResult.Delete -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+                + FfiConverterUInt.allocationSize(value.v2)
+            )
+        }
+        is DiffResult.Replace -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`oldText`)
+                + FfiConverterString.allocationSize(value.`newText`)
+                + FfiConverterUInt.allocationSize(value.`position`)
+            )
+        }
+        is DiffResult.NoDiff -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
         }
     }
-}
 
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List<ForeignKeyDef>> {
-    override fun read(buf: ByteBuffer): List<ForeignKeyDef> {
-        val len = buf.getInt()
-        return List<ForeignKeyDef>(len) {
-            FfiConverterTypeForeignKeyDef.read(buf)
-        }
-    }
-
-    override fun allocationSize(value: List<ForeignKeyDef>): ULong {
-        val sizeForLength = 4UL
-        val sizeForItems = value.map { FfiConverterTypeForeignKeyDef.allocationSize(it) }.sum()
-        return sizeForLength + sizeForItems
-    }
-
-    override fun write(value: List<ForeignKeyDef>, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        value.iterator().forEach {
-            FfiConverterTypeForeignKeyDef.write(it, buf)
-        }
-    }
-}
-
-
-
-
-
-
-
-
-
-object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsException> {
-    override fun lift(error_buf: RustBuffer.ByValue): YrsException =
-        rustlib.my_yrs_lib.YrsException.ErrorHandler.lift(
-            RustBufferYrsError.ByValue().apply {
-                capacity = error_buf.capacity
-                len = error_buf.len
-                data = error_buf.data
+    override fun write(value: DiffResult, buf: ByteBuffer) {
+        when(value) {
+            is DiffResult.Insert -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                FfiConverterUInt.write(value.v2, buf)
+                Unit
             }
-        )
-} fun `keyValueStorageColumns`(): List<ColumnDef> {
-            return FfiConverterSequenceTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_key_value_storage_columns(
-    
-        _status)
-}
-    )
+            is DiffResult.Delete -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.v1, buf)
+                FfiConverterUInt.write(value.v2, buf)
+                Unit
+            }
+            is DiffResult.Replace -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.`oldText`, buf)
+                FfiConverterString.write(value.`newText`, buf)
+                FfiConverterUInt.write(value.`position`, buf)
+                Unit
+            }
+            is DiffResult.NoDiff -> {
+                buf.putInt(4)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
-    
+}
 
-    @Throws(YrsException::class) fun `newBacklinkRow`(`pageThatHoldsLinkId`: kotlin.String, `pageBeingLinkedToId`: kotlin.String): Row {
-            return FfiConverterTypeRow.lift(
-    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_backlink_row(
+ fun `getDiff`(`oldText`: kotlin.String, `newText`: kotlin.String): DiffResult {
+            return FfiConverterTypeDiffResult.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_text_diff_fn_func_get_diff(
     
         
-        FfiConverterString.lower(`pageThatHoldsLinkId`),
-        FfiConverterString.lower(`pageBeingLinkedToId`),_status)
-}
-    )
-    }
-    
-
-    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`title`: kotlin.String, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String): Row {
-            return FfiConverterTypeRow.lift(
-    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
-    
-        
-        FfiConverterString.lower(`title`),
-        FfiConverterString.lower(`content`),
-        FfiConverterString.lower(`myIdAsGivenByYrs`),
-        FfiConverterString.lower(`idOfPageIBelongTo`),_status)
-}
-    )
-    }
-    
-
-    @Throws(YrsException::class) fun `newKeyValueItem`(`key`: kotlin.String, `value`: kotlin.String): Row {
-            return FfiConverterTypeRow.lift(
-    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_key_value_item(
-    
-        
-        FfiConverterString.lower(`key`),
-        FfiConverterString.lower(`value`),_status)
-}
-    )
-    }
-    
-
-    @Throws(YrsException::class) fun `newPageRow`(`pageId`: kotlin.String, `isMainMenuPage`: kotlin.Boolean, `userId`: kotlin.String): Row {
-            return FfiConverterTypeRow.lift(
-    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_page_row(
-    
-        
-        FfiConverterString.lower(`pageId`),
-        FfiConverterBoolean.lower(`isMainMenuPage`),
-        FfiConverterString.lower(`userId`),_status)
-}
-    )
-    }
-    
-
-    @Throws(YrsException::class) fun `newUncommittedDiffRow`(`snapshotOfEdit`: kotlin.ByteArray, `loveLetterSketch`: kotlin.ByteArray, `sessionId`: kotlin.String, `targetId`: kotlin.String): Row {
-            return FfiConverterTypeRow.lift(
-    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(
-    
-        
-        FfiConverterByteArray.lower(`snapshotOfEdit`),
-        FfiConverterByteArray.lower(`loveLetterSketch`),
-        FfiConverterString.lower(`sessionId`),
-        FfiConverterString.lower(`targetId`),_status)
-}
-    )
-    }
-    
- fun `backlinksColumns`(): List<ColumnDef> {
-            return FfiConverterSequenceTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_backlinks_columns(
-    
-        _status)
-}
-    )
-    }
-    
- fun `getForeignDefBacklinks`(): List<ForeignKeyDef> {
-            return FfiConverterSequenceTypeForeignKeyDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_get_foreign_def_backlinks(
-    
-        _status)
-}
-    )
-    }
-    
- fun `everyBlockInExistenceColumns`(): List<ColumnDef> {
-            return FfiConverterSequenceTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_every_block_in_existence_columns(
-    
-        _status)
-}
-    )
-    }
-    
- fun `getForeignDefEveryBlockInExistence`(): List<ForeignKeyDef> {
-            return FfiConverterSequenceTypeForeignKeyDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(
-    
-        _status)
-}
-    )
-    }
-    
- fun `pagesColumns`(): List<ColumnDef> {
-            return FfiConverterSequenceTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_pages_columns(
-    
-        _status)
-}
-    )
-    }
-    
- fun `uncommittedDiffsColumns`(): List<ColumnDef> {
-            return FfiConverterSequenceTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_uncommitted_diffs_columns(
-    
-        _status)
+        FfiConverterString.lower(`oldText`),
+        FfiConverterString.lower(`newText`),_status)
 }
     )
     }

@@ -6,10 +6,17 @@ import uniffi.protocol.*
 import rustlib.client_table_blueprints.*
 import z.zndroid.Storage.StorageInitializer
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
 
 object DbManager {
     // Hidden database instance
     private var db: LiveForever? = null
+    private val readyDeferred = CompletableDeferred<Unit>()
+
+    /**
+     * Suspends until the database is initialized and tables are created.
+     */
+    suspend fun awaitReady() = readyDeferred.await()
 
     /**
      * Internal helper to execute database calls with safety checks.
@@ -44,6 +51,8 @@ object DbManager {
             // Initialize Foreign Key Tables
             newDb.createForeignTable(CreateForeignTableIn("backlinks", backlinksColumns(), getForeignDefBacklinks()))
             newDb.createForeignTable(CreateForeignTableIn("every_block_in_existence", everyBlockInExistenceColumns(), getForeignDefEveryBlockInExistence()))
+            
+            readyDeferred.complete(Unit)
         }
     }
 

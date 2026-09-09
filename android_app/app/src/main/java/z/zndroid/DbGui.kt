@@ -39,9 +39,9 @@ fun DbGui(
     // Fetch table names from your Rust library on a background thread
     LaunchedEffect(Unit) {
         isLoading = true
-        retryUntilReady {
-            DbManager.listTables()
-        }.onSuccess {
+        DbManager.awaitReady()
+        
+        DbManager.listTables().onSuccess {
             tableNames = it.tableNames
             isLoading = false
         }.onFailure { error ->

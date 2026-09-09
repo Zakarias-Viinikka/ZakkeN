@@ -27,13 +27,11 @@ fun InspectTable(tableName: String, onBack: () -> Unit) {
     fun refreshData() {
         coroutineScope.launch {
             isLoading = true
-            retryUntilReady {
-                DbManager.checkTable(CheckTableIn(tableName))
-            }.onSuccess { checkOut ->
+            DbManager.awaitReady()
+            
+            DbManager.checkTable(CheckTableIn(tableName)).onSuccess { checkOut ->
                 columns = checkOut.columns
-                retryUntilReady {
-                    DbManager.getData(GetDataIn(tableName, listOf(SelectArgument.All), emptyList()))
-                }.onSuccess { dataOut ->
+                DbManager.getData(GetDataIn(tableName, listOf(SelectArgument.All), emptyList())).onSuccess { dataOut ->
                     rows = dataOut.rows
                 }.onFailure { error ->
                     GlobalPopupManager.show("Error loading data: ${error.message}")
@@ -94,9 +92,8 @@ fun InspectTable(tableName: String, onBack: () -> Unit) {
                                 }
                                 ColumnValue(col.name, colValue)
                             }
-                            retryUntilReady {
-                                DbManager.insertData(InsertDataIn(tableName, values))
-                            }.onSuccess {
+                            DbManager.awaitReady()
+                            DbManager.insertData(InsertDataIn(tableName, values)).onSuccess {
                                 // Clear inputs
                                 inputs.clear()
                                 refreshData()
@@ -154,9 +151,8 @@ fun InspectTable(tableName: String, onBack: () -> Unit) {
                                             else -> ""
                                         }
                                         if (idStr.isNotEmpty()) {
-                                            retryUntilReady {
-                                                DbManager.deleteRow(DeleteRowIn(tableName, idStr))
-                                            }.onSuccess {
+                                            DbManager.awaitReady()
+                                            DbManager.deleteRow(DeleteRowIn(tableName, idStr)).onSuccess {
                                                 refreshData()
                                             }.onFailure { error ->
                                                 GlobalPopupManager.show("Delete failed: ${error.message}")

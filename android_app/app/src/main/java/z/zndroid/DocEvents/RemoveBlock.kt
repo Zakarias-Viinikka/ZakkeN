@@ -28,10 +28,7 @@ object RemoveBlock {
             val bookmark = createBookmarkOfSyncedState(ctx.boss)
 
             // 2. Perform the removal on the Yrs document (in-memory)
-            // Note: Assuming boss has a method to remove block by ID or index.
-            // Based on earlier patterns, we likely use the position for the LoveLetter.
-            // For now, we'll assume a generic removal exists or we'll need to define it.
-            // ctx.boss.removeBlock(ctx.blockId) 
+            ctx.boss.deleteBlock(ctx.blockId)
 
             // 3. Generate the binary diff update for synchronization
             val diff = generateDiffSnapshot(ctx.boss, bookmark)
@@ -58,7 +55,21 @@ object RemoveBlock {
             }
 
             // 6. Persistence to SQLite: Delete from block table and Insert to diffs
-            DbManager.deleteRow(DeleteRowIn("every_block_in_existence", ctx.blockId)).getOrThrow()
+            // First, find the internal auto-increment ID
+            val queryRes = DbManager.getData(GetDataIn(
+                "every_block_in_existence",
+                listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId)),
+                emptyList()
+            )).getOrThrow()
+
+            if (queryRes.rows.isNotEmpty()) {
+                val internalId = when (val idCol = queryRes.rows.first().cols.first()) {
+                    is Col.Integer -> idCol.v1.toString()
+                    else -> throw Exception("Failed to get internal ID for block ${ctx.blockId}")
+                }
+                DbManager.deleteRow(DeleteRowIn("every_block_in_existence", internalId)).getOrThrow()
+            }
+            
             DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
             
             // 7. Update the full page snapshot in the 'pages' table

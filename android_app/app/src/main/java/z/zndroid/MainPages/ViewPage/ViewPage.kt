@@ -2,7 +2,7 @@ package z.zndroid.MainPages.ViewPage
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,14 +23,15 @@ import z.zndroid.components.GlobalPopupManager
 @Composable
 fun ViewPage(
     pageId: String, 
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenAdminView: () -> Unit
 ) {
     var boss by remember { mutableStateOf<BossOfYrs?>(null) }
     var uiStates by remember { mutableStateOf(emptyList<BlockUiState>()) }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
 
-    fun refreshBlocksFromBoss() {
+    fun updateUI() {
         boss?.let {
             try {
                 val blocks = it.getEntirePage()
@@ -73,6 +74,11 @@ fun ViewPage(
                     uiStates = blocks.map { b -> 
                         BlockUiState(b.idInYrs, b.text, b.metadata)
                     }
+                    
+                    // Logic: Ensure a new page has a title block
+                    maybeCreateTitleBlock(newBoss, coroutineScope, onUpdate = {
+                        updateUI()
+                    })
                 } catch (e: Exception) {
                     GlobalPopupManager.show("Failed to instance Yrs Doc: ${e.message}")
                 }
@@ -101,6 +107,11 @@ fun ViewPage(
                     IconButton(onClick = onBack) {
                         Text("←")
                     }
+                },
+                actions = {
+                    TextButton(onClick = onOpenAdminView) {
+                        Text("Admin")
+                    }
                 }
             )
         },
@@ -114,7 +125,7 @@ fun ViewPage(
                         content = "" 
                     )).onSuccess {
                         // Refresh the entire list from the CRDT to pick up the new block
-                        refreshBlocksFromBoss()
+                        updateUI()
                     }
                 }
             }) {
@@ -165,8 +176,10 @@ fun ViewPage(
                         }
                     }
                 } else {
-                    items(uiStates, key = { it.blockId }) { state ->
-                        EditableBlock(state, boss!!, coroutineScope)
+                    itemsIndexed(uiStates, key = { _, state -> state.blockId }) { index, state ->
+                        EditableBlock(state, index, boss!!, coroutineScope, onRefresh = {
+                            updateUI()
+                        })
                     }
                 }
             }

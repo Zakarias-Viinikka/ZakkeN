@@ -32,6 +32,15 @@ enum class FastStorageKey(
         StorageKey.SESSION_ID,
         RefreshCondition.NEVER,
         DropCondition.NEVER
+    ),
+
+    /**
+     * Cache the current document ID.
+     */
+    CURRENT_DOC(
+        StorageKey.CURRENT_DOCUMENT,
+        RefreshCondition.NEVER,
+        DropCondition.NEVER
     );
 
     companion object {

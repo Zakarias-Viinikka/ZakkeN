@@ -701,7 +701,9 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot(
     ): Int
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block_insert(
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(
     ): Int
@@ -793,7 +795,9 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block_insert(`ptr`: Long,`blockId`: RustBuffer.ByValue,`textEdit`: RustBuffer.ByValue,`editTarget`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,`textEdit`: RustBuffer.ByValue,`editTarget`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -979,7 +983,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot() != 22743) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block_insert() != 21363) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block() != 64348) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block() != 42943) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 48765) {
@@ -1427,7 +1434,9 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 
 public interface BossOfYrsInterface {
     
-    fun `editTextBlockInsert`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
+    fun `deleteBlock`(`blockId`: kotlin.String)
+    
+    fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
     
     fun `getEntirePage`(): List<Block>
     
@@ -1563,11 +1572,25 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     }
 
     
-    @Throws(YrsException::class)override fun `editTextBlockInsert`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
+    @Throws(YrsException::class)override fun `deleteBlock`(`blockId`: kotlin.String)
         = 
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block_insert(
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(
         it,
         
         FfiConverterString.lower(`blockId`),

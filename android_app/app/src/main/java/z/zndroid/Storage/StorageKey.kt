@@ -15,5 +15,10 @@ enum class StorageKey(val keyName: String) {
     /**
      * The current session counter. Increments on app launches and screen changes.
      */
-    SESSION_ID("session_id")
+    SESSION_ID("session_id"),
+
+    /**
+     * The ID of the document currently being viewed.
+     */
+    CURRENT_DOCUMENT("current_document")
 }

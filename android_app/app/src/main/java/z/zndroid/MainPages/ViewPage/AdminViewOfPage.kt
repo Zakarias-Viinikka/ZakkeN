@@ -9,26 +9,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import rustlib.my_yrs_lib.Block
 import rustlib.my_yrs_lib.docFromSnapshot
 import uniffi.protocol.Col
 import uniffi.protocol.GetDataIn
 import uniffi.protocol.SelectArgument
 import z.zndroid.DbManager
+import z.zndroid.DocEvents.BlockComparison
+import z.zndroid.DocEvents.CheckIfTablesInSync
 import z.zndroid.Storage.StorageAccess
-import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
-
-/**
- * A data class to hold the comparison between SQLite and CRDT versions of a block.
- */
-data class BlockComparison(
-    val yrsId: String,
-    val sqliteContent: String?,
-    val crdtContent: String?,
-    val isMatch: Boolean
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,60 +28,14 @@ fun AdminViewOfPage(
 ) {
     var comparisons by remember { mutableStateOf(emptyList<BlockComparison>()) }
     var isLoading by remember { mutableStateOf(true) }
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(pageId) {
         isLoading = true
-        try {
-            // 1. Fetch CRDT blocks from the 'pages' blob
-            val pageRow = DbManager.getPage(pageId).getOrThrow()
-            val userId = StorageAccess.getUserId()
-            val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
-            
-            val crdtBlocks = if (blob != null) {
-                val boss = docFromSnapshot(blob, userId, pageId)
-                val blocks = boss.getEntirePage()
-                boss.destroy()
-                blocks
-            } else {
-                emptyList<Block>()
-            }
-
-            // 2. Fetch SQLite blocks from 'every_block_in_existence'
-            val sqliteData = DbManager.getData(GetDataIn(
-                tableName = "every_block_in_existence",
-                arguments = listOf(SelectArgument.XEqualY("id_of_page_i_belong_to", pageId)),
-                columnsToRead = emptyList()
-            )).getOrThrow()
-
-            // 3. Compare them
-            val sqliteMap = sqliteData.rows.associate { row ->
-                // index 3 is my_id_as_given_by_yrs, index 2 is content
-                val yrsId = (row.cols.getOrNull(3) as? Col.Text)?.v1 ?: ""
-                val content = (row.cols.getOrNull(2) as? Col.Text)?.v1 ?: ""
-                yrsId to content
-            }
-
-            val crdtMap = crdtBlocks.associate { it.idInYrs to it.text }
-
-            // Merge IDs from both sources
-            val allIds = (sqliteMap.keys + crdtMap.keys).distinct()
-
-            comparisons = allIds.map { id ->
-                val sText = sqliteMap[id]
-                val cText = crdtMap[id]
-                BlockComparison(
-                    yrsId = id,
-                    sqliteContent = sText,
-                    crdtContent = cText,
-                    isMatch = sText == cText
-                )
-            }
-        } catch (e: Exception) {
-            GlobalPopupManager.show("Admin View error: ${e.message}")
-        } finally {
-            isLoading = false
-        }
+        CheckIfTablesInSync.checkPageSync(pageId).fold(
+            onSuccess = { comparisons = it },
+            onFailure = { GlobalPopupManager.show("Admin View error: ${it.message}") }
+        )
+        isLoading = false
     }
 
     Scaffold(
@@ -101,6 +45,20 @@ fun AdminViewOfPage(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Text("←")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        android.util.Log.d("ADMIN_DEBUG", "--- Admin Debug Info for Page: $pageId ---")
+                        comparisons.forEach { comp ->
+                            android.util.Log.d("ADMIN_DEBUG", "Block ID: ${comp.yrsId}")
+                            android.util.Log.d("ADMIN_DEBUG", "  SQLite: [${comp.sqliteContent}]")
+                            android.util.Log.d("ADMIN_DEBUG", "  CRDT:   [${comp.crdtContent}]")
+                            android.util.Log.d("ADMIN_DEBUG", "  Match:  ${comp.isMatch}")
+                        }
+                        android.util.Log.d("ADMIN_DEBUG", "--- End Debug Info ---")
+                    }) {
+                        Text("Log")
                     }
                 }
             )
@@ -133,39 +91,91 @@ fun AdminViewOfPage(
 
 @Composable
 fun ComparisonCard(comp: BlockComparison) {
-    val bgColor = if (comp.isMatch) Color(0xFFE8F5E9) else Color(0xFFFFEBEE) // Subtle Green or Red
-    val contentColor = if (comp.isMatch) Color(0xFF2E7D32) else Color(0xFFC62828)
+    // Use Material 3 error colors for mismatches, and standard surface for matches
+    val containerColor = if (comp.isMatch) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.errorContainer
+    }
+
+    val statusColor = if (comp.isMatch) {
+        Color(0xFF4CAF50) // Material Green 500
+    } else {
+        MaterialTheme.colorScheme.error
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = bgColor)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = if (!comp.isMatch) CardDefaults.outlinedCardBorder() else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "Yrs ID: ${comp.yrsId}",
-                style = MaterialTheme.typography.labelSmall,
-                color = contentColor.copy(alpha = 0.7f)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("SQLite", style = MaterialTheme.typography.labelMedium, color = contentColor)
-                    Text(comp.sqliteContent ?: "[NULL]", style = MaterialTheme.typography.bodySmall)
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("CRDT", style = MaterialTheme.typography.labelMedium, color = contentColor)
-                    Text(comp.crdtContent ?: "[NULL]", style = MaterialTheme.typography.bodySmall)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Block: ${comp.yrsId.take(8)}...",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                
+                // Status badge
+                Surface(
+                    color = statusColor.copy(alpha = 0.1f),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = if (comp.isMatch) "SYNCED" else "MISMATCH",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor
+                    )
                 }
             }
             
-            if (!comp.isMatch) {
-                Text(
-                    text = "Mismatch Detected!",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.Red,
-                    modifier = Modifier.padding(top = 8.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth()) {
+                // SQLite Column
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "SQLite Table",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = comp.sqliteContent ?: "[NULL]",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // Divider line
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(40.dp)
+                        .padding(horizontal = 8.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
                 )
+
+                // CRDT Column
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Yrs CRDT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = comp.crdtContent ?: "[NULL]",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
         }
     }

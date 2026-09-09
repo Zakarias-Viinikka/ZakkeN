@@ -13,7 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import z.zndroid.MainPages.NavPage
-import z.zndroid.MainPages.ViewPage
+import z.zndroid.MainPages.ViewPage.ViewPage
 import z.zndroid.components.MainContainer
 import androidx.compose.runtime.LaunchedEffect
 import z.zndroid.Storage.SessionManager
@@ -46,18 +46,38 @@ class MainActivity : ComponentActivity() {
                                 onOpenPage = { title ->
                                     navController.navigate("view_page/$title")
                                 },
+                                onOpenAdminView = { title ->
+                                    navController.navigate("admin_view/$title")
+                                },
                                 onOpenDbInspector = {
                                     navController.navigate("db_gui")
+                                },
+                                onOpenTests = {
+                                    navController.navigate("test_results")
                                 }
                             )
                         }
+                        composable("test_results") {
+                            z.zndroid.Tests.TestResultsPage(onBack = { navController.popBackStack() })
+                        }
                         composable(
-                            route = "view_page/{pageTitle}",
-                            arguments = listOf(navArgument("pageTitle") { type = NavType.StringType })
+                            route = "view_page/{pageId}",
+                            arguments = listOf(navArgument("pageId") { type = NavType.StringType })
                         ) { backStackEntry ->
-                            val title = backStackEntry.arguments?.getString("pageTitle") ?: ""
+                            val id = backStackEntry.arguments?.getString("pageId") ?: ""
                             ViewPage(
-                                pageTitle = title,
+                                pageId = id,
+                                onBack = { navController.popBackStack() },
+                                onOpenAdminView = { navController.navigate("admin_view/$id") }
+                            )
+                        }
+                        composable(
+                            route = "admin_view/{pageId}",
+                            arguments = listOf(navArgument("pageId") { type = NavType.StringType })
+                        ) { backStackEntry ->
+                            val id = backStackEntry.arguments?.getString("pageId") ?: ""
+                            z.zndroid.MainPages.ViewPage.AdminViewOfPage(
+                                pageId = id,
                                 onBack = { navController.popBackStack() }
                             )
                         }

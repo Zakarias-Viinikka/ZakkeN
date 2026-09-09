@@ -21,6 +21,8 @@ class MainApplication : Application() {
         // Initialize the database once for the entire app lifecycle on a background thread
         CoroutineScope(Dispatchers.IO).launch {
             DbManager.init(this@MainApplication)
+            // Wait for DB to be fully ready (tables created) before initializing session
+            DbManager.awaitReady()
             SessionManager.initialize()
         }
     }

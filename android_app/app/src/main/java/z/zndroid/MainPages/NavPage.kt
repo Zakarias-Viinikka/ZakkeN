@@ -13,14 +13,15 @@ import kotlinx.coroutines.launch
 import uniffi.protocol.Col
 import uniffi.protocol.Row
 import z.zndroid.DbManager
-import z.zndroid.retryUntilReady
 import z.zndroid.components.GlobalPopupManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NavPage(
     onOpenPage: (String) -> Unit,
-    onOpenDbInspector: () -> Unit
+    onOpenAdminView: (String) -> Unit,
+    onOpenDbInspector: () -> Unit,
+    onOpenTests: () -> Unit
 ) {
     var pages by remember { mutableStateOf(emptyList<Row>()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -33,15 +34,12 @@ fun NavPage(
     fun refreshPages() {
         coroutineScope.launch {
             isLoading = true
-            retryUntilReady {
-                DbManager.checkTable(uniffi.protocol.CheckTableIn("pages"))
-            }.onSuccess { checkOut ->
+            DbManager.awaitReady()
+            DbManager.checkTable(uniffi.protocol.CheckTableIn("pages")).onSuccess { checkOut ->
                 titleColumnIndex = checkOut.columns.indexOfFirst { !it.primaryKey }
                 if (titleColumnIndex == -1) titleColumnIndex = 0
                 
-                retryUntilReady {
-                    DbManager.getPages()
-                }.onSuccess {
+                DbManager.getPages().onSuccess {
                     pages = it
                     isLoading = false
                 }
@@ -87,11 +85,23 @@ fun NavPage(
                             else -> "Untitled Page"
                         }
                         
-                        Button(
-                            onClick = { onOpenPage(title) },
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(title)
+                            Button(
+                                onClick = { onOpenPage(title) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(title)
+                            }
+
+                            TextButton(
+                                onClick = { onOpenAdminView(title) }
+                            ) {
+                                Text("Admin")
+                            }
                         }
                     }
                     
@@ -119,6 +129,10 @@ fun NavPage(
             TextButton(onClick = onOpenDbInspector) {
                 Text("Database Inspector")
             }
+
+            TextButton(onClick = onOpenTests) {
+                Text("Internal Test Suite")
+            }
         }
     }
 
@@ -127,9 +141,8 @@ fun NavPage(
             onDismiss = { showNewPagePopup = false },
             onConfirm = { name ->
                 coroutineScope.launch {
-                    retryUntilReady {
-                        DbManager.addPage(name)
-                    }.onSuccess {
+                    DbManager.awaitReady()
+                    DbManager.addPage(name).onSuccess {
                         showNewPagePopup = false
                         refreshPages()
                     }.onFailure { error ->
