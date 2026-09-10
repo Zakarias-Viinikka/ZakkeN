@@ -1,12 +1,13 @@
+use crate::diff_logic;
 use crate::text_diff_batching::when_to_diff_timer::DiffTimer;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// A single atomic edit, as reported by the caller in real time.
 ///
 /// `letter` is a one-character String, not `char` — UniFFI has no
 /// built-in `char` type, so `char` can't cross the FFI boundary.
 #[derive(Debug, Clone, uniffi::Enum)]
-pub enum WhenToDiffEvent {
+pub enum Event {
     SingleInsert { position: u32, letter: String },
     SingleDelete { position: u32 },
     BigInsert { position: u32, text: String },
@@ -28,44 +29,54 @@ enum TimerAction {
 }
 
 #[derive(uniffi::Object)]
-pub struct WhenToDiff {
+pub struct BatchTextEdits {
     timer: DiffTimer,
-    text_before_latest_change: Mutex<String>,
+    batched_events: Mutex<Vec<Event>>,
+    previous_event: Option<Event>,
+    callback_to_run_when_batch_should_be_commited:
+        Arc<dyn Fn(diff_logic::DiffResult) + Send + Sync>,
 }
 
 #[uniffi::export]
-impl WhenToDiff {
+impl BatchTextEdits {
     #[uniffi::constructor]
-    pub fn new(callback: Box<dyn DiffCallback>, initial_text: String) -> Self {
-        let timer = DiffTimer::new(move || callback.on_diff_needed());
+    pub fn new(callback: Box<dyn Fn(diff_logic::DiffResult) + Send + Sync>) -> Self {
+        let callback = Arc::new(callback);
+        let timer = DiffTimer::new(move || Arc::clone(&callback));
         Self {
             timer,
-            text_before_latest_change: Mutex::new(initial_text),
+            batched_events: Mutex::new(Vec::new()),
+            previous_event: None,
+            callback_to_run_when_batch_should_be_commited: Arc::clone(&callback),
         }
     }
 
     /// Feed in the next atomic edit as it happens.
-    pub fn notify_edit(&self, event: WhenToDiffEvent) {
-        let mut text = self.text_before_latest_change.lock().unwrap();
+    pub fn do_an_edit(&self, event: Event) {
+        let mut list_of_events = self.batched_events.lock().unwrap();
+
+        if let Some(prev) = &self.previous_event {
+            commit_old_events();
+        }
 
         let action = match &event {
-            WhenToDiffEvent::SingleInsert { position, letter } => {
-                apply_single_insert(&mut text, *position, letter)
+            Event::SingleInsert { position, letter } => {
+                //apply_single_insert(&mut list_of_events, *position, letter)
             }
-            WhenToDiffEvent::SingleDelete { position } => apply_single_delete(&mut text, *position),
-            WhenToDiffEvent::BigInsert {
+            Event::SingleDelete { position } => apply_single_delete(&mut list_of_events, *position),
+            Event::BigInsert {
                 position,
                 text: inserted,
-            } => apply_big_insert(&mut text, *position, inserted),
-            WhenToDiffEvent::BigDelete { start, end } => apply_big_delete(&mut text, *start, *end),
-            WhenToDiffEvent::Replace {
+            } => apply_big_insert(&mut list_of_events, *position, inserted),
+            Event::BigDelete { start, end } => apply_big_delete(&mut list_of_events, *start, *end),
+            Event::Replace {
                 start,
                 end,
                 text: new_text,
-            } => apply_replace(&mut text, *start, *end, new_text),
+            } => apply_replace(&mut list_of_events, *start, *end, new_text),
         };
 
-        drop(text); // release lock before touching the timer
+        drop(list_of_events); // release lock before touching the timer
 
         match action {
             TimerAction::Edit => self.timer.reset(),
@@ -74,6 +85,8 @@ impl WhenToDiff {
         }
     }
 }
+
+fn commit_old_events(&self) {}
 
 // --- per-event handlers: mutate the buffered text, decide the resulting action ---
 

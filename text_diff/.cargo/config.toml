@@ -3,3 +3,6 @@ target = "wasm32-unknown-unknown"
 
 [target.wasm32-unknown-unknown]
 rustflags = ["-Zshare-generics"]
+
+[alias]
+nt = "test --target x86_64-unknown-linux-gnu"

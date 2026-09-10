@@ -16,9 +16,48 @@ enum Signal {
     Shutdown,
 }
 
-enum JobSecurity {
-    StillGotAJob,
-    Fired,
+enum CountdownState {
+    Idle,
+    CountingDown,
+}
+
+enum NextStep {
+    Continue(CountdownState),
+    Terminate,
+}
+
+/// Reads at most one pending signal, applies its side effects (firing the
+/// callback, forwarding Reset/Cancel to the inner timer), and decides what
+/// state comes next.
+fn apply_signal<F: Fn()>(
+    rx: &mpsc::Receiver<Signal>,
+    timer_tx: &mpsc::Sender<TimerInstruction>,
+    on_timeout: &F,
+    current_state: CountdownState,
+) -> NextStep {
+    match rx.try_recv() {
+        Ok(Signal::Reset) => {
+            let _ = timer_tx.send(TimerInstruction::Reset);
+            NextStep::Continue(CountdownState::CountingDown)
+        }
+        Ok(Signal::Cancel) => {
+            let _ = timer_tx.send(TimerInstruction::Cancel);
+            NextStep::Continue(CountdownState::Idle)
+        }
+        Ok(Signal::FireAndReset) => {
+            on_timeout();
+            let _ = timer_tx.send(TimerInstruction::Reset);
+            NextStep::Continue(CountdownState::CountingDown)
+        }
+        Ok(Signal::FireAndClear) => {
+            on_timeout();
+            let _ = timer_tx.send(TimerInstruction::Cancel);
+            NextStep::Continue(CountdownState::Idle)
+        }
+        Ok(Signal::Shutdown) => NextStep::Terminate,
+        Err(mpsc::TryRecvError::Disconnected) => NextStep::Terminate,
+        Err(mpsc::TryRecvError::Empty) => NextStep::Continue(current_state),
+    }
 }
 
 impl DiffTimer {
@@ -27,22 +66,26 @@ impl DiffTimer {
         let (timer_tx, timer_rx) = mpsc::channel::<TimerInstruction>();
         let timer_arc = Arc::new(Mutex::new(Timer::new()));
 
-        // Start the actual timer thread
         happy_little_timer::start(Arc::clone(&timer_arc), timer_rx);
 
         thread::spawn(move || {
-            let receiver = rx;
-            let callback = on_timeout;
+            let mut state = CountdownState::Idle;
 
             loop {
-                match wait_for_instructions(&receiver, &callback) {
-                    JobSecurity::StillGotAJob => {
-                        match run_countdown_loop(&receiver, &callback, &timer_tx, &timer_arc) {
-                            JobSecurity::StillGotAJob => continue,
-                            JobSecurity::Fired => break,
-                        }
+                happy_little_timer::wait_patiently(Duration::from_millis(50));
+
+                state = match apply_signal(&rx, &timer_tx, &on_timeout, state) {
+                    NextStep::Continue(new_state) => new_state,
+                    NextStep::Terminate => return,
+                };
+
+                // Act on the current state — the only place expiry is checked.
+                if let CountdownState::CountingDown = state {
+                    let expired = timer_arc.lock().unwrap().time_left <= 0.0;
+                    if expired {
+                        on_timeout();
+                        state = CountdownState::Idle;
                     }
-                    JobSecurity::Fired => break,
                 }
             }
         });
@@ -64,74 +107,6 @@ impl DiffTimer {
 
     pub fn fire_and_clear(&self) {
         let _ = self.tx.send(Signal::FireAndClear);
-    }
-}
-
-fn wait_for_instructions<F>(rx: &mpsc::Receiver<Signal>, on_timeout: &F) -> JobSecurity
-where
-    F: Fn() + Send + Sync,
-{
-    loop {
-        match rx.recv() {
-            Ok(Signal::Reset) => return JobSecurity::StillGotAJob,
-            Ok(Signal::Cancel) => continue,
-            Ok(Signal::FireAndReset) => {
-                on_timeout();
-                return JobSecurity::StillGotAJob;
-            }
-            Ok(Signal::FireAndClear) => {
-                on_timeout();
-                continue;
-            }
-            Ok(Signal::Shutdown) | Err(_) => return JobSecurity::Fired,
-        }
-    }
-}
-
-fn run_countdown_loop<F>(
-    rx: &mpsc::Receiver<Signal>,
-    on_timeout: &F,
-    timer_tx: &mpsc::Sender<TimerInstruction>,
-    timer_arc: &Arc<Mutex<Timer>>,
-) -> JobSecurity
-where
-    F: Fn() + Send + Sync,
-{
-    loop {
-        // Wait a short interval before checking again
-        happy_little_timer::wait_patiently(Duration::from_millis(50));
-
-        // Check for any pending commands (non‑blocking)
-        match rx.try_recv() {
-            Ok(Signal::Reset) => {
-                let _ = timer_tx.send(TimerInstruction::Reset);
-                continue;
-            }
-            Ok(Signal::Cancel) => {
-                let _ = timer_tx.send(TimerInstruction::Cancel);
-                return JobSecurity::StillGotAJob;
-            }
-            Ok(Signal::FireAndReset) => {
-                on_timeout();
-                let _ = timer_tx.send(TimerInstruction::Reset);
-                continue;
-            }
-            Ok(Signal::FireAndClear) => {
-                on_timeout();
-                let _ = timer_tx.send(TimerInstruction::Cancel);
-                return JobSecurity::StillGotAJob;
-            }
-            Ok(Signal::Shutdown) => return JobSecurity::Fired,
-            Err(mpsc::TryRecvError::Empty) => {}
-            Err(mpsc::TryRecvError::Disconnected) => return JobSecurity::Fired,
-        }
-
-        // Check if the timer has finished
-        let timer = timer_arc.lock().unwrap();
-        if timer.time_left <= 0.0 {
-            on_timeout();
-            return JobSecurity::StillGotAJob;
-        }
     }
 }
 
