@@ -10,8 +10,12 @@
 
 # --- BUILD STEPS (run from inside the text_diff folder) ---
 
+# Step 0: Clean previous output to prevent ghost dependencies (like libwasm_streams)
+rm -rf ./android_output_folder
+
 # Step 1: Build native library for arm64
-cargo ndk -o ./android_output_folder/jniLibs -t arm64-v8a build --release
+# Added --lib to ensure only the shared library is compiled for Android
+cargo ndk -o ./android_output_folder/jniLibs -t arm64-v8a build --release --lib
 
 # Step 2: Generate Kotlin glue code (force host target)
 cargo run --target "$(rustc -vV | sed -n 's/host: //p')" --bin uniffi-bindgen -- generate \

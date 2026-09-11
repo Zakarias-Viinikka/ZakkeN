@@ -7,13 +7,17 @@ edition = "2024"
 crate-type = ["rlib", "cdylib"]   # cdylib needed for Android .so
 
 [dependencies]
+# Keep UniFFI here as it is used for both Android and Wasm
+uniffi = { version = "0.32", features = ["cli", "wasm-unstable-single-threaded"] } #the feature for the wasm unstanble thingy is because of doing uniffi and wasm32 in the same project
+
+# Move web-only dependencies here
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 codee = "0.3.5"
 console_error_panic_hook = "0.1.7"
 leptos = { version = "0.8.20", features = ["csr"] }
 leptos-use = "0.19.0"
 leptos_router = "0.8.15"
 web-sys = { version = "0.3.103", features = ["InputEvent"] }
-uniffi = { version = "0.32", features = ["cli", "wasm-unstable-single-threaded"] } #the feature for the wasm unstanble thingy is because of doing uniffi and wasm32 in the same project
 
 
 #[[test]]
