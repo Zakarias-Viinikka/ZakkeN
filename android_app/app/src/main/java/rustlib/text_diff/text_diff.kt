@@ -672,6 +672,8 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_text_diff_checksum_func_combine_getdiff_results(
+    ): Int
     external fun uniffi_text_diff_checksum_func_get_diff(
     ): Int
     external fun ffi_text_diff_uniffi_contract_version(
@@ -687,6 +689,8 @@ internal object UniffiLib {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "text_diff"))
         
     }
+    external fun uniffi_text_diff_fn_func_combine_getdiff_results(`list`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_text_diff_fn_func_get_diff(`oldText`: RustBuffer.ByValue,`newText`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_text_diff_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -808,6 +812,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_text_diff_checksum_func_combine_getdiff_results() != 57513) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_text_diff_checksum_func_get_diff() != 64334) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1119,6 +1126,45 @@ public object FfiConverterTypeDiffResult : FfiConverterRustBuffer<DiffResult>{
     }
 }
 
+
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeDiffResult: FfiConverterRustBuffer<List<DiffResult>> {
+    override fun read(buf: ByteBuffer): List<DiffResult> {
+        val len = buf.getInt()
+        return List<DiffResult>(len) {
+            FfiConverterTypeDiffResult.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<DiffResult>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeDiffResult.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<DiffResult>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeDiffResult.write(it, buf)
+        }
+    }
+} fun `combineGetdiffResults`(`list`: List<DiffResult>): List<DiffResult> {
+            return FfiConverterSequenceTypeDiffResult.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_text_diff_fn_func_combine_getdiff_results(
+    
+        
+        FfiConverterSequenceTypeDiffResult.lower(`list`),_status)
+}
+    )
+    }
+    
  fun `getDiff`(`oldText`: kotlin.String, `newText`: kotlin.String): DiffResult {
             return FfiConverterTypeDiffResult.lift(
     uniffiRustCall() { _status ->

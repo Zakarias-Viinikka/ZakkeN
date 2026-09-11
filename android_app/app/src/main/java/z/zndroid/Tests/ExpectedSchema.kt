@@ -7,8 +7,7 @@ package z.zndroid.Tests
 object ExpectedSchema {
     val tables = mapOf(
         "every_block_in_existence" to listOf(
-            "title",
-            "page_that_owns_me",
+            "is_title",
             "content",
             "my_id_as_given_by_yrs",
             "id_of_page_i_belong_to"

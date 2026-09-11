@@ -21,6 +21,7 @@ data class AddBlockCtx(
     val content: String,          // The text content of the block
     val position: PositionToInsert = PositionToInsert.AtEnd, // Where to insert
     val metadata: String = "",    // Extra metadata (JSON, styling, etc)
+    val isTitle: Boolean = false, // Whether this is the title block
     val parentBlockId: String = "root" // Hierarchy parent
 )
 
@@ -29,7 +30,7 @@ data class AddBlockCtx(
  * and persists both the data and the sync metadata to SQLite.
  */
 object AddBlock {
-    suspend fun execute(ctx: AddBlockCtx): Result<Unit> {
+    suspend fun execute(ctx: AddBlockCtx): Result<String> {
         return try {
             // 1. Capture the "Before" state of the Yrs document
             val bookmark = createBookmarkOfSyncedState(ctx.boss)
@@ -55,10 +56,8 @@ object AddBlock {
             val sketchBytes = sketchToBytes(sketch)
             
             // 5. Build the data row for 'every_block_in_existence'
-            // We build the ColumnValue list manually because the Row helper is currently out of sync with the schema
             val blockValues = listOf(
-                ColumnValue("title", Col.Text(ctx.content)),
-                ColumnValue("page_that_owns_me", Col.Text(pageId)),
+                ColumnValue("is_title", Col.Text(if (ctx.isTitle) "true" else "false")),
                 ColumnValue("content", Col.Text(ctx.content)),
                 ColumnValue("my_id_as_given_by_yrs", Col.Text(blockId)),
                 ColumnValue("id_of_page_i_belong_to", Col.Text(pageId))
@@ -85,7 +84,7 @@ object AddBlock {
             val newSnapshot = ctx.boss.snapshot()
             DbManager.updatePageSnapshot(pageId, newSnapshot).getOrThrow()
 
-            Result.success(Unit)
+            Result.success(blockId)
         } catch (e: Exception) {
             val errorMsg = "AddBlock failed: ${e.message ?: e.toString()}"
             GlobalPopupManager.show(errorMsg)

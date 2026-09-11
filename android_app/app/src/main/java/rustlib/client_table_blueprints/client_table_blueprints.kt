@@ -690,7 +690,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row(
     ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row(
+    ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_key_value_item(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_log_row(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_page_row(
     ): Int
@@ -703,6 +707,10 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_client_table_blueprints_checksum_func_every_block_in_existence_columns(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_incoming_love_letters_columns(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_logs_columns(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_pages_columns(
     ): Int
@@ -727,9 +735,13 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_backlink_row(`pageThatHoldsLinkId`: RustBuffer.ByValue,`pageBeingLinkedToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`title`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`isTitle`: Byte,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_incoming_love_letter_row(`loveLetter`: RustBuffer.ByValue,`targetPageId`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_key_value_item(`key`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferRow.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_log_row(`level`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`source`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`message`: RustBuffer.ByValue,`details`: RustBuffer.ByValue,`detailsType`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`userId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
@@ -742,6 +754,10 @@ internal object UniffiLib {
     external fun uniffi_client_table_blueprints_fn_func_every_block_in_existence_columns(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_incoming_love_letters_columns(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_logs_columns(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_pages_columns(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -872,10 +888,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 18562) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 52600) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 758) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() != 1907) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_new_key_value_item() != 9008) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_log_row() != 22326) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_new_page_row() != 36971) {
@@ -894,6 +916,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence() != 65402) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_incoming_love_letters_columns() != 6930) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_client_table_blueprints_checksum_func_logs_columns() != 35015) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_pages_columns() != 42358) {
@@ -1100,6 +1128,70 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 /**
  * @suppress
  */
+public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
+    override fun read(buf: ByteBuffer): kotlin.String? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterString.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.String?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterString.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.String?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalByteArray: FfiConverterRustBuffer<kotlin.ByteArray?> {
+    override fun read(buf: ByteBuffer): kotlin.ByteArray? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterByteArray.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.ByteArray?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterByteArray.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.ByteArray?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterByteArray.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<ColumnDef>> {
     override fun read(buf: ByteBuffer): List<ColumnDef> {
         val len = buf.getInt()
@@ -1191,16 +1283,30 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`title`: kotlin.String, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String): Row {
+    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`isTitle`: kotlin.Boolean, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String): Row {
             return FfiConverterTypeRow.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
     
         
-        FfiConverterString.lower(`title`),
+        FfiConverterBoolean.lower(`isTitle`),
         FfiConverterString.lower(`content`),
         FfiConverterString.lower(`myIdAsGivenByYrs`),
         FfiConverterString.lower(`idOfPageIBelongTo`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `newIncomingLoveLetterRow`(`loveLetter`: kotlin.ByteArray, `targetPageId`: kotlin.String, `sessionId`: kotlin.String): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_incoming_love_letter_row(
+    
+        
+        FfiConverterByteArray.lower(`loveLetter`),
+        FfiConverterString.lower(`targetPageId`),
+        FfiConverterString.lower(`sessionId`),_status)
 }
     )
     }
@@ -1214,6 +1320,24 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
         
         FfiConverterString.lower(`key`),
         FfiConverterString.lower(`value`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `newLogRow`(`level`: kotlin.String, `category`: kotlin.String, `source`: kotlin.String, `sessionId`: kotlin.String, `message`: kotlin.String, `details`: kotlin.ByteArray?, `detailsType`: kotlin.String?): Row {
+            return FfiConverterTypeRow.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_log_row(
+    
+        
+        FfiConverterString.lower(`level`),
+        FfiConverterString.lower(`category`),
+        FfiConverterString.lower(`source`),
+        FfiConverterString.lower(`sessionId`),
+        FfiConverterString.lower(`message`),
+        FfiConverterOptionalByteArray.lower(`details`),
+        FfiConverterOptionalString.lower(`detailsType`),_status)
 }
     )
     }
@@ -1281,6 +1405,26 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
             return FfiConverterSequenceTypeForeignKeyDef.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(
+    
+        _status)
+}
+    )
+    }
+    
+ fun `incomingLoveLettersColumns`(): List<ColumnDef> {
+            return FfiConverterSequenceTypeColumnDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_incoming_love_letters_columns(
+    
+        _status)
+}
+    )
+    }
+    
+ fun `logsColumns`(): List<ColumnDef> {
+            return FfiConverterSequenceTypeColumnDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_logs_columns(
     
         _status)
 }

@@ -1111,6 +1111,7 @@ sealed class LoveLetter {
         val `textEdit`: rustlib.my_yrs_lib.TextEdit, 
         val `editTarget`: rustlib.my_yrs_lib.EditTarget, 
         val `targetPageId`: kotlin.String, 
+        val `blockId`: kotlin.String, 
         val `snapshotOfEdit`: kotlin.ByteArray) : LoveLetter()
         
     {
@@ -1181,6 +1182,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 FfiConverterTypeTextEdit.read(buf),
                 FfiConverterTypeEditTarget.read(buf),
                 FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
                 FfiConverterByteArray.read(buf),
                 )
             2 -> LoveLetter.CreateNewBlock(
@@ -1213,6 +1215,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 + FfiConverterTypeTextEdit.allocationSize(value.`textEdit`)
                 + FfiConverterTypeEditTarget.allocationSize(value.`editTarget`)
                 + FfiConverterString.allocationSize(value.`targetPageId`)
+                + FfiConverterString.allocationSize(value.`blockId`)
                 + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
             )
         }
@@ -1259,6 +1262,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 FfiConverterTypeTextEdit.write(value.`textEdit`, buf)
                 FfiConverterTypeEditTarget.write(value.`editTarget`, buf)
                 FfiConverterString.write(value.`targetPageId`, buf)
+                FfiConverterString.write(value.`blockId`, buf)
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
                 Unit
             }
@@ -1301,7 +1305,8 @@ sealed class LoveLetterSketch {
     data class EditBlock(
         val `textEdit`: rustlib.my_yrs_lib.TextEdit, 
         val `editTarget`: rustlib.my_yrs_lib.EditTarget, 
-        val `targetPageId`: kotlin.String) : LoveLetterSketch()
+        val `targetPageId`: kotlin.String, 
+        val `blockId`: kotlin.String) : LoveLetterSketch()
         
     {
         
@@ -1367,6 +1372,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 FfiConverterTypeTextEdit.read(buf),
                 FfiConverterTypeEditTarget.read(buf),
                 FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
                 )
             2 -> LoveLetterSketch.CreateNewBlock(
                 FfiConverterTypePositionToInsert.read(buf),
@@ -1394,6 +1400,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 + FfiConverterTypeTextEdit.allocationSize(value.`textEdit`)
                 + FfiConverterTypeEditTarget.allocationSize(value.`editTarget`)
                 + FfiConverterString.allocationSize(value.`targetPageId`)
+                + FfiConverterString.allocationSize(value.`blockId`)
             )
         }
         is LoveLetterSketch.CreateNewBlock -> {
@@ -1435,6 +1442,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 FfiConverterTypeTextEdit.write(value.`textEdit`, buf)
                 FfiConverterTypeEditTarget.write(value.`editTarget`, buf)
                 FfiConverterString.write(value.`targetPageId`, buf)
+                FfiConverterString.write(value.`blockId`, buf)
                 Unit
             }
             is LoveLetterSketch.CreateNewBlock -> {

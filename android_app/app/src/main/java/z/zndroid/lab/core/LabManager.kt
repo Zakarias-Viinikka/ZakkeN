@@ -67,7 +67,7 @@ fun LabContainer(content: @Composable BoxScope.() -> Unit) {
 }
 
 @Composable
-private fun SmartButton(isShining: Boolean, onClick: () -> Unit) {
+private fun BoxScope.SmartButton(isShining: Boolean, onClick: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "shining")
     val shineAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -105,7 +105,7 @@ private fun SmartButton(isShining: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SmartMenu(onDismiss: () -> Unit, onNavigateToScroll: () -> Unit) {
+private fun BoxScope.SmartMenu(onDismiss: () -> Unit, onNavigateToScroll: () -> Unit) {
     Card(
         modifier = Modifier
             .align(Alignment.BottomEnd)

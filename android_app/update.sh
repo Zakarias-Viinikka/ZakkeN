@@ -58,7 +58,6 @@ capture_hash "$KOTLIN_DEST/rustlib/my_yrs_lib/my_yrs_lib.kt"
 capture_hash "$JNI_DEST/liblove_letter.so"
 capture_hash "$KOTLIN_DEST/rustlib/love_letter/love_letter.kt"
 capture_hash "$JNI_DEST/libtext_diff.so"
-capture_hash "$JNI_DEST/libwasm_streams-37aa923dbea26273.so"
 capture_hash "$KOTLIN_DEST/rustlib/text_diff/text_diff.kt"
 
 # Clear old versions
@@ -112,7 +111,6 @@ sed -i 's/uniffi\.my_yrs_lib/rustlib.my_yrs_lib/g' "$KOTLIN_DEST/rustlib/love_le
 # Download text_diff
 echo "Fetching text_diff..."
 download_file "$TEXT_DIFF_URL/jniLibs/arm64-v8a/libtext_diff.so" "$JNI_DEST/libtext_diff.so"
-download_file "$TEXT_DIFF_URL/jniLibs/arm64-v8a/libwasm_streams-37aa923dbea26273.so" "$JNI_DEST/libwasm_streams-37aa923dbea26273.so"
 download_file "$TEXT_DIFF_URL/kotlin/rustlib/text_diff/text_diff.kt" "$KOTLIN_DEST/rustlib/text_diff/text_diff.kt"
 
 # Patch package mismatch for text_diff
