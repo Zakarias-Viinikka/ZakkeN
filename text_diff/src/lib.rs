@@ -11,4 +11,4 @@ pub mod helper;
 #[cfg(target_arch = "wasm32")]
 pub mod text_block;
 
-pub mod text_diff_batching;
+pub mod diff_batching;

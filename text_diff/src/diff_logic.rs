@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, uniffi::Enum)]
+#[derive(Debug, PartialEq, uniffi::Enum, Clone)]
 pub enum DiffResult {
     Insert(String, u32),
     Delete(String, u32),
