@@ -12,14 +12,6 @@ import z.zndroid.DocEvents.RemoveBlock
 import z.zndroid.DocEvents.RemoveBlockCtx
 
 /**
- * Determines if the current input sequence should trigger the creation of a new block.
- * Logic: Requires 3 consecutive linebreaks at the end (2 empty visual rows) to trigger.
- */
-fun isItTimeToMakeANewBlock(oldText: String, newText: String): Boolean {
-    return oldText.endsWith("\n\n") && newText.endsWith("\n\n\n")
-}
-
-/**
  * Ensures a page has at least one block (the title) when opened.
  */
 fun maybeCreateTitleBlock(
@@ -86,6 +78,7 @@ suspend fun splitBlock(
  */
 suspend fun mergeWithPreviousBlock(
     boss: BossOfYrs,
+    state: BlockUiState, // Current block state to ensure cleanup
     currentIndex: Int,
     onUpdate: (String?, Int?) -> Unit
 ) {
@@ -93,6 +86,9 @@ suspend fun mergeWithPreviousBlock(
         onUpdate(null, null)
         return
     }
+
+    // Flush/Clear the current block's buffer to prevent stale debounced writes
+    state.diffBuffer.clear()
 
     val blocks = boss.getEntirePage()
     val prevBlock = blocks[currentIndex - 1]
@@ -121,44 +117,4 @@ suspend fun mergeWithPreviousBlock(
     ).getOrThrow()
 
     onUpdate(prevBlock.idInYrs, mergePoint)
-}
-
-/**
- * The heavy "block splitting" operation. 
- * Sequentially cleans the current block, persists it, and spawns the next one.
- */
-suspend fun ManyEntersLeadsToManyBlocks(
-    boss: BossOfYrs,
-    state: BlockUiState,
-    newText: String,
-    nextPosition: Int,
-    onUpdate: (String?) -> Unit
-) {
-    // 1. Flush any pending buffered edits first to ensure CRDT consistency
-    EditTextInBlock.flushBuffer(boss, state).getOrThrow()
-
-    // 2. Persist the current block without the trailing newlines
-    val cleanedText = newText.removeSuffix("\n\n\n")
-    val oldText = state.text
-    
-    EditTextInBlock.execute(
-        EditTextInBlockCtx(
-            boss = boss,
-            blockId = state.blockId,
-            oldText = oldText,
-            newText = cleanedText
-        )
-    ).getOrThrow()
-
-    // 3. Create the new block at the specific position
-    val newBlockId = AddBlock.execute(
-        AddBlockCtx(
-            boss = boss,
-            content = "",
-            position = PositionToInsert.SpecificPosition(nextPosition.toUInt())
-        )
-    ).getOrThrow()
-
-    // 3. Trigger UI update only after both are done
-    onUpdate(newBlockId)
 }

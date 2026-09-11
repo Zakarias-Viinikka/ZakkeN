@@ -8,7 +8,7 @@
 - **Buffered Batching**: Edits are collected in `BlockUiState.diffBuffer` and "squashed" using `text_diff.combineGetdiffResults` before persistence (500ms debounce).
 - **Editing Logic**:
   - **Split**: `Enter` (without Shift) splits a block at the cursor. Text after moves to a new block.
-  - **Merge**: `Backspace` at position 0 merges current block into previous one.
+  - **Merge**: `Backspace` at position 0 merges current block into previous one. Structural changes automatically cancel pending debounce flushes to prevent race conditions.
   - **Re-use**: `ViewPage` reuses `BlockUiState` to preserve cursor/selection during UI refreshes.
 - **AI Lab**: Experimental UX testing ground in `lab/` package.
   - **Modular**: Experiments in `lab/experiments/` (e.g., `scroll`, `selection`, `undoredo`).

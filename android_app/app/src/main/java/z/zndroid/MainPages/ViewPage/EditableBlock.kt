@@ -69,32 +69,15 @@ fun EditableBlock(
                         showSlashPopup = false
                     }
 
-                    if (isItTimeToMakeANewBlock(oldText, newText)) {
-                        // 1. Logic: Triple linebreak triggers ManyEntersLeadsToManyBlocks sequentially.
-                        scope.launch {
-                            try {
-                                ManyEntersLeadsToManyBlocks(
-                                    boss = boss,
-                                    state = state,
-                                    newText = newText,
-                                    nextPosition = index + 1,
-                                    onUpdate = { newBlockId -> onRefreshWithFocus(newBlockId, null) }
-                                )
-                            } catch (e: Exception) {
-                                // Handled by inner execute calls
-                            }
-                        }
-                    } else {
-                        // 2. Buffered update
-                        val diff = getDiff(oldText, newText)
-                        state.diffBuffer.add(diff)
-                        state.textFieldValue = newValue
-                        
-                        debounceJob.value?.cancel()
-                        debounceJob.value = scope.launch {
-                            delay(500)
-                            EditTextInBlock.flushBuffer(boss, state)
-                        }
+                    // Buffered update
+                    val diff = getDiff(oldText, newText)
+                    state.diffBuffer.add(diff)
+                    state.textFieldValue = newValue
+                    
+                    debounceJob.value?.cancel()
+                    debounceJob.value = scope.launch {
+                        delay(500)
+                        EditTextInBlock.flushBuffer(boss, state)
                     }
                 },
                 modifier = Modifier
@@ -106,6 +89,8 @@ fun EditableBlock(
                                 Key.Enter -> {
                                     if (!keyEvent.isShiftPressed) {
                                         val cursor = state.textFieldValue.selection.start
+                                        // Cancel pending flush before structural change
+                                        debounceJob.value?.cancel()
                                         scope.launch {
                                             splitBlock(boss, state, cursor, index + 1) { newBlockId ->
                                                 onRefreshWithFocus(newBlockId, 0)
@@ -118,8 +103,10 @@ fun EditableBlock(
                                     val cursor = state.textFieldValue.selection.start
                                     // Merge if cursor is at the very beginning of the block
                                     if (cursor == 0) {
+                                        // Cancel pending flush before structural change
+                                        debounceJob.value?.cancel()
                                         scope.launch {
-                                            mergeWithPreviousBlock(boss, index) { targetId, cursorAt ->
+                                            mergeWithPreviousBlock(boss, state, index) { targetId, cursorAt ->
                                                 onRefreshWithFocus(targetId, cursorAt)
                                             }
                                         }

@@ -129,7 +129,7 @@ object EditTextInBlock {
             if (squashed.isEmpty()) return Result.success(Unit)
 
             // 2. Capture baseline for CRDT diff
-            val bookmark = createBookmarkOfSyncedState(boss)
+            var currentBookmark = createBookmarkOfSyncedState(boss)
             val pageId = boss.pageId()
             val sessionId = SessionManager.currentSessionId
 
@@ -155,16 +155,18 @@ object EditTextInBlock {
                 val sketchBytes = sketchToBytes(sketch)
 
                 // 5. Build sync row
-                // We generate a snapshot of the specific change since the bookmark
-                // Note: If we have multiple diffs, we might want to generate a snapshot after EACH one 
-                // to be strictly correct, but usually squashing leads to one.
-                val diffSnapshot = generateDiffSnapshot(boss, bookmark)
+                // We generate a snapshot of the specific change since the last operation in this batch
+                val diffSnapshot = generateDiffSnapshot(boss, currentBookmark)
                 val diffRow = newUncommittedDiffRow(
                     snapshotOfEdit = diffSnapshot,
                     loveLetterSketch = sketchBytes,
                     sessionId = sessionId,
                     targetId = state.blockId
                 )
+                
+                // Refresh bookmark for the next iteration to ensure incremental snapshots
+                currentBookmark = createBookmarkOfSyncedState(boss)
+
                 val diffCols = uncommittedDiffsColumns()
                 val diffValues = diffRow.cols.mapIndexed { index, col ->
                     ColumnValue(diffCols[index + 1].name, col)

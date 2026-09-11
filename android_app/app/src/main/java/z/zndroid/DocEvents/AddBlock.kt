@@ -6,8 +6,9 @@ import rustlib.my_yrs_lib.createBookmarkOfSyncedState
 import rustlib.my_yrs_lib.generateDiffSnapshot
 import rustlib.love_letter.*
 import rustlib.client_table_blueprints.newUncommittedDiffRow
-import rustlib.client_table_blueprints.everyBlockInExistenceColumns
 import rustlib.client_table_blueprints.uncommittedDiffsColumns
+import rustlib.client_table_blueprints.newEveryBlockInExistenceRow
+import rustlib.client_table_blueprints.everyBlockInExistenceColumns
 import z.zndroid.DbManager
 import uniffi.protocol.*
 import z.zndroid.components.GlobalPopupManager
@@ -55,13 +56,18 @@ object AddBlock {
             )
             val sketchBytes = sketchToBytes(sketch)
             
-            // 5. Build the data row for 'every_block_in_existence'
-            val blockValues = listOf(
-                ColumnValue("is_title", Col.Text(if (ctx.isTitle) "true" else "false")),
-                ColumnValue("content", Col.Text(ctx.content)),
-                ColumnValue("my_id_as_given_by_yrs", Col.Text(blockId)),
-                ColumnValue("id_of_page_i_belong_to", Col.Text(pageId))
+            // 5. Build the data row for 'every_block_in_existence' using Rust helpers
+            val blockRow = newEveryBlockInExistenceRow(
+                isTitle = ctx.isTitle,
+                content = ctx.content,
+                myIdAsGivenByYrs = blockId,
+                idOfPageIBelongTo = pageId
             )
+            val blockCols = everyBlockInExistenceColumns()
+            val blockValues = blockRow.cols.mapIndexed { index, col ->
+                // index + 1 to skip the auto-increment 'id' column
+                ColumnValue(blockCols[index + 1].name, col)
+            }
 
             // 6. Build the sync row for 'uncommitted_diffs'
             val diffRow = newUncommittedDiffRow(
