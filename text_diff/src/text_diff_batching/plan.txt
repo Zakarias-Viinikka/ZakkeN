@@ -1,0 +1,48 @@
+final rewrite plan.
+
+the problems with all the other solutions have been stuff like:
+
+*it's complicated to program and takes a lot of time to do so
+*the android or wasm32 compile target complicate stuff to an extreme degree but also async
+*nasty edge cases
+*even the better solutions require a relatively complicated caller side
+
+##what i've learnt is basically that:
+ cross language boundary or async code doesn't follow the same instincts for coding.
+
+ specifically.
+
+ sharing context across languages or async is possible but it makes stuff very complicated.
+
+ therefore making the caller do more work and reducing the library to very simplified helpers is ideal.
+
+ for my project this isn't worth it, because my priority is good enough until i have all the basic functionality.
+
+ as long as i have the option of changing it later without too much of a hassle that would be ideal.
+
+ ##new plan
+
+ caller owns a list of diffResults
+ vec<diff_logic::DiffResult>
+
+ whenever user does an input to a text box it gets parsed by diff_logic::get_diff()
+
+ which means a O(n) cost for every user input, where n is the char count of a text block. this is unideal
+ but it drastically reduces complexity and i can improve this later if i need to (will get into details in a bit)
+
+ this also means something needs to also track "id of block last being edited" (and maybe even the page)
+ but this is a detail that isn't really hard to figure out in implementation.
+
+ then there are two conditions for batching.
+
+ either a timer runs out or the list becomes too big and it automatically decides "just commit the batch now"
+
+ so the caller is in charge of the timer and otherwise the "when to batch" is really simple.
+
+ this avoids an async callback through ffi.
+
+ 'when to batch' can later also be rewritten so it checks for stuff like linebreaks or spaces or it can be owned by "not the text block" and be called on whatever other condition
+
+ then the only new code in this library will be: "combine DiffResults when it makes sense"
+
+ so caller does squashed_list = smash_shit_together_when_reasonable(shit_to_smash_together)
