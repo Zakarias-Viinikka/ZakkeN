@@ -14,7 +14,7 @@ pub fn every_block_in_existence_columns() -> Vec<ColumnDef> {
 #[uniffi::export]
 pub fn get_foreign_def_every_block_in_existence() -> Vec<ForeignKeyDef> {
     vec![ForeignKeyDef {
-        column: "page_that_owns_me".to_string(),
+        column: "id_of_page_i_belong_to".to_string(),
         referenced_table: "pages".to_string(),
         referenced_column: "page_id".to_string(),
     }]

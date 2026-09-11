@@ -35,6 +35,7 @@ pub enum LoveLetterSketch {
         text_edit: TextEdit,
         edit_target: EditTarget,
         target_page_id: String,
+        block_id: String, //so the client can get a love letter back and know which part of the ui to reload
     },
     CreateNewBlock {
         position_to_insert: PositionToInsert,
@@ -58,6 +59,7 @@ pub enum LoveLetter {
         text_edit: TextEdit,
         edit_target: EditTarget,
         target_page_id: String,
+        block_id: String, // so the client can get a love letter back and know which part of the ui to reload
         snapshot_of_edit: Vec<u8>,
     },
     CreateNewBlock {
@@ -87,10 +89,12 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
             text_edit,
             edit_target,
             target_page_id,
+            block_id,
         } => LoveLetter::EditBlock {
             text_edit,
             edit_target,
             target_page_id,
+            block_id,
             snapshot_of_edit,
         },
         LoveLetterSketch::CreateNewBlock {

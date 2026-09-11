@@ -19,3 +19,20 @@
 //   - use crate name, not crate::
 //   - wasm-pack test --node (browser gave driver issues)
 // ============================================================
+
+
+// ============================================================
+// UniFFI + wasm32
+// ============================================================
+//
+// If a crate uses uniffi AND targets wasm32, enable:
+//
+//   uniffi = { version = "0.32",
+//              features = ["cli", "wasm-unstable-single-threaded"] }
+//
+// Without it, wasm32 builds fail with a misleading internal error:
+//
+//   uniffi::constructor: internal error:
+//   proc-macro map is missing error entry for crate Crate(Id(NNN))
+//
+// ============================================================

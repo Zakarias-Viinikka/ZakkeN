@@ -93,12 +93,67 @@ pub fn new_key_value_item(key: String, value: String) -> Result<Row, YrsError> {
     })
 }
 
+#[uniffi::export]
+pub fn new_log_row(
+    level: String,
+    category: String,
+    source: String,
+    session_id: String,
+    message: String,
+    details: Option<Vec<u8>>,
+    details_type: Option<String>,
+) -> Result<Row, YrsError> {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    Ok(Row {
+        cols: vec![
+            Col::Integer(timestamp),
+            Col::Text(level),
+            Col::Text(category),
+            Col::Text(source),
+            Col::Text(session_id),
+            Col::Text(message),
+            details.map(Col::Blob).unwrap_or(Col::Null),
+            details_type.map(Col::Text).unwrap_or(Col::Null),
+        ],
+    })
+}
+
+#[uniffi::export]
+pub fn new_incoming_love_letter_row(
+    love_letter: Vec<u8>,
+    target_page_id: String,
+    session_id: String,
+) -> Result<Row, YrsError> {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    Ok(Row {
+        cols: vec![
+            Col::Blob(love_letter),
+            Col::Text(target_page_id),
+            Col::Integer(timestamp),
+            Col::Text("false".to_string()),
+            Col::Text(session_id),
+        ],
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::key_value_storage::key_value_storage_columns;
-    use crate::tbl_backlinks::backlinks_columns;
-    use crate::tbl_every_block_in_existence::every_block_in_existence_columns;
+    use crate::tbl_backlinks::{backlinks_columns, get_foreign_def_backlinks};
+    use crate::tbl_every_block_in_existence::{
+        every_block_in_existence_columns, get_foreign_def_every_block_in_existence,
+    };
+    use crate::tbl_incoming_love_letters::incoming_love_letters_columns;
+    use crate::tbl_logs::logs_columns;
     use crate::tbl_pages::pages_columns;
     use crate::tbl_uncommitted_diffs::uncommitted_diffs_columns;
     use protocol::{
@@ -199,5 +254,69 @@ mod tests {
     fn test_new_key_value_item_matches_table() {
         let row = new_key_value_item("key".to_string(), "value".to_string()).unwrap();
         assert_row_matches_table(&row, &key_value_storage_columns(), "new_key_value_item");
+    }
+
+    #[test]
+    fn test_new_log_row_matches_table() {
+        let row = new_log_row(
+            "info".to_string(),
+            "sync".to_string(),
+            "backend".to_string(),
+            "session123".to_string(),
+            "something happened".to_string(),
+            Some(vec![1, 2, 3]),
+            Some("SyncError".to_string()),
+        )
+        .unwrap();
+        assert_row_matches_table(&row, &logs_columns(), "new_log_row");
+    }
+
+    #[test]
+    fn test_new_incoming_love_letter_row_matches_table() {
+        let row = new_incoming_love_letter_row(
+            vec![1, 2, 3],
+            "page_id".to_string(),
+            "session123".to_string(),
+        )
+        .unwrap();
+        assert_row_matches_table(
+            &row,
+            &incoming_love_letters_columns(),
+            "new_incoming_love_letter_row",
+        );
+    }
+
+    // Checks that every FK's `column` field actually exists in the table it claims to belong to.
+    fn assert_fk_columns_exist(
+        fks: &[protocol::new_table::ForeignKeyDef],
+        table_def: &[ColumnDef],
+        helper_name: &str,
+    ) {
+        for fk in fks {
+            let exists = table_def.iter().any(|c| c.name == fk.column);
+            assert!(
+                exists,
+                "{}: foreign key references column '{}' which does not exist in the table definition",
+                helper_name, fk.column
+            );
+        }
+    }
+
+    #[test]
+    fn test_backlinks_foreign_keys_valid() {
+        assert_fk_columns_exist(
+            &get_foreign_def_backlinks(),
+            &backlinks_columns(),
+            "backlinks",
+        );
+    }
+
+    #[test]
+    fn test_every_block_in_existence_foreign_keys_valid() {
+        assert_fk_columns_exist(
+            &get_foreign_def_every_block_in_existence(),
+            &every_block_in_existence_columns(),
+            "every_block_in_existence",
+        );
     }
 }
