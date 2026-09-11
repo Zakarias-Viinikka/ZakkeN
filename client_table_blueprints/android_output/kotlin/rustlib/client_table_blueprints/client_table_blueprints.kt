@@ -735,7 +735,7 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_backlink_row(`pageThatHoldsLinkId`: RustBuffer.ByValue,`pageBeingLinkedToId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`title`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`isTitle`: Byte,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_incoming_love_letter_row(`loveLetter`: RustBuffer.ByValue,`targetPageId`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferRow.ByValue
@@ -888,7 +888,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() != 18562) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 52600) {
+    if (lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() != 758) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() != 1907) {
@@ -1283,13 +1283,13 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`title`: kotlin.String, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String): Row {
+    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`isTitle`: kotlin.Boolean, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String): Row {
             return FfiConverterTypeRow.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
     
         
-        FfiConverterString.lower(`title`),
+        FfiConverterBoolean.lower(`isTitle`),
         FfiConverterString.lower(`content`),
         FfiConverterString.lower(`myIdAsGivenByYrs`),
         FfiConverterString.lower(`idOfPageIBelongTo`),_status)

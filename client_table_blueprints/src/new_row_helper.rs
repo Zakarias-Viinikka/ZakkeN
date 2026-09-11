@@ -35,14 +35,18 @@ pub fn new_page_row(
 
 #[uniffi::export]
 pub fn new_every_block_in_existence_row(
-    title: String,
+    is_title: bool,
     content: String,
     my_id_as_given_by_yrs: String,
     id_of_page_i_belong_to: String,
 ) -> Result<Row, YrsError> {
     Ok(Row {
         cols: vec![
-            Col::Text(title),
+            Col::Text(if is_title {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            }),
             Col::Text(content),
             Col::Text(my_id_as_given_by_yrs),
             Col::Text(id_of_page_i_belong_to),
@@ -215,7 +219,7 @@ mod tests {
     #[test]
     fn test_new_every_block_in_existence_row_matches_table() {
         let row = new_every_block_in_existence_row(
-            "Title".to_string(),
+            true,
             "content".to_string(),
             "my_yrs_id".to_string(),
             "page_id".to_string(),
