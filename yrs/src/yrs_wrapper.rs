@@ -445,22 +445,6 @@ impl BossOfYrs {
         )
     }
 
-    pub fn get_user_id(self: Arc<Self>) -> Result<u64, YrsError> {
-        prevent_deadlock(
-            DeadlockCtx::new(
-                "get_user_id",
-                file!(),
-                DeadlockPrediction::ProbablyJustADeadlock,
-            ),
-            move || {
-                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
-                    info: error_info("lock poisoned", "get_user_id"),
-                })?;
-                Ok(doc.client_id().get())
-            },
-        )
-    }
-
     pub fn snapshot(self: Arc<Self>) -> Result<Vec<u8>, YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(

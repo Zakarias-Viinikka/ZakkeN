@@ -23,7 +23,6 @@ fn call_all_methods_and_helpers_without_errors() {
     // Public methods on BossOfYrs
     let _ = Arc::clone(&boss).get_entire_page().unwrap();
     let _ = Arc::clone(&boss).show_doc_info().unwrap();
-    let _ = Arc::clone(&boss).get_user_id().unwrap();
     let _ = Arc::clone(&boss).snapshot().unwrap();
 
     // edit_text_block (both Text and Meta targets)
