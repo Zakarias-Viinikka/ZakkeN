@@ -32,7 +32,8 @@ fun EditableBlock(
     index: Int,
     boss: BossOfYrs,
     scope: CoroutineScope,
-    onRefreshWithFocus: (String?, Int?) -> Unit
+    onRefreshWithFocus: (String?, Int?) -> Unit,
+    onHardReload: () -> Unit
 ) {
     val isTitle = index == 0
     val textStyle = if (isTitle) {
@@ -77,7 +78,7 @@ fun EditableBlock(
                     debounceJob.value?.cancel()
                     debounceJob.value = scope.launch {
                         delay(500)
-                        EditTextInBlock.flushBuffer(boss, state)
+                        EditTextInBlock.flushBuffer(boss, state, onHardReload)
                     }
                 },
                 modifier = Modifier
@@ -92,7 +93,7 @@ fun EditableBlock(
                                         // Cancel pending flush before structural change
                                         debounceJob.value?.cancel()
                                         scope.launch {
-                                            splitBlock(boss, state, cursor, index + 1) { newBlockId ->
+                                            splitBlock(boss, state, cursor, index + 1, onHardReload) { newBlockId ->
                                                 onRefreshWithFocus(newBlockId, 0)
                                             }
                                         }

@@ -41,10 +41,11 @@ suspend fun splitBlock(
     state: BlockUiState,
     cursorPosition: Int,
     nextPosition: Int,
+    onHardReload: () -> Unit,
     onUpdate: (String?) -> Unit
 ) {
     // 1. Flush any pending buffered edits first
-    EditTextInBlock.flushBuffer(boss, state).getOrThrow()
+    EditTextInBlock.flushBuffer(boss, state, onHardReload).getOrThrow()
 
     val fullText = state.text
     val head = fullText.substring(0, cursorPosition)

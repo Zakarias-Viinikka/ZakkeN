@@ -6,6 +6,7 @@ import uniffi.protocol.ColumnValue
 import uniffi.protocol.CreateTableIn
 import uniffi.protocol.InsertDataIn
 import z.zndroid.DbManager
+import z.zndroid.protocol.SafeRowMapper
 import java.util.UUID
 
 /**
@@ -16,17 +17,19 @@ object StorageInitializer {
     /**
      * Ensures all necessary storage tables exist and initial values are populated.
      */
-    fun create_all_these_things_if_they_dont_exist() {
-        // 1. Create the table if it doesn't exist
-        DbManager.executeNative { 
-            it.createTable(CreateTableIn("key_value_storage", keyValueStorageColumns()))
-        }
+    suspend fun create_all_these_things_if_they_dont_exist() {
+        DbManager.withTransaction {
+            // 1. Create the table if it doesn't exist
+            DbManager.executeNative { 
+                it.createTable(CreateTableIn("key_value_storage", keyValueStorageColumns()))
+            }.getOrThrow()
 
-        // 2. Ensure the default records exist
-        ensureUserIdExists()
+            // 2. Ensure the default records exist
+            ensureUserIdExists()
+        }
     }
 
-    private fun ensureUserIdExists() {
+    private suspend fun ensureUserIdExists() {
         when (val res = StorageAccess.rummage_in_storage(StorageKey.USER_ID)) {
             is RummageResult.StringValue -> {
                 // Already exists, nothing to do
@@ -35,12 +38,13 @@ object StorageInitializer {
                 // Generate and store new User ID
                 val newId = UUID.randomUUID().toString()
                 val row = newKeyValueItem("user_id", newId)
-                val columnDefs = keyValueStorageColumns()
                 
-                // Map columns directly (No ID column to skip)
-                val values = row.cols.mapIndexed { index, col ->
-                    ColumnValue(columnDefs[index].name, col)
-                }
+                val values = SafeRowMapper.mapRow(
+                    row = row,
+                    columnDefs = keyValueStorageColumns(),
+                    expectedNames = listOf("key", "value"),
+                    skipId = false // No auto-increment ID in this table
+                )
                 
                 DbManager.insertData(InsertDataIn("key_value_storage", values))
             }

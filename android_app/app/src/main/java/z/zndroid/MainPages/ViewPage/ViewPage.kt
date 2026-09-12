@@ -35,6 +35,9 @@ fun ViewPage(
     var uiStates by remember { mutableStateOf(emptyList<BlockUiState>()) }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
+    
+    // Recovery mechanism: incrementing this forces a full rebuild of the BossOfYrs from DB.
+    var reloadToken by remember { mutableStateOf(0) }
 
     fun updateUI(focusId: String? = null, cursorPos: Int? = null) {
         boss?.let {
@@ -64,12 +67,16 @@ fun ViewPage(
         }
     }
 
-    LaunchedEffect(pageId) {
+    LaunchedEffect(pageId, reloadToken) {
         ViewPageLogs.logPageInit(pageId)
         // Update current document in both FastStorage and KeyValueStorage
         StorageAccess.setValue(StorageKey.CURRENT_DOCUMENT, pageId)
 
         isLoading = true
+        // Clean up old boss if this is a reload
+        boss?.destroy()
+        boss = null
+        
         DbManager.awaitReady()
         
         DbManager.getPage(pageId).onSuccess { row ->
@@ -199,9 +206,16 @@ fun ViewPage(
                         }
                     } else {
                         itemsIndexed(uiStates, key = { _, state -> state.blockId }) { index, state ->
-                            EditableBlock(state, index, boss!!, coroutineScope, onRefreshWithFocus = { id, pos ->
-                                updateUI(focusId = id, cursorPos = pos)
-                            })
+                            EditableBlock(
+                                state = state,
+                                index = index,
+                                boss = boss!!,
+                                scope = coroutineScope,
+                                onRefreshWithFocus = { id, pos ->
+                                    updateUI(focusId = id, cursorPos = pos)
+                                },
+                                onHardReload = { reloadToken++ }
+                            )
                         }
                     }
                 }

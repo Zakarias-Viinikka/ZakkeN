@@ -8,7 +8,8 @@ object RegisterTests {
     val allTests: List<AppTest> = listOf(
         SessionMonotonicityTest(),
         SchemaSyncTest(),
-        PageDataSyncTest()
+        PageDataSyncTest(),
+        TransactionTest()
     )
 }
 

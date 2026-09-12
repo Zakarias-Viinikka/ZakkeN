@@ -11,6 +11,7 @@ import rustlib.client_table_blueprints.*
 import z.zndroid.Storage.SessionManager
 import z.zndroid.components.GlobalPopupManager
 import z.zndroid.MainPages.ViewPage.BlockUiState
+import z.zndroid.protocol.SafeRowMapper
 
 /**
  * Context required to edit text within a block.
@@ -65,46 +66,49 @@ object EditTextInBlock {
             )
             val sketchBytes = sketchToBytes(sketch)
             
-            // 7. Update sync table 'uncommitted_diffs'
-            val diffRow = newUncommittedDiffRow(
-                snapshotOfEdit = diff,
-                loveLetterSketch = sketchBytes,
-                sessionId = sessionId,
-                targetId = ctx.blockId 
-            )
-            val diffCols = uncommittedDiffsColumns()
-            val diffValues = diffRow.cols.mapIndexed { index, col ->
-                // index + 1 to skip the auto-increment 'id' column
-                ColumnValue(diffCols[index + 1].name, col)
-            }
-            DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
+            // 7. Persistence to SQLite
+            DbManager.withTransaction {
+                // Update sync table 'uncommitted_diffs'
+                val diffRow = newUncommittedDiffRow(
+                    snapshotOfEdit = diff,
+                    loveLetterSketch = sketchBytes,
+                    sessionId = sessionId,
+                    targetId = ctx.blockId 
+                )
+                val diffValues = SafeRowMapper.mapRow(
+                    row = diffRow,
+                    columnDefs = uncommittedDiffsColumns(),
+                    expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
+                )
+                DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
 
-            // 8. Update queryable block table 'every_block_in_existence'
-            // First, find the internal auto-increment ID
-            val queryRes = DbManager.getData(GetDataIn(
-                "every_block_in_existence",
-                listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId)),
-                emptyList()
-            )).getOrThrow()
-
-            if (queryRes.rows.isNotEmpty()) {
-                val internalId = when (val idCol = queryRes.rows.first().cols.first()) {
-                    is Col.Integer -> idCol.v1.toString()
-                    else -> throw Exception("Failed to get internal ID for block ${ctx.blockId}")
-                }
-
-                // Update content
-                DbManager.editColInRow(EditColInRowIn(
-                    tableName = "every_block_in_existence",
-                    rowId = internalId,
-                    column = "content",
-                    newValue = Col.Text(ctx.newText)
+                // 8. Update queryable block table 'every_block_in_existence'
+                // First, find the internal auto-increment ID
+                val queryRes = DbManager.getData(GetDataIn(
+                    "every_block_in_existence",
+                    listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId, null)),
+                    emptyList()
                 )).getOrThrow()
-            }
-            
-            // 9. Update the full page snapshot in the 'pages' table
-            val newSnapshot = ctx.boss.snapshot()
-            DbManager.updatePageSnapshot(pageId, newSnapshot).getOrThrow()
+
+                if (queryRes.rows.isNotEmpty()) {
+                    val internalId = when (val idCol = queryRes.rows.first().cols.first()) {
+                        is Col.Integer -> idCol.v1.toString()
+                        else -> throw Exception("Failed to get internal ID for block ${ctx.blockId}")
+                    }
+
+                    // Update content
+                    DbManager.editColInRow(EditColInRowIn(
+                        tableName = "every_block_in_existence",
+                        rowId = internalId,
+                        column = "content",
+                        newValue = Col.Text(ctx.newText)
+                    )).getOrThrow()
+                }
+                
+                // 9. Update the full page snapshot in the 'pages' table
+                val newSnapshot = ctx.boss.snapshot()
+                DbManager.updatePageSnapshot(pageId, newSnapshot).getOrThrow()
+            }.getOrThrow()
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -116,95 +120,106 @@ object EditTextInBlock {
 
     /**
      * Flushes the buffered edits for a block, squashing them first.
+     * Strict "all-or-nothing" model: if it fails, the in-memory state is discarded
+     * and a page reload is required to recover from the last successful DB snapshot.
      */
-    suspend fun flushBuffer(boss: BossOfYrs, state: BlockUiState): Result<Unit> {
+    suspend fun flushBuffer(
+        boss: BossOfYrs,
+        state: BlockUiState,
+        onHardReload: () -> Unit
+    ): Result<Unit> {
         if (state.diffBuffer.isEmpty()) return Result.success(Unit)
 
+        // 1. Snapshot the buffer and clear it immediately. 
+        // We don't retry; the authoritative state is the last successful flush in DB.
+        val itemsToFlush = state.diffBuffer.toList()
+        state.diffBuffer.clear()
+
         return try {
-            val bufferCopy = state.diffBuffer.toList()
-            state.diffBuffer.clear()
+            DbManager.withTransaction {
+                // 2. Squash the snapshot using the Rust library
+                val squashed = combineGetdiffResults(itemsToFlush)
+                if (squashed.isEmpty()) return@withTransaction
 
-            // 1. Squash the edits using the Rust library
-            val squashed = combineGetdiffResults(bufferCopy)
-            if (squashed.isEmpty()) return Result.success(Unit)
+                // 3. Capture baseline for CRDT diff
+                var currentBookmark = createBookmarkOfSyncedState(boss)
+                val pageId = boss.pageId()
+                val sessionId = SessionManager.currentSessionId
+                val colDefs = uncommittedDiffsColumns()
+                val expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
 
-            // 2. Capture baseline for CRDT diff
-            var currentBookmark = createBookmarkOfSyncedState(boss)
-            val pageId = boss.pageId()
-            val sessionId = SessionManager.currentSessionId
+                // 4. Apply each squashed edit to in-memory BossOfYrs
+                squashed.forEach { diff ->
+                    val textEdit = when (diff) {
+                        is DiffResult.Insert -> TextEdit.Insert(diff.v1, diff.v2)
+                        is DiffResult.Delete -> TextEdit.Delete(diff.v1, diff.v2)
+                        is DiffResult.Replace -> TextEdit.Replace(diff.oldText, diff.newText, diff.position)
+                        else -> return@forEach
+                    }
 
-            // 3. Apply each squashed edit
-            squashed.forEach { diff ->
-                val textEdit = when (diff) {
-                    is DiffResult.Insert -> TextEdit.Insert(diff.v1, diff.v2)
-                    is DiffResult.Delete -> TextEdit.Delete(diff.v1, diff.v2)
-                    is DiffResult.Replace -> TextEdit.Replace(diff.oldText, diff.newText, diff.position)
-                    else -> return@forEach
+                    boss.editTextBlock(state.blockId, textEdit, EditTarget.TEXT)
+
+                    // 5. Build sync row
+                    val diffSnapshot = generateDiffSnapshot(boss, currentBookmark)
+                    val sketch = LoveLetterSketch.EditBlock(
+                        textEdit = textEdit,
+                        editTarget = EditTarget.TEXT,
+                        targetPageId = pageId,
+                        blockId = state.blockId
+                    )
+                    val sketchBytes = sketchToBytes(sketch)
+                    
+                    val diffRow = newUncommittedDiffRow(
+                        snapshotOfEdit = diffSnapshot,
+                        loveLetterSketch = sketchBytes,
+                        sessionId = sessionId,
+                        targetId = state.blockId
+                    )
+                    
+                    // Refresh bookmark for incremental snapshots
+                    currentBookmark = createBookmarkOfSyncedState(boss)
+
+                    // 6. DB Write Part 1: uncommitted_diffs
+                    val diffValues = SafeRowMapper.mapRow(diffRow, colDefs, expectedNames)
+                    DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
                 }
 
-                // Apply to CRDT
-                boss.editTextBlock(state.blockId, textEdit, EditTarget.TEXT)
-
-                // 4. Create sync intent (LoveLetterSketch) for this edit
-                val sketch = LoveLetterSketch.EditBlock(
-                    textEdit = textEdit,
-                    editTarget = EditTarget.TEXT,
-                    targetPageId = pageId,
-                    blockId = state.blockId
-                )
-                val sketchBytes = sketchToBytes(sketch)
-
-                // 5. Build sync row
-                // We generate a snapshot of the specific change since the last operation in this batch
-                val diffSnapshot = generateDiffSnapshot(boss, currentBookmark)
-                val diffRow = newUncommittedDiffRow(
-                    snapshotOfEdit = diffSnapshot,
-                    loveLetterSketch = sketchBytes,
-                    sessionId = sessionId,
-                    targetId = state.blockId
-                )
-                
-                // Refresh bookmark for the next iteration to ensure incremental snapshots
-                currentBookmark = createBookmarkOfSyncedState(boss)
-
-                val diffCols = uncommittedDiffsColumns()
-                val diffValues = diffRow.cols.mapIndexed { index, col ->
-                    ColumnValue(diffCols[index + 1].name, col)
-                }
-                DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
-            }
-
-            // 6. Update the main queryable tables ONCE for the whole batch
-            val queryRes = DbManager.getData(GetDataIn(
-                "every_block_in_existence",
-                listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", state.blockId)),
-                emptyList()
-            )).getOrThrow()
-
-            if (queryRes.rows.isNotEmpty()) {
-                val internalId = when (val idCol = queryRes.rows.first().cols.first()) {
-                    is Col.Integer -> idCol.v1.toString()
-                    else -> throw Exception("Failed to get internal ID for block ${state.blockId}")
-                }
-                DbManager.editColInRow(EditColInRowIn(
-                    tableName = "every_block_in_existence",
-                    rowId = internalId,
-                    column = "content",
-                    newValue = Col.Text(state.text)
+                // 7. DB Write Part 2: update every_block_in_existence
+                val queryRes = DbManager.getData(GetDataIn(
+                    "every_block_in_existence",
+                    listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", state.blockId, null)),
+                    emptyList()
                 )).getOrThrow()
-            }
 
-            // 7. Update the full page snapshot
-            val newSnapshot = boss.snapshot()
-            DbManager.updatePageSnapshot(pageId, newSnapshot).getOrThrow()
+                if (queryRes.rows.isNotEmpty()) {
+                    val internalId = when (val idCol = queryRes.rows.first().cols.first()) {
+                        is Col.Integer -> idCol.v1.toString()
+                        else -> throw Exception("Failed to get internal ID for block ${state.blockId}")
+                    }
+                    DbManager.editColInRow(EditColInRowIn(
+                        tableName = "every_block_in_existence",
+                        rowId = internalId,
+                        column = "content",
+                        newValue = Col.Text(state.text)
+                    )).getOrThrow()
+                }
 
-            // 8. Update tracking state
+                // 8. DB Write Part 3: update pages.blobbed_page (Authoritative State)
+                val newSnapshot = boss.snapshot()
+                DbManager.updatePageSnapshot(pageId, newSnapshot).getOrThrow()
+            }.getOrThrow()
+
+            // 9. Success: Update tracking state
             state.lastPersistedText = state.text
-
             Result.success(Unit)
+
         } catch (e: Exception) {
-            val errorMsg = "FlushBuffer failed: ${e.message ?: e.toString()}"
+            // Failure Recovery: discard in-memory state and reload from DB.
+            val errorMsg = "Something went wrong and your edits couldn't be saved. " +
+                           "Reload the page to recover a consistent state. " +
+                           "If there's anything important on screen that you don't want to lose, copy it now before reloading."
             GlobalPopupManager.show(errorMsg)
+            onHardReload() 
             Result.failure(e)
         }
     }

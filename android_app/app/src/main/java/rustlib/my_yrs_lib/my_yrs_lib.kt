@@ -707,8 +707,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(
     ): Int
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_user_id(
-    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with(
@@ -801,8 +799,6 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -990,9 +986,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 48765) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_user_id() != 42986) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 18942) {
@@ -1217,29 +1210,6 @@ public object FfiConverterUInt: FfiConverter<UInt, Int> {
 /**
  * @suppress
  */
-public object FfiConverterULong: FfiConverter<ULong, Long> {
-    override fun lift(value: Long): ULong {
-        return value.toULong()
-    }
-
-    override fun read(buf: ByteBuffer): ULong {
-        return lift(buf.getLong())
-    }
-
-    override fun lower(value: ULong): Long {
-        return value.toLong()
-    }
-
-    override fun allocationSize(value: ULong) = 8UL
-
-    override fun write(value: ULong, buf: ByteBuffer) {
-        buf.putLong(value.toLong())
-    }
-}
-
-/**
- * @suppress
- */
 public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
     override fun lift(value: Byte): Boolean {
         return value.toInt() != 0
@@ -1440,8 +1410,6 @@ public interface BossOfYrsInterface {
     
     fun `getEntirePage`(): List<Block>
     
-    fun `getUserId`(): kotlin.ULong
-    
     fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
     
     fun `mergeWith`(`other`: BossOfYrs)
@@ -1607,20 +1575,6 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(
-        it,
-        _status)
-}
-    }
-    )
-    }
-    
-
-    
-    @Throws(YrsException::class)override fun `getUserId`(): kotlin.ULong {
-            return FfiConverterULong.lift(
-    callWithHandle {
-    uniffiRustCallWithError(YrsException) { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_get_user_id(
         it,
         _status)
 }

@@ -44,7 +44,7 @@ object CheckIfTablesInSync {
             // 2. Fetch SQLite blocks from 'every_block_in_existence'
             val sqliteData = DbManager.getData(GetDataIn(
                 tableName = "every_block_in_existence",
-                arguments = listOf(SelectArgument.XEqualY("id_of_page_i_belong_to", pageId)),
+                arguments = listOf(SelectArgument.XEqualY("id_of_page_i_belong_to", pageId, null)),
                 columnsToRead = emptyList()
             )).getOrThrow()
 

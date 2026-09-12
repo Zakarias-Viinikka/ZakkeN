@@ -34,8 +34,13 @@ class TransactionTest : AppTest {
                 return TestResult(name, false, "Transaction reported success despite exception")
             }
             
-            val rummageRes = z.zndroid.Storage.StorageAccess.rummage_in_storage(z.zndroid.Storage.StorageKey.CUSTOM(testKey))
-            if (rummageRes !is z.zndroid.Storage.RummageResult.NotFound) {
+            val queryRes = DbManager.getData(GetDataIn(
+                "key_value_storage",
+                listOf(SelectArgument.XEqualY("key", testKey, null)),
+                emptyList()
+            )).getOrThrow()
+            
+            if (queryRes.rows.isNotEmpty()) {
                 return TestResult(name, false, "Rollback failed: key '$testKey' was persisted")
             }
 
@@ -55,11 +60,22 @@ class TransactionTest : AppTest {
                 return TestResult(name, false, "Successful transaction reported failure: ${successResult.exceptionOrNull()}")
             }
 
-            val val1 = z.zndroid.Storage.StorageAccess.rummage_in_storage(z.zndroid.Storage.StorageKey.CUSTOM(testKey))
-            val val2 = z.zndroid.Storage.StorageAccess.rummage_in_storage(z.zndroid.Storage.StorageKey.CUSTOM(testKey + "_nested"))
+            val query1 = DbManager.getData(GetDataIn(
+                "key_value_storage",
+                listOf(SelectArgument.XEqualY("key", testKey, null)),
+                emptyList()
+            )).getOrThrow()
+            
+            val query2 = DbManager.getData(GetDataIn(
+                "key_value_storage",
+                listOf(SelectArgument.XEqualY("key", testKey + "_nested", null)),
+                emptyList()
+            )).getOrThrow()
 
-            if (val1 is z.zndroid.Storage.RummageResult.StringValue && val1.value == "stage_1" &&
-                val2 is z.zndroid.Storage.RummageResult.StringValue && val2.value == "nested_val") {
+            val val1 = (query1.rows.firstOrNull()?.cols?.getOrNull(1) as? Col.Text)?.v1
+            val val2 = (query2.rows.firstOrNull()?.cols?.getOrNull(1) as? Col.Text)?.v1
+
+            if (val1 == "stage_1" && val2 == "nested_val") {
                 TestResult(name, true, "Transactions passed: Rollback works, Re-entrancy works, Persistence works.")
             } else {
                 TestResult(name, false, "Persistence verification failed. Val1: $val1, Val2: $val2")

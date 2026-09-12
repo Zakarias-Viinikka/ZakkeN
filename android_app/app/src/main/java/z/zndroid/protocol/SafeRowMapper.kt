@@ -21,10 +21,11 @@ object SafeRowMapper {
     fun mapRow(
         row: Row,
         columnDefs: List<ColumnDef>,
-        expectedNames: List<String>
+        expectedNames: List<String>,
+        skipId: Boolean = true
     ): List<ColumnValue> {
-        // Rust row builders skip the auto-increment 'id' column (usually at index 0).
-        // So we expect colDefs[i + 1] to match expectedNames[i].
+        // Rust row builders usually skip the auto-increment 'id' column (usually at index 0).
+        val offset = if (skipId) 1 else 0
         
         if (row.cols.size != expectedNames.size) {
             throw IllegalStateException(
@@ -33,7 +34,7 @@ object SafeRowMapper {
         }
 
         return row.cols.mapIndexed { index, col ->
-            val defIndex = index + 1 // Skip 'id'
+            val defIndex = index + offset
             if (defIndex >= columnDefs.size) {
                 throw IllegalStateException("Column index $defIndex out of bounds for table definition")
             }

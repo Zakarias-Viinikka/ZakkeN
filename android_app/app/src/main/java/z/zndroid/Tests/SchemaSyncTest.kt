@@ -26,9 +26,14 @@ class SchemaSyncTest : AppTest {
         )
 
         for ((tableName, libCols) in libraryBlueprints) {
-            // -- Check A: Library vs. Kotlin Expectations (Code Drift) --
-            // This ensures your manual mappings in DocEvents match what the library provides.
             val expectedCols = ExpectedSchema.tables[tableName] ?: emptyList()
+
+            // -- Check A: Library vs. Kotlin Expectations (Code Drift) --
+            // Strict check: Names and Count must match.
+            if (libCols.size != expectedCols.size) {
+                errors.add("CODE DRIFT: Table '$tableName' has ${libCols.size} columns in Rust, but Kotlin expects ${expectedCols.size}.")
+            }
+
             expectedCols.forEach { colName ->
                 if (libCols.none { it.name == colName }) {
                     errors.add("CODE DRIFT: Table '$tableName' is missing required column '$colName' in the Rust library.")
