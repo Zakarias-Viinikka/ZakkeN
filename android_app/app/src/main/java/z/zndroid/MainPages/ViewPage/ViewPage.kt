@@ -19,7 +19,6 @@ import z.zndroid.DocEvents.AddBlockCtx
 import z.zndroid.Storage.StorageAccess
 import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
-import z.zndroid.lab.core.LabContainer
 import androidx.compose.ui.text.TextRange
 import z.zndroid.log.ViewPageLogs
 import z.zndroid.MainPages.ViewPage.helpers.ViewPageHelper
@@ -101,8 +100,10 @@ fun ViewPage(
                     ViewPageLogs.logPageLoadSuccess(pageId, uiStates.size)
                     
                     // Logic: Ensure a new page has a title block
-                    ViewPageHelper.initializePageContent(newBoss, coroutineScope) {
-                        updateUI()
+                    ViewPageHelper.initializePageContent(newBoss, coroutineScope) { newId ->
+                        if (newId != null) {
+                            updateUI(focusId = newId)
+                        }
                     }
                 } catch (e: Exception) {
                     ViewPageLogs.logBossInstanceError(pageId, e.message ?: "Unknown error")
@@ -127,96 +128,64 @@ fun ViewPage(
         }
     }
 
-    LabContainer {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(pageId) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Text("←")
-                        }
-                    },
-                    actions = {
-                        TextButton(onClick = onOpenAdminView) {
-                            Text("Admin")
-                        }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(pageId) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Text("←")
                     }
-                )
-            },
-            floatingActionButton = {
-                FloatingActionButton(onClick = {
-                    val currentBoss = boss ?: return@FloatingActionButton
-                    coroutineScope.launch {
-                        // Create an empty block as requested
-                        AddBlock.execute(AddBlockCtx(
-                            boss = currentBoss,
-                            content = "" 
-                        )).onSuccess { newId ->
-                            // Refresh the entire list from the CRDT to pick up the new block
-                            updateUI(focusId = newId)
-                        }
+                },
+                actions = {
+                    TextButton(onClick = onOpenAdminView) {
+                        Text("Admin")
                     }
-                }) {
-                    Text("+")
                 }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = {
+                val currentBoss = boss ?: return@FloatingActionButton
+                coroutineScope.launch {
+                    // Create an empty block as requested
+                    AddBlock.execute(AddBlockCtx(
+                        boss = currentBoss,
+                        content = "" 
+                    )).onSuccess { newId ->
+                        // Refresh the entire list from the CRDT to pick up the new block
+                        updateUI(focusId = newId)
+                    }
+                }
+            }) {
+                Text("+")
             }
-        ) { innerPadding ->
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .padding(innerPadding)
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        Text(
-                            text = "Welcome to $pageId",
-                            style = MaterialTheme.typography.headlineMedium
+        }
+    ) { innerPadding ->
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (uiStates.isNotEmpty()) {
+                    itemsIndexed(uiStates, key = { _, state -> state.blockId }) { index, state ->
+                        EditableBlock(
+                            state = state,
+                            index = index,
+                            boss = boss!!,
+                            scope = coroutineScope,
+                            onRefreshWithFocus = { id, pos ->
+                                updateUI(focusId = id, cursorPos = pos)
+                            },
+                            onHardReload = { reloadToken++ }
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "This page is properly initialized with Yrs.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-                    }
-
-                    if (uiStates.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(32.dp).fillMaxWidth(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("No blocks yet. Tap + to add one.")
-                                }
-                            }
-                        }
-                    } else {
-                        itemsIndexed(uiStates, key = { _, state -> state.blockId }) { index, state ->
-                            EditableBlock(
-                                state = state,
-                                index = index,
-                                boss = boss!!,
-                                scope = coroutineScope,
-                                onRefreshWithFocus = { id, pos ->
-                                    updateUI(focusId = id, cursorPos = pos)
-                                },
-                                onHardReload = { reloadToken++ }
-                            )
-                        }
                     }
                 }
             }

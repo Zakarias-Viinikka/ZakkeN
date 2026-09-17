@@ -27,7 +27,7 @@ object StorageAccess {
         // 2. Fallback to SQLite
         val result = DbManager.getData(GetDataIn(
             "key_value_storage",
-            listOf(SelectArgument.XEqualY("key", key.keyName, null)),
+            SelectArguments.Single(SelectArgument.XEqualY("key", key.keyName)),
             emptyList()
         ))
         

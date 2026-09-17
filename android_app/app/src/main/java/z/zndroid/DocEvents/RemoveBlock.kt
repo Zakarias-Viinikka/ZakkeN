@@ -61,7 +61,7 @@ object RemoveBlock {
                 // First, find the internal auto-increment ID
                 val queryRes = DbManager.getData(GetDataIn(
                     "every_block_in_existence",
-                    listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId, null)),
+                    SelectArguments.Single(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId)),
                     emptyList()
                 )).getOrThrow()
 

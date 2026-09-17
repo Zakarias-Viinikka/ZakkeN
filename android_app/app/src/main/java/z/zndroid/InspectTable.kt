@@ -31,7 +31,7 @@ fun InspectTable(tableName: String, onBack: () -> Unit) {
             
             DbManager.checkTable(CheckTableIn(tableName)).onSuccess { checkOut ->
                 columns = checkOut.columns
-                DbManager.getData(GetDataIn(tableName, listOf(SelectArgument.All), emptyList())).onSuccess { dataOut ->
+                DbManager.getData(GetDataIn(tableName, SelectArguments.Single(SelectArgument.All), emptyList())).onSuccess { dataOut ->
                     rows = dataOut.rows
                 }.onFailure { error ->
                     GlobalPopupManager.show("Error loading data: ${error.message}")

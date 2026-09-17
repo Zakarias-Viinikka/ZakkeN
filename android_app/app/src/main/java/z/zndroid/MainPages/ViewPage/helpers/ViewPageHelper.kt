@@ -38,11 +38,13 @@ object ViewPageHelper {
     fun initializePageContent(
         boss: BossOfYrs,
         scope: CoroutineScope,
-        onUpdate: () -> Unit
+        onUpdate: (String?) -> Unit
     ) {
-        maybeCreateTitleBlock(boss, scope) {
-            ViewPageLogs.logPageLoadSuccess(boss.pageId(), 1)
-            onUpdate()
+        maybeCreateTitleBlock(boss, scope) { newId ->
+            if (newId != null) {
+                ViewPageLogs.logPageLoadSuccess(boss.pageId(), 1)
+            }
+            onUpdate(newId)
         }
     }
 }

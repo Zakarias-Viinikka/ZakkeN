@@ -17,19 +17,17 @@ package uniffi.protocol
 // compile the Rust component. The easiest way to ensure this is to bundle the Kotlin
 // helpers directly inline like we're doing here.
 
-import com.sun.jna.Library
-import com.sun.jna.IntegerType
+import com.sun.jna.Callback
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
-import com.sun.jna.Callback
 import com.sun.jna.ptr.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
 // A rust-owned buffer is represented by its capacity, its current length, and a
@@ -43,29 +41,37 @@ open class RustBuffer : Structure() {
     // Note: `capacity` and `len` are actually `ULong` values, but JVM only supports signed values.
     // When dealing with these fields, make sure to call `toULong()`.
     @JvmField var capacity: Long = 0
+
     @JvmField var len: Long = 0
+
     @JvmField var data: Pointer? = null
 
-    class ByValue: RustBuffer(), Structure.ByValue
-    class ByReference: RustBuffer(), Structure.ByReference
+    class ByValue : RustBuffer(), Structure.ByValue
 
-   internal fun setValue(other: RustBuffer) {
+    class ByReference : RustBuffer(), Structure.ByReference
+
+    internal fun setValue(other: RustBuffer) {
         capacity = other.capacity
         len = other.len
         data = other.data
     }
 
     companion object {
-        internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
-            // Note: need to convert the size to a `Long` value to make this work with JVM.
-            UniffiLib.ffi_protocol_rustbuffer_alloc(size.toLong(), status)
-        }.also {
-            if(it.data == null) {
-               throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
-           }
-        }
+        internal fun alloc(size: ULong = 0UL) =
+            uniffiRustCall { status ->
+                // Note: need to convert the size to a `Long` value to make this work with JVM.
+                UniffiLib.ffi_protocol_rustbuffer_alloc(size.toLong(), status)
+            }.also {
+                if (it.data == null) {
+                    throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=$size)")
+                }
+            }
 
-        internal fun create(capacity: ULong, len: ULong, data: Pointer?): RustBuffer.ByValue {
+        internal fun create(
+            capacity: ULong,
+            len: ULong,
+            data: Pointer?,
+        ): RustBuffer.ByValue {
             var buf = RustBuffer.ByValue()
             buf.capacity = capacity.toLong()
             buf.len = len.toLong()
@@ -73,9 +79,10 @@ open class RustBuffer : Structure() {
             return buf
         }
 
-        internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
-            UniffiLib.ffi_protocol_rustbuffer_free(buf, status)
-        }
+        internal fun free(buf: RustBuffer.ByValue) =
+            uniffiRustCall { status ->
+                UniffiLib.ffi_protocol_rustbuffer_free(buf, status)
+            }
     }
 
     @Suppress("TooGenericExceptionThrown")
@@ -94,6 +101,7 @@ open class RustBuffer : Structure() {
 @Structure.FieldOrder("len", "data")
 internal open class ForeignBytes : Structure() {
     @JvmField var len: Int = 0
+
     @JvmField var data: Pointer? = null
 
     class ByValue : ForeignBytes(), Structure.ByValue
@@ -127,14 +135,24 @@ internal object FfiConverterByRefBytes : FfiConverter<java.nio.ByteBuffer, Forei
         error("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
 
     override fun read(buf: java.nio.ByteBuffer): java.nio.ByteBuffer =
-        error("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+        error(
+            "ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
+        )
 
-    override fun write(value: java.nio.ByteBuffer, buf: java.nio.ByteBuffer): Unit =
-        error("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    override fun write(
+        value: java.nio.ByteBuffer,
+        buf: java.nio.ByteBuffer,
+    ): Unit =
+        error(
+            "ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
+        )
 
     override fun allocationSize(value: java.nio.ByteBuffer): ULong =
-        error("ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+        error(
+            "ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
+        )
 }
+
 /**
  * The FfiConverter interface handles converter types to and from the FFI
  *
@@ -164,7 +182,10 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun allocationSize(value: KotlinType): ULong
 
     // Write a Kotlin type to a `ByteBuffer`
-    fun write(value: KotlinType, buf: ByteBuffer)
+    fun write(
+        value: KotlinType,
+        buf: ByteBuffer,
+    )
 
     // Lower a value into a `RustBuffer`
     //
@@ -175,9 +196,10 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun lowerIntoRustBuffer(value: KotlinType): RustBuffer.ByValue {
         val rbuf = RustBuffer.alloc(allocationSize(value))
         try {
-            val bbuf = rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
-                it.order(ByteOrder.BIG_ENDIAN)
-            }
+            val bbuf =
+                rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
+                    it.order(ByteOrder.BIG_ENDIAN)
+                }
             write(value, bbuf)
             rbuf.writeField("len", bbuf.position().toLong())
             return rbuf
@@ -194,11 +216,11 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun liftFromRustBuffer(rbuf: RustBuffer.ByValue): KotlinType {
         val byteBuf = rbuf.asByteBuffer()!!
         try {
-           val item = read(byteBuf)
-           if (byteBuf.hasRemaining()) {
-               throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
-           }
-           return item
+            val item = read(byteBuf)
+            if (byteBuf.hasRemaining()) {
+                throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
+            }
+            return item
         } finally {
             RustBuffer.free(rbuf)
         }
@@ -210,8 +232,9 @@ public interface FfiConverter<KotlinType, FfiType> {
  *
  * @suppress
  */
-public interface FfiConverterRustBuffer<KotlinType>: FfiConverter<KotlinType, RustBuffer.ByValue> {
+public interface FfiConverterRustBuffer<KotlinType> : FfiConverter<KotlinType, RustBuffer.ByValue> {
     override fun lift(value: RustBuffer.ByValue) = liftFromRustBuffer(value)
+
     override fun lower(value: KotlinType) = lowerIntoRustBuffer(value)
 }
 // A handful of classes and functions to support the generated data structures.
@@ -224,9 +247,10 @@ internal const val UNIFFI_CALL_UNEXPECTED_ERROR = 2.toByte()
 @Structure.FieldOrder("code", "error_buf")
 internal open class UniffiRustCallStatus : Structure() {
     @JvmField var code: Byte = 0
+
     @JvmField var error_buf: RustBuffer.ByValue = RustBuffer.ByValue()
 
-    class ByValue: UniffiRustCallStatus(), Structure.ByValue
+    class ByValue : UniffiRustCallStatus(), Structure.ByValue
 
     fun isSuccess(): Boolean {
         return code == UNIFFI_CALL_SUCCESS
@@ -241,7 +265,10 @@ internal open class UniffiRustCallStatus : Structure() {
     }
 
     companion object {
-        fun create(code: Byte, errorBuf: RustBuffer.ByValue): UniffiRustCallStatus.ByValue {
+        fun create(
+            code: Byte,
+            errorBuf: RustBuffer.ByValue,
+        ): UniffiRustCallStatus.ByValue {
             val callStatus = UniffiRustCallStatus.ByValue()
             callStatus.code = code
             callStatus.error_buf = errorBuf
@@ -258,7 +285,7 @@ class InternalException(message: String) : kotlin.Exception(message)
  * @suppress
  */
 interface UniffiRustCallStatusErrorHandler<E> {
-    fun lift(error_buf: RustBuffer.ByValue): E;
+    fun lift(error_buf: RustBuffer.ByValue): E
 }
 
 // Helpers for calling Rust
@@ -266,7 +293,10 @@ interface UniffiRustCallStatusErrorHandler<E> {
 // synchronize itself
 
 // Call a rust function that returns a Result<>.  Pass in the Error class companion that corresponds to the Err
-private inline fun <U, E: kotlin.Exception> uniffiRustCallWithError(errorHandler: UniffiRustCallStatusErrorHandler<E>, callback: (UniffiRustCallStatus) -> U): U {
+private inline fun <U, E : kotlin.Exception> uniffiRustCallWithError(
+    errorHandler: UniffiRustCallStatusErrorHandler<E>,
+    callback: (UniffiRustCallStatus) -> U,
+): U {
     var status = UniffiRustCallStatus()
     val return_value = callback(status)
     uniffiCheckCallStatus(errorHandler, status)
@@ -274,7 +304,10 @@ private inline fun <U, E: kotlin.Exception> uniffiRustCallWithError(errorHandler
 }
 
 // Check UniffiRustCallStatus and throw an error if the call wasn't successful
-private fun<E: kotlin.Exception> uniffiCheckCallStatus(errorHandler: UniffiRustCallStatusErrorHandler<E>, status: UniffiRustCallStatus) {
+private fun <E : kotlin.Exception> uniffiCheckCallStatus(
+    errorHandler: UniffiRustCallStatusErrorHandler<E>,
+    status: UniffiRustCallStatus,
+) {
     if (status.isSuccess()) {
         return
     } else if (status.isError()) {
@@ -298,7 +331,7 @@ private fun<E: kotlin.Exception> uniffiCheckCallStatus(errorHandler: UniffiRustC
  *
  * @suppress
  */
-object UniffiNullRustCallStatusErrorHandler: UniffiRustCallStatusErrorHandler<InternalException> {
+object UniffiNullRustCallStatusErrorHandler : UniffiRustCallStatusErrorHandler<InternalException> {
     override fun lift(error_buf: RustBuffer.ByValue): InternalException {
         RustBuffer.free(error_buf)
         return InternalException("Unexpected CALL_ERROR")
@@ -310,40 +343,51 @@ private inline fun <U> uniffiRustCall(callback: (UniffiRustCallStatus) -> U): U 
     return uniffiRustCallWithError(UniffiNullRustCallStatusErrorHandler, callback)
 }
 
-internal inline fun<T> uniffiTraitInterfaceCall(
+internal inline fun <T> uniffiTraitInterfaceCall(
     callStatus: UniffiRustCallStatus,
     makeCall: () -> T,
     writeReturn: (T) -> Unit,
 ) {
     try {
         writeReturn(makeCall())
-    } catch(e: kotlin.Exception) {
-        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
+    } catch (e: kotlin.Exception) {
+        val err =
+            try {
+                e.stackTraceToString()
+            } catch (_: Throwable) {
+                ""
+            }
         callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
         callStatus.error_buf = FfiConverterString.lower(err)
     }
 }
 
-internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
+internal inline fun <T, reified E : Throwable> uniffiTraitInterfaceCallWithError(
     callStatus: UniffiRustCallStatus,
     makeCall: () -> T,
     writeReturn: (T) -> Unit,
-    lowerError: (E) -> RustBuffer.ByValue
+    lowerError: (E) -> RustBuffer.ByValue,
 ) {
     try {
         writeReturn(makeCall())
-    } catch(e: kotlin.Exception) {
+    } catch (e: kotlin.Exception) {
         if (e is E) {
             callStatus.code = UNIFFI_CALL_ERROR
             callStatus.error_buf = lowerError(e)
         } else {
-            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
+            val err =
+                try {
+                    e.stackTraceToString()
+                } catch (_: Throwable) {
+                    ""
+                }
             callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
             callStatus.error_buf = FfiConverterString.lower(err)
         }
     }
 }
-// Initial value and increment amount for handles. 
+
+// Initial value and increment amount for handles.
 // These ensure that Kotlin-generated handles always have the lowest bit set
 private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
 private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
@@ -351,9 +395,10 @@ private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
 // Map handles to objects
 //
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
-internal class UniffiHandleMap<T: Any> {
+internal class UniffiHandleMap<T : Any> {
     private val map = ConcurrentHashMap<Long, T>()
-    // Start 
+
+    // Start
     private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
@@ -396,18 +441,24 @@ private fun findLibraryName(componentName: String): String {
 
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
-    fun callback(`data`: Long,`pollResult`: Byte,)
+    fun callback(
+        `data`: Long,
+        `pollResult`: Byte,
+    )
 }
+
 internal interface UniffiForeignFutureDroppedCallback : com.sun.jna.Callback {
-    fun callback(`handle`: Long,)
+    fun callback(`handle`: Long)
 }
+
 internal interface UniffiCallbackInterfaceFree : com.sun.jna.Callback {
-    fun callback(`handle`: Long,)
+    fun callback(`handle`: Long)
 }
+
 internal interface UniffiCallbackInterfaceClone : com.sun.jna.Callback {
-    fun callback(`handle`: Long,)
-    : Long
+    fun callback(`handle`: Long): Long
 }
+
 @Structure.FieldOrder("handle", "free")
 internal open class UniffiForeignFutureDroppedCallbackStruct(
     @JvmField internal var `handle`: Long = 0.toLong(),
@@ -416,14 +467,14 @@ internal open class UniffiForeignFutureDroppedCallbackStruct(
     class UniffiByValue(
         `handle`: Long = 0.toLong(),
         `free`: UniffiForeignFutureDroppedCallback? = null,
-    ): UniffiForeignFutureDroppedCallbackStruct(`handle`,`free`,), Structure.ByValue
+    ) : UniffiForeignFutureDroppedCallbackStruct(`handle`, `free`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
         `handle` = other.`handle`
         `free` = other.`free`
     }
-
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
@@ -432,17 +483,21 @@ internal open class UniffiForeignFutureResultU8(
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultU8(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultU8(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteU8 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU8.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultU8.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
@@ -451,17 +506,21 @@ internal open class UniffiForeignFutureResultI8(
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultI8(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultI8(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteI8 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI8.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultI8.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
@@ -470,17 +529,21 @@ internal open class UniffiForeignFutureResultU16(
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultU16(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultU16(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteU16 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU16.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultU16.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
@@ -489,17 +552,21 @@ internal open class UniffiForeignFutureResultI16(
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultI16(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultI16(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteI16 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI16.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultI16.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU32(
     @JvmField internal var `returnValue`: Int = 0,
@@ -508,17 +575,21 @@ internal open class UniffiForeignFutureResultU32(
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultU32(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultU32(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteU32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU32.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultU32.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI32(
     @JvmField internal var `returnValue`: Int = 0,
@@ -527,17 +598,21 @@ internal open class UniffiForeignFutureResultI32(
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultI32(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultI32(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteI32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI32.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultI32.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
@@ -546,17 +621,21 @@ internal open class UniffiForeignFutureResultU64(
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultU64(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultU64(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteU64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU64.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultU64.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
@@ -565,17 +644,21 @@ internal open class UniffiForeignFutureResultI64(
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultI64(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultI64(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteI64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI64.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultI64.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF32(
     @JvmField internal var `returnValue`: Float = 0.0f,
@@ -584,17 +667,21 @@ internal open class UniffiForeignFutureResultF32(
     class UniffiByValue(
         `returnValue`: Float = 0.0f,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultF32(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultF32(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteF32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF32.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultF32.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF64(
     @JvmField internal var `returnValue`: Double = 0.0,
@@ -603,17 +690,21 @@ internal open class UniffiForeignFutureResultF64(
     class UniffiByValue(
         `returnValue`: Double = 0.0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultF64(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultF64(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteF64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF64.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultF64.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultRustBuffer(
     @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
@@ -622,32 +713,39 @@ internal open class UniffiForeignFutureResultRustBuffer(
     class UniffiByValue(
         `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultRustBuffer(`returnValue`, `callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
+}
 
-}
 internal interface UniffiForeignFutureCompleteRustBuffer : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,
+    )
 }
+
 @Structure.FieldOrder("callStatus")
 internal open class UniffiForeignFutureResultVoid(
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureResultVoid(`callStatus`,), Structure.ByValue
+    ) : UniffiForeignFutureResultVoid(`callStatus`), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
+    internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
         `callStatus` = other.`callStatus`
     }
-
 }
+
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultVoid.UniffiByValue,)
+    fun callback(
+        `callbackData`: Long,
+        `result`: UniffiForeignFutureResultVoid.UniffiByValue,
+    )
 }
 
 // A JNA Library to expose the extern-C FFI definitions.
@@ -672,157 +770,260 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
-    external fun uniffi_protocol_checksum_func_build_get_data_in_msg(
-    ): Int
-    external fun uniffi_protocol_checksum_func_unbuild_get_data_out_response(
-    ): Int
-    external fun uniffi_protocol_checksum_func_col_with_default_value(
-    ): Int
-    external fun uniffi_protocol_checksum_func_default_col(
-    ): Int
-    external fun uniffi_protocol_checksum_func_id_column(
-    ): Int
-    external fun uniffi_protocol_checksum_func_not_null_col(
-    ): Int
-    external fun uniffi_protocol_checksum_func_not_null_unique_col(
-    ): Int
-    external fun uniffi_protocol_checksum_func_unique_col(
-    ): Int
-    external fun ffi_protocol_uniffi_contract_version(
-    ): Int
 
-        
+    external fun uniffi_protocol_checksum_func_col_with_default_value(): Int
+
+    external fun uniffi_protocol_checksum_func_default_col(): Int
+
+    external fun uniffi_protocol_checksum_func_id_column(): Int
+
+    external fun uniffi_protocol_checksum_func_not_null_col(): Int
+
+    external fun uniffi_protocol_checksum_func_not_null_unique_col(): Int
+
+    external fun uniffi_protocol_checksum_func_unique_col(): Int
+
+    external fun ffi_protocol_uniffi_contract_version(): Int
 }
 
 internal object UniffiLib {
-    
-
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "protocol"))
-        
     }
-    external fun uniffi_protocol_fn_func_build_get_data_in_msg(`messageId`: Long,`prePayload`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun uniffi_protocol_fn_func_col_with_default_value(
+        `columnType`: RustBuffer.ByValue,
+        `defaultValue`: RustBuffer.ByValue,
+        `columnName`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_unbuild_get_data_out_response(`response`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun uniffi_protocol_fn_func_default_col(
+        `columnType`: RustBuffer.ByValue,
+        `columnName`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_col_with_default_value(`columnType`: RustBuffer.ByValue,`defaultValue`: RustBuffer.ByValue,`columnName`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun uniffi_protocol_fn_func_id_column(uniffi_out_err: UniffiRustCallStatus): RustBuffer.ByValue
+
+    external fun uniffi_protocol_fn_func_not_null_col(
+        `columnType`: RustBuffer.ByValue,
+        `columnName`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_default_col(`columnType`: RustBuffer.ByValue,`columnName`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun uniffi_protocol_fn_func_not_null_unique_col(
+        `columnType`: RustBuffer.ByValue,
+        `columnName`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_id_column(uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun uniffi_protocol_fn_func_unique_col(
+        `columnType`: RustBuffer.ByValue,
+        `columnName`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_not_null_col(`columnType`: RustBuffer.ByValue,`columnName`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun ffi_protocol_rustbuffer_alloc(
+        `size`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_not_null_unique_col(`columnType`: RustBuffer.ByValue,`columnName`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun ffi_protocol_rustbuffer_from_bytes(
+        `bytes`: ForeignBytes.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_protocol_fn_func_unique_col(`columnType`: RustBuffer.ByValue,`columnName`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_protocol_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_protocol_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_protocol_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    external fun ffi_protocol_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_protocol_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_u8(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_u8(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    external fun ffi_protocol_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_i8(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_i8(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    external fun ffi_protocol_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_u16(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_u16(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    external fun ffi_protocol_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_i16(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_i16(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    external fun ffi_protocol_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_u32(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_u32(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    external fun ffi_protocol_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_i32(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_i32(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    external fun ffi_protocol_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_u64(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_u64(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    external fun ffi_protocol_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_i64(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_i64(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    external fun ffi_protocol_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_f32(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_f32(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Float
-    external fun ffi_protocol_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_f64(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_f64(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Double
-    external fun ffi_protocol_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_rust_buffer(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_rust_buffer(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun ffi_protocol_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_cancel_void(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_free_void(`handle`: Long,
-    ): Unit
-    external fun ffi_protocol_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+
+    external fun ffi_protocol_rustbuffer_free(
+        `buf`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
     ): Unit
 
-        
+    external fun ffi_protocol_rustbuffer_reserve(
+        `buf`: RustBuffer.ByValue,
+        `additional`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun ffi_protocol_rust_future_poll_u8(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_u8(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_u8(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_u8(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+
+    external fun ffi_protocol_rust_future_poll_i8(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_i8(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_i8(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_i8(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Byte
+
+    external fun ffi_protocol_rust_future_poll_u16(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_u16(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_u16(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_u16(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+
+    external fun ffi_protocol_rust_future_poll_i16(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_i16(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_i16(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_i16(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Short
+
+    external fun ffi_protocol_rust_future_poll_u32(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_u32(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_u32(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_u32(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+
+    external fun ffi_protocol_rust_future_poll_i32(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_i32(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_i32(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_i32(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+
+    external fun ffi_protocol_rust_future_poll_u64(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_u64(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_u64(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_u64(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+
+    external fun ffi_protocol_rust_future_poll_i64(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_i64(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_i64(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_i64(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+
+    external fun ffi_protocol_rust_future_poll_f32(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_f32(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_f32(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_f32(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Float
+
+    external fun ffi_protocol_rust_future_poll_f64(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_f64(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_f64(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_f64(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Double
+
+    external fun ffi_protocol_rust_future_poll_rust_buffer(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_rust_buffer(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_rust_buffer(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_rust_buffer(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun ffi_protocol_rust_future_poll_void(
+        `handle`: Long,
+        `callback`: UniffiRustFutureContinuationCallback,
+        `callbackData`: Long,
+    ): Unit
+
+    external fun ffi_protocol_rust_future_cancel_void(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_free_void(`handle`: Long): Unit
+
+    external fun ffi_protocol_rust_future_complete_void(
+        `handle`: Long,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
 }
 
 private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
@@ -834,14 +1035,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
+
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if ((lib.uniffi_protocol_checksum_func_build_get_data_in_msg() and 0xFFFF) != 17175) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if ((lib.uniffi_protocol_checksum_func_unbuild_get_data_out_response() and 0xFFFF) != 36917) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
     if ((lib.uniffi_protocol_checksum_func_col_with_default_value() and 0xFFFF) != 11182) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -876,7 +1072,6 @@ public fun uniffiEnsureInitialized() {
 
 // Public interface members begin here.
 
-
 // Interface implemented by anything that can contain an object reference.
 //
 // Such types expose a `destroy()` method that must be called to cleanly
@@ -887,6 +1082,7 @@ public fun uniffiEnsureInitialized() {
 // helper method to execute a block and destroy the object at the end.
 interface Disposable {
     fun destroy()
+
     companion object {
         fun destroy(vararg args: Any?) {
             for (arg in args) {
@@ -935,7 +1131,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/** 
+/**
  * Placeholder object used to signal that we're constructing an interface with a FFI handle.
  *
  * This is the first argument for interface constructors that input a raw handle. It exists is that
@@ -946,7 +1142,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * */
 object UniffiWithHandle
 
-/** 
+/**
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
@@ -956,7 +1152,7 @@ object NoHandle
 /**
  * @suppress
  */
-public object FfiConverterULong: FfiConverter<ULong, Long> {
+public object FfiConverterULong : FfiConverter<ULong, Long> {
     override fun lift(value: Long): ULong {
         return value.toULong()
     }
@@ -971,7 +1167,10 @@ public object FfiConverterULong: FfiConverter<ULong, Long> {
 
     override fun allocationSize(value: ULong) = 8UL
 
-    override fun write(value: ULong, buf: ByteBuffer) {
+    override fun write(
+        value: ULong,
+        buf: ByteBuffer,
+    ) {
         buf.putLong(value.toLong())
     }
 }
@@ -979,7 +1178,7 @@ public object FfiConverterULong: FfiConverter<ULong, Long> {
 /**
  * @suppress
  */
-public object FfiConverterLong: FfiConverter<Long, Long> {
+public object FfiConverterLong : FfiConverter<Long, Long> {
     override fun lift(value: Long): Long {
         return value
     }
@@ -994,7 +1193,10 @@ public object FfiConverterLong: FfiConverter<Long, Long> {
 
     override fun allocationSize(value: Long) = 8UL
 
-    override fun write(value: Long, buf: ByteBuffer) {
+    override fun write(
+        value: Long,
+        buf: ByteBuffer,
+    ) {
         buf.putLong(value)
     }
 }
@@ -1002,7 +1204,7 @@ public object FfiConverterLong: FfiConverter<Long, Long> {
 /**
  * @suppress
  */
-public object FfiConverterDouble: FfiConverter<Double, Double> {
+public object FfiConverterDouble : FfiConverter<Double, Double> {
     override fun lift(value: Double): Double {
         return value
     }
@@ -1017,7 +1219,10 @@ public object FfiConverterDouble: FfiConverter<Double, Double> {
 
     override fun allocationSize(value: Double) = 8UL
 
-    override fun write(value: Double, buf: ByteBuffer) {
+    override fun write(
+        value: Double,
+        buf: ByteBuffer,
+    ) {
         buf.putDouble(value)
     }
 }
@@ -1025,7 +1230,7 @@ public object FfiConverterDouble: FfiConverter<Double, Double> {
 /**
  * @suppress
  */
-public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
+public object FfiConverterBoolean : FfiConverter<Boolean, Byte> {
     override fun lift(value: Byte): Boolean {
         return value.toInt() != 0
     }
@@ -1040,7 +1245,10 @@ public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
 
     override fun allocationSize(value: Boolean) = 1UL
 
-    override fun write(value: Boolean, buf: ByteBuffer) {
+    override fun write(
+        value: Boolean,
+        buf: ByteBuffer,
+    ) {
         buf.put(lower(value))
     }
 }
@@ -1048,7 +1256,7 @@ public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
 /**
  * @suppress
  */
-public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
+public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
     // store our length and avoid writing it out to the buffer.
@@ -1095,7 +1303,10 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
         return sizeForLength + sizeForString
     }
 
-    override fun write(value: String, buf: ByteBuffer) {
+    override fun write(
+        value: String,
+        buf: ByteBuffer,
+    ) {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
@@ -1105,42 +1316,39 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
 /**
  * @suppress
  */
-public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
+public object FfiConverterByteArray : FfiConverterRustBuffer<ByteArray> {
     override fun read(buf: ByteBuffer): ByteArray {
         val len = buf.getInt()
         val byteArr = ByteArray(len)
         buf.get(byteArr)
         return byteArr
     }
+
     override fun allocationSize(value: ByteArray): ULong {
         return 4UL + value.size.toULong()
     }
-    override fun write(value: ByteArray, buf: ByteBuffer) {
+
+    override fun write(
+        value: ByteArray,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         buf.put(value)
     }
 }
 
+data class AddColumnIn(
+    var `tableName`: kotlin.String,
+    var `column`: ColumnDef,
+) {
 
-
-data class AddColumnIn (
-    var `tableName`: kotlin.String
-    , 
-    var `column`: ColumnDef
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeAddColumnIn: FfiConverterRustBuffer<AddColumnIn> {
+public object FfiConverterTypeAddColumnIn : FfiConverterRustBuffer<AddColumnIn> {
     override fun read(buf: ByteBuffer): AddColumnIn {
         return AddColumnIn(
             FfiConverterString.read(buf),
@@ -1148,37 +1356,33 @@ public object FfiConverterTypeAddColumnIn: FfiConverterRustBuffer<AddColumnIn> {
         )
     }
 
-    override fun allocationSize(value: AddColumnIn) = (
+    override fun allocationSize(value: AddColumnIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterTypeColumnDef.allocationSize(value.`column`)
-    )
+                FfiConverterTypeColumnDef.allocationSize(value.`column`)
+        )
 
-    override fun write(value: AddColumnIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterTypeColumnDef.write(value.`column`, buf)
+    override fun write(
+        value: AddColumnIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterTypeColumnDef.write(value.`column`, buf)
     }
 }
 
+data class CheckIndexIn(
+    var `tableName`: kotlin.String,
+    var `columnName`: kotlin.String,
+) {
 
-
-data class CheckIndexIn (
-    var `tableName`: kotlin.String
-    , 
-    var `columnName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCheckIndexIn: FfiConverterRustBuffer<CheckIndexIn> {
+public object FfiConverterTypeCheckIndexIn : FfiConverterRustBuffer<CheckIndexIn> {
     override fun read(buf: ByteBuffer): CheckIndexIn {
         return CheckIndexIn(
             FfiConverterString.read(buf),
@@ -1186,146 +1390,128 @@ public object FfiConverterTypeCheckIndexIn: FfiConverterRustBuffer<CheckIndexIn>
         )
     }
 
-    override fun allocationSize(value: CheckIndexIn) = (
+    override fun allocationSize(value: CheckIndexIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`columnName`)
-    )
+                FfiConverterString.allocationSize(value.`columnName`)
+        )
 
-    override fun write(value: CheckIndexIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`columnName`, buf)
+    override fun write(
+        value: CheckIndexIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`columnName`, buf)
     }
 }
 
+data class CheckIndexOut(
+    var `isIndexed`: kotlin.Boolean,
+) {
 
-
-data class CheckIndexOut (
-    var `isIndexed`: kotlin.Boolean
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCheckIndexOut: FfiConverterRustBuffer<CheckIndexOut> {
+public object FfiConverterTypeCheckIndexOut : FfiConverterRustBuffer<CheckIndexOut> {
     override fun read(buf: ByteBuffer): CheckIndexOut {
         return CheckIndexOut(
             FfiConverterBoolean.read(buf),
         )
     }
 
-    override fun allocationSize(value: CheckIndexOut) = (
+    override fun allocationSize(value: CheckIndexOut) =
+        (
             FfiConverterBoolean.allocationSize(value.`isIndexed`)
-    )
+        )
 
-    override fun write(value: CheckIndexOut, buf: ByteBuffer) {
-            FfiConverterBoolean.write(value.`isIndexed`, buf)
+    override fun write(
+        value: CheckIndexOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterBoolean.write(value.`isIndexed`, buf)
     }
 }
 
+data class CheckTableIn(
+    var `tableName`: kotlin.String,
+) {
 
-
-data class CheckTableIn (
-    var `tableName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCheckTableIn: FfiConverterRustBuffer<CheckTableIn> {
+public object FfiConverterTypeCheckTableIn : FfiConverterRustBuffer<CheckTableIn> {
     override fun read(buf: ByteBuffer): CheckTableIn {
         return CheckTableIn(
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: CheckTableIn) = (
+    override fun allocationSize(value: CheckTableIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`)
-    )
+        )
 
-    override fun write(value: CheckTableIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
+    override fun write(
+        value: CheckTableIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
     }
 }
 
+data class CheckTableOut(
+    var `columns`: List<TableColumnInfo>,
+) {
 
-
-data class CheckTableOut (
-    var `columns`: List<TableColumnInfo>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCheckTableOut: FfiConverterRustBuffer<CheckTableOut> {
+public object FfiConverterTypeCheckTableOut : FfiConverterRustBuffer<CheckTableOut> {
     override fun read(buf: ByteBuffer): CheckTableOut {
         return CheckTableOut(
             FfiConverterSequenceTypeTableColumnInfo.read(buf),
         )
     }
 
-    override fun allocationSize(value: CheckTableOut) = (
+    override fun allocationSize(value: CheckTableOut) =
+        (
             FfiConverterSequenceTypeTableColumnInfo.allocationSize(value.`columns`)
-    )
+        )
 
-    override fun write(value: CheckTableOut, buf: ByteBuffer) {
-            FfiConverterSequenceTypeTableColumnInfo.write(value.`columns`, buf)
+    override fun write(
+        value: CheckTableOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceTypeTableColumnInfo.write(value.`columns`, buf)
     }
 }
 
+data class ColumnDef(
+    var `name`: kotlin.String,
+    var `columnType`: kotlin.String,
+    var `primaryKey`: kotlin.Boolean,
+    var `notNull`: kotlin.Boolean,
+    var `unique`: kotlin.Boolean,
+    var `defaultValue`: kotlin.String,
+    var `autoincrement`: kotlin.Boolean,
+) {
 
-
-data class ColumnDef (
-    var `name`: kotlin.String
-    , 
-    var `columnType`: kotlin.String
-    , 
-    var `primaryKey`: kotlin.Boolean
-    , 
-    var `notNull`: kotlin.Boolean
-    , 
-    var `unique`: kotlin.Boolean
-    , 
-    var `defaultValue`: kotlin.String
-    , 
-    var `autoincrement`: kotlin.Boolean
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeColumnDef: FfiConverterRustBuffer<ColumnDef> {
+public object FfiConverterTypeColumnDef : FfiConverterRustBuffer<ColumnDef> {
     override fun read(buf: ByteBuffer): ColumnDef {
         return ColumnDef(
             FfiConverterString.read(buf),
@@ -1338,90 +1524,81 @@ public object FfiConverterTypeColumnDef: FfiConverterRustBuffer<ColumnDef> {
         )
     }
 
-    override fun allocationSize(value: ColumnDef) = (
+    override fun allocationSize(value: ColumnDef) =
+        (
             FfiConverterString.allocationSize(value.`name`) +
-            FfiConverterString.allocationSize(value.`columnType`) +
-            FfiConverterBoolean.allocationSize(value.`primaryKey`) +
-            FfiConverterBoolean.allocationSize(value.`notNull`) +
-            FfiConverterBoolean.allocationSize(value.`unique`) +
-            FfiConverterString.allocationSize(value.`defaultValue`) +
-            FfiConverterBoolean.allocationSize(value.`autoincrement`)
-    )
+                FfiConverterString.allocationSize(value.`columnType`) +
+                FfiConverterBoolean.allocationSize(value.`primaryKey`) +
+                FfiConverterBoolean.allocationSize(value.`notNull`) +
+                FfiConverterBoolean.allocationSize(value.`unique`) +
+                FfiConverterString.allocationSize(value.`defaultValue`) +
+                FfiConverterBoolean.allocationSize(value.`autoincrement`)
+        )
 
-    override fun write(value: ColumnDef, buf: ByteBuffer) {
-            FfiConverterString.write(value.`name`, buf)
-            FfiConverterString.write(value.`columnType`, buf)
-            FfiConverterBoolean.write(value.`primaryKey`, buf)
-            FfiConverterBoolean.write(value.`notNull`, buf)
-            FfiConverterBoolean.write(value.`unique`, buf)
-            FfiConverterString.write(value.`defaultValue`, buf)
-            FfiConverterBoolean.write(value.`autoincrement`, buf)
+    override fun write(
+        value: ColumnDef,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`name`, buf)
+        FfiConverterString.write(value.`columnType`, buf)
+        FfiConverterBoolean.write(value.`primaryKey`, buf)
+        FfiConverterBoolean.write(value.`notNull`, buf)
+        FfiConverterBoolean.write(value.`unique`, buf)
+        FfiConverterString.write(value.`defaultValue`, buf)
+        FfiConverterBoolean.write(value.`autoincrement`, buf)
     }
 }
 
+data class ColumnFilter(
+    var `colName`: kotlin.String,
+    var `arguments`: SelectArguments,
+    var `join`: JoinType?,
+) {
 
-
-data class ColumnFilter (
-    var `colName`: kotlin.String
-    , 
-    var `arguments`: List<SelectArgument>
-    , 
-    var `join`: JoinType?
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeColumnFilter: FfiConverterRustBuffer<ColumnFilter> {
+public object FfiConverterTypeColumnFilter : FfiConverterRustBuffer<ColumnFilter> {
     override fun read(buf: ByteBuffer): ColumnFilter {
         return ColumnFilter(
             FfiConverterString.read(buf),
-            FfiConverterSequenceTypeSelectArgument.read(buf),
+            FfiConverterTypeSelectArguments.read(buf),
             FfiConverterOptionalTypeJoinType.read(buf),
         )
     }
 
-    override fun allocationSize(value: ColumnFilter) = (
+    override fun allocationSize(value: ColumnFilter) =
+        (
             FfiConverterString.allocationSize(value.`colName`) +
-            FfiConverterSequenceTypeSelectArgument.allocationSize(value.`arguments`) +
-            FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-    )
+                FfiConverterTypeSelectArguments.allocationSize(value.`arguments`) +
+                FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
+        )
 
-    override fun write(value: ColumnFilter, buf: ByteBuffer) {
-            FfiConverterString.write(value.`colName`, buf)
-            FfiConverterSequenceTypeSelectArgument.write(value.`arguments`, buf)
-            FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
+    override fun write(
+        value: ColumnFilter,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`colName`, buf)
+        FfiConverterTypeSelectArguments.write(value.`arguments`, buf)
+        FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
     }
 }
 
+data class ColumnValue(
+    var `columnName`: kotlin.String,
+    var `value`: Col,
+) {
 
-
-data class ColumnValue (
-    var `columnName`: kotlin.String
-    , 
-    var `value`: Col
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeColumnValue: FfiConverterRustBuffer<ColumnValue> {
+public object FfiConverterTypeColumnValue : FfiConverterRustBuffer<ColumnValue> {
     override fun read(buf: ByteBuffer): ColumnValue {
         return ColumnValue(
             FfiConverterString.read(buf),
@@ -1429,37 +1606,33 @@ public object FfiConverterTypeColumnValue: FfiConverterRustBuffer<ColumnValue> {
         )
     }
 
-    override fun allocationSize(value: ColumnValue) = (
+    override fun allocationSize(value: ColumnValue) =
+        (
             FfiConverterString.allocationSize(value.`columnName`) +
-            FfiConverterTypeCol.allocationSize(value.`value`)
-    )
+                FfiConverterTypeCol.allocationSize(value.`value`)
+        )
 
-    override fun write(value: ColumnValue, buf: ByteBuffer) {
-            FfiConverterString.write(value.`columnName`, buf)
-            FfiConverterTypeCol.write(value.`value`, buf)
+    override fun write(
+        value: ColumnValue,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`columnName`, buf)
+        FfiConverterTypeCol.write(value.`value`, buf)
     }
 }
 
+data class CopyTableIn(
+    var `sourceTableName`: kotlin.String,
+    var `newTableName`: kotlin.String,
+) {
 
-
-data class CopyTableIn (
-    var `sourceTableName`: kotlin.String
-    , 
-    var `newTableName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCopyTableIn: FfiConverterRustBuffer<CopyTableIn> {
+public object FfiConverterTypeCopyTableIn : FfiConverterRustBuffer<CopyTableIn> {
     override fun read(buf: ByteBuffer): CopyTableIn {
         return CopyTableIn(
             FfiConverterString.read(buf),
@@ -1467,70 +1640,63 @@ public object FfiConverterTypeCopyTableIn: FfiConverterRustBuffer<CopyTableIn> {
         )
     }
 
-    override fun allocationSize(value: CopyTableIn) = (
+    override fun allocationSize(value: CopyTableIn) =
+        (
             FfiConverterString.allocationSize(value.`sourceTableName`) +
-            FfiConverterString.allocationSize(value.`newTableName`)
-    )
+                FfiConverterString.allocationSize(value.`newTableName`)
+        )
 
-    override fun write(value: CopyTableIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`sourceTableName`, buf)
-            FfiConverterString.write(value.`newTableName`, buf)
+    override fun write(
+        value: CopyTableIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`sourceTableName`, buf)
+        FfiConverterString.write(value.`newTableName`, buf)
     }
 }
 
+data class CountAllRowsIn(
+    var `tableName`: kotlin.String,
+) {
 
-
-data class CountAllRowsIn (
-    var `tableName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCountAllRowsIn: FfiConverterRustBuffer<CountAllRowsIn> {
+public object FfiConverterTypeCountAllRowsIn : FfiConverterRustBuffer<CountAllRowsIn> {
     override fun read(buf: ByteBuffer): CountAllRowsIn {
         return CountAllRowsIn(
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: CountAllRowsIn) = (
+    override fun allocationSize(value: CountAllRowsIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`)
-    )
+        )
 
-    override fun write(value: CountAllRowsIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
+    override fun write(
+        value: CountAllRowsIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
     }
 }
 
+data class CountRowsIn(
+    var `tableName`: kotlin.String,
+    var `filters`: List<ColumnFilter>,
+) {
 
-
-data class CountRowsIn (
-    var `tableName`: kotlin.String
-    , 
-    var `filters`: List<ColumnFilter>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCountRowsIn: FfiConverterRustBuffer<CountRowsIn> {
+public object FfiConverterTypeCountRowsIn : FfiConverterRustBuffer<CountRowsIn> {
     override fun read(buf: ByteBuffer): CountRowsIn {
         return CountRowsIn(
             FfiConverterString.read(buf),
@@ -1538,72 +1704,64 @@ public object FfiConverterTypeCountRowsIn: FfiConverterRustBuffer<CountRowsIn> {
         )
     }
 
-    override fun allocationSize(value: CountRowsIn) = (
+    override fun allocationSize(value: CountRowsIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeColumnFilter.allocationSize(value.`filters`)
-    )
+                FfiConverterSequenceTypeColumnFilter.allocationSize(value.`filters`)
+        )
 
-    override fun write(value: CountRowsIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeColumnFilter.write(value.`filters`, buf)
+    override fun write(
+        value: CountRowsIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterSequenceTypeColumnFilter.write(value.`filters`, buf)
     }
 }
 
+data class CountRowsOut(
+    var `count`: kotlin.ULong,
+) {
 
-
-data class CountRowsOut (
-    var `count`: kotlin.ULong
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCountRowsOut: FfiConverterRustBuffer<CountRowsOut> {
+public object FfiConverterTypeCountRowsOut : FfiConverterRustBuffer<CountRowsOut> {
     override fun read(buf: ByteBuffer): CountRowsOut {
         return CountRowsOut(
             FfiConverterULong.read(buf),
         )
     }
 
-    override fun allocationSize(value: CountRowsOut) = (
+    override fun allocationSize(value: CountRowsOut) =
+        (
             FfiConverterULong.allocationSize(value.`count`)
-    )
+        )
 
-    override fun write(value: CountRowsOut, buf: ByteBuffer) {
-            FfiConverterULong.write(value.`count`, buf)
+    override fun write(
+        value: CountRowsOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterULong.write(value.`count`, buf)
     }
 }
 
+data class CreateForeignTableIn(
+    var `tableName`: kotlin.String,
+    var `columns`: List<ColumnDef>,
+    var `foreignKeys`: List<ForeignKeyDef>,
+) {
 
-
-data class CreateForeignTableIn (
-    var `tableName`: kotlin.String
-    , 
-    var `columns`: List<ColumnDef>
-    , 
-    var `foreignKeys`: List<ForeignKeyDef>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCreateForeignTableIn: FfiConverterRustBuffer<CreateForeignTableIn> {
+public object FfiConverterTypeCreateForeignTableIn : FfiConverterRustBuffer<CreateForeignTableIn> {
     override fun read(buf: ByteBuffer): CreateForeignTableIn {
         return CreateForeignTableIn(
             FfiConverterString.read(buf),
@@ -1612,39 +1770,35 @@ public object FfiConverterTypeCreateForeignTableIn: FfiConverterRustBuffer<Creat
         )
     }
 
-    override fun allocationSize(value: CreateForeignTableIn) = (
+    override fun allocationSize(value: CreateForeignTableIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeColumnDef.allocationSize(value.`columns`) +
-            FfiConverterSequenceTypeForeignKeyDef.allocationSize(value.`foreignKeys`)
-    )
+                FfiConverterSequenceTypeColumnDef.allocationSize(value.`columns`) +
+                FfiConverterSequenceTypeForeignKeyDef.allocationSize(value.`foreignKeys`)
+        )
 
-    override fun write(value: CreateForeignTableIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeColumnDef.write(value.`columns`, buf)
-            FfiConverterSequenceTypeForeignKeyDef.write(value.`foreignKeys`, buf)
+    override fun write(
+        value: CreateForeignTableIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterSequenceTypeColumnDef.write(value.`columns`, buf)
+        FfiConverterSequenceTypeForeignKeyDef.write(value.`foreignKeys`, buf)
     }
 }
 
+data class CreateFts5TableIn(
+    var `sourceTableName`: kotlin.String,
+    var `columns`: List<kotlin.String>,
+) {
 
-
-data class CreateFts5TableIn (
-    var `sourceTableName`: kotlin.String
-    , 
-    var `columns`: List<kotlin.String>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCreateFts5TableIn: FfiConverterRustBuffer<CreateFts5TableIn> {
+public object FfiConverterTypeCreateFts5TableIn : FfiConverterRustBuffer<CreateFts5TableIn> {
     override fun read(buf: ByteBuffer): CreateFts5TableIn {
         return CreateFts5TableIn(
             FfiConverterString.read(buf),
@@ -1652,37 +1806,33 @@ public object FfiConverterTypeCreateFts5TableIn: FfiConverterRustBuffer<CreateFt
         )
     }
 
-    override fun allocationSize(value: CreateFts5TableIn) = (
+    override fun allocationSize(value: CreateFts5TableIn) =
+        (
             FfiConverterString.allocationSize(value.`sourceTableName`) +
-            FfiConverterSequenceString.allocationSize(value.`columns`)
-    )
+                FfiConverterSequenceString.allocationSize(value.`columns`)
+        )
 
-    override fun write(value: CreateFts5TableIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`sourceTableName`, buf)
-            FfiConverterSequenceString.write(value.`columns`, buf)
+    override fun write(
+        value: CreateFts5TableIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`sourceTableName`, buf)
+        FfiConverterSequenceString.write(value.`columns`, buf)
     }
 }
 
+data class CreateIndexIn(
+    var `tableName`: kotlin.String,
+    var `columnName`: kotlin.String,
+) {
 
-
-data class CreateIndexIn (
-    var `tableName`: kotlin.String
-    , 
-    var `columnName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCreateIndexIn: FfiConverterRustBuffer<CreateIndexIn> {
+public object FfiConverterTypeCreateIndexIn : FfiConverterRustBuffer<CreateIndexIn> {
     override fun read(buf: ByteBuffer): CreateIndexIn {
         return CreateIndexIn(
             FfiConverterString.read(buf),
@@ -1690,37 +1840,33 @@ public object FfiConverterTypeCreateIndexIn: FfiConverterRustBuffer<CreateIndexI
         )
     }
 
-    override fun allocationSize(value: CreateIndexIn) = (
+    override fun allocationSize(value: CreateIndexIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`columnName`)
-    )
+                FfiConverterString.allocationSize(value.`columnName`)
+        )
 
-    override fun write(value: CreateIndexIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`columnName`, buf)
+    override fun write(
+        value: CreateIndexIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`columnName`, buf)
     }
 }
 
+data class CreateTableFromExportIn(
+    var `tableName`: kotlin.String,
+    var `table`: TableExport,
+) {
 
-
-data class CreateTableFromExportIn (
-    var `tableName`: kotlin.String
-    , 
-    var `table`: TableExport
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCreateTableFromExportIn: FfiConverterRustBuffer<CreateTableFromExportIn> {
+public object FfiConverterTypeCreateTableFromExportIn : FfiConverterRustBuffer<CreateTableFromExportIn> {
     override fun read(buf: ByteBuffer): CreateTableFromExportIn {
         return CreateTableFromExportIn(
             FfiConverterString.read(buf),
@@ -1728,37 +1874,33 @@ public object FfiConverterTypeCreateTableFromExportIn: FfiConverterRustBuffer<Cr
         )
     }
 
-    override fun allocationSize(value: CreateTableFromExportIn) = (
+    override fun allocationSize(value: CreateTableFromExportIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterTypeTableExport.allocationSize(value.`table`)
-    )
+                FfiConverterTypeTableExport.allocationSize(value.`table`)
+        )
 
-    override fun write(value: CreateTableFromExportIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterTypeTableExport.write(value.`table`, buf)
+    override fun write(
+        value: CreateTableFromExportIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterTypeTableExport.write(value.`table`, buf)
     }
 }
 
+data class CreateTableIn(
+    var `tableName`: kotlin.String,
+    var `columns`: List<ColumnDef>,
+) {
 
-
-data class CreateTableIn (
-    var `tableName`: kotlin.String
-    , 
-    var `columns`: List<ColumnDef>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCreateTableIn: FfiConverterRustBuffer<CreateTableIn> {
+public object FfiConverterTypeCreateTableIn : FfiConverterRustBuffer<CreateTableIn> {
     override fun read(buf: ByteBuffer): CreateTableIn {
         return CreateTableIn(
             FfiConverterString.read(buf),
@@ -1766,70 +1908,63 @@ public object FfiConverterTypeCreateTableIn: FfiConverterRustBuffer<CreateTableI
         )
     }
 
-    override fun allocationSize(value: CreateTableIn) = (
+    override fun allocationSize(value: CreateTableIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeColumnDef.allocationSize(value.`columns`)
-    )
+                FfiConverterSequenceTypeColumnDef.allocationSize(value.`columns`)
+        )
 
-    override fun write(value: CreateTableIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeColumnDef.write(value.`columns`, buf)
+    override fun write(
+        value: CreateTableIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterSequenceTypeColumnDef.write(value.`columns`, buf)
     }
 }
 
+data class CreateTableOut(
+    var `result`: DbException?,
+) {
 
-
-data class CreateTableOut (
-    var `result`: DbException?
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCreateTableOut: FfiConverterRustBuffer<CreateTableOut> {
+public object FfiConverterTypeCreateTableOut : FfiConverterRustBuffer<CreateTableOut> {
     override fun read(buf: ByteBuffer): CreateTableOut {
         return CreateTableOut(
             FfiConverterOptionalTypeDbError.read(buf),
         )
     }
 
-    override fun allocationSize(value: CreateTableOut) = (
+    override fun allocationSize(value: CreateTableOut) =
+        (
             FfiConverterOptionalTypeDbError.allocationSize(value.`result`)
-    )
+        )
 
-    override fun write(value: CreateTableOut, buf: ByteBuffer) {
-            FfiConverterOptionalTypeDbError.write(value.`result`, buf)
+    override fun write(
+        value: CreateTableOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterOptionalTypeDbError.write(value.`result`, buf)
     }
 }
 
+data class DeleteRowIn(
+    var `tableName`: kotlin.String,
+    var `rowId`: kotlin.String,
+) {
 
-
-data class DeleteRowIn (
-    var `tableName`: kotlin.String
-    , 
-    var `rowId`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeDeleteRowIn: FfiConverterRustBuffer<DeleteRowIn> {
+public object FfiConverterTypeDeleteRowIn : FfiConverterRustBuffer<DeleteRowIn> {
     override fun read(buf: ByteBuffer): DeleteRowIn {
         return DeleteRowIn(
             FfiConverterString.read(buf),
@@ -1837,74 +1972,65 @@ public object FfiConverterTypeDeleteRowIn: FfiConverterRustBuffer<DeleteRowIn> {
         )
     }
 
-    override fun allocationSize(value: DeleteRowIn) = (
+    override fun allocationSize(value: DeleteRowIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`rowId`)
-    )
+                FfiConverterString.allocationSize(value.`rowId`)
+        )
 
-    override fun write(value: DeleteRowIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`rowId`, buf)
+    override fun write(
+        value: DeleteRowIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`rowId`, buf)
     }
 }
 
+data class DropTableIn(
+    var `tableName`: kotlin.String,
+) {
 
-
-data class DropTableIn (
-    var `tableName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeDropTableIn: FfiConverterRustBuffer<DropTableIn> {
+public object FfiConverterTypeDropTableIn : FfiConverterRustBuffer<DropTableIn> {
     override fun read(buf: ByteBuffer): DropTableIn {
         return DropTableIn(
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: DropTableIn) = (
+    override fun allocationSize(value: DropTableIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`)
-    )
+        )
 
-    override fun write(value: DropTableIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
+    override fun write(
+        value: DropTableIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
     }
 }
 
+data class EditColInRowIn(
+    var `tableName`: kotlin.String,
+    var `rowId`: kotlin.String,
+    var `column`: kotlin.String,
+    var `newValue`: Col,
+) {
 
-
-data class EditColInRowIn (
-    var `tableName`: kotlin.String
-    , 
-    var `rowId`: kotlin.String
-    , 
-    var `column`: kotlin.String
-    , 
-    var `newValue`: Col
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeEditColInRowIn: FfiConverterRustBuffer<EditColInRowIn> {
+public object FfiConverterTypeEditColInRowIn : FfiConverterRustBuffer<EditColInRowIn> {
     override fun read(buf: ByteBuffer): EditColInRowIn {
         return EditColInRowIn(
             FfiConverterString.read(buf),
@@ -1914,22 +2040,24 @@ public object FfiConverterTypeEditColInRowIn: FfiConverterRustBuffer<EditColInRo
         )
     }
 
-    override fun allocationSize(value: EditColInRowIn) = (
+    override fun allocationSize(value: EditColInRowIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`rowId`) +
-            FfiConverterString.allocationSize(value.`column`) +
-            FfiConverterTypeCol.allocationSize(value.`newValue`)
-    )
+                FfiConverterString.allocationSize(value.`rowId`) +
+                FfiConverterString.allocationSize(value.`column`) +
+                FfiConverterTypeCol.allocationSize(value.`newValue`)
+        )
 
-    override fun write(value: EditColInRowIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`rowId`, buf)
-            FfiConverterString.write(value.`column`, buf)
-            FfiConverterTypeCol.write(value.`newValue`, buf)
+    override fun write(
+        value: EditColInRowIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`rowId`, buf)
+        FfiConverterString.write(value.`column`, buf)
+        FfiConverterTypeCol.write(value.`newValue`, buf)
     }
 }
-
-
 
 class ExportDatabaseIn {
     override fun equals(other: Any?): Boolean {
@@ -1946,138 +2074,123 @@ class ExportDatabaseIn {
 /**
  * @suppress
  */
-public object FfiConverterTypeExportDatabaseIn: FfiConverterRustBuffer<ExportDatabaseIn> {
+public object FfiConverterTypeExportDatabaseIn : FfiConverterRustBuffer<ExportDatabaseIn> {
     override fun read(buf: ByteBuffer): ExportDatabaseIn {
         return ExportDatabaseIn()
     }
 
     override fun allocationSize(value: ExportDatabaseIn) = 0UL
 
-    override fun write(value: ExportDatabaseIn, buf: ByteBuffer) {
+    override fun write(
+        value: ExportDatabaseIn,
+        buf: ByteBuffer,
+    ) {
     }
 }
 
+data class ExportDatabaseOut(
+    var `data`: kotlin.ByteArray,
+) {
 
-
-data class ExportDatabaseOut (
-    var `data`: kotlin.ByteArray
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeExportDatabaseOut: FfiConverterRustBuffer<ExportDatabaseOut> {
+public object FfiConverterTypeExportDatabaseOut : FfiConverterRustBuffer<ExportDatabaseOut> {
     override fun read(buf: ByteBuffer): ExportDatabaseOut {
         return ExportDatabaseOut(
             FfiConverterByteArray.read(buf),
         )
     }
 
-    override fun allocationSize(value: ExportDatabaseOut) = (
+    override fun allocationSize(value: ExportDatabaseOut) =
+        (
             FfiConverterByteArray.allocationSize(value.`data`)
-    )
+        )
 
-    override fun write(value: ExportDatabaseOut, buf: ByteBuffer) {
-            FfiConverterByteArray.write(value.`data`, buf)
+    override fun write(
+        value: ExportDatabaseOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterByteArray.write(value.`data`, buf)
     }
 }
 
+data class ExportTablesIn(
+    var `tableNames`: List<kotlin.String>,
+) {
 
-
-data class ExportTablesIn (
-    var `tableNames`: List<kotlin.String>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeExportTablesIn: FfiConverterRustBuffer<ExportTablesIn> {
+public object FfiConverterTypeExportTablesIn : FfiConverterRustBuffer<ExportTablesIn> {
     override fun read(buf: ByteBuffer): ExportTablesIn {
         return ExportTablesIn(
             FfiConverterSequenceString.read(buf),
         )
     }
 
-    override fun allocationSize(value: ExportTablesIn) = (
+    override fun allocationSize(value: ExportTablesIn) =
+        (
             FfiConverterSequenceString.allocationSize(value.`tableNames`)
-    )
+        )
 
-    override fun write(value: ExportTablesIn, buf: ByteBuffer) {
-            FfiConverterSequenceString.write(value.`tableNames`, buf)
+    override fun write(
+        value: ExportTablesIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceString.write(value.`tableNames`, buf)
     }
 }
 
+data class ExportTablesOut(
+    var `tables`: List<TableExport>,
+) {
 
-
-data class ExportTablesOut (
-    var `tables`: List<TableExport>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeExportTablesOut: FfiConverterRustBuffer<ExportTablesOut> {
+public object FfiConverterTypeExportTablesOut : FfiConverterRustBuffer<ExportTablesOut> {
     override fun read(buf: ByteBuffer): ExportTablesOut {
         return ExportTablesOut(
             FfiConverterSequenceTypeTableExport.read(buf),
         )
     }
 
-    override fun allocationSize(value: ExportTablesOut) = (
+    override fun allocationSize(value: ExportTablesOut) =
+        (
             FfiConverterSequenceTypeTableExport.allocationSize(value.`tables`)
-    )
+        )
 
-    override fun write(value: ExportTablesOut, buf: ByteBuffer) {
-            FfiConverterSequenceTypeTableExport.write(value.`tables`, buf)
+    override fun write(
+        value: ExportTablesOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceTypeTableExport.write(value.`tables`, buf)
     }
 }
 
+data class ForeignKeyDef(
+    var `column`: kotlin.String,
+    var `referencedTable`: kotlin.String,
+    var `referencedColumn`: kotlin.String,
+) {
 
-
-data class ForeignKeyDef (
-    var `column`: kotlin.String
-    , 
-    var `referencedTable`: kotlin.String
-    , 
-    var `referencedColumn`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeForeignKeyDef: FfiConverterRustBuffer<ForeignKeyDef> {
+public object FfiConverterTypeForeignKeyDef : FfiConverterRustBuffer<ForeignKeyDef> {
     override fun read(buf: ByteBuffer): ForeignKeyDef {
         return ForeignKeyDef(
             FfiConverterString.read(buf),
@@ -2086,206 +2199,187 @@ public object FfiConverterTypeForeignKeyDef: FfiConverterRustBuffer<ForeignKeyDe
         )
     }
 
-    override fun allocationSize(value: ForeignKeyDef) = (
+    override fun allocationSize(value: ForeignKeyDef) =
+        (
             FfiConverterString.allocationSize(value.`column`) +
-            FfiConverterString.allocationSize(value.`referencedTable`) +
-            FfiConverterString.allocationSize(value.`referencedColumn`)
-    )
+                FfiConverterString.allocationSize(value.`referencedTable`) +
+                FfiConverterString.allocationSize(value.`referencedColumn`)
+        )
 
-    override fun write(value: ForeignKeyDef, buf: ByteBuffer) {
-            FfiConverterString.write(value.`column`, buf)
-            FfiConverterString.write(value.`referencedTable`, buf)
-            FfiConverterString.write(value.`referencedColumn`, buf)
+    override fun write(
+        value: ForeignKeyDef,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`column`, buf)
+        FfiConverterString.write(value.`referencedTable`, buf)
+        FfiConverterString.write(value.`referencedColumn`, buf)
     }
 }
 
+data class FundamentallyEditExistingColIn(
+    var `tableName`: kotlin.String,
+    var `columnName`: kotlin.String,
+    var `newColumn`: ColumnDef,
+    var `source`: ColumnSource,
+) {
 
-
-data class GetDataIn (
-    var `tableName`: kotlin.String
-    , 
-    var `arguments`: List<SelectArgument>
-    , 
-    var `columnsToRead`: List<kotlin.String>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeGetDataIn: FfiConverterRustBuffer<GetDataIn> {
+public object FfiConverterTypeFundamentallyEditExistingColIn : FfiConverterRustBuffer<FundamentallyEditExistingColIn> {
+    override fun read(buf: ByteBuffer): FundamentallyEditExistingColIn {
+        return FundamentallyEditExistingColIn(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeColumnDef.read(buf),
+            FfiConverterTypeColumnSource.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: FundamentallyEditExistingColIn) =
+        (
+            FfiConverterString.allocationSize(value.`tableName`) +
+                FfiConverterString.allocationSize(value.`columnName`) +
+                FfiConverterTypeColumnDef.allocationSize(value.`newColumn`) +
+                FfiConverterTypeColumnSource.allocationSize(value.`source`)
+        )
+
+    override fun write(
+        value: FundamentallyEditExistingColIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`columnName`, buf)
+        FfiConverterTypeColumnDef.write(value.`newColumn`, buf)
+        FfiConverterTypeColumnSource.write(value.`source`, buf)
+    }
+}
+
+data class GetDataIn(
+    var `tableName`: kotlin.String,
+    var `arguments`: SelectArguments,
+    var `columnsToRead`: List<kotlin.String>,
+) {
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeGetDataIn : FfiConverterRustBuffer<GetDataIn> {
     override fun read(buf: ByteBuffer): GetDataIn {
         return GetDataIn(
             FfiConverterString.read(buf),
-            FfiConverterSequenceTypeSelectArgument.read(buf),
+            FfiConverterTypeSelectArguments.read(buf),
             FfiConverterSequenceString.read(buf),
         )
     }
 
-    override fun allocationSize(value: GetDataIn) = (
+    override fun allocationSize(value: GetDataIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeSelectArgument.allocationSize(value.`arguments`) +
-            FfiConverterSequenceString.allocationSize(value.`columnsToRead`)
-    )
+                FfiConverterTypeSelectArguments.allocationSize(value.`arguments`) +
+                FfiConverterSequenceString.allocationSize(value.`columnsToRead`)
+        )
 
-    override fun write(value: GetDataIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeSelectArgument.write(value.`arguments`, buf)
-            FfiConverterSequenceString.write(value.`columnsToRead`, buf)
+    override fun write(
+        value: GetDataIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterTypeSelectArguments.write(value.`arguments`, buf)
+        FfiConverterSequenceString.write(value.`columnsToRead`, buf)
     }
 }
 
+data class GetDataOrderedIn(
+    var `tableName`: kotlin.String,
+    var `arguments`: SelectArguments,
+    var `columnsToRead`: List<kotlin.String>,
+    var `orderBy`: kotlin.String,
+) {
 
-
-data class GetDataOrderedIn (
-    var `tableName`: kotlin.String
-    , 
-    var `arguments`: List<SelectArgument>
-    , 
-    var `columnsToRead`: List<kotlin.String>
-    , 
-    var `orderBy`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeGetDataOrderedIn: FfiConverterRustBuffer<GetDataOrderedIn> {
+public object FfiConverterTypeGetDataOrderedIn : FfiConverterRustBuffer<GetDataOrderedIn> {
     override fun read(buf: ByteBuffer): GetDataOrderedIn {
         return GetDataOrderedIn(
             FfiConverterString.read(buf),
-            FfiConverterSequenceTypeSelectArgument.read(buf),
+            FfiConverterTypeSelectArguments.read(buf),
             FfiConverterSequenceString.read(buf),
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: GetDataOrderedIn) = (
+    override fun allocationSize(value: GetDataOrderedIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeSelectArgument.allocationSize(value.`arguments`) +
-            FfiConverterSequenceString.allocationSize(value.`columnsToRead`) +
-            FfiConverterString.allocationSize(value.`orderBy`)
-    )
+                FfiConverterTypeSelectArguments.allocationSize(value.`arguments`) +
+                FfiConverterSequenceString.allocationSize(value.`columnsToRead`) +
+                FfiConverterString.allocationSize(value.`orderBy`)
+        )
 
-    override fun write(value: GetDataOrderedIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeSelectArgument.write(value.`arguments`, buf)
-            FfiConverterSequenceString.write(value.`columnsToRead`, buf)
-            FfiConverterString.write(value.`orderBy`, buf)
+    override fun write(
+        value: GetDataOrderedIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterTypeSelectArguments.write(value.`arguments`, buf)
+        FfiConverterSequenceString.write(value.`columnsToRead`, buf)
+        FfiConverterString.write(value.`orderBy`, buf)
     }
 }
 
+data class GetDataOut(
+    var `rows`: List<Row>,
+) {
 
-
-data class GetDataOut (
-    var `rows`: List<Row>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeGetDataOut: FfiConverterRustBuffer<GetDataOut> {
+public object FfiConverterTypeGetDataOut : FfiConverterRustBuffer<GetDataOut> {
     override fun read(buf: ByteBuffer): GetDataOut {
         return GetDataOut(
             FfiConverterSequenceTypeRow.read(buf),
         )
     }
 
-    override fun allocationSize(value: GetDataOut) = (
+    override fun allocationSize(value: GetDataOut) =
+        (
             FfiConverterSequenceTypeRow.allocationSize(value.`rows`)
-    )
-
-    override fun write(value: GetDataOut, buf: ByteBuffer) {
-            FfiConverterSequenceTypeRow.write(value.`rows`, buf)
-    }
-}
-
-
-
-data class GetDataOutUnbuilt (
-    var `messageId`: kotlin.ULong
-    , 
-    var `request`: Request
-    , 
-    var `getDataOut`: GetDataOut
-    
-){
-    
-
-    
-
-    
-    companion object
-}
-
-/**
- * @suppress
- */
-public object FfiConverterTypeGetDataOutUnbuilt: FfiConverterRustBuffer<GetDataOutUnbuilt> {
-    override fun read(buf: ByteBuffer): GetDataOutUnbuilt {
-        return GetDataOutUnbuilt(
-            FfiConverterULong.read(buf),
-            FfiConverterTypeRequest.read(buf),
-            FfiConverterTypeGetDataOut.read(buf),
         )
-    }
 
-    override fun allocationSize(value: GetDataOutUnbuilt) = (
-            FfiConverterULong.allocationSize(value.`messageId`) +
-            FfiConverterTypeRequest.allocationSize(value.`request`) +
-            FfiConverterTypeGetDataOut.allocationSize(value.`getDataOut`)
-    )
-
-    override fun write(value: GetDataOutUnbuilt, buf: ByteBuffer) {
-            FfiConverterULong.write(value.`messageId`, buf)
-            FfiConverterTypeRequest.write(value.`request`, buf)
-            FfiConverterTypeGetDataOut.write(value.`getDataOut`, buf)
+    override fun write(
+        value: GetDataOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceTypeRow.write(value.`rows`, buf)
     }
 }
 
+data class InsertDataIn(
+    var `tableName`: kotlin.String,
+    var `values`: List<ColumnValue>,
+) {
 
-
-data class InsertDataIn (
-    var `tableName`: kotlin.String
-    , 
-    var `values`: List<ColumnValue>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeInsertDataIn: FfiConverterRustBuffer<InsertDataIn> {
+public object FfiConverterTypeInsertDataIn : FfiConverterRustBuffer<InsertDataIn> {
     override fun read(buf: ByteBuffer): InsertDataIn {
         return InsertDataIn(
             FfiConverterString.read(buf),
@@ -2293,136 +2387,123 @@ public object FfiConverterTypeInsertDataIn: FfiConverterRustBuffer<InsertDataIn>
         )
     }
 
-    override fun allocationSize(value: InsertDataIn) = (
+    override fun allocationSize(value: InsertDataIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeColumnValue.allocationSize(value.`values`)
-    )
+                FfiConverterSequenceTypeColumnValue.allocationSize(value.`values`)
+        )
 
-    override fun write(value: InsertDataIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeColumnValue.write(value.`values`, buf)
+    override fun write(
+        value: InsertDataIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterSequenceTypeColumnValue.write(value.`values`, buf)
     }
 }
 
+data class InsertDataOut(
+    var `result`: DbException?,
+) {
 
-
-data class InsertDataOut (
-    var `result`: DbException?
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeInsertDataOut: FfiConverterRustBuffer<InsertDataOut> {
+public object FfiConverterTypeInsertDataOut : FfiConverterRustBuffer<InsertDataOut> {
     override fun read(buf: ByteBuffer): InsertDataOut {
         return InsertDataOut(
             FfiConverterOptionalTypeDbError.read(buf),
         )
     }
 
-    override fun allocationSize(value: InsertDataOut) = (
+    override fun allocationSize(value: InsertDataOut) =
+        (
             FfiConverterOptionalTypeDbError.allocationSize(value.`result`)
-    )
+        )
 
-    override fun write(value: InsertDataOut, buf: ByteBuffer) {
-            FfiConverterOptionalTypeDbError.write(value.`result`, buf)
+    override fun write(
+        value: InsertDataOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterOptionalTypeDbError.write(value.`result`, buf)
     }
 }
 
+data class ListTablesOut(
+    var `tableNames`: List<kotlin.String>,
+) {
 
-
-data class ListTablesOut (
-    var `tableNames`: List<kotlin.String>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeListTablesOut: FfiConverterRustBuffer<ListTablesOut> {
+public object FfiConverterTypeListTablesOut : FfiConverterRustBuffer<ListTablesOut> {
     override fun read(buf: ByteBuffer): ListTablesOut {
         return ListTablesOut(
             FfiConverterSequenceString.read(buf),
         )
     }
 
-    override fun allocationSize(value: ListTablesOut) = (
+    override fun allocationSize(value: ListTablesOut) =
+        (
             FfiConverterSequenceString.allocationSize(value.`tableNames`)
-    )
+        )
 
-    override fun write(value: ListTablesOut, buf: ByteBuffer) {
-            FfiConverterSequenceString.write(value.`tableNames`, buf)
+    override fun write(
+        value: ListTablesOut,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceString.write(value.`tableNames`, buf)
     }
 }
 
+data class RebuildFts5In(
+    var `tableName`: kotlin.String,
+) {
 
-
-data class RebuildFts5In (
-    var `tableName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeRebuildFts5In: FfiConverterRustBuffer<RebuildFts5In> {
+public object FfiConverterTypeRebuildFts5In : FfiConverterRustBuffer<RebuildFts5In> {
     override fun read(buf: ByteBuffer): RebuildFts5In {
         return RebuildFts5In(
             FfiConverterString.read(buf),
         )
     }
 
-    override fun allocationSize(value: RebuildFts5In) = (
+    override fun allocationSize(value: RebuildFts5In) =
+        (
             FfiConverterString.allocationSize(value.`tableName`)
-    )
+        )
 
-    override fun write(value: RebuildFts5In, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
+    override fun write(
+        value: RebuildFts5In,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
     }
 }
 
+data class RemoveColumnIn(
+    var `tableName`: kotlin.String,
+    var `columnName`: kotlin.String,
+) {
 
-
-data class RemoveColumnIn (
-    var `tableName`: kotlin.String
-    , 
-    var `columnName`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeRemoveColumnIn: FfiConverterRustBuffer<RemoveColumnIn> {
+public object FfiConverterTypeRemoveColumnIn : FfiConverterRustBuffer<RemoveColumnIn> {
     override fun read(buf: ByteBuffer): RemoveColumnIn {
         return RemoveColumnIn(
             FfiConverterString.read(buf),
@@ -2430,70 +2511,63 @@ public object FfiConverterTypeRemoveColumnIn: FfiConverterRustBuffer<RemoveColum
         )
     }
 
-    override fun allocationSize(value: RemoveColumnIn) = (
+    override fun allocationSize(value: RemoveColumnIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`columnName`)
-    )
+                FfiConverterString.allocationSize(value.`columnName`)
+        )
 
-    override fun write(value: RemoveColumnIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`columnName`, buf)
+    override fun write(
+        value: RemoveColumnIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`columnName`, buf)
     }
 }
 
+data class Row(
+    var `cols`: List<Col>,
+) {
 
-
-data class Row (
-    var `cols`: List<Col>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeRow: FfiConverterRustBuffer<Row> {
+public object FfiConverterTypeRow : FfiConverterRustBuffer<Row> {
     override fun read(buf: ByteBuffer): Row {
         return Row(
             FfiConverterSequenceTypeCol.read(buf),
         )
     }
 
-    override fun allocationSize(value: Row) = (
+    override fun allocationSize(value: Row) =
+        (
             FfiConverterSequenceTypeCol.allocationSize(value.`cols`)
-    )
+        )
 
-    override fun write(value: Row, buf: ByteBuffer) {
-            FfiConverterSequenceTypeCol.write(value.`cols`, buf)
+    override fun write(
+        value: Row,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceTypeCol.write(value.`cols`, buf)
     }
 }
 
+data class SearchFts5In(
+    var `tableName`: kotlin.String,
+    var `textToLookup`: kotlin.String,
+) {
 
-
-data class SearchFts5In (
-    var `tableName`: kotlin.String
-    , 
-    var `textToLookup`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeSearchFts5In: FfiConverterRustBuffer<SearchFts5In> {
+public object FfiConverterTypeSearchFts5In : FfiConverterRustBuffer<SearchFts5In> {
     override fun read(buf: ByteBuffer): SearchFts5In {
         return SearchFts5In(
             FfiConverterString.read(buf),
@@ -2501,41 +2575,35 @@ public object FfiConverterTypeSearchFts5In: FfiConverterRustBuffer<SearchFts5In>
         )
     }
 
-    override fun allocationSize(value: SearchFts5In) = (
+    override fun allocationSize(value: SearchFts5In) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`textToLookup`)
-    )
+                FfiConverterString.allocationSize(value.`textToLookup`)
+        )
 
-    override fun write(value: SearchFts5In, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`textToLookup`, buf)
+    override fun write(
+        value: SearchFts5In,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`textToLookup`, buf)
     }
 }
 
+data class SwapColumnsIn(
+    var `tableName`: kotlin.String,
+    var `rowId1`: kotlin.String,
+    var `rowId2`: kotlin.String,
+    var `column`: kotlin.String,
+) {
 
-
-data class SwapColumnsIn (
-    var `tableName`: kotlin.String
-    , 
-    var `rowId1`: kotlin.String
-    , 
-    var `rowId2`: kotlin.String
-    , 
-    var `column`: kotlin.String
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeSwapColumnsIn: FfiConverterRustBuffer<SwapColumnsIn> {
+public object FfiConverterTypeSwapColumnsIn : FfiConverterRustBuffer<SwapColumnsIn> {
     override fun read(buf: ByteBuffer): SwapColumnsIn {
         return SwapColumnsIn(
             FfiConverterString.read(buf),
@@ -2545,49 +2613,41 @@ public object FfiConverterTypeSwapColumnsIn: FfiConverterRustBuffer<SwapColumnsI
         )
     }
 
-    override fun allocationSize(value: SwapColumnsIn) = (
+    override fun allocationSize(value: SwapColumnsIn) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterString.allocationSize(value.`rowId1`) +
-            FfiConverterString.allocationSize(value.`rowId2`) +
-            FfiConverterString.allocationSize(value.`column`)
-    )
+                FfiConverterString.allocationSize(value.`rowId1`) +
+                FfiConverterString.allocationSize(value.`rowId2`) +
+                FfiConverterString.allocationSize(value.`column`)
+        )
 
-    override fun write(value: SwapColumnsIn, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterString.write(value.`rowId1`, buf)
-            FfiConverterString.write(value.`rowId2`, buf)
-            FfiConverterString.write(value.`column`, buf)
+    override fun write(
+        value: SwapColumnsIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterString.write(value.`rowId1`, buf)
+        FfiConverterString.write(value.`rowId2`, buf)
+        FfiConverterString.write(value.`column`, buf)
     }
 }
 
+data class TableColumnInfo(
+    var `cid`: kotlin.Long,
+    var `name`: kotlin.String,
+    var `typeName`: kotlin.String,
+    var `notNull`: kotlin.Boolean,
+    var `defaultValue`: kotlin.String?,
+    var `primaryKey`: kotlin.Boolean,
+) {
 
-
-data class TableColumnInfo (
-    var `cid`: kotlin.Long
-    , 
-    var `name`: kotlin.String
-    , 
-    var `typeName`: kotlin.String
-    , 
-    var `notNull`: kotlin.Boolean
-    , 
-    var `defaultValue`: kotlin.String?
-    , 
-    var `primaryKey`: kotlin.Boolean
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeTableColumnInfo: FfiConverterRustBuffer<TableColumnInfo> {
+public object FfiConverterTypeTableColumnInfo : FfiConverterRustBuffer<TableColumnInfo> {
     override fun read(buf: ByteBuffer): TableColumnInfo {
         return TableColumnInfo(
             FfiConverterLong.read(buf),
@@ -2599,47 +2659,42 @@ public object FfiConverterTypeTableColumnInfo: FfiConverterRustBuffer<TableColum
         )
     }
 
-    override fun allocationSize(value: TableColumnInfo) = (
+    override fun allocationSize(value: TableColumnInfo) =
+        (
             FfiConverterLong.allocationSize(value.`cid`) +
-            FfiConverterString.allocationSize(value.`name`) +
-            FfiConverterString.allocationSize(value.`typeName`) +
-            FfiConverterBoolean.allocationSize(value.`notNull`) +
-            FfiConverterOptionalString.allocationSize(value.`defaultValue`) +
-            FfiConverterBoolean.allocationSize(value.`primaryKey`)
-    )
+                FfiConverterString.allocationSize(value.`name`) +
+                FfiConverterString.allocationSize(value.`typeName`) +
+                FfiConverterBoolean.allocationSize(value.`notNull`) +
+                FfiConverterOptionalString.allocationSize(value.`defaultValue`) +
+                FfiConverterBoolean.allocationSize(value.`primaryKey`)
+        )
 
-    override fun write(value: TableColumnInfo, buf: ByteBuffer) {
-            FfiConverterLong.write(value.`cid`, buf)
-            FfiConverterString.write(value.`name`, buf)
-            FfiConverterString.write(value.`typeName`, buf)
-            FfiConverterBoolean.write(value.`notNull`, buf)
-            FfiConverterOptionalString.write(value.`defaultValue`, buf)
-            FfiConverterBoolean.write(value.`primaryKey`, buf)
+    override fun write(
+        value: TableColumnInfo,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterLong.write(value.`cid`, buf)
+        FfiConverterString.write(value.`name`, buf)
+        FfiConverterString.write(value.`typeName`, buf)
+        FfiConverterBoolean.write(value.`notNull`, buf)
+        FfiConverterOptionalString.write(value.`defaultValue`, buf)
+        FfiConverterBoolean.write(value.`primaryKey`, buf)
     }
 }
 
+data class TableExport(
+    var `tableName`: kotlin.String,
+    var `columns`: List<TableColumnInfo>,
+    var `rows`: List<Row>,
+) {
 
-
-data class TableExport (
-    var `tableName`: kotlin.String
-    , 
-    var `columns`: List<TableColumnInfo>
-    , 
-    var `rows`: List<Row>
-    
-){
-    
-
-    
-
-    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeTableExport: FfiConverterRustBuffer<TableExport> {
+public object FfiConverterTypeTableExport : FfiConverterRustBuffer<TableExport> {
     override fun read(buf: ByteBuffer): TableExport {
         return TableExport(
             FfiConverterString.read(buf),
@@ -2648,68 +2703,49 @@ public object FfiConverterTypeTableExport: FfiConverterRustBuffer<TableExport> {
         )
     }
 
-    override fun allocationSize(value: TableExport) = (
+    override fun allocationSize(value: TableExport) =
+        (
             FfiConverterString.allocationSize(value.`tableName`) +
-            FfiConverterSequenceTypeTableColumnInfo.allocationSize(value.`columns`) +
-            FfiConverterSequenceTypeRow.allocationSize(value.`rows`)
-    )
+                FfiConverterSequenceTypeTableColumnInfo.allocationSize(value.`columns`) +
+                FfiConverterSequenceTypeRow.allocationSize(value.`rows`)
+        )
 
-    override fun write(value: TableExport, buf: ByteBuffer) {
-            FfiConverterString.write(value.`tableName`, buf)
-            FfiConverterSequenceTypeTableColumnInfo.write(value.`columns`, buf)
-            FfiConverterSequenceTypeRow.write(value.`rows`, buf)
+    override fun write(
+        value: TableExport,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterSequenceTypeTableColumnInfo.write(value.`columns`, buf)
+        FfiConverterSequenceTypeRow.write(value.`rows`, buf)
     }
 }
 
-
-
 sealed class Col {
-    
     object Null : Col()
-    
-    
+
     data class Integer(
-        val v1: kotlin.Long) : Col()
-        
-    {
-        
-
+        val v1: kotlin.Long,
+    ) : Col() {
         companion object
     }
-    
+
     data class Real(
-        val v1: kotlin.Double) : Col()
-        
-    {
-        
-
+        val v1: kotlin.Double,
+    ) : Col() {
         companion object
     }
-    
+
     data class Text(
-        val v1: kotlin.String) : Col()
-        
-    {
-        
-
+        val v1: kotlin.String,
+    ) : Col() {
         companion object
     }
-    
+
     data class Blob(
-        val v1: kotlin.ByteArray) : Col()
-        
-    {
-        
-
+        val v1: kotlin.ByteArray,
+    ) : Col() {
         companion object
     }
-    
-
-    
-
-    
-    
-
 
     companion object
 }
@@ -2717,65 +2753,73 @@ sealed class Col {
 /**
  * @suppress
  */
-public object FfiConverterTypeCol : FfiConverterRustBuffer<Col>{
+public object FfiConverterTypeCol : FfiConverterRustBuffer<Col> {
     override fun read(buf: ByteBuffer): Col {
-        return when(buf.getInt()) {
+        return when (buf.getInt()) {
             1 -> Col.Null
-            2 -> Col.Integer(
-                FfiConverterLong.read(buf),
+            2 ->
+                Col.Integer(
+                    FfiConverterLong.read(buf),
                 )
-            3 -> Col.Real(
-                FfiConverterDouble.read(buf),
+            3 ->
+                Col.Real(
+                    FfiConverterDouble.read(buf),
                 )
-            4 -> Col.Text(
-                FfiConverterString.read(buf),
+            4 ->
+                Col.Text(
+                    FfiConverterString.read(buf),
                 )
-            5 -> Col.Blob(
-                FfiConverterByteArray.read(buf),
+            5 ->
+                Col.Blob(
+                    FfiConverterByteArray.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: Col): ULong = when(value) {
-        is Col.Null -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
+    override fun allocationSize(value: Col): ULong =
+        when (value) {
+            is Col.Null -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Col.Integer -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterLong.allocationSize(value.v1)
+                )
+            }
+            is Col.Real -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterDouble.allocationSize(value.v1)
+                )
+            }
+            is Col.Text -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.v1)
+                )
+            }
+            is Col.Blob -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterByteArray.allocationSize(value.v1)
+                )
+            }
         }
-        is Col.Integer -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterLong.allocationSize(value.v1)
-            )
-        }
-        is Col.Real -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterDouble.allocationSize(value.v1)
-            )
-        }
-        is Col.Text -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
-            )
-        }
-        is Col.Blob -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterByteArray.allocationSize(value.v1)
-            )
-        }
-    }
 
-    override fun write(value: Col, buf: ByteBuffer) {
-        when(value) {
+    override fun write(
+        value: Col,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
             is Col.Null -> {
                 buf.putInt(1)
                 Unit
@@ -2804,39 +2848,22 @@ public object FfiConverterTypeCol : FfiConverterRustBuffer<Col>{
     }
 }
 
+sealed class ColumnSource {
+    object SameName : ColumnSource()
 
-
-
-
-sealed class ColumnType {
-    
-    object Integer : ColumnType()
-    
-    
-    object Text : ColumnType()
-    
-    
-    object Real : ColumnType()
-    
-    
-    object Blob : ColumnType()
-    
-    
-    data class UniFfiDontRenameMyEnums(
-        val v1: kotlin.Boolean) : ColumnType()
-        
-    {
-        
-
+    data class FromColumn(
+        val v1: kotlin.String,
+    ) : ColumnSource() {
         companion object
     }
-    
 
-    
+    data class Expression(
+        val v1: kotlin.String,
+    ) : ColumnSource() {
+        companion object
+    }
 
-    
-    
-
+    object UseDefault : ColumnSource()
 
     companion object
 }
@@ -2844,56 +2871,156 @@ sealed class ColumnType {
 /**
  * @suppress
  */
-public object FfiConverterTypeColumnType : FfiConverterRustBuffer<ColumnType>{
+public object FfiConverterTypeColumnSource : FfiConverterRustBuffer<ColumnSource> {
+    override fun read(buf: ByteBuffer): ColumnSource {
+        return when (buf.getInt()) {
+            1 -> ColumnSource.SameName
+            2 ->
+                ColumnSource.FromColumn(
+                    FfiConverterString.read(buf),
+                )
+            3 ->
+                ColumnSource.Expression(
+                    FfiConverterString.read(buf),
+                )
+            4 -> ColumnSource.UseDefault
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: ColumnSource): ULong =
+        when (value) {
+            is ColumnSource.SameName -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is ColumnSource.FromColumn -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.v1)
+                )
+            }
+            is ColumnSource.Expression -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.v1)
+                )
+            }
+            is ColumnSource.UseDefault -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+        }
+
+    override fun write(
+        value: ColumnSource,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
+            is ColumnSource.SameName -> {
+                buf.putInt(1)
+                Unit
+            }
+            is ColumnSource.FromColumn -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ColumnSource.Expression -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ColumnSource.UseDefault -> {
+                buf.putInt(4)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+sealed class ColumnType {
+    object Integer : ColumnType()
+
+    object Text : ColumnType()
+
+    object Real : ColumnType()
+
+    object Blob : ColumnType()
+
+    data class UniFfiDontRenameMyEnums(
+        val v1: kotlin.Boolean,
+    ) : ColumnType() {
+        companion object
+    }
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeColumnType : FfiConverterRustBuffer<ColumnType> {
     override fun read(buf: ByteBuffer): ColumnType {
-        return when(buf.getInt()) {
+        return when (buf.getInt()) {
             1 -> ColumnType.Integer
             2 -> ColumnType.Text
             3 -> ColumnType.Real
             4 -> ColumnType.Blob
-            5 -> ColumnType.UniFfiDontRenameMyEnums(
-                FfiConverterBoolean.read(buf),
+            5 ->
+                ColumnType.UniFfiDontRenameMyEnums(
+                    FfiConverterBoolean.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: ColumnType): ULong = when(value) {
-        is ColumnType.Integer -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
+    override fun allocationSize(value: ColumnType): ULong =
+        when (value) {
+            is ColumnType.Integer -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is ColumnType.Text -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is ColumnType.Real -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is ColumnType.Blob -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is ColumnType.UniFfiDontRenameMyEnums -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterBoolean.allocationSize(value.v1)
+                )
+            }
         }
-        is ColumnType.Text -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is ColumnType.Real -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is ColumnType.Blob -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is ColumnType.UniFfiDontRenameMyEnums -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterBoolean.allocationSize(value.v1)
-            )
-        }
-    }
 
-    override fun write(value: ColumnType, buf: ByteBuffer) {
-        when(value) {
+    override fun write(
+        value: ColumnType,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
             is ColumnType.Integer -> {
                 buf.putInt(1)
                 Unit
@@ -2919,71 +3046,52 @@ public object FfiConverterTypeColumnType : FfiConverterRustBuffer<ColumnType>{
     }
 }
 
-
-
-
-
-
-
-sealed class DbException: kotlin.Exception() {
-    
+sealed class DbException : kotlin.Exception() {
     class CureFail(
-        
-        val v1: kotlin.String
-        ) : DbException() {
+        val v1: kotlin.String,
+    ) : DbException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class ConnException(
-        
-        val v1: kotlin.String
-        ) : DbException() {
+        val v1: kotlin.String,
+    ) : DbException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class IllegalInput(
-        
-        val v1: kotlin.String
-        ) : DbException() {
+        val v1: kotlin.String,
+    ) : DbException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class SqlExecuteFail(
-        
-        val v1: kotlin.String
-        ) : DbException() {
+        val v1: kotlin.String,
+    ) : DbException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class SerializeException(
-        
-        val v1: kotlin.String
-        ) : DbException() {
+        val v1: kotlin.String,
+    ) : DbException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class BadCode(
-        
-        val v1: kotlin.String
-        ) : DbException() {
+        val v1: kotlin.String,
+    ) : DbException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
-
-    
-
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<DbException> {
         override fun lift(error_buf: RustBuffer.ByValue): DbException = FfiConverterTypeDbError.lift(error_buf)
     }
-
-    
 }
 
 /**
@@ -2991,68 +3099,75 @@ sealed class DbException: kotlin.Exception() {
  */
 public object FfiConverterTypeDbError : FfiConverterRustBuffer<DbException> {
     override fun read(buf: ByteBuffer): DbException {
-        
-
-        return when(buf.getInt()) {
-            1 -> DbException.CureFail(
-                FfiConverterString.read(buf),
+        return when (buf.getInt()) {
+            1 ->
+                DbException.CureFail(
+                    FfiConverterString.read(buf),
                 )
-            2 -> DbException.ConnException(
-                FfiConverterString.read(buf),
+            2 ->
+                DbException.ConnException(
+                    FfiConverterString.read(buf),
                 )
-            3 -> DbException.IllegalInput(
-                FfiConverterString.read(buf),
+            3 ->
+                DbException.IllegalInput(
+                    FfiConverterString.read(buf),
                 )
-            4 -> DbException.SqlExecuteFail(
-                FfiConverterString.read(buf),
+            4 ->
+                DbException.SqlExecuteFail(
+                    FfiConverterString.read(buf),
                 )
-            5 -> DbException.SerializeException(
-                FfiConverterString.read(buf),
+            5 ->
+                DbException.SerializeException(
+                    FfiConverterString.read(buf),
                 )
-            6 -> DbException.BadCode(
-                FfiConverterString.read(buf),
+            6 ->
+                DbException.BadCode(
+                    FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
     }
 
     override fun allocationSize(value: DbException): ULong {
-        return when(value) {
+        return when (value) {
             is DbException.CureFail -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
             )
             is DbException.ConnException -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
             )
             is DbException.IllegalInput -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
             )
             is DbException.SqlExecuteFail -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
             )
             is DbException.SerializeException -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
             )
             is DbException.BadCode -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL
-                + FfiConverterString.allocationSize(value.v1)
+                4UL +
+                    FfiConverterString.allocationSize(value.v1)
             )
         }
     }
 
-    override fun write(value: DbException, buf: ByteBuffer) {
-        when(value) {
+    override fun write(
+        value: DbException,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
             is DbException.CureFail -> {
                 buf.putInt(1)
                 FfiConverterString.write(value.v1, buf)
@@ -3085,116 +3200,79 @@ public object FfiConverterTypeDbError : FfiConverterRustBuffer<DbException> {
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
-
 }
 
-
-
-
 enum class JoinType {
-    
     AND,
-    OR;
-
-    
-
+    OR,
+    ;
 
     companion object
 }
 
-
 /**
  * @suppress
  */
-public object FfiConverterTypeJoinType: FfiConverterRustBuffer<JoinType> {
-    override fun read(buf: ByteBuffer) = try {
-        JoinType.values()[buf.getInt() - 1]
-    } catch (e: IndexOutOfBoundsException) {
-        throw RuntimeException("invalid enum value, something is very wrong!!", e)
-    }
+public object FfiConverterTypeJoinType : FfiConverterRustBuffer<JoinType> {
+    override fun read(buf: ByteBuffer) =
+        try {
+            JoinType.values()[buf.getInt() - 1]
+        } catch (e: IndexOutOfBoundsException) {
+            throw RuntimeException("invalid enum value, something is very wrong!!", e)
+        }
 
     override fun allocationSize(value: JoinType) = 4UL
 
-    override fun write(value: JoinType, buf: ByteBuffer) {
+    override fun write(
+        value: JoinType,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.ordinal + 1)
     }
 }
 
-
-
-
-
 sealed class Request {
-    
     object CreateTable : Request()
-    
-    
-    object ListTables : Request()
-    
-    
-    object GetData : Request()
-    
-    
-    object GetDataOrdered : Request()
-    
-    
-    object InsertData : Request()
-    
-    
-    object DropTable : Request()
-    
-    
-    object EditColInRow : Request()
-    
-    
-    object CheckTable : Request()
-    
-    
-    object DeleteRow : Request()
-    
-    
-    object SwapColumns : Request()
-    
-    
-    object CreateIndex : Request()
-    
-    
-    object CheckIndex : Request()
-    
-    
-    object AddColumn : Request()
-    
-    
-    object RemoveColumn : Request()
-    
-    
-    object ExportDatabase : Request()
-    
-    
-    object ExportTables : Request()
-    
-    
-    object CreateTableFromExport : Request()
-    
-    
-    object CopyTable : Request()
-    
-    
-    data class UniffiDontRenameMyEnums(
-        val v1: kotlin.Boolean) : Request()
-        
-    {
-        
 
+    object ListTables : Request()
+
+    object GetData : Request()
+
+    object GetDataOrdered : Request()
+
+    object InsertData : Request()
+
+    object DropTable : Request()
+
+    object EditColInRow : Request()
+
+    object CheckTable : Request()
+
+    object DeleteRow : Request()
+
+    object SwapColumns : Request()
+
+    object CreateIndex : Request()
+
+    object CheckIndex : Request()
+
+    object AddColumn : Request()
+
+    object RemoveColumn : Request()
+
+    object ExportDatabase : Request()
+
+    object ExportTables : Request()
+
+    object CreateTableFromExport : Request()
+
+    object CopyTable : Request()
+
+    data class UniffiDontRenameMyEnums(
+        val v1: kotlin.Boolean,
+    ) : Request() {
         companion object
     }
-    
-
-    
-
-    
-    
-
 
     companion object
 }
@@ -3202,9 +3280,9 @@ sealed class Request {
 /**
  * @suppress
  */
-public object FfiConverterTypeRequest : FfiConverterRustBuffer<Request>{
+public object FfiConverterTypeRequest : FfiConverterRustBuffer<Request> {
     override fun read(buf: ByteBuffer): Request {
-        return when(buf.getInt()) {
+        return when (buf.getInt()) {
             1 -> Request.CreateTable
             2 -> Request.ListTables
             3 -> Request.GetData
@@ -3223,133 +3301,138 @@ public object FfiConverterTypeRequest : FfiConverterRustBuffer<Request>{
             16 -> Request.ExportTables
             17 -> Request.CreateTableFromExport
             18 -> Request.CopyTable
-            19 -> Request.UniffiDontRenameMyEnums(
-                FfiConverterBoolean.read(buf),
+            19 ->
+                Request.UniffiDontRenameMyEnums(
+                    FfiConverterBoolean.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: Request): ULong = when(value) {
-        is Request.CreateTable -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
+    override fun allocationSize(value: Request): ULong =
+        when (value) {
+            is Request.CreateTable -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.ListTables -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.GetData -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.GetDataOrdered -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.InsertData -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.DropTable -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.EditColInRow -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.CheckTable -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.DeleteRow -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.SwapColumns -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.CreateIndex -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.CheckIndex -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.AddColumn -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.RemoveColumn -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.ExportDatabase -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.ExportTables -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.CreateTableFromExport -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.CopyTable -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
+            is Request.UniffiDontRenameMyEnums -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterBoolean.allocationSize(value.v1)
+                )
+            }
         }
-        is Request.ListTables -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.GetData -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.GetDataOrdered -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.InsertData -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.DropTable -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.EditColInRow -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.CheckTable -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.DeleteRow -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.SwapColumns -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.CreateIndex -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.CheckIndex -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.AddColumn -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.RemoveColumn -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.ExportDatabase -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.ExportTables -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.CreateTableFromExport -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.CopyTable -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-        is Request.UniffiDontRenameMyEnums -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterBoolean.allocationSize(value.v1)
-            )
-        }
-    }
 
-    override fun write(value: Request, buf: ByteBuffer) {
-        when(value) {
+    override fun write(
+        value: Request,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
             is Request.CreateTable -> {
                 buf.putInt(1)
                 Unit
@@ -3431,109 +3514,64 @@ public object FfiConverterTypeRequest : FfiConverterRustBuffer<Request>{
     }
 }
 
-
-
-
-
 sealed class SelectArgument {
-    
     data class XEqualY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XNotEqualY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XGreaterThanY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XLessThanY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XGreaterThanOrEqualY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XLessThanOrEqualY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XLikeY(
-        val `x`: kotlin.String, 
-        val `y`: kotlin.String, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: kotlin.String,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     data class XInY(
-        val `x`: kotlin.String, 
-        val `y`: List<kotlin.String>, 
-        val `join`: uniffi.protocol.JoinType?) : SelectArgument()
-        
-    {
-        
-
+        val `x`: kotlin.String,
+        val `y`: List<kotlin.String>,
+    ) : SelectArgument() {
         companion object
     }
-    
+
     object All : SelectArgument()
-    
-    
-
-    
-
-    
-    
-
 
     companion object
 }
@@ -3541,191 +3579,179 @@ sealed class SelectArgument {
 /**
  * @suppress
  */
-public object FfiConverterTypeSelectArgument : FfiConverterRustBuffer<SelectArgument>{
+public object FfiConverterTypeSelectArgument : FfiConverterRustBuffer<SelectArgument> {
     override fun read(buf: ByteBuffer): SelectArgument {
-        return when(buf.getInt()) {
-            1 -> SelectArgument.XEqualY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+        return when (buf.getInt()) {
+            1 ->
+                SelectArgument.XEqualY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            2 -> SelectArgument.XNotEqualY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            2 ->
+                SelectArgument.XNotEqualY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            3 -> SelectArgument.XGreaterThanY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            3 ->
+                SelectArgument.XGreaterThanY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            4 -> SelectArgument.XLessThanY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            4 ->
+                SelectArgument.XLessThanY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            5 -> SelectArgument.XGreaterThanOrEqualY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            5 ->
+                SelectArgument.XGreaterThanOrEqualY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            6 -> SelectArgument.XLessThanOrEqualY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            6 ->
+                SelectArgument.XLessThanOrEqualY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            7 -> SelectArgument.XLikeY(
-                FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            7 ->
+                SelectArgument.XLikeY(
+                    FfiConverterString.read(buf),
+                    FfiConverterString.read(buf),
                 )
-            8 -> SelectArgument.XInY(
-                FfiConverterString.read(buf),
-                FfiConverterSequenceString.read(buf),
-                FfiConverterOptionalTypeJoinType.read(buf),
+            8 ->
+                SelectArgument.XInY(
+                    FfiConverterString.read(buf),
+                    FfiConverterSequenceString.read(buf),
                 )
             9 -> SelectArgument.All
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: SelectArgument): ULong = when(value) {
-        is SelectArgument.XEqualY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
+    override fun allocationSize(value: SelectArgument): ULong =
+        when (value) {
+            is SelectArgument.XEqualY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XNotEqualY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XGreaterThanY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XLessThanY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XGreaterThanOrEqualY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XLessThanOrEqualY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XLikeY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.XInY -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterString.allocationSize(value.`x`) +
+                        FfiConverterSequenceString.allocationSize(value.`y`)
+                )
+            }
+            is SelectArgument.All -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL
+                )
+            }
         }
-        is SelectArgument.XNotEqualY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.XGreaterThanY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.XLessThanY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.XGreaterThanOrEqualY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.XLessThanOrEqualY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.XLikeY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.XInY -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`x`)
-                + FfiConverterSequenceString.allocationSize(value.`y`)
-                + FfiConverterOptionalTypeJoinType.allocationSize(value.`join`)
-            )
-        }
-        is SelectArgument.All -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-            )
-        }
-    }
 
-    override fun write(value: SelectArgument, buf: ByteBuffer) {
-        when(value) {
+    override fun write(
+        value: SelectArgument,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
             is SelectArgument.XEqualY -> {
                 buf.putInt(1)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XNotEqualY -> {
                 buf.putInt(2)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XGreaterThanY -> {
                 buf.putInt(3)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XLessThanY -> {
                 buf.putInt(4)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XGreaterThanOrEqualY -> {
                 buf.putInt(5)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XLessThanOrEqualY -> {
                 buf.putInt(6)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XLikeY -> {
                 buf.putInt(7)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.XInY -> {
                 buf.putInt(8)
                 FfiConverterString.write(value.`x`, buf)
                 FfiConverterSequenceString.write(value.`y`, buf)
-                FfiConverterOptionalTypeJoinType.write(value.`join`, buf)
                 Unit
             }
             is SelectArgument.All -> {
@@ -3736,15 +3762,89 @@ public object FfiConverterTypeSelectArgument : FfiConverterRustBuffer<SelectArgu
     }
 }
 
+sealed class SelectArguments {
+    data class Single(
+        val v1: uniffi.protocol.SelectArgument,
+    ) : SelectArguments() {
+        companion object
+    }
 
+    data class Two(
+        val `first`: uniffi.protocol.SelectArgument,
+        val `join`: uniffi.protocol.JoinType,
+        val `second`: uniffi.protocol.SelectArgument,
+    ) : SelectArguments() {
+        companion object
+    }
 
-
-
+    companion object
+}
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
+public object FfiConverterTypeSelectArguments : FfiConverterRustBuffer<SelectArguments> {
+    override fun read(buf: ByteBuffer): SelectArguments {
+        return when (buf.getInt()) {
+            1 ->
+                SelectArguments.Single(
+                    FfiConverterTypeSelectArgument.read(buf),
+                )
+            2 ->
+                SelectArguments.Two(
+                    FfiConverterTypeSelectArgument.read(buf),
+                    FfiConverterTypeJoinType.read(buf),
+                    FfiConverterTypeSelectArgument.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: SelectArguments): ULong =
+        when (value) {
+            is SelectArguments.Single -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterTypeSelectArgument.allocationSize(value.v1)
+                )
+            }
+            is SelectArguments.Two -> {
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                (
+                    4UL +
+                        FfiConverterTypeSelectArgument.allocationSize(value.`first`) +
+                        FfiConverterTypeJoinType.allocationSize(value.`join`) +
+                        FfiConverterTypeSelectArgument.allocationSize(value.`second`)
+                )
+            }
+        }
+
+    override fun write(
+        value: SelectArguments,
+        buf: ByteBuffer,
+    ) {
+        when (value) {
+            is SelectArguments.Single -> {
+                buf.putInt(1)
+                FfiConverterTypeSelectArgument.write(value.v1, buf)
+                Unit
+            }
+            is SelectArguments.Two -> {
+                buf.putInt(2)
+                FfiConverterTypeSelectArgument.write(value.`first`, buf)
+                FfiConverterTypeJoinType.write(value.`join`, buf)
+                FfiConverterTypeSelectArgument.write(value.`second`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalString : FfiConverterRustBuffer<kotlin.String?> {
     override fun read(buf: ByteBuffer): kotlin.String? {
         if (buf.get().toInt() == 0) {
             return null
@@ -3760,7 +3860,10 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         }
     }
 
-    override fun write(value: kotlin.String?, buf: ByteBuffer) {
+    override fun write(
+        value: kotlin.String?,
+        buf: ByteBuffer,
+    ) {
         if (value == null) {
             buf.put(0)
         } else {
@@ -3770,13 +3873,10 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeDbError: FfiConverterRustBuffer<DbException?> {
+public object FfiConverterOptionalTypeDbError : FfiConverterRustBuffer<DbException?> {
     override fun read(buf: ByteBuffer): DbException? {
         if (buf.get().toInt() == 0) {
             return null
@@ -3792,7 +3892,10 @@ public object FfiConverterOptionalTypeDbError: FfiConverterRustBuffer<DbExceptio
         }
     }
 
-    override fun write(value: DbException?, buf: ByteBuffer) {
+    override fun write(
+        value: DbException?,
+        buf: ByteBuffer,
+    ) {
         if (value == null) {
             buf.put(0)
         } else {
@@ -3802,13 +3905,10 @@ public object FfiConverterOptionalTypeDbError: FfiConverterRustBuffer<DbExceptio
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeJoinType: FfiConverterRustBuffer<JoinType?> {
+public object FfiConverterOptionalTypeJoinType : FfiConverterRustBuffer<JoinType?> {
     override fun read(buf: ByteBuffer): JoinType? {
         if (buf.get().toInt() == 0) {
             return null
@@ -3824,7 +3924,10 @@ public object FfiConverterOptionalTypeJoinType: FfiConverterRustBuffer<JoinType?
         }
     }
 
-    override fun write(value: JoinType?, buf: ByteBuffer) {
+    override fun write(
+        value: JoinType?,
+        buf: ByteBuffer,
+    ) {
         if (value == null) {
             buf.put(0)
         } else {
@@ -3834,13 +3937,10 @@ public object FfiConverterOptionalTypeJoinType: FfiConverterRustBuffer<JoinType?
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.String>> {
+public object FfiConverterSequenceString : FfiConverterRustBuffer<List<kotlin.String>> {
     override fun read(buf: ByteBuffer): List<kotlin.String> {
         val len = buf.getInt()
         return List<kotlin.String>(len) {
@@ -3854,7 +3954,10 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<kotlin.String>, buf: ByteBuffer) {
+    override fun write(
+        value: List<kotlin.String>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterString.write(it, buf)
@@ -3862,13 +3965,10 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<ColumnDef>> {
+public object FfiConverterSequenceTypeColumnDef : FfiConverterRustBuffer<List<ColumnDef>> {
     override fun read(buf: ByteBuffer): List<ColumnDef> {
         val len = buf.getInt()
         return List<ColumnDef>(len) {
@@ -3882,7 +3982,10 @@ public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<Col
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<ColumnDef>, buf: ByteBuffer) {
+    override fun write(
+        value: List<ColumnDef>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeColumnDef.write(it, buf)
@@ -3890,13 +3993,10 @@ public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<Col
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeColumnFilter: FfiConverterRustBuffer<List<ColumnFilter>> {
+public object FfiConverterSequenceTypeColumnFilter : FfiConverterRustBuffer<List<ColumnFilter>> {
     override fun read(buf: ByteBuffer): List<ColumnFilter> {
         val len = buf.getInt()
         return List<ColumnFilter>(len) {
@@ -3910,7 +4010,10 @@ public object FfiConverterSequenceTypeColumnFilter: FfiConverterRustBuffer<List<
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<ColumnFilter>, buf: ByteBuffer) {
+    override fun write(
+        value: List<ColumnFilter>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeColumnFilter.write(it, buf)
@@ -3918,13 +4021,10 @@ public object FfiConverterSequenceTypeColumnFilter: FfiConverterRustBuffer<List<
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeColumnValue: FfiConverterRustBuffer<List<ColumnValue>> {
+public object FfiConverterSequenceTypeColumnValue : FfiConverterRustBuffer<List<ColumnValue>> {
     override fun read(buf: ByteBuffer): List<ColumnValue> {
         val len = buf.getInt()
         return List<ColumnValue>(len) {
@@ -3938,7 +4038,10 @@ public object FfiConverterSequenceTypeColumnValue: FfiConverterRustBuffer<List<C
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<ColumnValue>, buf: ByteBuffer) {
+    override fun write(
+        value: List<ColumnValue>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeColumnValue.write(it, buf)
@@ -3946,13 +4049,10 @@ public object FfiConverterSequenceTypeColumnValue: FfiConverterRustBuffer<List<C
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List<ForeignKeyDef>> {
+public object FfiConverterSequenceTypeForeignKeyDef : FfiConverterRustBuffer<List<ForeignKeyDef>> {
     override fun read(buf: ByteBuffer): List<ForeignKeyDef> {
         val len = buf.getInt()
         return List<ForeignKeyDef>(len) {
@@ -3966,7 +4066,10 @@ public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<ForeignKeyDef>, buf: ByteBuffer) {
+    override fun write(
+        value: List<ForeignKeyDef>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeForeignKeyDef.write(it, buf)
@@ -3974,13 +4077,10 @@ public object FfiConverterSequenceTypeForeignKeyDef: FfiConverterRustBuffer<List
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeRow: FfiConverterRustBuffer<List<Row>> {
+public object FfiConverterSequenceTypeRow : FfiConverterRustBuffer<List<Row>> {
     override fun read(buf: ByteBuffer): List<Row> {
         val len = buf.getInt()
         return List<Row>(len) {
@@ -3994,7 +4094,10 @@ public object FfiConverterSequenceTypeRow: FfiConverterRustBuffer<List<Row>> {
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<Row>, buf: ByteBuffer) {
+    override fun write(
+        value: List<Row>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeRow.write(it, buf)
@@ -4002,13 +4105,10 @@ public object FfiConverterSequenceTypeRow: FfiConverterRustBuffer<List<Row>> {
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeTableColumnInfo: FfiConverterRustBuffer<List<TableColumnInfo>> {
+public object FfiConverterSequenceTypeTableColumnInfo : FfiConverterRustBuffer<List<TableColumnInfo>> {
     override fun read(buf: ByteBuffer): List<TableColumnInfo> {
         val len = buf.getInt()
         return List<TableColumnInfo>(len) {
@@ -4022,7 +4122,10 @@ public object FfiConverterSequenceTypeTableColumnInfo: FfiConverterRustBuffer<Li
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<TableColumnInfo>, buf: ByteBuffer) {
+    override fun write(
+        value: List<TableColumnInfo>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeTableColumnInfo.write(it, buf)
@@ -4030,13 +4133,10 @@ public object FfiConverterSequenceTypeTableColumnInfo: FfiConverterRustBuffer<Li
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeTableExport: FfiConverterRustBuffer<List<TableExport>> {
+public object FfiConverterSequenceTypeTableExport : FfiConverterRustBuffer<List<TableExport>> {
     override fun read(buf: ByteBuffer): List<TableExport> {
         val len = buf.getInt()
         return List<TableExport>(len) {
@@ -4050,7 +4150,10 @@ public object FfiConverterSequenceTypeTableExport: FfiConverterRustBuffer<List<T
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<TableExport>, buf: ByteBuffer) {
+    override fun write(
+        value: List<TableExport>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeTableExport.write(it, buf)
@@ -4058,13 +4161,10 @@ public object FfiConverterSequenceTypeTableExport: FfiConverterRustBuffer<List<T
     }
 }
 
-
-
-
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeCol: FfiConverterRustBuffer<List<Col>> {
+public object FfiConverterSequenceTypeCol : FfiConverterRustBuffer<List<Col>> {
     override fun read(buf: ByteBuffer): List<Col> {
         val len = buf.getInt()
         return List<Col>(len) {
@@ -4078,7 +4178,10 @@ public object FfiConverterSequenceTypeCol: FfiConverterRustBuffer<List<Col>> {
         return sizeForLength + sizeForItems
     }
 
-    override fun write(value: List<Col>, buf: ByteBuffer) {
+    override fun write(
+        value: List<Col>,
+        buf: ByteBuffer,
+    ) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeCol.write(it, buf)
@@ -4086,127 +4189,89 @@ public object FfiConverterSequenceTypeCol: FfiConverterRustBuffer<List<Col>> {
     }
 }
 
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterSequenceTypeSelectArgument: FfiConverterRustBuffer<List<SelectArgument>> {
-    override fun read(buf: ByteBuffer): List<SelectArgument> {
-        val len = buf.getInt()
-        return List<SelectArgument>(len) {
-            FfiConverterTypeSelectArgument.read(buf)
-        }
-    }
-
-    override fun allocationSize(value: List<SelectArgument>): ULong {
-        val sizeForLength = 4UL
-        val sizeForItems = value.map { FfiConverterTypeSelectArgument.allocationSize(it) }.sum()
-        return sizeForLength + sizeForItems
-    }
-
-    override fun write(value: List<SelectArgument>, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        value.iterator().forEach {
-            FfiConverterTypeSelectArgument.write(it, buf)
-        }
-    }
-}
-    @Throws(DbException::class) fun `buildGetDataInMsg`(`messageId`: kotlin.ULong, `prePayload`: GetDataIn): kotlin.String {
-            return FfiConverterString.lift(
-    uniffiRustCallWithError(DbException) { _status ->
-    UniffiLib.uniffi_protocol_fn_func_build_get_data_in_msg(
-    
-        
-        FfiConverterULong.lower(`messageId`),
-        FfiConverterTypeGetDataIn.lower(`prePayload`),_status)
-}
+fun `colWithDefaultValue`(
+    `columnType`: ColumnType,
+    `defaultValue`: kotlin.String,
+    `columnName`: kotlin.String,
+): ColumnDef {
+    return FfiConverterTypeColumnDef.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_protocol_fn_func_col_with_default_value(
+                FfiConverterTypeColumnType.lower(`columnType`),
+                FfiConverterString.lower(`defaultValue`),
+                FfiConverterString.lower(`columnName`),
+                _status,
+            )
+        },
     )
-    }
-    
+}
 
-    @Throws(DbException::class) fun `unbuildGetDataOutResponse`(`response`: kotlin.String): GetDataOutUnbuilt {
-            return FfiConverterTypeGetDataOutUnbuilt.lift(
-    uniffiRustCallWithError(DbException) { _status ->
-    UniffiLib.uniffi_protocol_fn_func_unbuild_get_data_out_response(
-    
-        
-        FfiConverterString.lower(`response`),_status)
-}
+fun `defaultCol`(
+    `columnType`: ColumnType,
+    `columnName`: kotlin.String,
+): ColumnDef {
+    return FfiConverterTypeColumnDef.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_protocol_fn_func_default_col(
+                FfiConverterTypeColumnType.lower(`columnType`),
+                FfiConverterString.lower(`columnName`),
+                _status,
+            )
+        },
     )
-    }
-    
- fun `colWithDefaultValue`(`columnType`: ColumnType, `defaultValue`: kotlin.String, `columnName`: kotlin.String): ColumnDef {
-            return FfiConverterTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_protocol_fn_func_col_with_default_value(
-    
-        
-        FfiConverterTypeColumnType.lower(`columnType`),
-        FfiConverterString.lower(`defaultValue`),
-        FfiConverterString.lower(`columnName`),_status)
 }
-    )
-    }
-    
- fun `defaultCol`(`columnType`: ColumnType, `columnName`: kotlin.String): ColumnDef {
-            return FfiConverterTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_protocol_fn_func_default_col(
-    
-        
-        FfiConverterTypeColumnType.lower(`columnType`),
-        FfiConverterString.lower(`columnName`),_status)
-}
-    )
-    }
-    
- fun `idColumn`(): ColumnDef {
-            return FfiConverterTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_protocol_fn_func_id_column(
-    
-        _status)
-}
-    )
-    }
-    
- fun `notNullCol`(`columnType`: ColumnType, `columnName`: kotlin.String): ColumnDef {
-            return FfiConverterTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_protocol_fn_func_not_null_col(
-    
-        
-        FfiConverterTypeColumnType.lower(`columnType`),
-        FfiConverterString.lower(`columnName`),_status)
-}
-    )
-    }
-    
- fun `notNullUniqueCol`(`columnType`: ColumnType, `columnName`: kotlin.String): ColumnDef {
-            return FfiConverterTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_protocol_fn_func_not_null_unique_col(
-    
-        
-        FfiConverterTypeColumnType.lower(`columnType`),
-        FfiConverterString.lower(`columnName`),_status)
-}
-    )
-    }
-    
- fun `uniqueCol`(`columnType`: ColumnType, `columnName`: kotlin.String): ColumnDef {
-            return FfiConverterTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_protocol_fn_func_unique_col(
-    
-        
-        FfiConverterTypeColumnType.lower(`columnType`),
-        FfiConverterString.lower(`columnName`),_status)
-}
-    )
-    }
-    
 
+fun `idColumn`(): ColumnDef {
+    return FfiConverterTypeColumnDef.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_protocol_fn_func_id_column(
+                _status,
+            )
+        },
+    )
+}
 
+fun `notNullCol`(
+    `columnType`: ColumnType,
+    `columnName`: kotlin.String,
+): ColumnDef {
+    return FfiConverterTypeColumnDef.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_protocol_fn_func_not_null_col(
+                FfiConverterTypeColumnType.lower(`columnType`),
+                FfiConverterString.lower(`columnName`),
+                _status,
+            )
+        },
+    )
+}
+
+fun `notNullUniqueCol`(
+    `columnType`: ColumnType,
+    `columnName`: kotlin.String,
+): ColumnDef {
+    return FfiConverterTypeColumnDef.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_protocol_fn_func_not_null_unique_col(
+                FfiConverterTypeColumnType.lower(`columnType`),
+                FfiConverterString.lower(`columnName`),
+                _status,
+            )
+        },
+    )
+}
+
+fun `uniqueCol`(
+    `columnType`: ColumnType,
+    `columnName`: kotlin.String,
+): ColumnDef {
+    return FfiConverterTypeColumnDef.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_protocol_fn_func_unique_col(
+                FfiConverterTypeColumnType.lower(`columnType`),
+                FfiConverterString.lower(`columnName`),
+                _status,
+            )
+        },
+    )
+}

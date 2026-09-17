@@ -86,7 +86,7 @@ object EditTextInBlock {
                 // First, find the internal auto-increment ID
                 val queryRes = DbManager.getData(GetDataIn(
                     "every_block_in_existence",
-                    listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId, null)),
+                    SelectArguments.Single(SelectArgument.XEqualY("my_id_as_given_by_yrs", ctx.blockId)),
                     emptyList()
                 )).getOrThrow()
 
@@ -187,7 +187,7 @@ object EditTextInBlock {
                 // 7. DB Write Part 2: update every_block_in_existence
                 val queryRes = DbManager.getData(GetDataIn(
                     "every_block_in_existence",
-                    listOf(SelectArgument.XEqualY("my_id_as_given_by_yrs", state.blockId, null)),
+                    SelectArguments.Single(SelectArgument.XEqualY("my_id_as_given_by_yrs", state.blockId)),
                     emptyList()
                 )).getOrThrow()
 

@@ -17,7 +17,7 @@ import z.zndroid.DocEvents.RemoveBlockCtx
 fun maybeCreateTitleBlock(
     boss: BossOfYrs,
     scope: CoroutineScope,
-    onUpdate: () -> Unit
+    onUpdate: (String?) -> Unit
 ) {
     if (boss.getEntirePage().isEmpty()) {
         scope.launch {
@@ -25,10 +25,12 @@ fun maybeCreateTitleBlock(
                 boss = boss,
                 content = "", // Empty title block
                 isTitle = true
-            )).onSuccess {
-                onUpdate()
+            )).onSuccess { newId ->
+                onUpdate(newId)
             }
         }
+    } else {
+        onUpdate(null)
     }
 }
 

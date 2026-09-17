@@ -103,7 +103,8 @@ fun EditableBlock(
                                 Key.Backspace -> {
                                     val cursor = state.textFieldValue.selection.start
                                     // Merge if cursor is at the very beginning of the block
-                                    if (cursor == 0) {
+                                    // Do not merge if this is the title block (index 0)
+                                    if (cursor == 0 && index > 0) {
                                         // Cancel pending flush before structural change
                                         debounceJob.value?.cancel()
                                         scope.launch {
@@ -123,7 +124,7 @@ fun EditableBlock(
                 decorationBox = { innerTextField ->
                     if (state.text.isEmpty()) {
                         Text(
-                            text = "Type '/' for commands...",
+                            text = if (isTitle) "Page Title" else "Type '/' for commands...",
                             style = textStyle,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                         )

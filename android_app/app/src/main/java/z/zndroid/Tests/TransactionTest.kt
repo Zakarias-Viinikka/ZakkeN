@@ -36,7 +36,7 @@ class TransactionTest : AppTest {
             
             val queryRes = DbManager.getData(GetDataIn(
                 "key_value_storage",
-                listOf(SelectArgument.XEqualY("key", testKey, null)),
+                SelectArguments.Single(SelectArgument.XEqualY("key", testKey)),
                 emptyList()
             )).getOrThrow()
             
@@ -62,13 +62,13 @@ class TransactionTest : AppTest {
 
             val query1 = DbManager.getData(GetDataIn(
                 "key_value_storage",
-                listOf(SelectArgument.XEqualY("key", testKey, null)),
+                SelectArguments.Single(SelectArgument.XEqualY("key", testKey)),
                 emptyList()
             )).getOrThrow()
             
             val query2 = DbManager.getData(GetDataIn(
                 "key_value_storage",
-                listOf(SelectArgument.XEqualY("key", testKey + "_nested", null)),
+                SelectArguments.Single(SelectArgument.XEqualY("key", testKey + "_nested")),
                 emptyList()
             )).getOrThrow()
 

@@ -114,12 +114,8 @@ object DbManager {
                 executeNative { it.createTable(CreateTableIn("uncommitted_diffs", uncommittedDiffsColumns())) }.getOrThrow()
 
                 // Initialize Foreign Key Tables
-                // TODO: createForeignTable is missing from the updated Kotlin bindings. 
-                // Commented out to allow compilation. Verify if this method was renamed or removed.
-                /*
                 executeNative { it.createForeignTable(CreateForeignTableIn("backlinks", backlinksColumns(), getForeignDefBacklinks())) }.getOrThrow()
                 executeNative { it.createForeignTable(CreateForeignTableIn("every_block_in_existence", everyBlockInExistenceColumns(), getForeignDefEveryBlockInExistence())) }.getOrThrow()
-                */
             }
             
             readyDeferred.complete(Unit)
@@ -144,7 +140,7 @@ object DbManager {
      * Specific helper to fetch all pages.
      */
     suspend fun getPages(): Result<List<Row>> = executeNative {
-        it.getData(GetDataIn("pages", listOf(SelectArgument.All), emptyList())).rows
+        it.getData(GetDataIn("pages", SelectArguments.Single(SelectArgument.All), emptyList())).rows
     }
 
     /**
@@ -153,7 +149,7 @@ object DbManager {
     suspend fun getPage(pageId: String): Result<Row> = executeNative { db ->
         val result = db.getData(GetDataIn(
             "pages",
-            listOf(SelectArgument.XEqualY("page_id", pageId, null)),
+            SelectArguments.Single(SelectArgument.XEqualY("page_id", pageId)),
             emptyList()
         ))
         result.rows.firstOrNull() ?: throw Exception("Page not found: $pageId")
@@ -185,7 +181,7 @@ object DbManager {
     private fun getPageSync(db: LiveForever, pageId: String): Row {
         val result = db.getData(GetDataIn(
             "pages",
-            listOf(SelectArgument.XEqualY("page_id", pageId, null)),
+            SelectArguments.Single(SelectArgument.XEqualY("page_id", pageId)),
             emptyList()
         ))
         return result.rows.firstOrNull() ?: throw Exception("Page not found: $pageId")
@@ -202,7 +198,7 @@ object DbManager {
             val values = SafeRowMapper.mapRow(
                 row = row,
                 columnDefs = pagesColumns(),
-                expectedNames = listOf("page_id", "is_main_menu_page", "user_id")
+                expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
             )
 
             db.insertData(InsertDataIn("pages", values))

@@ -4,6 +4,7 @@ import rustlib.my_yrs_lib.docFromSnapshot
 import uniffi.protocol.Col
 import uniffi.protocol.GetDataIn
 import uniffi.protocol.SelectArgument
+import uniffi.protocol.SelectArguments
 import z.zndroid.DbManager
 import z.zndroid.Storage.StorageAccess
 
@@ -44,7 +45,7 @@ object CheckIfTablesInSync {
             // 2. Fetch SQLite blocks from 'every_block_in_existence'
             val sqliteData = DbManager.getData(GetDataIn(
                 tableName = "every_block_in_existence",
-                arguments = listOf(SelectArgument.XEqualY("id_of_page_i_belong_to", pageId, null)),
+                arguments = SelectArguments.Single(SelectArgument.XEqualY("id_of_page_i_belong_to", pageId)),
                 columnsToRead = emptyList()
             )).getOrThrow()
 
