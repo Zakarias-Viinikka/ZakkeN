@@ -2059,6 +2059,48 @@ public object FfiConverterTypeEditColInRowIn : FfiConverterRustBuffer<EditColInR
     }
 }
 
+data class EditColInRowWhereIn(
+    var `tableName`: kotlin.String,
+    var `whereClause`: SelectArguments,
+    var `column`: kotlin.String,
+    var `newValue`: Col,
+) {
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEditColInRowWhereIn : FfiConverterRustBuffer<EditColInRowWhereIn> {
+    override fun read(buf: ByteBuffer): EditColInRowWhereIn {
+        return EditColInRowWhereIn(
+            FfiConverterString.read(buf),
+            FfiConverterTypeSelectArguments.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeCol.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EditColInRowWhereIn) =
+        (
+            FfiConverterString.allocationSize(value.`tableName`) +
+                FfiConverterTypeSelectArguments.allocationSize(value.`whereClause`) +
+                FfiConverterString.allocationSize(value.`column`) +
+                FfiConverterTypeCol.allocationSize(value.`newValue`)
+        )
+
+    override fun write(
+        value: EditColInRowWhereIn,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`tableName`, buf)
+        FfiConverterTypeSelectArguments.write(value.`whereClause`, buf)
+        FfiConverterString.write(value.`column`, buf)
+        FfiConverterTypeCol.write(value.`newValue`, buf)
+    }
+}
+
 class ExportDatabaseIn {
     override fun equals(other: Any?): Boolean {
         return other is ExportDatabaseIn

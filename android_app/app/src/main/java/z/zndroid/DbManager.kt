@@ -136,6 +136,9 @@ object DbManager {
 
     suspend fun editColInRow(input: EditColInRowIn): Result<Unit> = executeNative { it.editColInRow(input) }
 
+    suspend fun editColInRowWhere(input: EditColInRowWhereIn): Result<Unit> =
+        executeNative { it.editColInRowWhere(input) }
+
     /**
      * Specific helper to fetch all pages.
      */

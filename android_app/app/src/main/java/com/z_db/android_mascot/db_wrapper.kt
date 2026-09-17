@@ -41,6 +41,7 @@ import uniffi.protocol.DbException
 import uniffi.protocol.DeleteRowIn
 import uniffi.protocol.DropTableIn
 import uniffi.protocol.EditColInRowIn
+import uniffi.protocol.EditColInRowWhereIn
 import uniffi.protocol.ExportTablesIn
 import uniffi.protocol.ExportTablesOut
 import uniffi.protocol.FfiConverterTypeAddColumnIn
@@ -59,6 +60,7 @@ import uniffi.protocol.FfiConverterTypeCreateTableIn
 import uniffi.protocol.FfiConverterTypeDeleteRowIn
 import uniffi.protocol.FfiConverterTypeDropTableIn
 import uniffi.protocol.FfiConverterTypeEditColInRowIn
+import uniffi.protocol.FfiConverterTypeEditColInRowWhereIn
 import uniffi.protocol.FfiConverterTypeExportTablesIn
 import uniffi.protocol.FfiConverterTypeExportTablesOut
 import uniffi.protocol.FfiConverterTypeFundamentallyEditExistingColIn
@@ -105,6 +107,7 @@ import uniffi.protocol.RustBuffer as RustBufferDbError
 import uniffi.protocol.RustBuffer as RustBufferDeleteRowIn
 import uniffi.protocol.RustBuffer as RustBufferDropTableIn
 import uniffi.protocol.RustBuffer as RustBufferEditColInRowIn
+import uniffi.protocol.RustBuffer as RustBufferEditColInRowWhereIn
 import uniffi.protocol.RustBuffer as RustBufferExportTablesIn
 import uniffi.protocol.RustBuffer as RustBufferExportTablesOut
 import uniffi.protocol.RustBuffer as RustBufferFundamentallyEditExistingColIn
@@ -888,6 +891,8 @@ internal object IntegrityCheckingUniffiLib {
 
     external fun uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row(): Int
 
+    external fun uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row_where(): Int
+
     external fun uniffi_db_wrapper_checksum_method_liveforever_everything_went_perfectly(): Int
 
     external fun uniffi_db_wrapper_checksum_method_liveforever_export_tables(): Int
@@ -1025,6 +1030,12 @@ internal object UniffiLib {
     external fun uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row(
         `ptr`: Long,
         `data`: RustBufferEditColInRowIn.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+
+    external fun uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row_where(
+        `ptr`: Long,
+        `data`: RustBufferEditColInRowWhereIn.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): Unit
 
@@ -1357,6 +1368,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row() and 0xFFFF) != 13066) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row_where() and 0xFFFF) != 41980) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_everything_went_perfectly() and 0xFFFF) != 29733) {
@@ -1747,6 +1761,8 @@ public interface LiveForeverInterface {
 
     fun `editColInRow`(`data`: EditColInRowIn)
 
+    fun `editColInRowWhere`(`data`: EditColInRowWhereIn)
+
     fun `everythingWentPerfectly`()
 
     fun `exportTables`(`data`: ExportTablesIn): ExportTablesOut
@@ -2084,6 +2100,20 @@ open class LiveForever : Disposable, AutoCloseable, LiveForeverInterface {
                 UniffiLib.uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row(
                     it,
                     FfiConverterTypeEditColInRowIn.lower(`data`),
+                    _status,
+                )
+            }
+        }
+
+    @Throws(
+        DbException::class,
+        )
+    override fun `editColInRowWhere`(`data`: EditColInRowWhereIn) =
+        callWithHandle {
+            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row_where(
+                    it,
+                    FfiConverterTypeEditColInRowWhereIn.lower(`data`),
                     _status,
                 )
             }

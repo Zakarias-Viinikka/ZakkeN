@@ -75,9 +75,11 @@ object StorageAccess {
         DbManager.withTransaction {
             val current = rummage_in_storage(key)
             if (current is RummageResult.StringValue) {
-                DbManager.editColInRow(EditColInRowIn(
+                DbManager.editColInRowWhere(EditColInRowWhereIn(
                     tableName = "key_value_storage",
-                    rowId = key.keyName,
+                    whereClause = SelectArguments.Single(
+                        SelectArgument.XEqualY("key", key.keyName)
+                    ),
                     column = "value",
                     newValue = Col.Text(value)
                 )).getOrThrow()

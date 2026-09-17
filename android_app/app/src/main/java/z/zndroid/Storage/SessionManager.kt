@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import z.zndroid.components.GlobalPopupManager
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -43,11 +44,15 @@ object SessionManager {
      */
     fun incrementAndStore() {
         scope.launch {
-            // Ensure initialize() has finished reading the DB before we increment
-            readyDeferred.await()
-            
-            val newVal = _currentSessionId.incrementAndGet()
-            StorageAccess.setValue(StorageKey.SESSION_ID, newVal.toString())
+            try {
+                // Ensure initialize() has finished reading the DB before we increment
+                readyDeferred.await()
+                
+                val newVal = _currentSessionId.incrementAndGet()
+                StorageAccess.setValue(StorageKey.SESSION_ID, newVal.toString())
+            } catch (e: Exception) {
+                GlobalPopupManager.show("Session Error: ${e.message ?: e.toString()}")
+            }
         }
     }
 }

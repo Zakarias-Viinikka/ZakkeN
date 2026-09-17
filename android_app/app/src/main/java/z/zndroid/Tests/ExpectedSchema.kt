@@ -29,7 +29,6 @@ object ExpectedSchema {
             "target_id"
         ),
         "key_value_storage" to listOf(
-            "id",
             "key",
             "value"
         ),
