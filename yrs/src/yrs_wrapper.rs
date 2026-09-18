@@ -314,12 +314,7 @@ impl BossOfYrs {
                 let txn = doc.transact();
 
                 if array.len(&txn) == 0 {
-                    return Err(YrsError::GenericError {
-                        info: error_info(
-                            format!("no page found for id: {BLOCKS_KEY}"),
-                            "get_entire_page",
-                        ),
-                    });
+                    return Ok(Vec::new());
                 }
 
                 let mut result = Vec::new();
