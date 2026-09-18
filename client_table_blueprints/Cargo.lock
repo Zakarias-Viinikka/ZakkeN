@@ -508,7 +508,7 @@ dependencies = [
 [[package]]
 name = "protocol"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#d4a47ef5661b2394abd256018465acefcb6ccdde"
+source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#6ea89e1036193ea9ad130dc2e06e8b1b86dd9676"
 dependencies = [
  "base64",
  "bincode",
@@ -1029,7 +1029,7 @@ dependencies = [
 [[package]]
 name = "yrs"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#5ce3c687c7e4999c275a2d790452ddaddeaa4160"
+source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#3dee35d47c8f9d8a1633179ec2f7d4b85843c8aa"
 dependencies = [
  "rand",
  "serde",

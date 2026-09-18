@@ -39,6 +39,7 @@ pub fn new_every_block_in_existence_row(
     content: String,
     my_id_as_given_by_yrs: String,
     id_of_page_i_belong_to: String,
+    position: f64,
 ) -> Result<Row, YrsError> {
     Ok(Row {
         cols: vec![
@@ -50,6 +51,7 @@ pub fn new_every_block_in_existence_row(
             Col::Text(content),
             Col::Text(my_id_as_given_by_yrs),
             Col::Text(id_of_page_i_belong_to),
+            Col::Real(position),
         ],
     })
 }
@@ -223,6 +225,7 @@ mod tests {
             "content".to_string(),
             "my_yrs_id".to_string(),
             "page_id".to_string(),
+            0.0,
         )
         .unwrap();
         assert_row_matches_table(
