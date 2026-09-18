@@ -1,0 +1,12 @@
+[package]
+name = "zakken_server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.9", features = ["ws"] }
+futures-util = "0.3.34"
+tokio = { version = "1.53.1", features = ["full"] }
+db_wrapper = { git = "https://github.com/Zakarias-Viinikka/z_db", features = ["android"], default-features = false }
+protocol = { git = "https://github.com/Zakarias-Viinikka/z_db" }
+db = { git = "https://github.com/Zakarias-Viinikka/z_db" }
