@@ -6,6 +6,7 @@ package z.zndroid.Tests
  */
 object RegisterTests {
     val allTests: List<AppTest> = listOf(
+        MigrationTest(),
         SessionMonotonicityTest(),
         SchemaSyncTest(),
         PageDataSyncTest(),

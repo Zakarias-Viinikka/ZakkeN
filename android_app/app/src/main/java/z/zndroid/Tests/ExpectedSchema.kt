@@ -5,6 +5,8 @@ package z.zndroid.Tests
  * If the Rust library or the Database changes these, the SchemaSyncTest will fail.
  */
 object ExpectedSchema {
+    val schemaVersion = 0 // CURRENT STABLE SCHEMA VERSION
+
     val tables = mapOf(
         "every_block_in_existence" to listOf(
             "id",

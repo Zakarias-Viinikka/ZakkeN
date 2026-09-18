@@ -8,14 +8,3 @@ pub mod tbl_incoming_love_letters;
 pub mod tbl_logs;
 pub mod tbl_pages;
 pub mod tbl_uncommitted_diffs;
-
-/*#[uniffi::export]
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
-#[derive(uniffi::Record)]
-pub struct TableInfo {
-    pub name: String,
-    pub columns: Vec<String>,
-}*/

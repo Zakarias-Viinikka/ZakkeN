@@ -1,4 +1,4 @@
-# AI Memory - Zndroid Project
+# Shared Memory - Zndroid Project
 
 ## Architecture Highlights
 - **Authoritative Source**: Yrs CRDT blobs in the `pages` table (`blobbed_page` column).
@@ -9,6 +9,7 @@
 - **Buffered Batching**: Edits are collected in `BlockUiState.diffBuffer` and "squashed" using `text_diff.combineGetdiffResults` before persistence (500ms debounce).
 - **Fail-Hard Flush**: Edits either fully commit or are discarded. On failure, a mandatory page reload is triggered in `ViewPage` to rebuild in-memory state from DB.
 - **Mapping Safety**: `SafeRowMapper` utility verifies column names during Rust-to-SQLite mapping to prevent silent data corruption from schema drift.
+- **Schema Migrations**: Handled by a transactional walk-loop via `MigrationManager` upon database opening (`DbManager.init`). Database versions are managed sequentially (`SchemaVersion` enum) and tracked atomically using the `schema_version` key in `key_value_storage`. A snapshot integrity check in `MigrationTest` ensures that any future drift in live Rust blueprints triggers an immediate build-time error until a new version is explicitly frozen in Kotlin.
 - **Editing Logic**:
   - **Split**: `Enter` (without Shift) splits a block at the cursor. Text after moves to a new block.
   - **Merge**: `Backspace` at position 0 merges current block into previous one. Structural changes automatically cancel pending debounce flushes.
@@ -26,7 +27,7 @@
 
 ## AI Documentation Index
 All architectural notes and rules are located in the `docs/` folder:
-- [AI_MEMORY.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/AI_MEMORY.md): (This file) Architecture highlights and learnings.
+- [SHARED_MEMORY.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/SHARED_MEMORY.md): (This file) Architecture highlights and learnings.
 - [AI_READ_THIS.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/AI_READ_THIS.md): Library guide and API reference.
 - [AI_LAB_RULE.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/AI_LAB_RULE.md): Guidelines for the Lab.
 - [UX_INTENT.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/UX_INTENT.md): Philosophy and behavior of the editor UX.

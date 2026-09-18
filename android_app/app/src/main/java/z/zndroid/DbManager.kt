@@ -105,18 +105,12 @@ object DbManager {
             
             db = newDb
 
-            withTransaction<Unit> {
-                // Initialize storage-related data first (handles its own table creation)
-                StorageInitializer.create_all_these_things_if_they_dont_exist()
+            // Execute migrations or bootstrap via MigrationManager
+            z.zndroid.db.migrations.MigrationManager.migrate(newDb)
 
-                // Initialize Independent Tables
-                executeNative { it.createTable(CreateTableIn("pages", pagesColumns())) }.getOrThrow()
-                executeNative { it.createTable(CreateTableIn("uncommitted_diffs", uncommittedDiffsColumns())) }.getOrThrow()
-
-                // Initialize Foreign Key Tables
-                executeNative { it.createForeignTable(CreateForeignTableIn("backlinks", backlinksColumns(), getForeignDefBacklinks())) }.getOrThrow()
-                executeNative { it.createForeignTable(CreateForeignTableIn("every_block_in_existence", everyBlockInExistenceColumns(), getForeignDefEveryBlockInExistence())) }.getOrThrow()
-            }
+            // Ensure storage initial default records exist (e.g. user_id)
+            // StorageInitializer will now just populate records since tables are created by MigrationManager
+            StorageInitializer.create_all_these_things_if_they_dont_exist()
             
             readyDeferred.complete(Unit)
         }

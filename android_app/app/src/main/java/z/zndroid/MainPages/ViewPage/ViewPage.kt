@@ -3,6 +3,7 @@ package z.zndroid.MainPages.ViewPage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,7 @@ fun ViewPage(
     var uiStates by remember { mutableStateOf(emptyList<BlockUiState>()) }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     
     // Recovery mechanism: incrementing this forces a full rebuild of the BossOfYrs from DB.
     var reloadToken by remember { mutableStateOf(0) }
@@ -53,6 +55,13 @@ fun ViewPage(
                                 target.textFieldValue = target.textFieldValue.copy(
                                     selection = TextRange(cursorPos)
                                 )
+                            }
+                            
+                            val targetIndex = uiStates.indexOf(target)
+                            if (targetIndex != -1) {
+                                launch {
+                                    listState.animateScrollToItem(targetIndex)
+                                }
                             }
                         }
                     }
@@ -168,6 +177,7 @@ fun ViewPage(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()

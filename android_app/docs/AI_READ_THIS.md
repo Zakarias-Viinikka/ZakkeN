@@ -21,7 +21,10 @@ Methods: create_table, create_foreign_table, list_tables, get_data, get_data_ord
 
 Use `awaitReady()` before calling DB methods in UI components.
 
-Table blueprints (client_table_blueprints):
+Database Lifecycle & Schema Migrations:
+All table schemas are managed via `z.zndroid.db.migrations.MigrationManager`. It executes a transactional walk-loop on initialization inside `DbManager.init(context)`. Version states are tracked inside the `SchemaVersion` enum and persisted under the `schema_version` key in `key_value_storage`.
+
+Table blueprints (client_table_blueprints - Note: Historic snapshots are frozen inside the `z.zndroid.db.migrations.schemas` package):
 pages: page_id, blobbed_page, page_status, version, is_main_menu_page
 backlinks: page_that_holds_link_id, page_being_linked_to_id, disabled, version
 every_block_in_existence: is_title (bool flag), content, my_id_as_given_by_yrs, id_of_page_i_belong_to
@@ -72,7 +75,7 @@ Special Key Events (onPreviewKeyEvent):
 
 AI documentation:
 All architectural notes and rules are located in the docs/ folder.
-- AI_MEMORY.md: Current project state and learnings.
+- SHARED_MEMORY.md: Current project state and learnings.
 - AI_READ_THIS.md: This library guide.
 - AI_LAB_RULE.md: Rules for the AI Lab.
 - UX_INTENT.md: UX philosophy and intended editor behavior.
