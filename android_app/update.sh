@@ -50,7 +50,7 @@ capture_hash "$JNI_DEST/libdb_wrapper.so"
 capture_hash "$JNI_DEST/libprotocol.so"
 capture_hash "$KOTLIN_DEST/com/z_db/android_mascot/db_wrapper.kt"
 capture_hash "$JNI_DEST/libclient_table_blueprints.so"
-capture_hash "$JNI_DEST/libmy_yrs_lib-bced72b5f489fa65.so"
+capture_hash "$JNI_DEST/libmy_yrs_lib-fb54020e9d9e412d.so"
 capture_hash "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
 capture_hash "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
 capture_hash "$JNI_DEST/libmy_yrs_lib.so"
@@ -85,7 +85,7 @@ download_file "$Z_DB_URL/kotlin/com/z_db/android_mascot/db_wrapper.kt" "$KOTLIN_
 # Download client_table_blueprints
 echo "Fetching client_table_blueprints..."
 download_file "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libclient_table_blueprints.so" "$JNI_DEST/libclient_table_blueprints.so"
-download_file "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libmy_yrs_lib-bced72b5f489fa65.so" "$JNI_DEST/libmy_yrs_lib-bced72b5f489fa65.so"
+download_file "$BLUEPRINTS_URL/jniLibs/arm64-v8a/libmy_yrs_lib-fb54020e9d9e412d.so" "$JNI_DEST/libmy_yrs_lib-fb54020e9d9e412d.so"
 download_file "$BLUEPRINTS_URL/kotlin/rustlib/client_table_blueprints/client_table_blueprints.kt" "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
 
 # Patch package mismatch for my_yrs_lib

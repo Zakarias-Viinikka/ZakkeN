@@ -6,3 +6,5 @@ cargo run --bin uniffi-bindgen -- generate \
     --out-dir ./android_output/kotlin \
     --config ./src/uniffi.toml
 rm -f ./android_output/jniLibs/arm64-v8a/libprotocol-*.so
+# Keep only the newest hashed my_yrs_lib (cargo renames deps by content hash)
+ls -1t ./android_output/jniLibs/arm64-v8a/libmy_yrs_lib-*.so 2>/dev/null | tail -n +2 | xargs -r rm -f

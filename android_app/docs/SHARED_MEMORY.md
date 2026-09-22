@@ -23,6 +23,7 @@
   - **Helpers**: `ViewPageLogs.kt` for feature events; `LogDateHelpers.kt` for Unix conversions.
 - **Schema**:
   - `every_block_in_existence` uses `is_title` ("true"/"false") boolean flag.
+  - `every_block_in_existence` has `position REAL` — an f64 gap-based sort key used to order the queryable table. `Yrs` array order is authoritative; SQLite `position` is a mirror for `order by`. New rows get their position from `AddBlock.computeDbPosition` (avg of neighbors when inserting in the middle, max+1 at end, min-1 at top). No neighbor reindexing on insert.
   - `LoveLetterSketch.EditBlock` requires `blockId`.
 
 ## AI Documentation Index

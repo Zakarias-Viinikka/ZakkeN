@@ -16,7 +16,6 @@ import rustlib.my_yrs_lib.docFromSnapshot
 import uniffi.protocol.Col
 import z.zndroid.DbManager
 import z.zndroid.DocEvents.AddBlock
-import z.zndroid.DocEvents.AddBlockCtx
 import z.zndroid.Storage.StorageAccess
 import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
@@ -152,23 +151,6 @@ fun ViewPage(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = {
-                val currentBoss = boss ?: return@FloatingActionButton
-                coroutineScope.launch {
-                    // Create an empty block as requested
-                    AddBlock.execute(AddBlockCtx(
-                        boss = currentBoss,
-                        content = "" 
-                    )).onSuccess { newId ->
-                        // Refresh the entire list from the CRDT to pick up the new block
-                        updateUI(focusId = newId)
-                    }
-                }
-            }) {
-                Text("+")
-            }
         }
     ) { innerPadding ->
         if (isLoading) {

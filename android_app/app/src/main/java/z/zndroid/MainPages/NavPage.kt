@@ -10,8 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
-import uniffi.protocol.Col
-import uniffi.protocol.Row
+import uniffi.protocol.*
 import z.zndroid.DbManager
 import z.zndroid.components.GlobalPopupManager
 
@@ -26,6 +25,9 @@ fun NavPage(
     var pages by remember { mutableStateOf(emptyList<Row>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showNewPagePopup by remember { mutableStateOf(false) }
+    var pageToRename by remember { mutableStateOf<Row?>(null) }
+    var pageToDelete by remember { mutableStateOf<Row?>(null) }
+    var renameInputText by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
     // Fetch table info to know which column is the title
@@ -102,6 +104,23 @@ fun NavPage(
                             ) {
                                 Text("Admin")
                             }
+
+                            TextButton(
+                                onClick = {
+                                    pageToRename = row
+                                    renameInputText = title
+                                }
+                            ) {
+                                Text("Rename")
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    pageToDelete = row
+                                }
+                            ) {
+                                Text("Delete")
+                            }
                         }
                     }
                     
@@ -149,6 +168,73 @@ fun NavPage(
                         GlobalPopupManager.show("Error: ${error.message}")
                     }
                 }
+            }
+        )
+    }
+
+    if (pageToRename != null) {
+        val oldName = (pageToRename?.cols?.getOrNull(titleColumnIndex) as? Col.Text)?.v1
+        AlertDialog(
+            onDismissRequest = { pageToRename = null },
+            title = { Text("Rename Page") },
+            text = {
+                OutlinedTextField(
+                    value = renameInputText,
+                    onValueChange = { renameInputText = it },
+                    label = { Text("New name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newName = renameInputText.trim()
+                        if (oldName != null && newName.isNotEmpty() && newName != oldName) {
+                            coroutineScope.launch {
+                                DbManager.renamePage(oldName, newName).onSuccess {
+                                    pageToRename = null
+                                    refreshPages()
+                                }.onFailure { error ->
+                                    GlobalPopupManager.show("Rename failed: ${error.message}")
+                                }
+                            }
+                        }
+                    },
+                    enabled = renameInputText.isNotBlank() && renameInputText.trim() != oldName
+                ) {
+                    Text("Rename")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pageToRename = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (pageToDelete != null) {
+        val name = (pageToDelete?.cols?.getOrNull(titleColumnIndex) as? Col.Text)?.v1
+        AlertDialog(
+            onDismissRequest = { pageToDelete = null },
+            title = { Text("Delete Page") },
+            text = { Text("Delete \"$name\" and all its blocks? This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (name != null) {
+                        coroutineScope.launch {
+                            DbManager.deletePage(name).onSuccess {
+                                pageToDelete = null
+                                refreshPages()
+                            }.onFailure { error ->
+                                GlobalPopupManager.show("Delete failed: ${error.message}")
+                            }
+                        }
+                    }
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pageToDelete = null }) { Text("Cancel") }
             }
         )
     }

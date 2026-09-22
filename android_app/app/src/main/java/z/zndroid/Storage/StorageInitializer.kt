@@ -3,7 +3,6 @@ package z.zndroid.Storage
 import rustlib.client_table_blueprints.keyValueStorageColumns
 import rustlib.client_table_blueprints.newKeyValueItem
 import uniffi.protocol.ColumnValue
-import uniffi.protocol.CreateTableIn
 import uniffi.protocol.InsertDataIn
 import z.zndroid.DbManager
 import z.zndroid.protocol.SafeRowMapper
@@ -19,12 +18,8 @@ object StorageInitializer {
      */
     suspend fun create_all_these_things_if_they_dont_exist() {
         DbManager.withTransaction {
-            // 1. Create the table if it doesn't exist
-            DbManager.executeNative { 
-                it.createTable(CreateTableIn("key_value_storage", keyValueStorageColumns()))
-            }.getOrThrow()
-
-            // 2. Ensure the default records exist
+            // Tables are created by MigrationManager.bootstrap before this runs.
+            // Just ensure the default records exist.
             ensureUserIdExists()
         }
     }

@@ -13,7 +13,8 @@ object ExpectedSchema {
             "is_title",
             "content",
             "my_id_as_given_by_yrs",
-            "id_of_page_i_belong_to"
+            "id_of_page_i_belong_to",
+            "position"
         ),
         "pages" to listOf(
             "id",

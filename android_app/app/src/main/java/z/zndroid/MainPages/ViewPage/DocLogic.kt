@@ -12,25 +12,48 @@ import z.zndroid.DocEvents.RemoveBlock
 import z.zndroid.DocEvents.RemoveBlockCtx
 
 /**
- * Ensures a page has at least one block (the title) when opened.
+ * Ensures a page has at least two blocks: a title (index 0) and a body (index 1).
+ * The body block is a non-deletable "type here" region.
  */
 fun maybeCreateTitleBlock(
     boss: BossOfYrs,
     scope: CoroutineScope,
     onUpdate: (String?) -> Unit
 ) {
-    if (boss.getEntirePage().isEmpty()) {
-        scope.launch {
-            AddBlock.execute(AddBlockCtx(
-                boss = boss,
-                content = "", // Empty title block
-                isTitle = true
-            )).onSuccess { newId ->
-                onUpdate(newId)
+    val blocks = boss.getEntirePage()
+    when {
+        blocks.isEmpty() -> {
+            scope.launch {
+                val titleId = AddBlock.execute(AddBlockCtx(
+                    boss = boss,
+                    content = "",
+                    isTitle = true
+                )).getOrNull()
+                AddBlock.execute(AddBlockCtx(
+                    boss = boss,
+                    content = "",
+                    isTitle = false
+                )).onSuccess {
+                    onUpdate(titleId)
+                }.onFailure {
+                    onUpdate(titleId)
+                }
             }
         }
-    } else {
-        onUpdate(null)
+        blocks.size == 1 -> {
+            scope.launch {
+                AddBlock.execute(AddBlockCtx(
+                    boss = boss,
+                    content = "",
+                    isTitle = false
+                )).onSuccess {
+                    onUpdate(null)
+                }.onFailure {
+                    onUpdate(null)
+                }
+            }
+        }
+        else -> onUpdate(null)
     }
 }
 
@@ -85,7 +108,9 @@ suspend fun mergeWithPreviousBlock(
     currentIndex: Int,
     onUpdate: (String?, Int?) -> Unit
 ) {
-    if (currentIndex <= 0) {
+    // Block 0 is the title, block 1 is the non-deletable body placeholder.
+    // Neither can be merged upward.
+    if (currentIndex <= 1) {
         onUpdate(null, null)
         return
     }

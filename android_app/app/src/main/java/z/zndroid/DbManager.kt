@@ -201,4 +201,66 @@ object DbManager {
             db.insertData(InsertDataIn("pages", values))
         }
     }
+
+    /**
+     * Renames a page: updates pages.page_id and cascades to every_block_in_existence and backlinks.
+     * Runs as a single transaction.
+     */
+    suspend fun renamePage(oldPageId: String, newPageId: String): Result<Unit> = withTransaction {
+        val pagesQuery = DbManager.getData(GetDataIn(
+            "pages",
+            SelectArguments.Single(SelectArgument.XEqualY("page_id", oldPageId)),
+            listOf("id")
+        )).getOrThrow()
+        val pageRowId = (pagesQuery.rows.firstOrNull()?.cols?.firstOrNull() as? Col.Integer)?.v1?.toString()
+            ?: throw Exception("Page not found: $oldPageId")
+
+        DbManager.editColInRow(EditColInRowIn(
+            "pages", pageRowId, "page_id", Col.Text(newPageId)
+        )).getOrThrow()
+
+        DbManager.editColInRowWhere(EditColInRowWhereIn(
+            "every_block_in_existence",
+            SelectArguments.Single(SelectArgument.XEqualY("id_of_page_i_belong_to", oldPageId)),
+            "id_of_page_i_belong_to",
+            Col.Text(newPageId)
+        )).getOrThrow()
+
+        DbManager.editColInRowWhere(EditColInRowWhereIn(
+            "backlinks",
+            SelectArguments.Single(SelectArgument.XEqualY("page_that_holds_link_id", oldPageId)),
+            "page_that_holds_link_id",
+            Col.Text(newPageId)
+        )).getOrThrow()
+
+        DbManager.editColInRowWhere(EditColInRowWhereIn(
+            "backlinks",
+            SelectArguments.Single(SelectArgument.XEqualY("page_being_linked_to_id", oldPageId)),
+            "page_being_linked_to_id",
+            Col.Text(newPageId)
+        )).getOrThrow()
+    }
+
+    /**
+     * Deletes a page and all associated rows (blocks, backlinks).
+     * Runs as a single transaction.
+     */
+    suspend fun deletePage(pageId: String): Result<Unit> = withTransaction {
+        deleteRowsByColumn("every_block_in_existence", "id_of_page_i_belong_to", pageId)
+        deleteRowsByColumn("backlinks", "page_that_holds_link_id", pageId)
+        deleteRowsByColumn("backlinks", "page_being_linked_to_id", pageId)
+        deleteRowsByColumn("pages", "page_id", pageId)
+    }
+
+    private suspend fun deleteRowsByColumn(table: String, column: String, value: String) {
+        val rows = DbManager.getData(GetDataIn(
+            table,
+            SelectArguments.Single(SelectArgument.XEqualY(column, value)),
+            listOf("id")
+        )).getOrThrow().rows
+        for (row in rows) {
+            val id = (row.cols.firstOrNull() as? Col.Integer)?.v1?.toString() ?: continue
+            DbManager.deleteRow(DeleteRowIn(table, id)).getOrThrow()
+        }
+    }
 }

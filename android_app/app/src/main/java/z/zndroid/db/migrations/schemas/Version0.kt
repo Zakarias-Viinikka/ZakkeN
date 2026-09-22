@@ -8,9 +8,9 @@ object Version0 {
         ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
         ColumnDef("page_id", "TEXT", primaryKey = false, notNull = true, unique = true, defaultValue = "", autoincrement = false),
         ColumnDef("blobbed_page", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("page_status", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("version", "INTEGER", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("is_main_menu_page", "INTEGER", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+        ColumnDef("page_status", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+        ColumnDef("version", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+        ColumnDef("is_main_menu_page", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
     )
 
     fun uncommittedDiffsColumns(): List<ColumnDef> = listOf(
@@ -25,8 +25,8 @@ object Version0 {
         ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
         ColumnDef("page_that_holds_link_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
         ColumnDef("page_being_linked_to_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("disabled", "INTEGER", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("version", "INTEGER", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+        ColumnDef("disabled", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+        ColumnDef("version", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
     )
 
     fun getForeignDefBacklinks(): List<ForeignKeyDef> = listOf(
@@ -38,8 +38,9 @@ object Version0 {
         ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
         ColumnDef("is_title", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
         ColumnDef("content", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("my_id_as_given_by_yrs", "TEXT", primaryKey = false, notNull = true, unique = true, defaultValue = "", autoincrement = false),
-        ColumnDef("id_of_page_i_belong_to", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+        ColumnDef("my_id_as_given_by_yrs", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+        ColumnDef("id_of_page_i_belong_to", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+        ColumnDef("position", "REAL", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
     )
 
     fun getForeignDefEveryBlockInExistence(): List<ForeignKeyDef> = listOf(

@@ -62,7 +62,22 @@ fun EditableBlock(
                 onValueChange = { newValue ->
                     val oldText = state.text
                     val newText = newValue.text
-                    
+
+                    // Soft-keyboard Enter arrives as a '\n' in the text, not as Key.Enter.
+                    // Intercept it: strip the newline, then split at the cursor.
+                    if (newText.contains('\n')) {
+                        val sanitized = newText.replace("\n", "")
+                        state.textFieldValue = state.textFieldValue.copy(text = sanitized)
+                        val cursor = newValue.selection.start.coerceAtMost(sanitized.length)
+                        debounceJob.value?.cancel()
+                        scope.launch {
+                            splitBlock(boss, state, cursor, index + 1, onHardReload) { newBlockId ->
+                                onRefreshWithFocus(newBlockId, 0)
+                            }
+                        }
+                        return@BasicTextField
+                    }
+
                     // Slash command detection: subtle popup
                     if (newText.startsWith("/") && !oldText.startsWith("/")) {
                         showSlashPopup = true
@@ -74,7 +89,7 @@ fun EditableBlock(
                     val diff = getDiff(oldText, newText)
                     state.diffBuffer.add(diff)
                     state.textFieldValue = newValue
-                    
+
                     debounceJob.value?.cancel()
                     debounceJob.value = scope.launch {
                         delay(500)

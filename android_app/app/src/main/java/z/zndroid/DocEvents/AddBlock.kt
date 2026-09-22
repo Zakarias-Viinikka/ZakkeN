@@ -32,6 +32,35 @@ data class AddBlockCtx(
  * and persists both the data and the sync metadata to SQLite.
  */
 object AddBlock {
+    private suspend fun computeDbPosition(ctx: AddBlockCtx): Double {
+        val pageId = ctx.boss.pageId()
+        val colDefs = everyBlockInExistenceColumns()
+        val posIdx = colDefs.indexOfFirst { it.name == "position" }
+        if (posIdx < 0) return 1.0
+
+        val existing = DbManager.getData(GetDataIn(
+            "every_block_in_existence",
+            SelectArguments.Single(SelectArgument.XEqualY("id_of_page_i_belong_to", pageId)),
+            emptyList()
+        )).getOrNull()
+
+        val positions = existing?.rows?.mapNotNull { row ->
+            (row.cols.getOrNull(posIdx) as? Col.Real)?.v1
+        }?.sorted() ?: emptyList()
+
+        val insertIndex = when (val p = ctx.position) {
+            PositionToInsert.AtEnd -> positions.size
+            is PositionToInsert.SpecificPosition -> p.v1.toInt()
+        }
+
+        return when {
+            positions.isEmpty() -> 1.0
+            insertIndex <= 0 -> positions.first() - 1.0
+            insertIndex >= positions.size -> positions.last() + 1.0
+            else -> (positions[insertIndex - 1] + positions[insertIndex]) / 2.0
+        }
+    }
+
     suspend fun execute(ctx: AddBlockCtx): Result<String> {
         return try {
             // 1. Capture the "Before" state of the Yrs document
@@ -58,16 +87,18 @@ object AddBlock {
             val sketchBytes = sketchToBytes(sketch)
             
             // 5. Build the data row for 'every_block_in_existence' using Rust helpers
+            val dbPosition = computeDbPosition(ctx)
             val blockRow = newEveryBlockInExistenceRow(
                 isTitle = ctx.isTitle,
                 content = ctx.content,
                 myIdAsGivenByYrs = blockId,
-                idOfPageIBelongTo = pageId
+                idOfPageIBelongTo = pageId,
+                position = dbPosition
             )
             val blockValues = SafeRowMapper.mapRow(
                 row = blockRow,
                 columnDefs = everyBlockInExistenceColumns(),
-                expectedNames = listOf("is_title", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to")
+                expectedNames = listOf("is_title", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "position")
             )
 
             // 6. Build the sync row for 'uncommitted_diffs'

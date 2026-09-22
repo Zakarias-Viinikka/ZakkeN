@@ -27,7 +27,7 @@ All table schemas are managed via `z.zndroid.db.migrations.MigrationManager`. It
 Table blueprints (client_table_blueprints - Note: Historic snapshots are frozen inside the `z.zndroid.db.migrations.schemas` package):
 pages: page_id, blobbed_page, page_status, version, is_main_menu_page
 backlinks: page_that_holds_link_id, page_being_linked_to_id, disabled, version
-every_block_in_existence: is_title (bool flag), content, my_id_as_given_by_yrs, id_of_page_i_belong_to
+every_block_in_existence: is_title (bool flag), content, my_id_as_given_by_yrs, id_of_page_i_belong_to, position (REAL sort key)
 uncommitted_diffs: snapshot_of_edit, love_letter_sketch, session_id, target_id
 key_value_storage: key, value
 
@@ -35,7 +35,7 @@ Row creation helpers:
 new_page_row(page_id, is_main_menu_page, user_id)
 new_backlink_row(owner, target)
 new_key_value_item(key, value)
-new_every_block_in_existence_row(is_title: bool, content, my_id_as_given_by_yrs, id_of_page_i_belong_to)
+new_every_block_in_existence_row(is_title: bool, content, my_id_as_given_by_yrs, id_of_page_i_belong_to, position: f64)
 
 LoveLetter library:
 LoveLetterSketch – describes the user’s intent. Variants:
@@ -45,6 +45,8 @@ RemoveBlock { position, target_page_id }
 
 Document Events (z.zndroid.DocEvents):
 AddBlock: insert new block (persists to data + sync tables). Returns blockId.
+  Position rule: SQLite `position` is an f64 sort key, gap-based (avg of above/below when inserting in the middle, max+1 at end, min-1 at top). New rows get position computed in `AddBlock.computeDbPosition`; there is no reindexing of neighbors on insert.
+  Yrs array order is authoritative for content; SQLite `position` only orders the queryable table.
 EditTextInBlock: updates text using text_diff. Generates Yrs TextEdit.
 RemoveBlock: deletes block from CRDT and SQLite.
 CheckIfTablesInSync: compares SQLite row content vs CRDT blob content.
