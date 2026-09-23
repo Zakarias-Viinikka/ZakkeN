@@ -2263,6 +2263,21 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "web_internal_db",
+]
+
+[[package]]
+name = "web_internal_db"
+version = "0.1.0"
+dependencies = [
+ "gloo-timers",
+ "js-sys",
+ "leptos",
+ "leptos_meta",
+ "protocol",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

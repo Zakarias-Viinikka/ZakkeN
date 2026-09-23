@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-protocol = { path = "../../../z_db/protocol" }
+protocol = { path = "/home/zakke/ProgStuff/z_db/protocol" }
+web_internal_db = { path = "/home/zakke/ProgStuff/z_db/web_internal_db" }
 console_error_panic_hook = "0.1.7"
 leptos = { version = "0.8.20", features = ["csr"] }
 leptos_router = "0.8.15"

@@ -12,6 +12,7 @@ pub fn Menu() -> impl IntoView {
 
     view! {
         <h1>"Menu"</h1>
+        <A href="/DbGui">"ORM"</A>
         <p>"placeholder nav page"</p>
         <div id="menu_container">
         //todo
