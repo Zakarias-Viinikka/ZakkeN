@@ -1,3 +1,4 @@
+use crate::leptos_components::action_buttons;
 use leptos::prelude::*;
 use leptos_router::components::A;
 
@@ -15,6 +16,7 @@ pub fn Menu() -> impl IntoView {
         <A href="/DbGui">"ORM"</A>
         <p>"placeholder nav page"</p>
         <div id="menu_container">
+
         //todo
         /*
         {for_leptos!(list, item =>
@@ -22,5 +24,7 @@ pub fn Menu() -> impl IntoView {
         )}
         */
         </div>
+
+        <action_buttons::PageEdits/>
     }
 }

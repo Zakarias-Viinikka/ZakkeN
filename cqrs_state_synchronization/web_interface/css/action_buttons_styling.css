@@ -1,0 +1,49 @@
+/* grid */
+.action_buttons_container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+/* position */
+.action_buttons_container {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.action_buttons_container {
+  border: 1px solid ;
+}
+
+.action_buttons_title {
+  grid-column: 1 / -1;
+}
+
+.action_buttons_container button {
+  max-width: 150px;
+  width: 100%;
+}
+
+
+/* just for looks */
+.action_buttons_container button {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #1c1f26;
+  color: #d8dce3;
+  border: 1px solid #2c303a;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.action_buttons_container button:hover {
+  border-color: #5fd0b8;
+  color: #5fd0b8;
+}
+
+.action_buttons_container button:active {
+  transform: translateY(1px);
+}
+/* just for looks */
