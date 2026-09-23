@@ -1,0 +1,16 @@
+[package]
+name = "web_interface"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+protocol = { path = "../../../z_db/protocol" }
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8.20", features = ["csr"] }
+leptos_router = "0.8.15"
+leptos_meta = "0.8.6"
+js-sys = "0.3.103"
+wasm-bindgen = "0.2.126"
+wasm-bindgen-futures = "0.4.76"
+gloo-timers = { version = "0.4.0", features = ["futures"] }
+web-sys = { version = "0.3.104", features = ["Window"] }
