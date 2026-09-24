@@ -3,7 +3,7 @@ use std::sync::{Once, mpsc};
 use std::thread;
 use std::time::Duration;
 
-const DEBUG_MODE: bool = true;
+const DEBUG_MODE: bool = false;
 const DEFAULT_TIME_UNTILL_THROW_DEADLOCK_ERROR: Duration = Duration::from_secs(10);
 const DBG_TIME_UNTILL_THROW_DEADLOCK_ERROR: Duration = Duration::from_secs(2);
 
