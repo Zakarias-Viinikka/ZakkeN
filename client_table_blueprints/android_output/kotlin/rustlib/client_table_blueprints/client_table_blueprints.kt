@@ -831,6 +831,7 @@ internal object UniffiLib {
 
     external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
         `isTitle`: Byte,
+        `isPartOfMainMenuPage`: Byte,
         `content`: RustBuffer.ByValue,
         `myIdAsGivenByYrs`: RustBuffer.ByValue,
         `idOfPageIBelongTo`: RustBuffer.ByValue,
@@ -1120,7 +1121,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() and 0xFFFF) != 6204) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 36102) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 5718) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() and 0xFFFF) != 48064) {
@@ -1579,6 +1580,7 @@ fun `newBacklinkRow`(
 @Throws(YrsException::class)
 fun `newEveryBlockInExistenceRow`(
     `isTitle`: kotlin.Boolean,
+    `isPartOfMainMenuPage`: kotlin.Boolean,
     `content`: kotlin.String,
     `myIdAsGivenByYrs`: kotlin.String,
     `idOfPageIBelongTo`: kotlin.String,
@@ -1588,6 +1590,7 @@ fun `newEveryBlockInExistenceRow`(
         uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
             UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
                 FfiConverterBoolean.lower(`isTitle`),
+                FfiConverterBoolean.lower(`isPartOfMainMenuPage`),
                 FfiConverterString.lower(`content`),
                 FfiConverterString.lower(`myIdAsGivenByYrs`),
                 FfiConverterString.lower(`idOfPageIBelongTo`),
