@@ -44,7 +44,7 @@ pub fn PageEdits() -> impl IntoView {
             />*/
         </div>
         <div class="action_info">
-            <span>"Current title nr: " {move || current_title_ctr.get()} </span> <br/>
+            <span>"Current title 'Title: " {move || current_title_ctr.get()} "'" </span> <br/>
             <span>"Current title selected for edits: " {move || selected_title_to_manipulate.get()} </span>
         </div>
         <div class="action_buttons_container">

@@ -1,3 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["web_interface"]
+members = [
+    "error_stuff",
+    "executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db",
+    "data_builder_for_operations_that_need_to_be_correct",
+    "web_interface",
+]

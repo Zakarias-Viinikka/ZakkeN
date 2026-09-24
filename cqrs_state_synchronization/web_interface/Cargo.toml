@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-protocol = { path = "/home/zakke/ProgStuff/z_db/protocol" }
-web_internal_db = { path = "/home/zakke/ProgStuff/z_db/web_internal_db" }
 console_error_panic_hook = "0.1.7"
 leptos = { version = "0.8.20", features = ["csr"] }
 leptos_router = "0.8.15"
@@ -16,3 +14,10 @@ wasm-bindgen-futures = "0.4.76"
 gloo-timers = { version = "0.4.0", features = ["futures"] }
 web-sys = { version = "0.3.104", features = ["Window"] }
 leptos-use = "0.19.2"
+
+#my own dependencies
+client_table_blueprints = { path = "/home/zakke/ProgStuff/ZakkeN/client_table_blueprints" }
+my_yrs_lib = { path = "/home/zakke/ProgStuff/ZakkeN/yrs", package = "yrs" }
+protocol = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
+web_internal_db = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
+data_builder_for_operations_that_need_to_be_correct = { path = "../data_builder_for_operations_that_need_to_be_correct" }

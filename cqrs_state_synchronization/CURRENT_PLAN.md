@@ -39,3 +39,7 @@ test based off the replay.
 A method that takes a string, splits by spaces, turns it into enum
 variants. Each enum variant calls a respective method. So a replay can be
 created, and a test made from it directly.
+## Reminder: HappyLittleCheckbox callback type
+I used `impl Fn() + 'static` because I just didn't know Leptos had `Callback<()>`.
+Look into `Callback<()>` vs `impl Fn() + 'static` for the `speak_your_truth` param.
+Figure out which is idiomatic and whether it matters (ergonomics, Clone, Send+Sync, etc).

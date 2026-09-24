@@ -1,0 +1,12 @@
+[package]
+name = "error_stuff"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+client_table_blueprints = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main" }
+love_letter = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main" }
+my_yrs_lib = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main", package = "yrs" }
+protocol = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
+web_internal_db = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }

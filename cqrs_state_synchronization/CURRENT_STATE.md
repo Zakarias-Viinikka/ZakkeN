@@ -22,3 +22,5 @@
 - page_edits.rs also has button handlers stubbed: create_new_page and
   delete_page just log, move is a todo, and up/down buttons bump a
   selected-title counter.
+
+- Changed the db connection name in zdb_web_output/worker_wrapper.js to "cqrs".
