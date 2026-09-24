@@ -5,9 +5,11 @@ use std::sync::Arc;
 mod tests {
     use super::*;
 
+    const TIME: &str = "0";
+
     #[test]
     fn client_server_diff_sync() {
-        let server = Arc::new(BossOfYrs::new("test_user".to_string()));
+        let server = Arc::new(BossOfYrs::new("test_user".to_string(), TIME.into()));
         Arc::clone(&server)
             .insert_new_block(
                 "server text".to_string(),
@@ -20,7 +22,7 @@ mod tests {
             .id_in_yrs
             .clone();
 
-        let client = Arc::new(BossOfYrs::new("test_user".to_string()));
+        let client = Arc::new(BossOfYrs::new("test_user".to_string(), TIME.into()));
         let snapshot = Arc::clone(&server).snapshot().unwrap();
         Arc::clone(&client).merge_with_snapshot(snapshot).unwrap();
 

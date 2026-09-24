@@ -39,6 +39,7 @@ pub struct BossOfYrs {
     pub doc: RwLock<Doc>,
     pub page_id: String,
     pub user_id: String,
+    pub time: String,
 }
 
 #[derive(uniffi::Record)]
@@ -75,19 +76,6 @@ const BLOCKS_KEY: &str = "blocks";
 const CONTENT_KEY: &str = "text";
 const META_KEY: &str = "meta";
 const ID_KEY: &str = "id";
-
-fn generate_unique_key(user_id: &str) -> String {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .to_string();
-
-    let mut rng = rand::rng();
-    let random_part: u64 = rng.random();
-
-    format!("{timestamp}-{random_part}-{user_id}")
-}
 
 fn edit_block(
     doc: &Doc,
@@ -232,14 +220,20 @@ fn get_block_from_id(doc: &Doc, block_id: &str) -> Option<MapRef> {
     None
 }
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
 #[uniffi::export]
 impl BossOfYrs {
     #[uniffi::constructor]
-    pub fn new(user_id: String) -> Self {
+    pub fn new(user_id: String, unix_time: String) -> Self {
+        let unique_id = generate_unique_key(&user_id, &unix_time);
         Self {
             doc: RwLock::new(Doc::new()),
-            page_id: generate_unique_key(&user_id),
+            page_id: unique_id,
             user_id,
+            time: unix_time,
         }
     }
 
@@ -267,7 +261,7 @@ impl BossOfYrs {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "insert_new_block"),
                 })?;
-                let block_id = generate_unique_key(&self.user_id);
+                let block_id = generate_unique_key(&self.user_id, &self.time);
 
                 let text_as_xml_text_ref = XmlTextPrelim::new(block_content);
                 let yrs_array_ref = doc.get_or_insert_array(BLOCKS_KEY.to_string());
@@ -564,10 +558,21 @@ impl BossOfYrs {
 }
 
 #[uniffi::export]
+pub fn generate_unique_key(user_id: &str, time: &str) -> String {
+    let unique_time = format!("{}-{}", time, COUNTER.fetch_add(1, Ordering::SeqCst));
+
+    let mut rng = rand::rng();
+    let random_part: u64 = rng.random();
+
+    format!("{unique_time}-{random_part}-{user_id}")
+}
+
+#[uniffi::export]
 pub fn doc_from_snapshot(
     snapshot: Vec<u8>,
     user_id: String,
     page_id: String,
+    time: String,
 ) -> Result<BossOfYrs, YrsError> {
     prevent_deadlock(
         DeadlockCtx::new(
@@ -593,6 +598,7 @@ pub fn doc_from_snapshot(
                 doc: RwLock::new(doc),
                 page_id,
                 user_id,
+                time,
             })
         },
     )

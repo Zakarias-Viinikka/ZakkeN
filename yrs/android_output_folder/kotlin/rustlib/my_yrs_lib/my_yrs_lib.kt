@@ -780,6 +780,8 @@ internal object IntegrityCheckingUniffiLib {
 
     external fun uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot(): Int
 
+    external fun uniffi_my_yrs_lib_checksum_func_generate_unique_key(): Int
+
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active(): Int
 
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_mark_page_active(): Int
@@ -947,6 +949,7 @@ internal object UniffiLib {
 
     external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(
         `userId`: RustBuffer.ByValue,
+        `unixTime`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): Long
 
@@ -1024,12 +1027,19 @@ internal object UniffiLib {
         `snapshot`: RustBuffer.ByValue,
         `userId`: RustBuffer.ByValue,
         `pageId`: RustBuffer.ByValue,
+        `time`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): Long
 
     external fun uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(
         `boss`: Long,
         `bookmarkSerialized`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_my_yrs_lib_fn_func_generate_unique_key(
+        `userId`: RustBuffer.ByValue,
+        `time`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
@@ -1250,10 +1260,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_func_create_bookmark_of_synced_state() != 56192) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() != 20978) {
+    if (lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() != 24419) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot() != 46939) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_func_generate_unique_key() != 51078) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active() != 9169) {
@@ -1331,7 +1344,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new_empty() != 36623) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new() != 9243) {
+    if (lib.uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new() != 15662) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1783,12 +1796,13 @@ open class BossOfYrs : Disposable, AutoCloseable, BossOfYrsInterface {
         this.handle = 0
         this.cleanable = null
     }
-    constructor(`userId`: kotlin.String) :
+    constructor(`userId`: kotlin.String, `unixTime`: kotlin.String) :
         this(
             UniffiWithHandle,
             uniffiRustCall { _status ->
                 UniffiLib.uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(
                     FfiConverterString.lower(`userId`),
+                    FfiConverterString.lower(`unixTime`),
                     _status,
                 )
             },
@@ -3249,6 +3263,7 @@ fun `docFromSnapshot`(
     `snapshot`: kotlin.ByteArray,
     `userId`: kotlin.String,
     `pageId`: kotlin.String,
+    `time`: kotlin.String,
 ): BossOfYrs {
     return FfiConverterTypeBossOfYrs.lift(
         uniffiRustCallWithError(YrsException) { _status ->
@@ -3256,6 +3271,7 @@ fun `docFromSnapshot`(
                 FfiConverterByteArray.lower(`snapshot`),
                 FfiConverterString.lower(`userId`),
                 FfiConverterString.lower(`pageId`),
+                FfiConverterString.lower(`time`),
                 _status,
             )
         },
@@ -3272,6 +3288,21 @@ fun `generateDiffSnapshot`(
             UniffiLib.uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(
                 FfiConverterTypeBossOfYrs.lower(`boss`),
                 FfiConverterByteArray.lower(`bookmarkSerialized`),
+                _status,
+            )
+        },
+    )
+}
+
+fun `generateUniqueKey`(
+    `userId`: kotlin.String,
+    `time`: kotlin.String,
+): kotlin.String {
+    return FfiConverterString.lift(
+        uniffiRustCall { _status ->
+            UniffiLib.uniffi_my_yrs_lib_fn_func_generate_unique_key(
+                FfiConverterString.lower(`userId`),
+                FfiConverterString.lower(`time`),
                 _status,
             )
         },

@@ -1,10 +1,12 @@
 use my_yrs_lib::yrs_wrapper::*;
 use std::sync::Arc;
 
+const TIME: &str = "";
+
 #[test]
 fn call_all_methods_and_helpers_without_errors() {
     // Create a fresh document
-    let boss = Arc::new(BossOfYrs::new("test_user".to_string()));
+    let boss = Arc::new(BossOfYrs::new("test_user".to_string(), TIME.into()));
 
     // Insert a block to have something to work with
     Arc::clone(&boss)
@@ -53,7 +55,7 @@ fn call_all_methods_and_helpers_without_errors() {
     let _ = Arc::clone(&boss).read_block(block_id.clone()).unwrap();
 
     // merge_with_snapshot
-    let other_boss = Arc::new(BossOfYrs::new("test_user".to_string()));
+    let other_boss = Arc::new(BossOfYrs::new("test_user".to_string(), TIME.into()));
     Arc::clone(&other_boss)
         .insert_new_block("other".to_string(), "".to_string(), PositionToInsert::AtEnd)
         .unwrap();
@@ -63,7 +65,7 @@ fn call_all_methods_and_helpers_without_errors() {
         .unwrap();
 
     // merge_with
-    let other_boss2 = Arc::new(BossOfYrs::new("test_user".to_string()));
+    let other_boss2 = Arc::new(BossOfYrs::new("test_user".to_string(), TIME.into()));
     Arc::clone(&boss).merge_with(other_boss2).unwrap();
 
     // Free functions
@@ -76,6 +78,7 @@ fn call_all_methods_and_helpers_without_errors() {
         snapshot_for_new,
         "test_user".to_string(),
         "test_page".to_string(),
+        TIME.into(),
     )
     .unwrap();
 

@@ -8,7 +8,7 @@ mod tests {
 
     #[test]
     fn read_block_returns_text_for_existing_block() {
-        let boss = Arc::new(BossOfYrs::new(USER_ID.to_string()));
+        let boss = Arc::new(BossOfYrs::new(USER_ID.to_string(), "0".into()));
 
         let text = "hello read_block".to_string();
         let meta = "some meta".to_string();
@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn read_block_returns_none_for_missing_block() {
-        let boss = Arc::new(BossOfYrs::new(USER_ID.to_string()));
+        let boss = Arc::new(BossOfYrs::new(USER_ID.to_string(), "0".into()));
 
         let result = Arc::clone(&boss)
             .read_block("non_existent_id".to_string())

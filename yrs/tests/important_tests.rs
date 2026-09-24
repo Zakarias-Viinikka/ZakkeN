@@ -1,5 +1,6 @@
 use my_yrs_lib::yrs_wrapper::*;
 use std::sync::Arc;
+const TIME: &str = "0";
 
 #[cfg(test)]
 mod tests {
@@ -8,11 +9,19 @@ mod tests {
     use super::*;
 
     fn new_test_boss() -> Arc<BossOfYrs> {
-        Arc::new(BossOfYrs::new(USER_ID.to_string()))
+        Arc::new(BossOfYrs::new(USER_ID.to_string(), TIME.into()))
     }
 
     fn new_test_doc_from_snapshot(snapshot: Vec<u8>) -> Arc<BossOfYrs> {
-        Arc::new(doc_from_snapshot(snapshot, USER_ID.to_string(), "test_page".to_string()).unwrap())
+        Arc::new(
+            doc_from_snapshot(
+                snapshot,
+                USER_ID.to_string(),
+                "test_page".to_string(),
+                TIME.into(),
+            )
+            .unwrap(),
+        )
     }
 
     #[test]
