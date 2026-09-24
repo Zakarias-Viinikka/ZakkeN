@@ -42,18 +42,30 @@ pub fn new_page_row(
     ])
 }
 
+//every_block_in_existence_columns
+// need to update so it also includes if it's a main menu title. not just if it's a title. shoudl change it to if it's part of main menu page. so i can query both
 #[uniffi::export]
 pub fn new_every_block_in_existence_row(
     is_title: bool,
+    is_part_of_main_menu_page: bool,
     content: String,
     my_id_as_given_by_yrs: String,
     id_of_page_i_belong_to: String,
     position: f64,
 ) -> Result<Vec<ColumnValue>, YrsError> {
+    //is_part_of_main_menu_page
     Ok(vec![
         ColumnValue {
             column_name: "is_title".to_string(),
             value: Col::Text(if is_title {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            }),
+        },
+        ColumnValue {
+            column_name: "is_part_of_main_menu_page".to_string(),
+            value: Col::Text(if is_part_of_main_menu_page {
                 "true".to_string()
             } else {
                 "false".to_string()
