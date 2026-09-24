@@ -2,11 +2,16 @@ use error_stuff::cqrs_err::CqrsErr;
 use protocol::serialization::Convert;
 use std::sync::Arc;
 
-use my_yrs_lib::{BossOfYrs, YrsActivePages, yrs_wrapper::PositionToInsert};
+use my_yrs_lib::{
+    BossOfYrs,
+    yrs_wrapper::{self, PositionToInsert},
+};
 
 use crate::{
     EverythingToInsertForNewPage,
-    insert_structs::{BlocksToInsertCtx, PagesInsertCtx, UncommitedDiffsInsertCtx},
+    insert_structs::{
+        BlocksToInsertCtx, NormalBlock, PagesInsertCtx, TitleBlock, UncommitedDiffsInsertCtx,
+    },
 };
 
 use love_letter::LoveLetterSketch;
@@ -21,21 +26,16 @@ pub fn create_page(
     let boss_of_yrs = create_boss();
     let two_ids = insert_title_and_empty_block(Arc::clone(&boss_of_yrs))?;
     let snapshot_of_yrs_doc = BossOfYrs::snapshot(Arc::clone(&boss_of_yrs))?;
-    let snapshot_of_thing_that_keeps_track_of_version_of_main_doc =
-        my_yrs_lib::yrs_wrapper::create_bookmark_of_synced_state(Arc::clone(&boss_of_yrs))?;
 
-    let boss_of_is_page_disabled_or_not = Arc::new(my_yrs_lib::YrsActivePages::new_empty());
-    let snapshot_of_page_being_marked_as_active =
-        YrsActivePages::snapshot(Arc::clone(&boss_of_is_page_disabled_or_not))?;
+    let yrs_representation_of_version_status =
+        yrs_wrapper::create_bookmark_of_synced_state(Arc::clone(&boss_of_yrs))?;
 
     let page_id = boss_of_yrs.page_id();
     let insert_page_ctx = PagesInsertCtx {
         page_id: page_id.clone(),
-        table_name: "pages".to_string(),
         blobbed_page: snapshot_of_yrs_doc.clone(),
-        page_status: snapshot_of_page_being_marked_as_active,
-        version: snapshot_of_thing_that_keeps_track_of_version_of_main_doc,
         is_main_menu_page,
+        version: yrs_representation_of_version_status,
     };
     // ---
     //insert_to_pages_tbl()
@@ -45,9 +45,26 @@ pub fn create_page(
     // insert_to_every_block_tbl()
     // ---
 
+    let is_part_of_main_menu_page = is_main_menu_page;
+    let title_block = TitleBlock {
+        my_id_as_given_by_yrs: two_ids.title_block_id,
+        content: "".to_string(),
+        id_of_page_i_belong_to: page_id.clone(),
+        position: 0.0,
+        is_part_of_main_menu_page,
+    };
+
+    let normal_block = NormalBlock {
+        my_id_as_given_by_yrs: two_ids.first_normal_block_id,
+        content: "".to_string(),
+        id_of_page_i_belong_to: page_id.clone(),
+        position: 1.0,
+        is_part_of_main_menu_page,
+    };
+
     let blocks_to_insert_ctx = BlocksToInsertCtx {
-        title_id: two_ids.title_block_id,
-        first_normal_block_id: two_ids.first_normal_block_id,
+        title_block,
+        normal_block,
     };
 
     // ---
@@ -127,6 +144,8 @@ struct IdOfTwoBlocks {
     first_normal_block_id: String,
 }
 
+const FAKE_TIME: &str = "";
+
 fn create_boss() -> Arc<BossOfYrs> {
-    Arc::new(BossOfYrs::new("1".to_string()))
+    Arc::new(BossOfYrs::new("1".to_string(), FAKE_TIME.into()))
 }

@@ -39,7 +39,13 @@ test based off the replay.
 A method that takes a string, splits by spaces, turns it into enum
 variants. Each enum variant calls a respective method. So a replay can be
 created, and a test made from it directly.
-## Reminder: HappyLittleCheckbox callback type
-I used `impl Fn() + 'static` because I just didn't know Leptos had `Callback<()>`.
-Look into `Callback<()>` vs `impl Fn() + 'static` for the `speak_your_truth` param.
-Figure out which is idiomatic and whether it matters (ergonomics, Clone, Send+Sync, etc).
+
+delete_page in page_edits.rs takes RwSignal<i32>, but everything else in that file uses usize. Inconsistent.
+
+for_leptos! is defined twice — once in macros.rs, once at the top of popup.rs. menu.rs uses neither; it uses <For> directly.
+
+The For loop in menu.rs is wrong. It keys by title, and new pages get pushed with an empty title, so multiple entries share the same key. Need to write a fresh <For> leptos starter example, then fix the id being used properly in the actual project.
+
+blueprint crate should export a const for every table name and every column name. even though it's manual, any consumer of the schema just has to figure out which const is correct instead of being unsure whether they copied the right name.
+
+create_new_page in the web_interface page_edits.rs pushes the new page into local_pages before the page actually exists. The id it uses comes from create_page in the builder crate, which hasn't run yet, so the entry gets saved with an empty yrs_id. The push needs to happen inside the spawned block, after create_page returns.

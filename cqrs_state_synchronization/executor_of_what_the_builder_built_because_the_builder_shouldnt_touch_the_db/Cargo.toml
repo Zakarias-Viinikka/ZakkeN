@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 error_stuff = { path = "/home/zakke/ProgStuff/ZakkeN/cqrs_state_synchronization/error_stuff" }
 data_builder_for_operations_that_need_to_be_correct = { path = "/home/zakke/ProgStuff/ZakkeN/cqrs_state_synchronization/data_builder_for_operations_that_need_to_be_correct" }
+client_table_blueprints = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main" }
 protocol = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
 web_internal_db = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }

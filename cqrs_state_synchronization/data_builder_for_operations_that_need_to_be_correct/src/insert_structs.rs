@@ -5,15 +5,29 @@ pub struct EverythingToInsertForNewPage {
 }
 
 pub struct BlocksToInsertCtx {
-    pub title_id: String,
-    pub first_normal_block_id: String,
+    pub title_block: TitleBlock,
+    pub normal_block: NormalBlock,
+}
+
+pub struct TitleBlock {
+    pub my_id_as_given_by_yrs: String,
+    pub content: String,
+    pub id_of_page_i_belong_to: String,
+    pub position: f64,
+    pub is_part_of_main_menu_page: bool,
+}
+
+pub struct NormalBlock {
+    pub my_id_as_given_by_yrs: String,
+    pub content: String,
+    pub id_of_page_i_belong_to: String,
+    pub position: f64,
+    pub is_part_of_main_menu_page: bool,
 }
 
 pub struct PagesInsertCtx {
     pub page_id: String, //creating a new page asks for a user id, then yrs generates a unique id for that page based on the id
-    pub table_name: String,
     pub blobbed_page: Vec<u8>,
-    pub page_status: Vec<u8>,
     pub version: Vec<u8>,
     pub is_main_menu_page: bool,
 }

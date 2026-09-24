@@ -16,8 +16,10 @@ web-sys = { version = "0.3.104", features = ["Window"] }
 leptos-use = "0.19.2"
 
 #my own dependencies
-client_table_blueprints = { path = "/home/zakke/ProgStuff/ZakkeN/client_table_blueprints" }
-my_yrs_lib = { path = "/home/zakke/ProgStuff/ZakkeN/yrs", package = "yrs" }
+client_table_blueprints = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main" }
+my_yrs_lib = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main", package = "yrs" }
 protocol = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
 web_internal_db = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
 data_builder_for_operations_that_need_to_be_correct = { path = "../data_builder_for_operations_that_need_to_be_correct" }
+executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db = { path = "../executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db" }
+stylist = "0.15.1"

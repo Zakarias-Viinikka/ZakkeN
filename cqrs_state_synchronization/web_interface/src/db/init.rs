@@ -8,6 +8,10 @@ use leptos::logging::log;
 use protocol::{new_table::ColumnDef, payload::*};
 use web_internal_db;
 
+pub const PAGE_TABLE_NAME: &str = "pages";
+pub const UNCOMMITTED_DIFFS_TABLE_NAME: &str = "uncommitted_diffs";
+pub const EVERY_BLOCK_IN_EXISTENCE_TABLE_NAME: &str = "every_block_in_existence";
+
 pub async fn create_all_tables() {
     let all_defs = vec![
         tbl_uncommitted_diffs::uncommitted_diffs_columns(),
@@ -16,9 +20,9 @@ pub async fn create_all_tables() {
     ];
 
     let mut name_map: HashMap<u8, String> = HashMap::new();
-    name_map.insert(0, "uncommited_diffs".into());
-    name_map.insert(1, "every_block_in_existence".into());
-    name_map.insert(2, "pages".into());
+    name_map.insert(0, UNCOMMITTED_DIFFS_TABLE_NAME.into());
+    name_map.insert(1, EVERY_BLOCK_IN_EXISTENCE_TABLE_NAME.into());
+    name_map.insert(2, PAGE_TABLE_NAME.into());
 
     //my db throws an err if table already exists. aka. nothing happens.
     // so ill just swallow the err.

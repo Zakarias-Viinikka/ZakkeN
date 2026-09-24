@@ -80,7 +80,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_derive",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -130,7 +130,7 @@ checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -277,9 +277,9 @@ dependencies = [
 
 [[package]]
 name = "cfg-if"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "chacha20"
@@ -335,7 +335,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -347,20 +347,11 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 [[package]]
 name = "client_table_blueprints"
 version = "0.1.0"
+source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#9839ccfab2c4b67434ecfefa57bbddf959701be4"
 dependencies = [
  "protocol",
  "uniffi",
- "yrs 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
-]
-
-[[package]]
-name = "client_table_blueprints"
-version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#2242429beb5d13ef45c0466f00a8aba843462c2c"
-dependencies = [
- "protocol",
- "uniffi",
- "yrs 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -567,12 +558,12 @@ dependencies = [
 name = "data_builder_for_operations_that_need_to_be_correct"
 version = "0.1.0"
 dependencies = [
- "client_table_blueprints 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
+ "client_table_blueprints",
  "error_stuff",
  "love_letter",
  "protocol",
  "web_internal_db",
- "yrs 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -601,7 +592,7 @@ checksum = "2e2b94854e8576378ccda7c8de8a66ed8b4e8acbd2c50ec3418ea6c8aaf4b567"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -622,7 +613,7 @@ checksum = "c6232dd377dcc64799954cbd3a9bb882e9cdc1308ccd87b1c098f1fb2eaf82a8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -673,11 +664,11 @@ dependencies = [
 name = "error_stuff"
 version = "0.1.0"
 dependencies = [
- "client_table_blueprints 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
+ "client_table_blueprints",
  "love_letter",
  "protocol",
  "web_internal_db",
- "yrs 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -704,6 +695,7 @@ dependencies = [
 name = "executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db"
 version = "0.1.0"
 dependencies = [
+ "client_table_blueprints",
  "data_builder_for_operations_that_need_to_be_correct",
  "error_stuff",
  "protocol",
@@ -805,7 +797,7 @@ checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -1124,10 +1116,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "instant"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
+dependencies = [
+ "cfg-if",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "interpolator"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71dd52191aae121e8611f1e8dc3e324dd0dd1dee1e6dd91d10ee07a3cfb4d9d8"
+
+[[package]]
+name = "itertools"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
 
 [[package]]
 name = "itertools"
@@ -1298,7 +1311,7 @@ dependencies = [
  "convert_case 0.11.0",
  "convert_case_extras",
  "html-escape",
- "itertools",
+ "itertools 0.14.0",
  "leptos_hot_reload",
  "prettyplease",
  "proc-macro-error2",
@@ -1401,6 +1414,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
+name = "litrs"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5e54036fe321fd421e10d732f155734c4e4afd610dd556d9a82833ab3ee0bed"
+dependencies = [
+ "proc-macro2",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1418,12 +1440,12 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 [[package]]
 name = "love_letter"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#2242429beb5d13ef45c0466f00a8aba843462c2c"
+source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#9839ccfab2c4b67434ecfefa57bbddf959701be4"
 dependencies = [
  "bincode",
  "serde",
  "uniffi",
- "yrs 0.1.0 (git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main)",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -1609,6 +1631,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-error"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
+dependencies = [
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "version_check",
+]
+
+[[package]]
+name = "proc-macro-error-attr"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "version_check",
+]
+
+[[package]]
 name = "proc-macro-error-attr2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1666,7 +1712,7 @@ dependencies = [
 [[package]]
 name = "protocol"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#59e179bbd9e6235f91bb31961a178fb1aa74e134"
+source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#22d8f15656234e35fb56e31c82df6ca7df3e4e10"
 dependencies = [
  "base64 0.23.1",
  "bincode",
@@ -1762,7 +1808,7 @@ checksum = "c30fd35b7d299c591293bb69fed47a703eb2703b1cff0493e78b16ed007e5382"
 dependencies = [
  "guardian",
  "indexmap",
- "itertools",
+ "itertools 0.14.0",
  "or_poisoned",
  "paste",
  "reactive_graph",
@@ -1854,9 +1900,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.4"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
 dependencies = [
  "bitflags",
  "errno",
@@ -1952,7 +1998,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2124,6 +2170,62 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
+name = "stylist"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "373cdadb5137ccf258b1b5945c2fae9948ff7229e2f80ac1271759f92059078a"
+dependencies = [
+ "fastrand",
+ "instant",
+ "once_cell",
+ "serde",
+ "stylist-core",
+ "stylist-macros",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "stylist-core"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a6932668a85e87430e99d50a6bf3270e511a8b3d926982e5de198b4b300100"
+dependencies = [
+ "nom",
+ "once_cell",
+ "serde",
+ "thiserror 1.0.69",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "stylist-macros"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e06b3cf10ea95e143d79969b96e9cc073b23b207bc4e711101300ae2f1a1f3a6"
+dependencies = [
+ "itertools 0.12.1",
+ "litrs",
+ "log",
+ "nom",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "stylist-core",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "syn"
+version = "1.0.109"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
+dependencies = [
+ "proc-macro2",
+ "unicode-ident",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2136,9 +2238,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.5"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12df2e0110f65b775f769bb17ef989067a1d931b2eb822bd4346631eeada89f9"
+checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2165,7 +2267,7 @@ checksum = "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2183,7 +2285,7 @@ dependencies = [
  "futures",
  "html-escape",
  "indexmap",
- "itertools",
+ "itertools 0.14.0",
  "js-sys",
  "next_tuple",
  "oco_ref",
@@ -2260,7 +2362,7 @@ checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -2398,9 +2500,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.24"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 
 [[package]]
 name = "unicode-segmentation"
@@ -2628,7 +2730,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
  "wasm-bindgen-shared",
 ]
 
@@ -2690,9 +2792,10 @@ dependencies = [
 name = "web_interface"
 version = "0.1.0"
 dependencies = [
- "client_table_blueprints 0.1.0",
+ "client_table_blueprints",
  "console_error_panic_hook",
  "data_builder_for_operations_that_need_to_be_correct",
+ "executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db",
  "gloo-timers",
  "js-sys",
  "leptos",
@@ -2700,6 +2803,7 @@ dependencies = [
  "leptos_meta",
  "leptos_router",
  "protocol",
+ "stylist",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -2710,7 +2814,7 @@ dependencies = [
 [[package]]
 name = "web_internal_db"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#59e179bbd9e6235f91bb31961a178fb1aa74e134"
+source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#22d8f15656234e35fb56e31c82df6ca7df3e4e10"
 dependencies = [
  "gloo-timers",
  "js-sys",
@@ -2854,25 +2958,14 @@ checksum = "33811428bee40dbceb6d545e95754741d17a6aef9a4849f0fd62e2ba4f412a78"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
  "synstructure",
 ]
 
 [[package]]
 name = "yrs"
 version = "0.1.0"
-dependencies = [
- "rand",
- "serde",
- "serde_json",
- "uniffi",
- "yrs 0.27.4",
-]
-
-[[package]]
-name = "yrs"
-version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#2242429beb5d13ef45c0466f00a8aba843462c2c"
+source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#9839ccfab2c4b67434ecfefa57bbddf959701be4"
 dependencies = [
  "rand",
  "serde",
@@ -2916,7 +3009,7 @@ checksum = "f75b4683f6c7f45248d4d64056a24298c6281e0993356d7d1b4a1a962ef10d4a"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
  "synstructure",
 ]
 
@@ -2951,7 +3044,7 @@ checksum = "34df6fc39dbd26ddc9c10e6a2984476e13acce22e64e4487636ef494369225da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.5",
+ "syn 3.0.6",
 ]
 
 [[package]]

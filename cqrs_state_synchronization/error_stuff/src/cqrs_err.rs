@@ -1,6 +1,7 @@
 use my_yrs_lib::YrsError;
 use protocol::error::DbError;
 
+#[derive(Debug)]
 pub enum CqrsErr {
     YrsErrorContainer(YrsError),
     DbErrorContainer(DbError),

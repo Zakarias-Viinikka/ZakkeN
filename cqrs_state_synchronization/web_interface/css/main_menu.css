@@ -1,0 +1,7 @@
+.select_page_to_go_to {
+    min-height: 30px;
+    min-width: 100px;
+    border: 1px gray solid;
+    margin: 2px;
+
+}
