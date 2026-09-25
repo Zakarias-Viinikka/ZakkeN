@@ -1,4 +1,3 @@
-use my_yrs_lib::yrs_backlinks::YrsBacklinks;
 use my_yrs_lib::{YrsActivePages, YrsError};
 use protocol::payload::ColumnValue;
 use protocol::row_col::Col;
@@ -113,35 +112,6 @@ pub fn new_uncommitted_diff_row(
         ColumnValue {
             column_name: "target_id".to_string(),
             value: Col::Text(target_id),
-        },
-    ])
-}
-
-#[uniffi::export]
-pub fn new_backlink_row(
-    page_that_holds_link_id: String,
-    page_being_linked_to_id: String,
-) -> Result<Vec<ColumnValue>, YrsError> {
-    let backlinks_doc = Arc::new(YrsBacklinks::new_empty());
-    let disabled = backlinks_doc.clone().snapshot()?;
-    let version = backlinks_doc.create_bookmark_of_synced_state()?;
-
-    Ok(vec![
-        ColumnValue {
-            column_name: "page_that_holds_link_id".to_string(),
-            value: Col::Text(page_that_holds_link_id),
-        },
-        ColumnValue {
-            column_name: "page_being_linked_to_id".to_string(),
-            value: Col::Text(page_being_linked_to_id),
-        },
-        ColumnValue {
-            column_name: "disabled".to_string(),
-            value: Col::Blob(disabled),
-        },
-        ColumnValue {
-            column_name: "version".to_string(),
-            value: Col::Blob(version),
         },
     ])
 }
