@@ -1,24 +1,108 @@
+#![allow(non_snake_case)]
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::export_column_names_for_kotlin;
-use crate::export_table_names_for_kotlin;
 use my_yrs_lib::YrsBacklinks;
 use my_yrs_lib::YrsError;
-use protocol::new_table::{ColumnDef, ColumnType, ForeignKeyDef, id_column, not_null_col};
+use protocol::error::DbError;
+use protocol::error::DbError::ColDestructFail;
+use protocol::new_table::ForeignKeyDef;
 use protocol::payload::ColumnValue;
 use protocol::row_col::Col;
+use protocol::schema_helper::DestructDbReturnCol;
+use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-export_table_names_for_kotlin!(
-    pub const BACKLINKS: &str = "backlinks",
-);
+pub enum ColumnsBacklinks {
+    PageThatHoldsLinkId,
+    PageBeingLinkedToId,
+    Disabled,
+    Version,
+}
+pub fn get_table_name_backlinks() -> String {
+    "backlinks".into()
+}
 
-export_column_names_for_kotlin!(
-    backlinks,
-    pub const PAGE_THAT_HOLDS_LINK_ID: &str = "page_that_holds_link_id",
-    pub const PAGE_BEING_LINKED_TO_ID: &str = "page_being_linked_to_id",
-    pub const DISABLED: &str = "disabled",
-    pub const VERSION: &str = "version",
-);
+const PAGE_THAT_HOLDS_LINK_ID: SchemaColumn<String> = SchemaColumn::<String> {
+    name: "page_that_holds_link_id",
+    type_of_col: &TypeOfCol::Text,
+    _marker: PhantomData,
+};
+
+const PAGE_BEING_LINKED_TO_ID: SchemaColumn<String> = SchemaColumn::<String> {
+    name: "page_being_linked_to_id",
+    type_of_col: &TypeOfCol::Text,
+    _marker: PhantomData,
+};
+
+const DISABLED: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+    name: "disabled",
+    type_of_col: &TypeOfCol::Blob,
+    _marker: PhantomData,
+};
+
+const VERSION: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+    name: "version",
+    type_of_col: &TypeOfCol::Blob,
+    _marker: PhantomData,
+};
+
+// tbl_backlinks::DISABLED.destruct_col()
+pub fn get_column_name(ENUM: ColumnsBacklinks) -> String {
+    match ENUM {
+        ColumnsBacklinks::PageBeingLinkedToId => return PAGE_THAT_HOLDS_LINK_ID.name.to_string(),
+        ColumnsBacklinks::PageThatHoldsLinkId => return PAGE_BEING_LINKED_TO_ID.name.to_string(),
+        ColumnsBacklinks::Disabled => return DISABLED.name.to_string(),
+        ColumnsBacklinks::Version => return VERSION.name.to_string(),
+    }
+}
+
+pub fn destruct_col_backlinks_page_that_holds_link_id(
+    col_to_destruct: protocol::row_col::Col,
+) -> Result<String, DbError> {
+    PAGE_BEING_LINKED_TO_ID
+        .destruct_db_col(col_to_destruct)
+        .map_err(|_| {
+            ColDestructFail(format!(
+                "Failed  to destruct to type: {:?}",
+                PAGE_BEING_LINKED_TO_ID.type_of_col
+            ))
+        })
+}
+
+pub fn destruct_col_backlinks_page_being_linked_to_id(
+    col_to_destruct: protocol::row_col::Col,
+) -> Result<String, DbError> {
+    PAGE_BEING_LINKED_TO_ID
+        .destruct_db_col(col_to_destruct)
+        .map_err(|_| {
+            ColDestructFail(format!(
+                "Failed  to destruct to type: {:?}",
+                PAGE_BEING_LINKED_TO_ID.type_of_col
+            ))
+        })
+}
+
+pub fn destruct_col_backlinks_disabled(
+    col_to_destruct: protocol::row_col::Col,
+) -> Result<Vec<u8>, DbError> {
+    DISABLED.destruct_db_col(col_to_destruct).map_err(|_| {
+        ColDestructFail(format!(
+            "Failed  to destruct to type: {:?}",
+            DISABLED.type_of_col
+        ))
+    })
+}
+
+pub fn destruct_col_backlinks_version(
+    col_to_destruct: protocol::row_col::Col,
+) -> Result<Vec<u8>, DbError> {
+    VERSION.destruct_db_col(col_to_destruct).map_err(|_| {
+        ColDestructFail(format!(
+            "Failed  to destruct to type: {:?}",
+            VERSION.type_of_col
+        ))
+    })
+}
 
 #[uniffi::export]
 pub fn new_backlink_row(
@@ -31,47 +115,36 @@ pub fn new_backlink_row(
 
     Ok(vec![
         ColumnValue {
-            column_name: PAGE_THAT_HOLDS_LINK_ID.to_string(),
+            column_name: PAGE_THAT_HOLDS_LINK_ID.name.to_string(),
             value: Col::Text(page_that_holds_link_id),
         },
         ColumnValue {
-            column_name: PAGE_BEING_LINKED_TO_ID.to_string(),
+            column_name: PAGE_BEING_LINKED_TO_ID.name.to_string(),
             value: Col::Text(page_being_linked_to_id),
         },
         ColumnValue {
-            column_name: DISABLED.to_string(),
+            column_name: DISABLED.name.to_string(),
             value: Col::Blob(disabled),
         },
         ColumnValue {
-            column_name: VERSION.to_string(),
+            column_name: VERSION.name.to_string(),
             value: Col::Blob(version),
         },
     ])
 }
 
 #[uniffi::export]
-pub fn backlinks_columns() -> Vec<ColumnDef> {
-    vec![
-        id_column(),
-        not_null_col(ColumnType::Text, PAGE_THAT_HOLDS_LINK_ID),
-        not_null_col(ColumnType::Text, PAGE_BEING_LINKED_TO_ID),
-        not_null_col(ColumnType::Blob, DISABLED),
-        not_null_col(ColumnType::Blob, VERSION),
-    ]
-}
-
-#[uniffi::export]
 pub fn get_foreign_def_backlinks() -> Vec<ForeignKeyDef> {
     vec![
         ForeignKeyDef {
-            column: PAGE_THAT_HOLDS_LINK_ID.to_string(),
-            referenced_table: crate::tbl_pages::PAGES.to_string(),
-            referenced_column: crate::tbl_pages::PAGE_ID.to_string(),
+            column: PAGE_THAT_HOLDS_LINK_ID.name.to_string(),
+            referenced_table: crate::tbl_pages::get_table_name_pages(),
+            referenced_column: crate::tbl_pages::PAGE_ID.name.to_string(),
         },
         ForeignKeyDef {
-            column: PAGE_BEING_LINKED_TO_ID.to_string(),
-            referenced_table: crate::tbl_pages::PAGES.to_string(),
-            referenced_column: crate::tbl_pages::PAGE_ID.to_string(),
+            column: PAGE_BEING_LINKED_TO_ID.name.to_string(),
+            referenced_table: crate::tbl_pages::get_table_name_pages(),
+            referenced_column: crate::tbl_pages::PAGE_ID.name.to_string(),
         },
     ]
 }

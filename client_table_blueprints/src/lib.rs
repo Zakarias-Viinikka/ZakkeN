@@ -1,7 +1,5 @@
 uniffi::setup_scaffolding!();
 
-#[macro_use]
-pub mod macro_explained;
 pub mod new_row_helper;
 pub mod tbl_backlinks;
 pub mod tbl_every_block_in_existence;
