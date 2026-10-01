@@ -1004,7 +1004,6 @@ dependencies = [
 [[package]]
 name = "yrs"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#f364d7648de58e45f08c89661db2a119b36ba3d9"
 dependencies = [
  "rand",
  "serde",

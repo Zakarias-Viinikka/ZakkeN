@@ -1,6 +1,5 @@
 use my_yrs_lib::{EditTarget, TextEdit, yrs_wrapper::PositionToInsert};
 use serde::{Deserialize, Serialize};
-
 uniffi::setup_scaffolding!();
 
 // ## --
