@@ -347,8 +347,8 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 [[package]]
 name = "client_table_blueprints"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#9839ccfab2c4b67434ecfefa57bbddf959701be4"
 dependencies = [
+ "paste",
  "protocol",
  "uniffi",
  "yrs 0.1.0",
@@ -1440,7 +1440,6 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 [[package]]
 name = "love_letter"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#9839ccfab2c4b67434ecfefa57bbddf959701be4"
 dependencies = [
  "bincode",
  "serde",
@@ -1712,7 +1711,6 @@ dependencies = [
 [[package]]
 name = "protocol"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#22d8f15656234e35fb56e31c82df6ca7df3e4e10"
 dependencies = [
  "base64 0.23.1",
  "bincode",
@@ -2814,7 +2812,6 @@ dependencies = [
 [[package]]
 name = "web_internal_db"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/z_db?branch=main#22d8f15656234e35fb56e31c82df6ca7df3e4e10"
 dependencies = [
  "gloo-timers",
  "js-sys",
@@ -2965,7 +2962,6 @@ dependencies = [
 [[package]]
 name = "yrs"
 version = "0.1.0"
-source = "git+https://github.com/Zakarias-Viinikka/ZakkeN?branch=main#9839ccfab2c4b67434ecfefa57bbddf959701be4"
 dependencies = [
  "rand",
  "serde",

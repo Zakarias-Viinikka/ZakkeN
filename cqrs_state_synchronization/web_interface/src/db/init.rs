@@ -1,28 +1,25 @@
 use std::collections::HashMap;
 
-use client_table_blueprints::{
-    new_row_helper, tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs,
-};
+use client_table_blueprints::{tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs};
 
 use leptos::logging::log;
 use protocol::{new_table::ColumnDef, payload::*};
 use web_internal_db;
 
-pub const PAGE_TABLE_NAME: &str = "pages";
-pub const UNCOMMITTED_DIFFS_TABLE_NAME: &str = "uncommitted_diffs";
-pub const EVERY_BLOCK_IN_EXISTENCE_TABLE_NAME: &str = "every_block_in_existence";
-
 pub async fn create_all_tables() {
     let all_defs = vec![
-        tbl_uncommitted_diffs::uncommitted_diffs_columns(),
-        tbl_every_block_in_existence::every_block_in_existence_columns(),
-        tbl_pages::pages_columns(),
+        tbl_uncommitted_diffs::new_table_uncommitted_diffs(),
+        tbl_every_block_in_existence::new_table_every_block_in_existence(),
+        tbl_pages::new_table_pages(),
     ];
 
     let mut name_map: HashMap<u8, String> = HashMap::new();
-    name_map.insert(0, UNCOMMITTED_DIFFS_TABLE_NAME.into());
-    name_map.insert(1, EVERY_BLOCK_IN_EXISTENCE_TABLE_NAME.into());
-    name_map.insert(2, PAGE_TABLE_NAME.into());
+    name_map.insert(0, tbl_uncommitted_diffs::get_table_name_uncommitted_diffs());
+    name_map.insert(
+        1,
+        tbl_every_block_in_existence::get_table_name_every_block_in_existence(),
+    );
+    name_map.insert(2, tbl_pages::get_table_name_pages());
 
     //my db throws an err if table already exists. aka. nothing happens.
     // so ill just swallow the err.

@@ -1,4 +1,10 @@
-use client_table_blueprints::new_row_helper::*;
+use client_table_blueprints::tbl_every_block_in_existence::{
+    get_table_name_every_block_in_existence, new_every_block_in_existence_row,
+};
+use client_table_blueprints::tbl_pages::{get_table_name_pages, new_page_row};
+use client_table_blueprints::tbl_uncommitted_diffs::{
+    get_table_name_uncommitted_diffs, new_uncommitted_diff_row,
+};
 use data_builder_for_operations_that_need_to_be_correct::{
     EverythingToInsertForNewPage,
     insert_structs::{BlocksToInsertCtx, PagesInsertCtx, UncommitedDiffsInsertCtx},
@@ -45,7 +51,7 @@ async fn insert_into_pages(insert_ctx: PagesInsertCtx) -> Result<(), CqrsErr> {
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: "pages".to_string(),
+        table_name: get_table_name_pages(),
         values,
     })
     .await?;
@@ -66,7 +72,7 @@ async fn insert_into_every_block_in_existence(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: "every_block_in_existence".to_string(),
+        table_name: get_table_name_every_block_in_existence(),
         values: title_values,
     })
     .await?;
@@ -81,7 +87,7 @@ async fn insert_into_every_block_in_existence(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: "every_block_in_existence".to_string(),
+        table_name: get_table_name_every_block_in_existence(),
         values: normal_values,
     })
     .await?;
@@ -100,7 +106,7 @@ async fn insert_into_uncommitted_diffs(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: "uncommitted_diffs".to_string(),
+        table_name: get_table_name_uncommitted_diffs(),
         values,
     })
     .await?;
