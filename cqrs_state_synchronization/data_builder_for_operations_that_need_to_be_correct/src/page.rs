@@ -1,20 +1,20 @@
 use error_stuff::cqrs_err::CqrsErr;
 use protocol::serialization::Convert;
 use std::sync::Arc;
+use text_diff::diff_logic::DiffResult;
 
 use my_yrs_lib::{
-    BossOfYrs,
+    BossOfYrs, EditTarget, TextEdit, YrsError,
+    yrs_error::ErrorInfo,
     yrs_wrapper::{self, PositionToInsert},
 };
 
 use crate::{
-    EverythingToInsertForNewPage,
-    insert_structs::{
-        BlocksToInsertCtx, NormalBlock, PagesInsertCtx, TitleBlock, UncommitedDiffsInsertCtx,
-    },
+    EverythingToInsertForNewPage, diff_result_to_text_edit_conversion::diff_result_to_text_edit,
+    insert_structs::*,
 };
 
-use love_letter::LoveLetterSketch;
+use love_letter::{LoveLetterSketch, sketch_to_bytes};
 
 pub fn create_page(
     is_main_menu_page: bool,
@@ -37,9 +37,6 @@ pub fn create_page(
         is_main_menu_page,
         version: yrs_representation_of_version_status,
     };
-    // ---
-    //insert_to_pages_tbl()
-    // ---
 
     // ---
     // insert_to_every_block_tbl()
@@ -68,10 +65,6 @@ pub fn create_page(
     };
 
     // ---
-    // insert_to_every_block_tbl()
-    // ---
-
-    // ---
     // insert_to_uncommitted_diffs()
     // ---
 
@@ -87,9 +80,6 @@ pub fn create_page(
         session_id,
         target_id: page_id,
     };
-
-    // ---
-    // insert_to_uncommitted_diffs()
     // ---
 
     Ok(EverythingToInsertForNewPage {
@@ -99,6 +89,58 @@ pub fn create_page(
     })
 }
 
+pub fn edit_block(
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    diff: DiffResult,
+    session_id: String,
+) -> Result<Option<EditBlockCtx>, CqrsErr> {
+    let text_edit = match diff_result_to_text_edit(diff.clone()) {
+        Some(t) => t,
+        None => return Ok(None),
+    };
+
+    let bookmark_before_edit = yrs_wrapper::create_bookmark_of_synced_state(yrs.clone())?;
+
+    yrs.clone()
+        .edit_text_block(block_id.clone(), text_edit.clone(), EditTarget::Text)?;
+
+    let snapshot_of_edit = yrs_wrapper::generate_diff_snapshot(yrs.clone(), bookmark_before_edit)?;
+
+    let new_text = yrs.clone().read_block(block_id.clone())?.ok_or_else(|| {
+        CqrsErr::YrsErrorContainer(YrsError::GenericError {
+            info: ErrorInfo {
+                error_msg: format!("no block with id: {block_id}"),
+                file: file!().to_string(),
+                method: "edit_block".to_string(),
+            },
+        })
+    })?;
+
+    let new_blobbed_page = yrs.clone().snapshot()?;
+
+    let page_id = yrs.clone().page_id();
+    let love_letter_sketch =
+        make_love_letter_sketch_for_editing_block(text_edit, page_id.clone(), block_id.clone())?;
+
+    Ok(Some(EditBlockCtx {
+        pages_update: PagesUpdateCtx {
+            page_id: page_id.clone(),
+            new_blobbed_page,
+        },
+        every_block_in_existence_update: EveryBlockInExistenceUpdateCtx {
+            block_id,
+            new_content: new_text,
+        },
+        uncommitted_diffs: UncommitedDiffsInsertCtx {
+            snapshot_of_edit,
+            love_letter_sketch,
+            session_id,
+            target_id: page_id,
+        },
+    }))
+}
+
 //
 // ~~~
 // HELPERS
@@ -106,15 +148,21 @@ pub fn create_page(
 // ~~~
 //
 
-/*
-* struct PagesInsertCtx {
-    page_id: String,
-    blobbed_page: Vec<u8>,
-    page_status: Vec<u8>,
-    version: Vec<u8>,
-    is_main_menu_page: bool,
+fn make_love_letter_sketch_for_editing_block(
+    text_edit: TextEdit,
+    target_page_id: String,
+    block_id: String,
+) -> Result<Vec<u8>, CqrsErr> {
+    let sketch = LoveLetterSketch::EditBlock {
+        text_edit,
+        edit_target: EditTarget::Text,
+        target_page_id,
+        block_id,
+    };
+
+    let bytes = sketch_to_bytes(&sketch)?;
+    Ok(bytes)
 }
-*/
 
 fn insert_title_and_empty_block(boss_of_yrs: Arc<BossOfYrs>) -> Result<IdOfTwoBlocks, CqrsErr> {
     /*

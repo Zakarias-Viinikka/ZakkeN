@@ -12,3 +12,6 @@ client_table_blueprints.path = "/home/zakke/ProgStuff/ZakkeN/client_table_bluepr
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 #web_internal_db = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
 web_internal_db.path = "/home/zakke/ProgStuff/z_db/web_internal_db"
+#my_yrs_lib = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main", package = "yrs" }
+yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
+text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"

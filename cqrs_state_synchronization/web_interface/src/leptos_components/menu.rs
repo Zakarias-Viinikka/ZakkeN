@@ -1,20 +1,14 @@
 use crate::{
-    db,
+    db::{self, db_helpers_for_web_client::destruct_get_title_and_id_of_all_menu_pages},
     leptos_components::{
         action_buttons::{self, page_edits::LocalPages},
         small_components::popup::PopupContainer,
     },
 };
-use client_table_blueprints::tbl_every_block_in_existence::*;
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;
 use leptos_router::components::A;
-use protocol::{
-    error::DbError,
-    payload::{GetDataIn, JoinType, SelectArgument, SelectArguments},
-    schema_helper::{DestructDbReturnCol, SchemaColumn},
-};
-use web_internal_db::db_helper;
+use protocol::error::DbError;
 
 #[derive(Clone)]
 struct PagesToNavTo {
@@ -41,7 +35,7 @@ pub fn Menu() -> impl IntoView {
         <div id="menu_container">
             <For
                 each=move || local_pages.get()
-                key=|list_item| list_item.title.clone()
+                key=|list_item| list_item.id.clone()
                 let(list_item)
             >
                 <div class="select_page_to_go_to">
@@ -85,7 +79,7 @@ fn create_local_pages(
         local_pages_set.update(|pages| {
             let mut rows_iter = get_data_out.rows.into_iter();
             while let Some(row) = rows_iter.next() {
-                let (title, yrs_id) = destruct_row_for_local_pages(row);
+                let (title, yrs_id) = destruct_get_title_and_id_of_all_menu_pages(row);
                 pages.push(LocalPages {
                     title,
                     id: ctr.get(),
@@ -101,26 +95,3 @@ fn create_local_pages(
 }
 
 use std::collections::HashMap;
-
-fn destruct_row_for_local_pages(row: protocol::row_col::Row) -> (String, String) {
-    let schema_by_position: HashMap<u8, &SchemaColumn<String>> =
-        HashMap::from([(0, &IS_TITLE), (1, &MY_ID_AS_GIVEN_BY_YRS)]);
-
-    let mut destructed_by_name: HashMap<&str, String> = HashMap::new();
-
-    let mut ctr: u8 = 0;
-    let mut iter = row.cols.into_iter();
-    while let Some(col) = iter.next() {
-        let schema = schema_by_position.get(&ctr).unwrap();
-        let value = schema.destruct_db_col(col).unwrap();
-        destructed_by_name.insert(schema.name, value);
-        ctr += 1;
-    }
-
-    let title = destructed_by_name.remove(IS_TITLE.name).unwrap();
-    let yrs_id = destructed_by_name
-        .remove(MY_ID_AS_GIVEN_BY_YRS.name)
-        .unwrap();
-
-    (title, yrs_id)
-}

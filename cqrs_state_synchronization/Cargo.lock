@@ -562,6 +562,7 @@ dependencies = [
  "error_stuff",
  "love_letter",
  "protocol",
+ "text_diff",
  "web_internal_db",
  "yrs 0.1.0",
 ]
@@ -699,7 +700,9 @@ dependencies = [
  "data_builder_for_operations_that_need_to_be_correct",
  "error_stuff",
  "protocol",
+ "text_diff",
  "web_internal_db",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -2314,6 +2317,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "text_diff"
+version = "0.1.0"
+dependencies = [
+ "codee",
+ "console_error_panic_hook",
+ "leptos",
+ "leptos-use",
+ "leptos_router",
+ "uniffi",
+ "web-sys",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2793,6 +2809,7 @@ dependencies = [
  "client_table_blueprints",
  "console_error_panic_hook",
  "data_builder_for_operations_that_need_to_be_correct",
+ "error_stuff",
  "executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db",
  "gloo-timers",
  "js-sys",
@@ -2802,6 +2819,7 @@ dependencies = [
  "leptos_router",
  "protocol",
  "stylist",
+ "text_diff",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

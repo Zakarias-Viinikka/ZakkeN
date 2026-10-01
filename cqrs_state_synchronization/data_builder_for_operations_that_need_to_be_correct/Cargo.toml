@@ -15,3 +15,4 @@ protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 #web_internal_db = { git = "https://github.com/Zakarias-Viinikka/z_db", branch = "main" }
 web_internal_db.path = "/home/zakke/ProgStuff/z_db/web_internal_db"
 error_stuff = { path = "../error_stuff" }
+text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"

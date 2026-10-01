@@ -4,6 +4,22 @@ pub struct EverythingToInsertForNewPage {
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }
 
+pub struct EditBlockCtx {
+    pub pages_update: PagesUpdateCtx,
+    pub every_block_in_existence_update: EveryBlockInExistenceUpdateCtx,
+    pub uncommitted_diffs: UncommitedDiffsInsertCtx,
+}
+
+pub struct PagesUpdateCtx {
+    pub page_id: String,
+    pub new_blobbed_page: Vec<u8>,
+}
+
+pub struct EveryBlockInExistenceUpdateCtx {
+    pub block_id: String,
+    pub new_content: String,
+}
+//
 pub struct BlocksToInsertCtx {
     pub title_block: TitleBlock,
     pub normal_block: NormalBlock,

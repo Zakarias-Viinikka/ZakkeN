@@ -27,3 +27,5 @@ web_internal_db.path = "/home/zakke/ProgStuff/z_db/web_internal_db"
 data_builder_for_operations_that_need_to_be_correct = { path = "../data_builder_for_operations_that_need_to_be_correct" }
 executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db = { path = "../executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db" }
 stylist = "0.15.1"
+error_stuff = { path = "../error_stuff" }
+text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"

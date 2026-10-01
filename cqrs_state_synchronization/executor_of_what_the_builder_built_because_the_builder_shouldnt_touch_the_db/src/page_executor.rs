@@ -1,16 +1,16 @@
 use client_table_blueprints::tbl_every_block_in_existence::{
-    get_table_name_every_block_in_existence, new_every_block_in_existence_row,
+    self, get_table_name_every_block_in_existence, new_every_block_in_existence_row,
 };
-use client_table_blueprints::tbl_pages::{get_table_name_pages, new_page_row};
+use client_table_blueprints::tbl_pages::{self, get_table_name_pages, new_page_row};
 use client_table_blueprints::tbl_uncommitted_diffs::{
     get_table_name_uncommitted_diffs, new_uncommitted_diff_row,
 };
 use data_builder_for_operations_that_need_to_be_correct::{
-    EverythingToInsertForNewPage,
-    insert_structs::{BlocksToInsertCtx, PagesInsertCtx, UncommitedDiffsInsertCtx},
+    EverythingToInsertForNewPage, insert_structs::*,
 };
 use error_stuff::cqrs_err::CqrsErr;
 use protocol::payload::*;
+use protocol::row_col::*;
 use web_internal_db::db_helper;
 
 #[macro_export]
@@ -40,6 +40,55 @@ pub async fn insert_page_requires_three_db_inserts(
     );
     db_helper::everything_went_perfectly().await?;
     Ok(page_id_cloned)
+}
+
+pub async fn edit_block_requires_three_db_inserts(
+    edit_block_ctx: EditBlockCtx,
+) -> Result<(), CqrsErr> {
+    db_helper::begin_all_or_nothing().await?;
+
+    unwrap_or_bail!(update_pages_blob(edit_block_ctx.pages_update).await);
+    unwrap_or_bail!(
+        update_every_block_content(edit_block_ctx.every_block_in_existence_update).await
+    );
+    unwrap_or_bail!(insert_into_uncommitted_diffs(edit_block_ctx.uncommitted_diffs).await);
+
+    db_helper::everything_went_perfectly().await?;
+    Ok(())
+}
+
+async fn update_pages_blob(update_ctx: PagesUpdateCtx) -> Result<(), CqrsErr> {
+    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+        table_name: tbl_pages::get_table_name_pages(),
+        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_pages::PAGE_ID.name.to_string(),
+            y: update_ctx.page_id,
+        }),
+        column: tbl_pages::BLOBBED_PAGE.name.to_string(),
+        new_value: Col::Blob(update_ctx.new_blobbed_page),
+    })
+    .await?;
+
+    Ok(())
+}
+
+async fn update_every_block_content(
+    update_ctx: EveryBlockInExistenceUpdateCtx,
+) -> Result<(), CqrsErr> {
+    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+        table_name: tbl_every_block_in_existence::get_table_name_every_block_in_existence(),
+        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                .name
+                .to_string(),
+            y: update_ctx.block_id,
+        }),
+        column: tbl_every_block_in_existence::CONTENT.name.to_string(),
+        new_value: Col::Text(update_ctx.new_content),
+    })
+    .await?;
+
+    Ok(())
 }
 
 async fn insert_into_pages(insert_ctx: PagesInsertCtx) -> Result<(), CqrsErr> {

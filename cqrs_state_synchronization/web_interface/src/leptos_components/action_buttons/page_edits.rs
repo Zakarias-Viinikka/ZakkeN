@@ -7,6 +7,8 @@ use leptos::reactive::spawn_local;
 use leptos_meta::Stylesheet;
 use leptos_use::storage::use_local_storage;
 
+use crate::db::db_helpers_for_web_client::{edit_title_for_page, get_yrs_unblobbed};
+
 struct AllCheckBoxStates {
     placeholder: Signal<bool>,
     placeholder_set: WriteSignal<bool>,
@@ -81,28 +83,36 @@ fn create_new_page(page_ctr: RwSignal<usize>, local_pages: WriteSignal<Vec<Local
     let session_id = "placeholder-session".to_string();
     let page_id = RwSignal::new("".to_string());
     spawn_local(async move {
-        let everything = match create_page(true, session_id) {
+        let everything = match create_page(true, session_id.clone()) {
             Ok(v) => v,
             Err(e) => {
                 log!("create_page failed: {:?}", e);
                 return;
             }
         };
+        let title_block_id = everything
+            .blocks_to_insert
+            .title_block
+            .my_id_as_given_by_yrs
+            .clone();
         page_id.set(everything.page_to_insert.page_id.clone());
         if let Err(e) = insert_page_requires_three_db_inserts(everything).await {
             log!("insert failed: {:?}", e);
         }
-    });
 
-    local_pages.update(|pages| {
-        pages.push(LocalPages {
-            title: "".to_string(),
-            id: page_ctr.get() as usize,
-            yrs_id: page_id.get(),
+        local_pages.update(|pages| {
+            pages.push(LocalPages {
+                title: "".to_string(),
+                id: page_ctr.get() as usize,
+                yrs_id: page_id.get(),
+            });
         });
-    });
 
-    page_ctr.update(|ctr| *ctr += 1);
+        let yrs = get_yrs_unblobbed(page_id.get()).await;
+        //pub async fn edit_title_for_page(yrs: Arc<BossOfYrs>, block_id: String, new_title: String, session_id: String) -> Result<(), CqrsErr>
+        //edit_title_for_page(todo!());
+        page_ctr.update(|ctr| *ctr += 1);
+    });
 
     crate::leptos_components::small_components::popup::create_popup("Created Page".into());
 }
