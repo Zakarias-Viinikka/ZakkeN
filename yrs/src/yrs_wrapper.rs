@@ -49,7 +49,7 @@ pub struct Block {
     pub id_in_yrs: String,
 }
 
-#[derive(uniffi::Enum, Serialize, Deserialize)]
+#[derive(uniffi::Enum, Serialize, Deserialize, Clone)]
 pub enum TextEdit {
     Insert {
         text: String,
