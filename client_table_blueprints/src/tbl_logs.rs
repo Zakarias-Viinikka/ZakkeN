@@ -1,15 +1,31 @@
 #![allow(non_snake_case)]
 use std::marker::PhantomData;
 
-use protocol::error::DbError;
-use protocol::error::DbError::ColDestructFail;
-use protocol::schema_helper::DestructDbReturnCol;
+//use protocol::error::DbError;
+//use protocol::error::DbError::ColDestructFail;
+//use protocol::schema_helper::DestructDbReturnCol;
+use protocol::new_table::ColumnDef;
+use protocol::new_table::ColumnType;
+use protocol::new_table::default_col;
+use protocol::new_table::id_column;
+use protocol::new_table::not_null_col;
+use protocol::row_col::StructRepresentingNull;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-// enum for columns
-// method for destructing that takes the enum + col to destruct
-// get_colum_name that the enum "points" to
-// get_type cuz why not? might be useful
+#[uniffi::export]
+pub fn new_table_logs() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_col(ColumnType::Integer, "timestamp"),
+        not_null_col(ColumnType::Text, "level"),
+        not_null_col(ColumnType::Text, "category"),
+        not_null_col(ColumnType::Text, "source"),
+        not_null_col(ColumnType::Text, "session_id"),
+        not_null_col(ColumnType::Text, "message"),
+        default_col(ColumnType::Blob, "details"),
+        default_col(ColumnType::Text, "details_type"),
+    ]
+}
 
 pub enum ColumnsLogs {
     Timestamp,
@@ -26,51 +42,59 @@ pub fn get_table_name_logs() -> String {
     "logs".into()
 }
 
-const TIMESTAMP: SchemaColumn<i64> = SchemaColumn::<i64> {
+pub const TIMESTAMP: SchemaColumn<i64> = SchemaColumn::<i64> {
     name: "timestamp",
     type_of_col: &TypeOfCol::Integer,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const LEVEL: SchemaColumn<String> = SchemaColumn::<String> {
+pub const LEVEL: SchemaColumn<String> = SchemaColumn::<String> {
     name: "level",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const CATEGORY: SchemaColumn<String> = SchemaColumn::<String> {
+pub const CATEGORY: SchemaColumn<String> = SchemaColumn::<String> {
     name: "category",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const SOURCE: SchemaColumn<String> = SchemaColumn::<String> {
+pub const SOURCE: SchemaColumn<String> = SchemaColumn::<String> {
     name: "source",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const SESSION_ID: SchemaColumn<String> = SchemaColumn::<String> {
+pub const SESSION_ID: SchemaColumn<String> = SchemaColumn::<String> {
     name: "session_id",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const MESSAGE: SchemaColumn<String> = SchemaColumn::<String> {
+pub const MESSAGE: SchemaColumn<String> = SchemaColumn::<String> {
     name: "message",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const DETAILS: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+pub const DETAILS: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "details",
     type_of_col: &TypeOfCol::Blob,
+    can_be_null: true,
     _marker: PhantomData,
 };
 
-const DETAILS_TYPE: SchemaColumn<String> = SchemaColumn::<String> {
+pub const DETAILS_TYPE: SchemaColumn<String> = SchemaColumn::<String> {
     name: "details_type",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: true,
     _marker: PhantomData,
 };
 
@@ -87,88 +111,62 @@ pub fn get_column_name(ENUM: ColumnsLogs) -> String {
     }
 }
 
-pub fn destruct_col_logs_timestamp(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<i64, DbError> {
-    TIMESTAMP.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            TIMESTAMP.type_of_col
-        ))
-    })
-}
+// ---
+/*
+   new row helper here
+*/
+// ---
+use my_yrs_lib::YrsError;
+use protocol::payload::ColumnValue;
+use protocol::row_col::Col;
 
-pub fn destruct_col_logs_level(col_to_destruct: protocol::row_col::Col) -> Result<String, DbError> {
-    LEVEL.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            LEVEL.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_logs_category(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    CATEGORY.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            CATEGORY.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_logs_source(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    SOURCE.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            SOURCE.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_logs_session_id(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    SESSION_ID.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            SESSION_ID.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_logs_message(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    MESSAGE.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            MESSAGE.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_logs_details(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<Vec<u8>, DbError> {
-    DETAILS.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            DETAILS.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_logs_details_type(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    DETAILS_TYPE.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            DETAILS_TYPE.type_of_col
-        ))
-    })
+#[uniffi::export]
+pub fn new_log_row(
+    timestamp: i64,               // unix seconds
+    level: String,                // "INFO" | "WARN" | "ERROR"
+    category: String,             // feature area, e.g. "VIEW_PAGE"
+    source: String,               // finer-grained origin: file/class/function
+    session_id: String,           // app session id
+    message: String,              // log text
+    details: Option<Vec<u8>>,     // error message, or serialized rust struct
+    details_type: Option<String>, // how to deserialize details, if it's a struct
+) -> Result<Vec<ColumnValue>, YrsError> {
+    Ok(vec![
+        ColumnValue {
+            column_name: TIMESTAMP.name.to_string(),
+            value: Col::Integer(timestamp),
+        },
+        ColumnValue {
+            column_name: LEVEL.name.to_string(),
+            value: Col::Text(level),
+        },
+        ColumnValue {
+            column_name: CATEGORY.name.to_string(),
+            value: Col::Text(category),
+        },
+        ColumnValue {
+            column_name: SOURCE.name.to_string(),
+            value: Col::Text(source),
+        },
+        ColumnValue {
+            column_name: SESSION_ID.name.to_string(),
+            value: Col::Text(session_id),
+        },
+        ColumnValue {
+            column_name: MESSAGE.name.to_string(),
+            value: Col::Text(message),
+        },
+        ColumnValue {
+            column_name: DETAILS.name.to_string(),
+            value: details
+                .map(Col::Blob)
+                .unwrap_or(Col::Null(StructRepresentingNull {})),
+        },
+        ColumnValue {
+            column_name: DETAILS_TYPE.name.to_string(),
+            value: details_type
+                .map(Col::Text)
+                .unwrap_or(Col::Null(StructRepresentingNull {})),
+        },
+    ])
 }

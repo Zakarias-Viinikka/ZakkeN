@@ -1,15 +1,27 @@
 #![allow(non_snake_case)]
 use std::marker::PhantomData;
 
-use protocol::error::DbError;
-use protocol::error::DbError::ColDestructFail;
-use protocol::schema_helper::DestructDbReturnCol;
+//use protocol::error::DbError;
+//use protocol::error::DbError::ColDestructFail;
+//use protocol::schema_helper::DestructDbReturnCol;
+use protocol::new_table::ColumnDef;
+use protocol::new_table::ColumnType;
+use protocol::new_table::id_column;
+use protocol::new_table::not_null_col;
+use protocol::new_table::not_null_unique_col;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-// enum for columns
-// method for destructing that takes the enum + col to destruct
-// get_colum_name that the enum "points" to
-// get_type cuz why not? might be useful
+#[uniffi::export]
+pub fn new_table_pages() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_unique_col(ColumnType::Text, "page_id"),
+        not_null_col(ColumnType::Blob, "blobbed_page"),
+        not_null_col(ColumnType::Blob, "page_status"),
+        not_null_col(ColumnType::Blob, "version"),
+        not_null_col(ColumnType::Text, "is_main_menu_page"),
+    ]
+}
 
 pub enum ColumnsPages {
     PageId,
@@ -26,30 +38,35 @@ pub fn get_table_name_pages() -> String {
 pub const PAGE_ID: SchemaColumn<String> = SchemaColumn::<String> {
     name: "page_id",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const BLOBBED_PAGE: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+pub const BLOBBED_PAGE: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "blobbed_page",
     type_of_col: &TypeOfCol::Blob,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const PAGE_STATUS: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+pub const PAGE_STATUS: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "page_status",
     type_of_col: &TypeOfCol::Blob,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const VERSION: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+pub const VERSION: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "version",
     type_of_col: &TypeOfCol::Blob,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const IS_MAIN_MENU_PAGE: SchemaColumn<String> = SchemaColumn::<String> {
+pub const IS_MAIN_MENU_PAGE: SchemaColumn<String> = SchemaColumn::<String> {
     name: "is_main_menu_page",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
@@ -63,59 +80,47 @@ pub fn get_column_name(ENUM: ColumnsPages) -> String {
     }
 }
 
-pub fn destruct_col_pages_page_id(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    PAGE_ID.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            PAGE_ID.type_of_col
-        ))
-    })
-}
+// ---
+/*
+   new row helper here
+*/
+// ---
+use std::sync::Arc;
 
-pub fn destruct_col_pages_blobbed_page(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<Vec<u8>, DbError> {
-    BLOBBED_PAGE.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            BLOBBED_PAGE.type_of_col
-        ))
-    })
-}
+use my_yrs_lib::{YrsActivePages, YrsError};
+use protocol::payload::ColumnValue;
+use protocol::row_col::Col;
 
-pub fn destruct_col_pages_page_status(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<Vec<u8>, DbError> {
-    PAGE_STATUS.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            PAGE_STATUS.type_of_col
-        ))
-    })
-}
+#[uniffi::export]
+pub fn new_page_row(
+    page_id: String,
+    is_main_menu_page: bool,
+    blobbed_page: Vec<u8>,
+    version: Vec<u8>,
+) -> Result<Vec<ColumnValue>, YrsError> {
+    let active_doc = Arc::new(YrsActivePages::new_empty());
+    let page_status = active_doc.snapshot()?;
 
-pub fn destruct_col_pages_version(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<Vec<u8>, DbError> {
-    VERSION.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            VERSION.type_of_col
-        ))
-    })
-}
-
-pub fn destruct_col_pages_is_main_menu_page(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    IS_MAIN_MENU_PAGE
-        .destruct_db_col(col_to_destruct)
-        .map_err(|_| {
-            ColDestructFail(format!(
-                "Failed  to destruct to type: {:?}",
-                IS_MAIN_MENU_PAGE.type_of_col
-            ))
-        })
+    Ok(vec![
+        ColumnValue {
+            column_name: PAGE_ID.name.to_string(),
+            value: Col::Text(page_id),
+        },
+        ColumnValue {
+            column_name: BLOBBED_PAGE.name.to_string(),
+            value: Col::Blob(blobbed_page),
+        },
+        ColumnValue {
+            column_name: PAGE_STATUS.name.to_string(),
+            value: Col::Blob(page_status),
+        },
+        ColumnValue {
+            column_name: VERSION.name.to_string(),
+            value: Col::Blob(version),
+        },
+        ColumnValue {
+            column_name: IS_MAIN_MENU_PAGE.name.to_string(),
+            value: Col::Text(is_main_menu_page.to_string()),
+        },
+    ])
 }

@@ -1,15 +1,24 @@
 #![allow(non_snake_case)]
 use std::marker::PhantomData;
 
-use protocol::error::DbError;
-use protocol::error::DbError::ColDestructFail;
-use protocol::schema_helper::DestructDbReturnCol;
+//use protocol::error::DbError;
+//use protocol::error::DbError::ColDestructFail;
+//use protocol::schema_helper::DestructDbReturnCol;
+use protocol::new_table::ColumnDef;
+use protocol::new_table::ColumnType;
+use protocol::new_table::id_column;
+use protocol::new_table::not_null_col;
+use protocol::new_table::not_null_unique_col;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-// enum for columns
-// method for destructing that takes the enum + col to destruct
-// get_colum_name that the enum "points" to
-// get_type cuz why not? might be useful
+#[uniffi::export]
+pub fn new_table_key_value_storage() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_unique_col(ColumnType::Text, "key"),
+        not_null_col(ColumnType::Text, "value"),
+    ]
+}
 
 pub enum ColumnsKeyValueStorage {
     Key,
@@ -20,15 +29,17 @@ pub fn get_table_name_key_value_storage() -> String {
     "key_value_storage".into()
 }
 
-const KEY: SchemaColumn<String> = SchemaColumn::<String> {
+pub const KEY: SchemaColumn<String> = SchemaColumn::<String> {
     name: "key",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
-const VALUE: SchemaColumn<String> = SchemaColumn::<String> {
+pub const VALUE: SchemaColumn<String> = SchemaColumn::<String> {
     name: "value",
     type_of_col: &TypeOfCol::Text,
+    can_be_null: false,
     _marker: PhantomData,
 };
 
@@ -39,24 +50,25 @@ pub fn get_column_name(ENUM: ColumnsKeyValueStorage) -> String {
     }
 }
 
-pub fn destruct_col_key_value_storage_key(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    KEY.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            KEY.type_of_col
-        ))
-    })
-}
+// ---
+/*
+   new row helper here
+*/
+// ---
+use my_yrs_lib::YrsError;
+use protocol::payload::ColumnValue;
+use protocol::row_col::Col;
 
-pub fn destruct_col_key_value_storage_value(
-    col_to_destruct: protocol::row_col::Col,
-) -> Result<String, DbError> {
-    VALUE.destruct_db_col(col_to_destruct).map_err(|_| {
-        ColDestructFail(format!(
-            "Failed  to destruct to type: {:?}",
-            VALUE.type_of_col
-        ))
-    })
+#[uniffi::export]
+pub fn new_key_value_item(key: String, value: String) -> Result<Vec<ColumnValue>, YrsError> {
+    Ok(vec![
+        ColumnValue {
+            column_name: KEY.name.to_string(),
+            value: Col::Text(key),
+        },
+        ColumnValue {
+            column_name: VALUE.name.to_string(),
+            value: Col::Text(value),
+        },
+    ])
 }
