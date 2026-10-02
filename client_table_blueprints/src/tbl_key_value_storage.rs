@@ -20,14 +20,7 @@ pub fn new_table_key_value_storage() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsKeyValueStorage {
-    Key,
-    Value,
-}
-
-pub fn get_table_name_key_value_storage() -> String {
-    "key_value_storage".into()
-}
+pub const TABLE_NAME: &str = "key_value_storage";
 
 pub const KEY: SchemaColumn<String> = SchemaColumn::<String> {
     name: "key",
@@ -42,13 +35,6 @@ pub const VALUE: SchemaColumn<String> = SchemaColumn::<String> {
     can_be_null: false,
     _marker: PhantomData,
 };
-
-pub fn get_column_name(ENUM: ColumnsKeyValueStorage) -> String {
-    match ENUM {
-        ColumnsKeyValueStorage::Key => KEY.name.to_string(),
-        ColumnsKeyValueStorage::Value => VALUE.name.to_string(),
-    }
-}
 
 // ---
 /*

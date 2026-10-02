@@ -27,15 +27,7 @@ pub fn new_table_backlinks() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsBacklinks {
-    PageThatHoldsLinkId,
-    PageBeingLinkedToId,
-    Disabled,
-    Version,
-}
-pub fn get_table_name_backlinks() -> String {
-    "backlinks".into()
-}
+pub const TABLE_NAME: &str = "backlinks";
 
 pub const PAGE_THAT_HOLDS_LINK_ID: SchemaColumn<String> = SchemaColumn::<String> {
     name: "page_that_holds_link_id",
@@ -65,26 +57,17 @@ pub const VERSION: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     _marker: PhantomData,
 };
 
-pub fn get_column_name(ENUM: ColumnsBacklinks) -> String {
-    match ENUM {
-        ColumnsBacklinks::PageBeingLinkedToId => return PAGE_THAT_HOLDS_LINK_ID.name.to_string(),
-        ColumnsBacklinks::PageThatHoldsLinkId => return PAGE_BEING_LINKED_TO_ID.name.to_string(),
-        ColumnsBacklinks::Disabled => return DISABLED.name.to_string(),
-        ColumnsBacklinks::Version => return VERSION.name.to_string(),
-    }
-}
-
 #[uniffi::export]
 pub fn get_foreign_def_backlinks() -> Vec<ForeignKeyDef> {
     vec![
         ForeignKeyDef {
             column_name: PAGE_THAT_HOLDS_LINK_ID.name.to_string(),
-            referenced_table_name: crate::tbl_pages::get_table_name_pages(),
+            referenced_table_name: crate::tbl_pages::TABLE_NAME.to_string(),
             referenced_column_name: crate::tbl_pages::PAGE_ID.name.to_string(),
         },
         ForeignKeyDef {
             column_name: PAGE_BEING_LINKED_TO_ID.name.to_string(),
-            referenced_table_name: crate::tbl_pages::get_table_name_pages(),
+            referenced_table_name: crate::tbl_pages::TABLE_NAME.to_string(),
             referenced_column_name: crate::tbl_pages::PAGE_ID.name.to_string(),
         },
     ]

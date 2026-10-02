@@ -23,17 +23,7 @@ pub fn new_table_pages() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsPages {
-    PageId,
-    BlobbedPage,
-    PageStatus,
-    Version,
-    IsMainMenuPage,
-}
-
-pub fn get_table_name_pages() -> String {
-    "pages".into()
-}
+pub const TABLE_NAME: &str = "pages";
 
 pub const PAGE_ID: SchemaColumn<String> = SchemaColumn::<String> {
     name: "page_id",
@@ -69,16 +59,6 @@ pub const IS_MAIN_MENU_PAGE: SchemaColumn<String> = SchemaColumn::<String> {
     can_be_null: false,
     _marker: PhantomData,
 };
-
-pub fn get_column_name(ENUM: ColumnsPages) -> String {
-    match ENUM {
-        ColumnsPages::PageId => PAGE_ID.name.to_string(),
-        ColumnsPages::BlobbedPage => BLOBBED_PAGE.name.to_string(),
-        ColumnsPages::PageStatus => PAGE_STATUS.name.to_string(),
-        ColumnsPages::Version => VERSION.name.to_string(),
-        ColumnsPages::IsMainMenuPage => IS_MAIN_MENU_PAGE.name.to_string(),
-    }
-}
 
 // ---
 /*

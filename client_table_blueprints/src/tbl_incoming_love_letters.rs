@@ -22,17 +22,7 @@ pub fn new_table_incoming_love_letters() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsIncomingLoveLetters {
-    LoveLetter,
-    TargetPageId,
-    Timestamp,
-    Applied,
-    SessionId,
-}
-
-pub fn get_table_name_incoming_love_letters() -> String {
-    "incoming_love_letters".into()
-}
+pub const TABLE_NAME: &str = "incoming_love_letters";
 
 pub const LOVE_LETTER: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "love_letter",
@@ -68,16 +58,6 @@ pub const SESSION_ID: SchemaColumn<String> = SchemaColumn::<String> {
     can_be_null: false,
     _marker: PhantomData,
 };
-
-pub fn get_column_name(ENUM: ColumnsIncomingLoveLetters) -> String {
-    match ENUM {
-        ColumnsIncomingLoveLetters::LoveLetter => LOVE_LETTER.name.to_string(),
-        ColumnsIncomingLoveLetters::TargetPageId => TARGET_PAGE_ID.name.to_string(),
-        ColumnsIncomingLoveLetters::Timestamp => TIMESTAMP.name.to_string(),
-        ColumnsIncomingLoveLetters::Applied => APPLIED.name.to_string(),
-        ColumnsIncomingLoveLetters::SessionId => SESSION_ID.name.to_string(),
-    }
-}
 
 // ---
 /*

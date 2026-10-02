@@ -27,20 +27,7 @@ pub fn new_table_logs() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsLogs {
-    Timestamp,
-    Level,
-    Category,
-    Source,
-    SessionId,
-    Message,
-    Details,
-    DetailsType,
-}
-
-pub fn get_table_name_logs() -> String {
-    "logs".into()
-}
+pub const TABLE_NAME: &str = "logs";
 
 pub const TIMESTAMP: SchemaColumn<i64> = SchemaColumn::<i64> {
     name: "timestamp",
@@ -97,19 +84,6 @@ pub const DETAILS_TYPE: SchemaColumn<String> = SchemaColumn::<String> {
     can_be_null: true,
     _marker: PhantomData,
 };
-
-pub fn get_column_name(ENUM: ColumnsLogs) -> String {
-    match ENUM {
-        ColumnsLogs::Timestamp => TIMESTAMP.name.to_string(),
-        ColumnsLogs::Level => LEVEL.name.to_string(),
-        ColumnsLogs::Category => CATEGORY.name.to_string(),
-        ColumnsLogs::Source => SOURCE.name.to_string(),
-        ColumnsLogs::SessionId => SESSION_ID.name.to_string(),
-        ColumnsLogs::Message => MESSAGE.name.to_string(),
-        ColumnsLogs::Details => DETAILS.name.to_string(),
-        ColumnsLogs::DetailsType => DETAILS_TYPE.name.to_string(),
-    }
-}
 
 // ---
 /*

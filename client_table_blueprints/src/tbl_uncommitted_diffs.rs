@@ -21,16 +21,7 @@ pub fn new_table_uncommitted_diffs() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsUncommittedDiffs {
-    SnapshotOfEdit,
-    LoveLetterSketch,
-    SessionId,
-    TargetId,
-}
-
-pub fn get_table_name_uncommitted_diffs() -> String {
-    "uncommitted_diffs".into()
-}
+pub const TABLE_NAME: &str = "uncommitted_diffs";
 
 const SNAPSHOT_OF_EDIT: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "snapshot_of_edit",
@@ -59,15 +50,6 @@ const TARGET_ID: SchemaColumn<String> = SchemaColumn::<String> {
     can_be_null: false,
     _marker: PhantomData,
 };
-
-pub fn get_column_name(ENUM: ColumnsUncommittedDiffs) -> String {
-    match ENUM {
-        ColumnsUncommittedDiffs::SnapshotOfEdit => SNAPSHOT_OF_EDIT.name.to_string(),
-        ColumnsUncommittedDiffs::LoveLetterSketch => LOVE_LETTER_SKETCH.name.to_string(),
-        ColumnsUncommittedDiffs::SessionId => SESSION_ID.name.to_string(),
-        ColumnsUncommittedDiffs::TargetId => TARGET_ID.name.to_string(),
-    }
-}
 
 // ---
 /*

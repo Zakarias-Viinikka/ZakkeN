@@ -27,18 +27,7 @@ pub fn new_table_every_block_in_existence() -> Vec<ColumnDef> {
     ]
 }
 
-pub enum ColumnsEveryBlockInExistence {
-    IsTitle,
-    IsPartOfMainMenuPage,
-    Content,
-    MyIdAsGivenByYrs,
-    IdOfPageIBelongTo,
-    Position,
-}
-
-pub fn get_table_name_every_block_in_existence() -> String {
-    "every_block_in_existence".into()
-}
+pub const TABLE_NAME: &str = "every_block_in_existence";
 
 pub const IS_TITLE: SchemaColumn<String> = SchemaColumn::<String> {
     name: "is_title",
@@ -82,24 +71,11 @@ pub const POSITION: SchemaColumn<f64> = SchemaColumn::<f64> {
     _marker: PhantomData,
 };
 
-pub fn get_column_name(ENUM: ColumnsEveryBlockInExistence) -> String {
-    match ENUM {
-        ColumnsEveryBlockInExistence::IsTitle => IS_TITLE.name.to_string(),
-        ColumnsEveryBlockInExistence::IsPartOfMainMenuPage => {
-            IS_PART_OF_MAIN_MENU_PAGE.name.to_string()
-        }
-        ColumnsEveryBlockInExistence::Content => CONTENT.name.to_string(),
-        ColumnsEveryBlockInExistence::MyIdAsGivenByYrs => MY_ID_AS_GIVEN_BY_YRS.name.to_string(),
-        ColumnsEveryBlockInExistence::IdOfPageIBelongTo => ID_OF_PAGE_I_BELONG_TO.name.to_string(),
-        ColumnsEveryBlockInExistence::Position => POSITION.name.to_string(),
-    }
-}
-
 #[uniffi::export]
 pub fn get_foreign_def_every_block_in_existence() -> Vec<ForeignKeyDef> {
     vec![ForeignKeyDef {
         column_name: ID_OF_PAGE_I_BELONG_TO.name.to_string(),
-        referenced_table_name: crate::tbl_pages::get_table_name_pages(),
+        referenced_table_name: crate::tbl_pages::TABLE_NAME.to_string(),
         referenced_column_name: crate::tbl_pages::PAGE_ID.name.to_string(),
     }]
 }
