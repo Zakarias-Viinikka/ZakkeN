@@ -1,10 +1,8 @@
 use client_table_blueprints::tbl_every_block_in_existence::{
-    self, get_table_name_every_block_in_existence, new_every_block_in_existence_row,
+    self, new_every_block_in_existence_row,
 };
-use client_table_blueprints::tbl_pages::{self, get_table_name_pages, new_page_row};
-use client_table_blueprints::tbl_uncommitted_diffs::{
-    get_table_name_uncommitted_diffs, new_uncommitted_diff_row,
-};
+use client_table_blueprints::tbl_pages::{self, new_page_row};
+use client_table_blueprints::tbl_uncommitted_diffs::{self, new_uncommitted_diff_row};
 use data_builder_for_operations_that_need_to_be_correct::{
     EverythingToInsertForNewPage, insert_structs::*,
 };
@@ -59,7 +57,7 @@ pub async fn edit_block_requires_three_db_inserts(
 
 async fn update_pages_blob(update_ctx: PagesUpdateCtx) -> Result<(), CqrsErr> {
     db_helper::edit_col_in_row_where(EditColInRowWhereIn {
-        table_name: tbl_pages::get_table_name_pages(),
+        table_name: tbl_pages::TABLE_NAME.to_string(),
         where_clause: SelectArguments::Single(SelectArgument::XEqualY {
             x: tbl_pages::PAGE_ID.name.to_string(),
             y: update_ctx.page_id,
@@ -76,7 +74,7 @@ async fn update_every_block_content(
     update_ctx: EveryBlockInExistenceUpdateCtx,
 ) -> Result<(), CqrsErr> {
     db_helper::edit_col_in_row_where(EditColInRowWhereIn {
-        table_name: tbl_every_block_in_existence::get_table_name_every_block_in_existence(),
+        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
         where_clause: SelectArguments::Single(SelectArgument::XEqualY {
             x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
                 .name
@@ -100,7 +98,7 @@ async fn insert_into_pages(insert_ctx: PagesInsertCtx) -> Result<(), CqrsErr> {
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: get_table_name_pages(),
+        table_name: tbl_pages::TABLE_NAME.to_string(),
         values,
     })
     .await?;
@@ -121,7 +119,7 @@ async fn insert_into_every_block_in_existence(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: get_table_name_every_block_in_existence(),
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         values: title_values,
     })
     .await?;
@@ -136,7 +134,7 @@ async fn insert_into_every_block_in_existence(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: get_table_name_every_block_in_existence(),
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         values: normal_values,
     })
     .await?;
@@ -155,7 +153,7 @@ async fn insert_into_uncommitted_diffs(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: get_table_name_uncommitted_diffs(),
+        table_name: tbl_uncommitted_diffs::TABLE_NAME.into(),
         values,
     })
     .await?;

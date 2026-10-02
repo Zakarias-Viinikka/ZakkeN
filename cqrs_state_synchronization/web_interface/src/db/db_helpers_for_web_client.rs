@@ -1,11 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
-use client_table_blueprints::tbl_every_block_in_existence::*;
-use client_table_blueprints::tbl_pages::{self, BLOBBED_PAGE, PAGE_ID, get_table_name_pages};
+use client_table_blueprints::tbl_every_block_in_existence::{self, *};
+use client_table_blueprints::tbl_pages::{self, BLOBBED_PAGE, PAGE_ID};
 use data_builder_for_operations_that_need_to_be_correct::page::edit_block;
 use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::edit_block_requires_three_db_inserts;
-use my_yrs_lib::{BossOfYrs, TextEdit, YrsError, doc_from_snapshot, yrs_error::ErrorInfo};
+use my_yrs_lib::{BossOfYrs, YrsError, doc_from_snapshot, yrs_error::ErrorInfo};
 use protocol::{
     error::DbError,
     payload::*,
@@ -27,7 +27,7 @@ pub async fn get_title_and_id_of_all_menu_pages() -> Result<GetDataOut, DbError>
         },
     };
     let get_data_in = GetDataIn {
-        table_name: get_table_name_every_block_in_existence(),
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         arguments,
         columns_to_read: vec![
             CONTENT.name.to_string(),
@@ -101,7 +101,7 @@ pub async fn get_yrs_unblobbed(
     });
 
     let out = db_helper::get_single_col(GetSingleColIn {
-        table_name: get_table_name_pages(),
+        table_name: tbl_pages::TABLE_NAME.into(),
         arguments,
         column_to_read: BLOBBED_PAGE.name.to_string(),
     })
