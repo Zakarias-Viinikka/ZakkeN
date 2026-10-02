@@ -1,7 +1,46 @@
-.select_page_to_go_to {
-    min-height: 30px;
-    min-width: 100px;
-    border: 1px gray solid;
-    margin: 2px;
+/* ============================================
+   Positioning — layout, size, spacing
+   ============================================ */
 
+#menu_container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.select_page_to_go_to {
+  width: 100%;
+  min-height: 30px;
+  min-width: 100px;
+  margin: 2px 0 6px 0;
+}
+
+.select_page_to_go_to button {
+  width: 100%;
+  text-align: left;
+}
+
+
+/* ============================================
+   Look — colors, borders, fonts, states
+   ============================================ */
+
+#menu_container {
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+.select_page_to_go_to button {
+  background: #1c1f26;
+  border: 1px solid #2c303a;
+  border-radius: 6px;
+  color: #d8dce3;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.select_page_to_go_to button:hover {
+  border-color: #5fd0b8;
+  color: #5fd0b8;
 }

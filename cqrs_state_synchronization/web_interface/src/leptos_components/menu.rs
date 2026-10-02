@@ -1,9 +1,10 @@
 use crate::{
     db::{self, db_helpers_for_web_client::destruct_get_title_and_id_of_all_menu_pages},
     leptos_components::{
-        action_buttons::{self, page_edits::LocalPages},
+        action_buttons::{self},
         small_components::popup::PopupContainer,
     },
+    shared_structs::LocalPages,
 };
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;
@@ -93,5 +94,3 @@ fn create_local_pages(
 
     Ok((local_pages, local_pages_set))
 }
-
-use std::collections::HashMap;

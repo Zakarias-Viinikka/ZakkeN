@@ -1,23 +1,42 @@
 /* grid */
 .action_buttons_container {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
+
 /* position */
 .action_buttons_container {
   position: absolute;
   top: 50%;
-  left: 0;
+  left: 16px;
   transform: translateY(-50%);
 }
 
+/* box look */
 .action_buttons_container {
-  border: 1px solid ;
+  border: 1px solid #d6d2ca;
+  border-radius: 8px;
+  background: #faf9f6;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+/* labels */
 .action_buttons_title {
   grid-column: 1 / -1;
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7b8291;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+.action_buttons_title:first-child {
+  margin-top: 0;
 }
 
 .action_buttons_container button {
@@ -47,3 +66,17 @@
   transform: translateY(1px);
 }
 /* just for looks */
+
+.check_box_container {
+    border: 1px solid black;
+    max-width: 350px;
+
+
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.this_should_take_up_rest_of_width {
+    flex: 1;
+}

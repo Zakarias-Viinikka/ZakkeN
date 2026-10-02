@@ -1,61 +1,38 @@
-use codee::string::JsonSerdeCodec;
-use data_builder_for_operations_that_need_to_be_correct::create_page;
-use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::insert_page_requires_three_db_inserts;
+use std::collections::HashMap;
+
+use crate::leptos_components::small_components::happy_little_checkbox::HappyLittleCheckbox;
+use crate::{checkbox_logic::*, db::ui_actions, shared_structs::LocalPages};
 use leptos::logging::log;
 use leptos::prelude::*;
-use leptos::reactive::spawn_local;
 use leptos_meta::Stylesheet;
-use leptos_use::storage::use_local_storage;
-
-use crate::db::db_helpers_for_web_client::{edit_title_for_page, get_yrs_unblobbed};
-
-struct AllCheckBoxStates {
-    placeholder: Signal<bool>,
-    placeholder_set: WriteSignal<bool>,
-}
-
-impl AllCheckBoxStates {
-    fn new() -> Self {
-        let (placeholder, placeholder_set, _) =
-            use_local_storage::<bool, JsonSerdeCodec>("placeholder_checkbox");
-        Self {
-            placeholder,
-            placeholder_set,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct LocalPages {
-    pub title: String,
-    pub id: usize,
-    pub yrs_id: String,
-}
 
 #[component]
 pub fn PageEdits(
     current_title_ctr: RwSignal<usize>,
     local_pages_set: WriteSignal<Vec<LocalPages>>,
 ) -> impl IntoView {
-    let all_checkbox_states = AllCheckBoxStates::new();
+    let (all_checkboxes, map_checkbox_to_callback) =
+        AllCheckboxes::new(current_title_ctr, local_pages_set);
 
     let selected_title_to_manipulate = RwSignal::new(0);
 
     view! {
         <Stylesheet href="/css/action_buttons_styling.css" />
         <div class="check_box_container">
-        /*
-         * pub fn HappyLittleCheckbox(
-         *     box_is_checked: ReadSignal(bool),
-         *     box_is_checked_set: WriteSignal(bool),
-         *     speak_your_truth: impl Fn() + 'static,
-         * ) -> impl IntoView
-         */
-            /*<HappyLittleCheckbox
-                box_is_checked=all_checkbox_states.placeholder
-                box_is_checked_set=all_checkbox_states.placeholder_set
-                speak_your_truth=thing_for_check_box_to_do
-            />*/
+            <button on:click=move |_| {
+                ui_actions::delete_everything();
+                /*
+                 * pub fn run_all_seeds(checkboxes: RwSignal<HashMap<String, RwSignal<Checkbox>>>, map_of_callbacks: HashMap<String, Box<dyn Fn() + Send + Sync>>)
+                 */
+                ui_actions::run_all_seeds(all_checkboxes.checkboxes, map_checkbox_to_callback);
+                //reload page
+            }>
+            "this will reset db and reload page"
+            </button>
+            <span class="this_should_take_up_rest_of_width"></span>
+            <HappyLittleCheckbox
+                checkbox=checkbox_from_map(all_checkboxes.checkboxes.get(), "insert_three_pages") //the key can be found in checkbox_logic.rs
+            />
         </div>
         <div class="action_info">
             <span>"Current title 'Title: " {move || current_title_ctr.get()} "'" </span> <br/>
@@ -63,7 +40,7 @@ pub fn PageEdits(
         </div>
         <div class="action_buttons_container">
             <span class="action_buttons_title"> "title 1"</span>
-            <button on:click=move |_| create_new_page(current_title_ctr, local_pages_set)>"Append New Page with 'Title X'"</button>
+            <button on:click=move |_| ui_actions::create_new_page(current_title_ctr, local_pages_set)>"Append New Page with 'Title X'"</button>
             <button on:click=move |_| delete_page(selected_title_to_manipulate)>"Delete Page"</button>
             <button>"Moving (Todo)"</button>
 
@@ -75,46 +52,19 @@ pub fn PageEdits(
     }
 }
 
-fn thing_for_check_box_to_do() {
-    log!("truth");
+const PANIC_MSG: &str = "panic from checkbox_from_map in page_edits.rs | this should mean that the key is incorrect or not properly initialized in checkbox_logic.rs";
+fn checkbox_from_map(
+    all_checkboxes: HashMap<String, RwSignal<Checkbox>>,
+    key: &str,
+) -> RwSignal<Checkbox> {
+    all_checkboxes
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| panic!("{} | key = {}", PANIC_MSG, key))
 }
 
-fn create_new_page(page_ctr: RwSignal<usize>, local_pages: WriteSignal<Vec<LocalPages>>) {
-    let session_id = "placeholder-session".to_string();
-    let page_id = RwSignal::new("".to_string());
-    spawn_local(async move {
-        let everything = match create_page(true, session_id.clone()) {
-            Ok(v) => v,
-            Err(e) => {
-                log!("create_page failed: {:?}", e);
-                return;
-            }
-        };
-        let title_block_id = everything
-            .blocks_to_insert
-            .title_block
-            .my_id_as_given_by_yrs
-            .clone();
-        page_id.set(everything.page_to_insert.page_id.clone());
-        if let Err(e) = insert_page_requires_three_db_inserts(everything).await {
-            log!("insert failed: {:?}", e);
-        }
-
-        local_pages.update(|pages| {
-            pages.push(LocalPages {
-                title: "".to_string(),
-                id: page_ctr.get() as usize,
-                yrs_id: page_id.get(),
-            });
-        });
-
-        let yrs = get_yrs_unblobbed(page_id.get()).await;
-        //pub async fn edit_title_for_page(yrs: Arc<BossOfYrs>, block_id: String, new_title: String, session_id: String) -> Result<(), CqrsErr>
-        //edit_title_for_page(todo!());
-        page_ctr.update(|ctr| *ctr += 1);
-    });
-
-    crate::leptos_components::small_components::popup::create_popup("Created Page".into());
+fn thing_for_check_box_to_do() {
+    log!("truth");
 }
 
 fn delete_page(page_ctr: RwSignal<i32>) {
