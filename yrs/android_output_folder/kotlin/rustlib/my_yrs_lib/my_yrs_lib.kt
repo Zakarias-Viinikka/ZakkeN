@@ -17,20 +17,22 @@ package rustlib.my_yrs_lib
 // compile the Rust component. The easiest way to ensure this is to bundle the Kotlin
 // helpers directly inline like we're doing here.
 
-import android.os.Build
-import androidx.annotation.RequiresApi
-import com.sun.jna.Callback
+import com.sun.jna.Library
+import com.sun.jna.IntegerType
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
+import com.sun.jna.Callback
 import com.sun.jna.ptr.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.ConcurrentHashMap
+import android.os.Build
+import androidx.annotation.RequiresApi
+import java.util.concurrent.atomic.AtomicBoolean
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
 // A rust-owned buffer is represented by its capacity, its current length, and a
@@ -44,37 +46,29 @@ open class RustBuffer : Structure() {
     // Note: `capacity` and `len` are actually `ULong` values, but JVM only supports signed values.
     // When dealing with these fields, make sure to call `toULong()`.
     @JvmField var capacity: Long = 0
-
     @JvmField var len: Long = 0
-
     @JvmField var data: Pointer? = null
 
-    class ByValue : RustBuffer(), Structure.ByValue
+    class ByValue: RustBuffer(), Structure.ByValue
+    class ByReference: RustBuffer(), Structure.ByReference
 
-    class ByReference : RustBuffer(), Structure.ByReference
-
-    internal fun setValue(other: RustBuffer) {
+   internal fun setValue(other: RustBuffer) {
         capacity = other.capacity
         len = other.len
         data = other.data
     }
 
     companion object {
-        internal fun alloc(size: ULong = 0UL) =
-            uniffiRustCall { status ->
-                // Note: need to convert the size to a `Long` value to make this work with JVM.
-                UniffiLib.ffi_my_yrs_lib_rustbuffer_alloc(size.toLong(), status)
-            }.also {
-                if (it.data == null) {
-                    throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=$size)")
-                }
-            }
+        internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
+            // Note: need to convert the size to a `Long` value to make this work with JVM.
+            UniffiLib.ffi_my_yrs_lib_rustbuffer_alloc(size.toLong(), status)
+        }.also {
+            if(it.data == null) {
+               throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
+           }
+        }
 
-        internal fun create(
-            capacity: ULong,
-            len: ULong,
-            data: Pointer?,
-        ): RustBuffer.ByValue {
+        internal fun create(capacity: ULong, len: ULong, data: Pointer?): RustBuffer.ByValue {
             var buf = RustBuffer.ByValue()
             buf.capacity = capacity.toLong()
             buf.len = len.toLong()
@@ -82,10 +76,9 @@ open class RustBuffer : Structure() {
             return buf
         }
 
-        internal fun free(buf: RustBuffer.ByValue) =
-            uniffiRustCall { status ->
-                UniffiLib.ffi_my_yrs_lib_rustbuffer_free(buf, status)
-            }
+        internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
+            UniffiLib.ffi_my_yrs_lib_rustbuffer_free(buf, status)
+        }
     }
 
     @Suppress("TooGenericExceptionThrown")
@@ -104,7 +97,6 @@ open class RustBuffer : Structure() {
 @Structure.FieldOrder("len", "data")
 internal open class ForeignBytes : Structure() {
     @JvmField var len: Int = 0
-
     @JvmField var data: Pointer? = null
 
     class ByValue : ForeignBytes(), Structure.ByValue
@@ -138,24 +130,14 @@ internal object FfiConverterByRefBytes : FfiConverter<java.nio.ByteBuffer, Forei
         error("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
 
     override fun read(buf: java.nio.ByteBuffer): java.nio.ByteBuffer =
-        error(
-            "ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
-        )
+        error("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 
-    override fun write(
-        value: java.nio.ByteBuffer,
-        buf: java.nio.ByteBuffer,
-    ): Unit =
-        error(
-            "ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
-        )
+    override fun write(value: java.nio.ByteBuffer, buf: java.nio.ByteBuffer): Unit =
+        error("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 
     override fun allocationSize(value: java.nio.ByteBuffer): ULong =
-        error(
-            "ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
-        )
+        error("ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 }
-
 /**
  * The FfiConverter interface handles converter types to and from the FFI
  *
@@ -185,10 +167,7 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun allocationSize(value: KotlinType): ULong
 
     // Write a Kotlin type to a `ByteBuffer`
-    fun write(
-        value: KotlinType,
-        buf: ByteBuffer,
-    )
+    fun write(value: KotlinType, buf: ByteBuffer)
 
     // Lower a value into a `RustBuffer`
     //
@@ -199,10 +178,9 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun lowerIntoRustBuffer(value: KotlinType): RustBuffer.ByValue {
         val rbuf = RustBuffer.alloc(allocationSize(value))
         try {
-            val bbuf =
-                rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
-                    it.order(ByteOrder.BIG_ENDIAN)
-                }
+            val bbuf = rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
+                it.order(ByteOrder.BIG_ENDIAN)
+            }
             write(value, bbuf)
             rbuf.writeField("len", bbuf.position().toLong())
             return rbuf
@@ -219,11 +197,11 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun liftFromRustBuffer(rbuf: RustBuffer.ByValue): KotlinType {
         val byteBuf = rbuf.asByteBuffer()!!
         try {
-            val item = read(byteBuf)
-            if (byteBuf.hasRemaining()) {
-                throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
-            }
-            return item
+           val item = read(byteBuf)
+           if (byteBuf.hasRemaining()) {
+               throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
+           }
+           return item
         } finally {
             RustBuffer.free(rbuf)
         }
@@ -235,9 +213,8 @@ public interface FfiConverter<KotlinType, FfiType> {
  *
  * @suppress
  */
-public interface FfiConverterRustBuffer<KotlinType> : FfiConverter<KotlinType, RustBuffer.ByValue> {
+public interface FfiConverterRustBuffer<KotlinType>: FfiConverter<KotlinType, RustBuffer.ByValue> {
     override fun lift(value: RustBuffer.ByValue) = liftFromRustBuffer(value)
-
     override fun lower(value: KotlinType) = lowerIntoRustBuffer(value)
 }
 // A handful of classes and functions to support the generated data structures.
@@ -250,10 +227,9 @@ internal const val UNIFFI_CALL_UNEXPECTED_ERROR = 2.toByte()
 @Structure.FieldOrder("code", "error_buf")
 internal open class UniffiRustCallStatus : Structure() {
     @JvmField var code: Byte = 0
-
     @JvmField var error_buf: RustBuffer.ByValue = RustBuffer.ByValue()
 
-    class ByValue : UniffiRustCallStatus(), Structure.ByValue
+    class ByValue: UniffiRustCallStatus(), Structure.ByValue
 
     fun isSuccess(): Boolean {
         return code == UNIFFI_CALL_SUCCESS
@@ -268,10 +244,7 @@ internal open class UniffiRustCallStatus : Structure() {
     }
 
     companion object {
-        fun create(
-            code: Byte,
-            errorBuf: RustBuffer.ByValue,
-        ): UniffiRustCallStatus.ByValue {
+        fun create(code: Byte, errorBuf: RustBuffer.ByValue): UniffiRustCallStatus.ByValue {
             val callStatus = UniffiRustCallStatus.ByValue()
             callStatus.code = code
             callStatus.error_buf = errorBuf
@@ -288,7 +261,7 @@ class InternalException(message: String) : kotlin.Exception(message)
  * @suppress
  */
 interface UniffiRustCallStatusErrorHandler<E> {
-    fun lift(error_buf: RustBuffer.ByValue): E
+    fun lift(error_buf: RustBuffer.ByValue): E;
 }
 
 // Helpers for calling Rust
@@ -296,10 +269,7 @@ interface UniffiRustCallStatusErrorHandler<E> {
 // synchronize itself
 
 // Call a rust function that returns a Result<>.  Pass in the Error class companion that corresponds to the Err
-private inline fun <U, E : kotlin.Exception> uniffiRustCallWithError(
-    errorHandler: UniffiRustCallStatusErrorHandler<E>,
-    callback: (UniffiRustCallStatus) -> U,
-): U {
+private inline fun <U, E: kotlin.Exception> uniffiRustCallWithError(errorHandler: UniffiRustCallStatusErrorHandler<E>, callback: (UniffiRustCallStatus) -> U): U {
     var status = UniffiRustCallStatus()
     val return_value = callback(status)
     uniffiCheckCallStatus(errorHandler, status)
@@ -307,10 +277,7 @@ private inline fun <U, E : kotlin.Exception> uniffiRustCallWithError(
 }
 
 // Check UniffiRustCallStatus and throw an error if the call wasn't successful
-private fun <E : kotlin.Exception> uniffiCheckCallStatus(
-    errorHandler: UniffiRustCallStatusErrorHandler<E>,
-    status: UniffiRustCallStatus,
-) {
+private fun<E: kotlin.Exception> uniffiCheckCallStatus(errorHandler: UniffiRustCallStatusErrorHandler<E>, status: UniffiRustCallStatus) {
     if (status.isSuccess()) {
         return
     } else if (status.isError()) {
@@ -334,7 +301,7 @@ private fun <E : kotlin.Exception> uniffiCheckCallStatus(
  *
  * @suppress
  */
-object UniffiNullRustCallStatusErrorHandler : UniffiRustCallStatusErrorHandler<InternalException> {
+object UniffiNullRustCallStatusErrorHandler: UniffiRustCallStatusErrorHandler<InternalException> {
     override fun lift(error_buf: RustBuffer.ByValue): InternalException {
         RustBuffer.free(error_buf)
         return InternalException("Unexpected CALL_ERROR")
@@ -346,51 +313,40 @@ private inline fun <U> uniffiRustCall(callback: (UniffiRustCallStatus) -> U): U 
     return uniffiRustCallWithError(UniffiNullRustCallStatusErrorHandler, callback)
 }
 
-internal inline fun <T> uniffiTraitInterfaceCall(
+internal inline fun<T> uniffiTraitInterfaceCall(
     callStatus: UniffiRustCallStatus,
     makeCall: () -> T,
     writeReturn: (T) -> Unit,
 ) {
     try {
         writeReturn(makeCall())
-    } catch (e: kotlin.Exception) {
-        val err =
-            try {
-                e.stackTraceToString()
-            } catch (_: Throwable) {
-                ""
-            }
+    } catch(e: kotlin.Exception) {
+        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
         callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
         callStatus.error_buf = FfiConverterString.lower(err)
     }
 }
 
-internal inline fun <T, reified E : Throwable> uniffiTraitInterfaceCallWithError(
+internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
     callStatus: UniffiRustCallStatus,
     makeCall: () -> T,
     writeReturn: (T) -> Unit,
-    lowerError: (E) -> RustBuffer.ByValue,
+    lowerError: (E) -> RustBuffer.ByValue
 ) {
     try {
         writeReturn(makeCall())
-    } catch (e: kotlin.Exception) {
+    } catch(e: kotlin.Exception) {
         if (e is E) {
             callStatus.code = UNIFFI_CALL_ERROR
             callStatus.error_buf = lowerError(e)
         } else {
-            val err =
-                try {
-                    e.stackTraceToString()
-                } catch (_: Throwable) {
-                    ""
-                }
+            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
             callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
             callStatus.error_buf = FfiConverterString.lower(err)
         }
     }
 }
-
-// Initial value and increment amount for handles.
+// Initial value and increment amount for handles. 
 // These ensure that Kotlin-generated handles always have the lowest bit set
 private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
 private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
@@ -398,10 +354,9 @@ private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
 // Map handles to objects
 //
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
-internal class UniffiHandleMap<T : Any> {
+internal class UniffiHandleMap<T: Any> {
     private val map = ConcurrentHashMap<Long, T>()
-
-    // Start
+    // Start 
     private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
@@ -444,24 +399,18 @@ private fun findLibraryName(componentName: String): String {
 
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
-    fun callback(
-        `data`: Long,
-        `pollResult`: Byte,
-    )
+    fun callback(`data`: Long,`pollResult`: Byte,)
 }
-
 internal interface UniffiForeignFutureDroppedCallback : com.sun.jna.Callback {
-    fun callback(`handle`: Long)
+    fun callback(`handle`: Long,)
 }
-
 internal interface UniffiCallbackInterfaceFree : com.sun.jna.Callback {
-    fun callback(`handle`: Long)
+    fun callback(`handle`: Long,)
 }
-
 internal interface UniffiCallbackInterfaceClone : com.sun.jna.Callback {
-    fun callback(`handle`: Long): Long
+    fun callback(`handle`: Long,)
+    : Long
 }
-
 @Structure.FieldOrder("handle", "free")
 internal open class UniffiForeignFutureDroppedCallbackStruct(
     @JvmField internal var `handle`: Long = 0.toLong(),
@@ -470,14 +419,14 @@ internal open class UniffiForeignFutureDroppedCallbackStruct(
     class UniffiByValue(
         `handle`: Long = 0.toLong(),
         `free`: UniffiForeignFutureDroppedCallback? = null,
-    ) : UniffiForeignFutureDroppedCallbackStruct(`handle`, `free`), Structure.ByValue
+    ): UniffiForeignFutureDroppedCallbackStruct(`handle`,`free`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
         `handle` = other.`handle`
         `free` = other.`free`
     }
-}
 
+}
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
@@ -486,21 +435,17 @@ internal open class UniffiForeignFutureResultU8(
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU8(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU8(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU8 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU8.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU8.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
@@ -509,21 +454,17 @@ internal open class UniffiForeignFutureResultI8(
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI8(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI8(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI8 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI8.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI8.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
@@ -532,21 +473,17 @@ internal open class UniffiForeignFutureResultU16(
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU16(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU16(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU16 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU16.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU16.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
@@ -555,21 +492,17 @@ internal open class UniffiForeignFutureResultI16(
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI16(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI16(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI16 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI16.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI16.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU32(
     @JvmField internal var `returnValue`: Int = 0,
@@ -578,21 +511,17 @@ internal open class UniffiForeignFutureResultU32(
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU32(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU32(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU32 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU32.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI32(
     @JvmField internal var `returnValue`: Int = 0,
@@ -601,21 +530,17 @@ internal open class UniffiForeignFutureResultI32(
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI32(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI32(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI32 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI32.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
@@ -624,21 +549,17 @@ internal open class UniffiForeignFutureResultU64(
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU64(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU64(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU64 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU64.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
@@ -647,21 +568,17 @@ internal open class UniffiForeignFutureResultI64(
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI64(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI64(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI64 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI64.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF32(
     @JvmField internal var `returnValue`: Float = 0.0f,
@@ -670,21 +587,17 @@ internal open class UniffiForeignFutureResultF32(
     class UniffiByValue(
         `returnValue`: Float = 0.0f,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultF32(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultF32(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteF32 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultF32.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF64(
     @JvmField internal var `returnValue`: Double = 0.0,
@@ -693,21 +606,17 @@ internal open class UniffiForeignFutureResultF64(
     class UniffiByValue(
         `returnValue`: Double = 0.0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultF64(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultF64(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteF64 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultF64.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultRustBuffer(
     @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
@@ -716,39 +625,32 @@ internal open class UniffiForeignFutureResultRustBuffer(
     class UniffiByValue(
         `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultRustBuffer(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteRustBuffer : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,)
 }
-
 @Structure.FieldOrder("callStatus")
 internal open class UniffiForeignFutureResultVoid(
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultVoid(`callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultVoid(`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultVoid.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultVoid.UniffiByValue,)
 }
 
 // A JNA Library to expose the extern-C FFI definitions.
@@ -773,476 +675,266 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_my_yrs_lib_checksum_func_create_bookmark(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_func_doc_from_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_func_generate_unique_key(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_create_bookmark(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_mark_page_active(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_mark_page_deleted(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_merge_with_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_merge_with_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_set_disabled(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_user_id(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new_empty(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new_empty(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new(
+    ): Int
+    external fun ffi_my_yrs_lib_uniffi_contract_version(
+    ): Int
 
-    external fun uniffi_my_yrs_lib_checksum_func_create_bookmark_of_synced_state(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_func_doc_from_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_func_generate_unique_key(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_mark_page_active(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_mark_page_deleted(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_merge_with_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark_of_synced_state(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_merge_with_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_set_disabled(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_user_id(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new_empty(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new_empty(): Int
-
-    external fun uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new(): Int
-
-    external fun ffi_my_yrs_lib_uniffi_contract_version(): Int
+        
 }
 
 internal object UniffiLib {
+    
     // The Cleaner for the whole library
     internal val CLEANER: UniffiCleaner by lazy {
         UniffiCleaner.create()
     }
+    
 
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "my_yrs_lib"))
+        
     }
-
-    external fun uniffi_my_yrs_lib_fn_clone_yrsactivepages(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_clone_yrsactivepages(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_free_yrsactivepages(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_free_yrsactivepages(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new(
-        `loadedFromDb`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new(`loadedFromDb`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new_empty(uniffi_out_err: UniffiRustCallStatus): Long
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_is_page_active(
-        `ptr`: Long,
-        `pageId`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new_empty(uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_create_bookmark(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_is_page_active(`ptr`: Long,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_active(
-        `ptr`: Long,
-        `pageId`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_active(`ptr`: Long,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_deleted(
-        `ptr`: Long,
-        `pageId`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_deleted(`ptr`: Long,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_merge_with_snapshot(
-        `ptr`: Long,
-        `snapshot`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_snapshot(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_snapshot(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_clone_yrsbacklinks(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_clone_yrsbacklinks(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_free_yrsbacklinks(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_free_yrsbacklinks(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new(
-        `loadedFromDb`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new(`loadedFromDb`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new_empty(uniffi_out_err: UniffiRustCallStatus): Long
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark_of_synced_state(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new_empty(uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_merge_with_snapshot(
-        `ptr`: Long,
-        `snapshot`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_set_disabled(
-        `ptr`: Long,
-        `disabled`: Byte,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_set_disabled(`ptr`: Long,`disabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_snapshot(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_snapshot(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_clone_bossofyrs(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_clone_bossofyrs(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_free_bossofyrs(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_free_bossofyrs(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(
-        `userId`: RustBuffer.ByValue,
-        `unixTime`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(`userId`: RustBuffer.ByValue,`unixTime`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(
-        `ptr`: Long,
-        `blockId`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(
-        `ptr`: Long,
-        `blockId`: RustBuffer.ByValue,
-        `textEdit`: RustBuffer.ByValue,
-        `editTarget`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,`textEdit`: RustBuffer.ByValue,`editTarget`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(
-        `ptr`: Long,
-        `blockContent`: RustBuffer.ByValue,
-        `blockMetaData`: RustBuffer.ByValue,
-        `position`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(
-        `ptr`: Long,
-        `other`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(
-        `ptr`: Long,
-        `snapshot`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(
-        `ptr`: Long,
-        `blockId`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_func_create_bookmark_of_synced_state(
-        `boss`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_func_create_bookmark(`boss`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_func_doc_from_snapshot(
-        `snapshot`: RustBuffer.ByValue,
-        `userId`: RustBuffer.ByValue,
-        `pageId`: RustBuffer.ByValue,
-        `time`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_func_doc_from_snapshot(`snapshot`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`pageId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(
-        `boss`: Long,
-        `bookmarkSerialized`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(`boss`: Long,`bookmarkSerialized`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun uniffi_my_yrs_lib_fn_func_generate_unique_key(
-        `userId`: RustBuffer.ByValue,
-        `time`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_my_yrs_lib_fn_func_generate_unique_key(`userId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_my_yrs_lib_rustbuffer_alloc(
-        `size`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_my_yrs_lib_rustbuffer_from_bytes(
-        `bytes`: ForeignBytes.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_my_yrs_lib_rustbuffer_free(
-        `buf`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun ffi_my_yrs_lib_rustbuffer_reserve(
-        `buf`: RustBuffer.ByValue,
-        `additional`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_my_yrs_lib_rust_future_poll_u8(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_u8(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_u8(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_u8(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_my_yrs_lib_rust_future_poll_i8(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_i8(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_i8(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_i8(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-
-    external fun ffi_my_yrs_lib_rust_future_poll_u16(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_u16(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_u16(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_u16(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_my_yrs_lib_rust_future_poll_i16(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_i16(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_i16(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_i16(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-
-    external fun ffi_my_yrs_lib_rust_future_poll_u32(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_u32(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_u32(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_u32(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_my_yrs_lib_rust_future_poll_i32(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_i32(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_i32(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_i32(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_my_yrs_lib_rust_future_poll_u64(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_u64(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_u64(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_u64(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun ffi_my_yrs_lib_rust_future_poll_i64(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_i64(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_i64(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_i64(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun ffi_my_yrs_lib_rust_future_poll_f32(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_f32(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_f32(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_f32(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Float
-
-    external fun ffi_my_yrs_lib_rust_future_poll_f64(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_f64(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_f64(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_f64(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Double
-
-    external fun ffi_my_yrs_lib_rust_future_poll_rust_buffer(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_cancel_rust_buffer(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_rust_buffer(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_rust_buffer(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_my_yrs_lib_rust_future_cancel_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_my_yrs_lib_rust_future_poll_void(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_my_yrs_lib_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_cancel_void(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_free_void(`handle`: Long,
+    ): Unit
+    external fun ffi_my_yrs_lib_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
 
-    external fun ffi_my_yrs_lib_rust_future_cancel_void(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_free_void(`handle`: Long): Unit
-
-    external fun ffi_my_yrs_lib_rust_future_complete_void(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
-    ): Unit
+        
 }
 
 private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
@@ -1254,10 +946,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_my_yrs_lib_checksum_func_create_bookmark_of_synced_state() != 56192) {
+    if (lib.uniffi_my_yrs_lib_checksum_func_create_bookmark() != 60295) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() != 24419) {
@@ -1267,6 +958,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_func_generate_unique_key() != 51078) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_create_bookmark() != 51218) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active() != 9169) {
@@ -1284,7 +978,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_snapshot() != 25643) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark_of_synced_state() != 57945) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark() != 54428) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled() != 54983) {
@@ -1363,6 +1057,7 @@ public fun uniffiEnsureInitialized() {
 
 // Public interface members begin here.
 
+
 // Interface implemented by anything that can contain an object reference.
 //
 // Such types expose a `destroy()` method that must be called to cleanly
@@ -1373,7 +1068,6 @@ public fun uniffiEnsureInitialized() {
 // helper method to execute a block and destroy the object at the end.
 interface Disposable {
     fun destroy()
-
     companion object {
         fun destroy(vararg args: Any?) {
             for (arg in args) {
@@ -1422,7 +1116,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/**
+/** 
  * Placeholder object used to signal that we're constructing an interface with a FFI handle.
  *
  * This is the first argument for interface constructors that input a raw handle. It exists is that
@@ -1433,13 +1127,12 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * */
 object UniffiWithHandle
 
-/**
+/** 
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
  * */
 object NoHandle
-
 /**
  * The cleaner interface for Object finalization code to run.
  * This is the entry point to any implementation that we're using.
@@ -1455,10 +1148,7 @@ interface UniffiCleaner {
         fun clean()
     }
 
-    fun register(
-        value: Any,
-        cleanUpTask: Runnable,
-    ): UniffiCleaner.Cleanable
+    fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable
 
     companion object
 }
@@ -1467,10 +1157,8 @@ interface UniffiCleaner {
 private class UniffiJnaCleaner : UniffiCleaner {
     private val cleaner = com.sun.jna.internal.Cleaner.getCleaner()
 
-    override fun register(
-        value: Any,
-        cleanUpTask: Runnable,
-    ): UniffiCleaner.Cleanable = UniffiJnaCleanable(cleaner.register(value, cleanUpTask))
+    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
+        UniffiJnaCleanable(cleaner.register(value, cleanUpTask))
 }
 
 private class UniffiJnaCleanable(
@@ -1479,10 +1167,12 @@ private class UniffiJnaCleanable(
     override fun clean() = cleanable.clean()
 }
 
+
 // We decide at uniffi binding generation time whether we were
 // using Android or not.
 // There are further runtime checks to chose the correct implementation
 // of the cleaner.
+
 
 private fun UniffiCleaner.Companion.create(): UniffiCleaner =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -1497,10 +1187,8 @@ private fun UniffiCleaner.Companion.create(): UniffiCleaner =
 private class AndroidSystemCleaner : UniffiCleaner {
     val cleaner = android.system.SystemCleaner.cleaner()
 
-    override fun register(
-        value: Any,
-        cleanUpTask: Runnable,
-    ): UniffiCleaner.Cleanable = AndroidSystemCleanable(cleaner.register(value, cleanUpTask))
+    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
+        AndroidSystemCleanable(cleaner.register(value, cleanUpTask))
 }
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -1513,7 +1201,7 @@ private class AndroidSystemCleanable(
 /**
  * @suppress
  */
-public object FfiConverterUInt : FfiConverter<UInt, Int> {
+public object FfiConverterUInt: FfiConverter<UInt, Int> {
     override fun lift(value: Int): UInt {
         return value.toUInt()
     }
@@ -1528,10 +1216,7 @@ public object FfiConverterUInt : FfiConverter<UInt, Int> {
 
     override fun allocationSize(value: UInt) = 4UL
 
-    override fun write(
-        value: UInt,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: UInt, buf: ByteBuffer) {
         buf.putInt(value.toInt())
     }
 }
@@ -1539,7 +1224,7 @@ public object FfiConverterUInt : FfiConverter<UInt, Int> {
 /**
  * @suppress
  */
-public object FfiConverterBoolean : FfiConverter<Boolean, Byte> {
+public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
     override fun lift(value: Byte): Boolean {
         return value.toInt() != 0
     }
@@ -1554,10 +1239,7 @@ public object FfiConverterBoolean : FfiConverter<Boolean, Byte> {
 
     override fun allocationSize(value: Boolean) = 1UL
 
-    override fun write(
-        value: Boolean,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: Boolean, buf: ByteBuffer) {
         buf.put(lower(value))
     }
 }
@@ -1565,7 +1247,7 @@ public object FfiConverterBoolean : FfiConverter<Boolean, Byte> {
 /**
  * @suppress
  */
-public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
+public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
     // store our length and avoid writing it out to the buffer.
@@ -1612,10 +1294,7 @@ public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
         return sizeForLength + sizeForString
     }
 
-    override fun write(
-        value: String,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: String, buf: ByteBuffer) {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
@@ -1625,26 +1304,22 @@ public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
 /**
  * @suppress
  */
-public object FfiConverterByteArray : FfiConverterRustBuffer<ByteArray> {
+public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
     override fun read(buf: ByteBuffer): ByteArray {
         val len = buf.getInt()
         val byteArr = ByteArray(len)
         buf.get(byteArr)
         return byteArr
     }
-
     override fun allocationSize(value: ByteArray): ULong {
         return 4UL + value.size.toULong()
     }
-
-    override fun write(
-        value: ByteArray,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: ByteArray, buf: ByteBuffer) {
         buf.putInt(value.size)
         buf.put(value)
     }
 }
+
 
 // This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
@@ -1740,45 +1415,41 @@ public object FfiConverterByteArray : FfiConverterRustBuffer<ByteArray> {
 // [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
 //
 
+
 public interface BossOfYrsInterface {
+    
     fun `deleteBlock`(`blockId`: kotlin.String)
-
-    fun `editTextBlock`(
-        `blockId`: kotlin.String,
-        `textEdit`: TextEdit,
-        `editTarget`: EditTarget,
-    )
-
+    
+    fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
+    
     fun `getEntirePage`(): List<Block>
-
-    fun `insertNewBlock`(
-        `blockContent`: kotlin.String,
-        `blockMetaData`: kotlin.String,
-        `position`: PositionToInsert,
-    ): kotlin.String
-
+    
+    fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
+    
     fun `mergeWith`(`other`: BossOfYrs)
-
+    
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
-
+    
     fun `pageId`(): kotlin.String
-
+    
     fun `readBlock`(`blockId`: kotlin.String): kotlin.String?
-
+    
     fun `showDocInfo`()
-
+    
     fun `snapshot`(): kotlin.ByteArray
-
+    
     fun `userId`(): kotlin.String
-
+    
     companion object
 }
 
-open class BossOfYrs : Disposable, AutoCloseable, BossOfYrsInterface {
+open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
+{
+
+    @Suppress("UNUSED_PARAMETER")
     /**
      * @suppress
      */
-    @Suppress("UNUSED_PARAMETER")
     constructor(withHandle: UniffiWithHandle, handle: Long) {
         this.handle = handle
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
@@ -1797,16 +1468,15 @@ open class BossOfYrs : Disposable, AutoCloseable, BossOfYrsInterface {
         this.cleanable = null
     }
     constructor(`userId`: kotlin.String, `unixTime`: kotlin.String) :
-        this(
-            UniffiWithHandle,
-            uniffiRustCall { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(
-                    FfiConverterString.lower(`userId`),
-                    FfiConverterString.lower(`unixTime`),
-                    _status,
-                )
-            },
-        )
+        this(UniffiWithHandle, 
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_constructor_bossofyrs_new(
+    
+        
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`unixTime`),_status)
+}
+    )
 
     protected val handle: Long
     protected val cleanable: UniffiCleaner.Cleanable?
@@ -1846,7 +1516,7 @@ open class BossOfYrs : Disposable, AutoCloseable, BossOfYrsInterface {
             if (c == Long.MAX_VALUE) {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
-        } while (!this.callCounter.compareAndSet(c, c + 1L))
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
         // Now we can safely do the method call without the handle being freed concurrently.
         try {
             return block(this.uniffiCloneHandle())
@@ -1864,7 +1534,7 @@ open class BossOfYrs : Disposable, AutoCloseable, BossOfYrsInterface {
         override fun run() {
             if (handle == 0.toLong()) {
                 // Fake object created with `NoHandle`, don't try to free.
-                return
+                return;
             }
             uniffiRustCall { status ->
                 UniffiLib.uniffi_my_yrs_lib_fn_free_bossofyrs(handle, status)
@@ -1877,195 +1547,189 @@ open class BossOfYrs : Disposable, AutoCloseable, BossOfYrsInterface {
      */
     fun uniffiCloneHandle(): Long {
         if (handle == 0.toLong()) {
-            throw InternalException("uniffiCloneHandle() called on NoHandle object")
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
-        return uniffiRustCall { status ->
+        return uniffiRustCall() { status ->
             UniffiLib.uniffi_my_yrs_lib_fn_clone_bossofyrs(handle, status)
         }
     }
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `deleteBlock`(`blockId`: kotlin.String) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(
-                    it,
-                    FfiConverterString.lower(`blockId`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `editTextBlock`(
-        `blockId`: kotlin.String,
-        `textEdit`: TextEdit,
-        `editTarget`: EditTarget,
-    ) = callWithHandle {
-        uniffiRustCallWithError(YrsException) { _status ->
-            UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(
-                it,
-                FfiConverterString.lower(`blockId`),
-                FfiConverterTypeTextEdit.lower(`textEdit`),
-                FfiConverterTypeEditTarget.lower(`editTarget`),
-                _status,
-            )
-        }
+    
+    @Throws(YrsException::class)override fun `deleteBlock`(`blockId`: kotlin.String)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_delete_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),_status)
+}
     }
+    
+    
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `getEntirePage`(): List<Block> {
-        return FfiConverterSequenceTypeBlock.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(YrsException::class)override fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_edit_text_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),
+        FfiConverterTypeTextEdit.lower(`textEdit`),
+        FfiConverterTypeEditTarget.lower(`editTarget`),_status)
+}
     }
+    
+    
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `insertNewBlock`(
-        `blockContent`: kotlin.String,
-        `blockMetaData`: kotlin.String,
-        `position`: PositionToInsert,
-    ): kotlin.String {
-        return FfiConverterString.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(
-                        it,
-                        FfiConverterString.lower(`blockContent`),
-                        FfiConverterString.lower(`blockMetaData`),
-                        FfiConverterTypePositionToInsert.lower(`position`),
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(YrsException::class)override fun `getEntirePage`(): List<Block> {
+            return FfiConverterSequenceTypeBlock.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(
+        it,
+        _status)
+}
     }
+    )
+    }
+    
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `mergeWith`(`other`: BossOfYrs) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(
-                    it,
-                    FfiConverterTypeBossOfYrs.lower(`other`),
-                    _status,
-                )
-            }
-        }
+    
+    @Throws(YrsException::class)override fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(
+        it,
+        
+        FfiConverterString.lower(`blockContent`),
+        FfiConverterString.lower(`blockMetaData`),
+        FfiConverterTypePositionToInsert.lower(`position`),_status)
+}
+    }
+    )
+    }
+    
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(
-                    it,
-                    FfiConverterByteArray.lower(`snapshot`),
-                    _status,
-                )
-            }
-        }
+    
+    @Throws(YrsException::class)override fun `mergeWith`(`other`: BossOfYrs)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(
+        it,
+        
+        FfiConverterTypeBossOfYrs.lower(`other`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(
+        it,
+        
+        FfiConverterByteArray.lower(`snapshot`),_status)
+}
+    }
+    
+    
 
     override fun `pageId`(): kotlin.String {
-        return FfiConverterString.lift(
-            callWithHandle {
-                uniffiRustCall { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(
+        it,
+        _status)
+}
     }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `readBlock`(`blockId`: kotlin.String): kotlin.String? {
-        return FfiConverterOptionalString.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(
-                        it,
-                        FfiConverterString.lower(`blockId`),
-                        _status,
-                    )
-                }
-            },
-        )
+    )
     }
+    
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `showDocInfo`() =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(
-                    it,
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `snapshot`(): kotlin.ByteArray {
-        return FfiConverterByteArray.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(YrsException::class)override fun `readBlock`(`blockId`: kotlin.String): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),_status)
+}
     }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `showDocInfo`()
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(
+        it,
+        _status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `snapshot`(): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
 
     override fun `userId`(): kotlin.String {
-        return FfiConverterString.lift(
-            callWithHandle {
-                uniffiRustCall { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(
+        it,
+        _status)
+}
     }
+    )
+    }
+    
 
+    
+
+    
+
+
+    
+    
     /**
      * @suppress
      */
     companion object
+    
 }
+
 
 /**
  * @suppress
  */
-public object FfiConverterTypeBossOfYrs : FfiConverter<BossOfYrs, Long> {
+public object FfiConverterTypeBossOfYrs: FfiConverter<BossOfYrs, Long> {
     override fun lower(value: BossOfYrs): Long {
         return value.uniffiCloneHandle()
     }
@@ -2080,13 +1744,11 @@ public object FfiConverterTypeBossOfYrs : FfiConverter<BossOfYrs, Long> {
 
     override fun allocationSize(value: BossOfYrs) = 8UL
 
-    override fun write(
-        value: BossOfYrs,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: BossOfYrs, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
+
 
 // This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
@@ -2182,25 +1844,31 @@ public object FfiConverterTypeBossOfYrs : FfiConverter<BossOfYrs, Long> {
 // [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
 //
 
+
 public interface YrsActivePagesInterface {
+    
+    fun `createBookmark`(): kotlin.ByteArray
+    
     fun `isPageActive`(`pageId`: kotlin.String): kotlin.Boolean
-
+    
     fun `markPageActive`(`pageId`: kotlin.String)
-
+    
     fun `markPageDeleted`(`pageId`: kotlin.String)
-
+    
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
-
+    
     fun `snapshot`(): kotlin.ByteArray
-
+    
     companion object
 }
 
-open class YrsActivePages : Disposable, AutoCloseable, YrsActivePagesInterface {
+open class YrsActivePages: Disposable, AutoCloseable, YrsActivePagesInterface
+{
+
+    @Suppress("UNUSED_PARAMETER")
     /**
      * @suppress
      */
-    @Suppress("UNUSED_PARAMETER")
     constructor(withHandle: UniffiWithHandle, handle: Long) {
         this.handle = handle
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
@@ -2219,15 +1887,14 @@ open class YrsActivePages : Disposable, AutoCloseable, YrsActivePagesInterface {
         this.cleanable = null
     }
     constructor(`loadedFromDb`: kotlin.ByteArray) :
-        this(
-            UniffiWithHandle,
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new(
-                    FfiConverterByteArray.lower(`loadedFromDb`),
-                    _status,
-                )
-            },
-        )
+        this(UniffiWithHandle, 
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new(
+    
+        
+        FfiConverterByteArray.lower(`loadedFromDb`),_status)
+}
+    )
 
     protected val handle: Long
     protected val cleanable: UniffiCleaner.Cleanable?
@@ -2267,7 +1934,7 @@ open class YrsActivePages : Disposable, AutoCloseable, YrsActivePagesInterface {
             if (c == Long.MAX_VALUE) {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
-        } while (!this.callCounter.compareAndSet(c, c + 1L))
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
         // Now we can safely do the method call without the handle being freed concurrently.
         try {
             return block(this.uniffiCloneHandle())
@@ -2285,7 +1952,7 @@ open class YrsActivePages : Disposable, AutoCloseable, YrsActivePagesInterface {
         override fun run() {
             if (handle == 0.toLong()) {
                 // Fake object created with `NoHandle`, don't try to free.
-                return
+                return;
             }
             uniffiRustCall { status ->
                 UniffiLib.uniffi_my_yrs_lib_fn_free_yrsactivepages(handle, status)
@@ -2298,105 +1965,126 @@ open class YrsActivePages : Disposable, AutoCloseable, YrsActivePagesInterface {
      */
     fun uniffiCloneHandle(): Long {
         if (handle == 0.toLong()) {
-            throw InternalException("uniffiCloneHandle() called on NoHandle object")
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
-        return uniffiRustCall { status ->
+        return uniffiRustCall() { status ->
             UniffiLib.uniffi_my_yrs_lib_fn_clone_yrsactivepages(handle, status)
         }
     }
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `isPageActive`(`pageId`: kotlin.String): kotlin.Boolean {
-        return FfiConverterBoolean.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_is_page_active(
-                        it,
-                        FfiConverterString.lower(`pageId`),
-                        _status,
-                    )
-                }
-            },
-        )
-    }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `markPageActive`(`pageId`: kotlin.String) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_active(
-                    it,
-                    FfiConverterString.lower(`pageId`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `markPageDeleted`(`pageId`: kotlin.String) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_deleted(
-                    it,
-                    FfiConverterString.lower(`pageId`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_merge_with_snapshot(
-                    it,
-                    FfiConverterByteArray.lower(`snapshot`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `snapshot`(): kotlin.ByteArray {
-        return FfiConverterByteArray.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_snapshot(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
-    }
-
-    companion object {
-        fun `newEmpty`(): YrsActivePages {
-            return FfiConverterTypeYrsActivePages.lift(
-                uniffiRustCall { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new_empty(
-                        _status,
-                    )
-                },
-            )
-        }
-    }
+    
+    @Throws(YrsException::class)override fun `createBookmark`(): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_create_bookmark(
+        it,
+        _status)
 }
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `isPageActive`(`pageId`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_is_page_active(
+        it,
+        
+        FfiConverterString.lower(`pageId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `markPageActive`(`pageId`: kotlin.String)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_active(
+        it,
+        
+        FfiConverterString.lower(`pageId`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `markPageDeleted`(`pageId`: kotlin.String)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_deleted(
+        it,
+        
+        FfiConverterString.lower(`pageId`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_merge_with_snapshot(
+        it,
+        
+        FfiConverterByteArray.lower(`snapshot`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `snapshot`(): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_snapshot(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+
+    
+
+
+    
+    companion object {
+         fun `newEmpty`(): YrsActivePages {
+            return FfiConverterTypeYrsActivePages.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsactivepages_new_empty(
+    
+        _status)
+}
+    )
+    }
+    
+
+        
+    }
+    
+}
+
 
 /**
  * @suppress
  */
-public object FfiConverterTypeYrsActivePages : FfiConverter<YrsActivePages, Long> {
+public object FfiConverterTypeYrsActivePages: FfiConverter<YrsActivePages, Long> {
     override fun lower(value: YrsActivePages): Long {
         return value.uniffiCloneHandle()
     }
@@ -2411,13 +2099,11 @@ public object FfiConverterTypeYrsActivePages : FfiConverter<YrsActivePages, Long
 
     override fun allocationSize(value: YrsActivePages) = 8UL
 
-    override fun write(
-        value: YrsActivePages,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: YrsActivePages, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
+
 
 // This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
@@ -2513,25 +2199,29 @@ public object FfiConverterTypeYrsActivePages : FfiConverter<YrsActivePages, Long
 // [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
 //
 
+
 public interface YrsBacklinksInterface {
-    fun `createBookmarkOfSyncedState`(): kotlin.ByteArray
-
+    
+    fun `createBookmark`(): kotlin.ByteArray
+    
     fun `isDisabled`(): kotlin.Boolean
-
+    
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
-
+    
     fun `setDisabled`(`disabled`: kotlin.Boolean)
-
+    
     fun `snapshot`(): kotlin.ByteArray
-
+    
     companion object
 }
 
-open class YrsBacklinks : Disposable, AutoCloseable, YrsBacklinksInterface {
+open class YrsBacklinks: Disposable, AutoCloseable, YrsBacklinksInterface
+{
+
+    @Suppress("UNUSED_PARAMETER")
     /**
      * @suppress
      */
-    @Suppress("UNUSED_PARAMETER")
     constructor(withHandle: UniffiWithHandle, handle: Long) {
         this.handle = handle
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
@@ -2550,15 +2240,14 @@ open class YrsBacklinks : Disposable, AutoCloseable, YrsBacklinksInterface {
         this.cleanable = null
     }
     constructor(`loadedFromDb`: kotlin.ByteArray) :
-        this(
-            UniffiWithHandle,
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new(
-                    FfiConverterByteArray.lower(`loadedFromDb`),
-                    _status,
-                )
-            },
-        )
+        this(UniffiWithHandle, 
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new(
+    
+        
+        FfiConverterByteArray.lower(`loadedFromDb`),_status)
+}
+    )
 
     protected val handle: Long
     protected val cleanable: UniffiCleaner.Cleanable?
@@ -2598,7 +2287,7 @@ open class YrsBacklinks : Disposable, AutoCloseable, YrsBacklinksInterface {
             if (c == Long.MAX_VALUE) {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
-        } while (!this.callCounter.compareAndSet(c, c + 1L))
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
         // Now we can safely do the method call without the handle being freed concurrently.
         try {
             return block(this.uniffiCloneHandle())
@@ -2616,7 +2305,7 @@ open class YrsBacklinks : Disposable, AutoCloseable, YrsBacklinksInterface {
         override fun run() {
             if (handle == 0.toLong()) {
                 // Fake object created with `NoHandle`, don't try to free.
-                return
+                return;
             }
             uniffiRustCall { status ->
                 UniffiLib.uniffi_my_yrs_lib_fn_free_yrsbacklinks(handle, status)
@@ -2629,106 +2318,111 @@ open class YrsBacklinks : Disposable, AutoCloseable, YrsBacklinksInterface {
      */
     fun uniffiCloneHandle(): Long {
         if (handle == 0.toLong()) {
-            throw InternalException("uniffiCloneHandle() called on NoHandle object")
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
-        return uniffiRustCall { status ->
+        return uniffiRustCall() { status ->
             UniffiLib.uniffi_my_yrs_lib_fn_clone_yrsbacklinks(handle, status)
         }
     }
 
-    @Throws(
-        YrsException::class,
-        )
-    override fun `createBookmarkOfSyncedState`(): kotlin.ByteArray {
-        return FfiConverterByteArray.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark_of_synced_state(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
-    }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `isDisabled`(): kotlin.Boolean {
-        return FfiConverterBoolean.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
-    }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_merge_with_snapshot(
-                    it,
-                    FfiConverterByteArray.lower(`snapshot`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `setDisabled`(`disabled`: kotlin.Boolean) =
-        callWithHandle {
-            uniffiRustCallWithError(YrsException) { _status ->
-                UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_set_disabled(
-                    it,
-                    FfiConverterBoolean.lower(`disabled`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        YrsException::class,
-        )
-    override fun `snapshot`(): kotlin.ByteArray {
-        return FfiConverterByteArray.lift(
-            callWithHandle {
-                uniffiRustCallWithError(YrsException) { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_snapshot(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
-    }
-
-    companion object {
-        fun `newEmpty`(): YrsBacklinks {
-            return FfiConverterTypeYrsBacklinks.lift(
-                uniffiRustCall { _status ->
-                    UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new_empty(
-                        _status,
-                    )
-                },
-            )
-        }
-    }
+    
+    @Throws(YrsException::class)override fun `createBookmark`(): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark(
+        it,
+        _status)
 }
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `isDisabled`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_merge_with_snapshot(
+        it,
+        
+        FfiConverterByteArray.lower(`snapshot`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `setDisabled`(`disabled`: kotlin.Boolean)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_set_disabled(
+        it,
+        
+        FfiConverterBoolean.lower(`disabled`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `snapshot`(): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_snapshot(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+
+    
+
+
+    
+    companion object {
+         fun `newEmpty`(): YrsBacklinks {
+            return FfiConverterTypeYrsBacklinks.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new_empty(
+    
+        _status)
+}
+    )
+    }
+    
+
+        
+    }
+    
+}
+
 
 /**
  * @suppress
  */
-public object FfiConverterTypeYrsBacklinks : FfiConverter<YrsBacklinks, Long> {
+public object FfiConverterTypeYrsBacklinks: FfiConverter<YrsBacklinks, Long> {
     override fun lower(value: YrsBacklinks): Long {
         return value.uniffiCloneHandle()
     }
@@ -2743,27 +2437,33 @@ public object FfiConverterTypeYrsBacklinks : FfiConverter<YrsBacklinks, Long> {
 
     override fun allocationSize(value: YrsBacklinks) = 8UL
 
-    override fun write(
-        value: YrsBacklinks,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: YrsBacklinks, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
 
-data class Block(
-    var `text`: kotlin.String,
-    var `metadata`: kotlin.String,
-    var `idInYrs`: kotlin.String,
-) {
 
+
+data class Block (
+    var `text`: kotlin.String
+    , 
+    var `metadata`: kotlin.String
+    , 
+    var `idInYrs`: kotlin.String
+    
+){
+    
+
+    
+
+    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeBlock : FfiConverterRustBuffer<Block> {
+public object FfiConverterTypeBlock: FfiConverterRustBuffer<Block> {
     override fun read(buf: ByteBuffer): Block {
         return Block(
             FfiConverterString.read(buf),
@@ -2772,36 +2472,41 @@ public object FfiConverterTypeBlock : FfiConverterRustBuffer<Block> {
         )
     }
 
-    override fun allocationSize(value: Block) =
-        (
+    override fun allocationSize(value: Block) = (
             FfiConverterString.allocationSize(value.`text`) +
-                FfiConverterString.allocationSize(value.`metadata`) +
-                FfiConverterString.allocationSize(value.`idInYrs`)
-        )
+            FfiConverterString.allocationSize(value.`metadata`) +
+            FfiConverterString.allocationSize(value.`idInYrs`)
+    )
 
-    override fun write(
-        value: Block,
-        buf: ByteBuffer,
-    ) {
-        FfiConverterString.write(value.`text`, buf)
-        FfiConverterString.write(value.`metadata`, buf)
-        FfiConverterString.write(value.`idInYrs`, buf)
+    override fun write(value: Block, buf: ByteBuffer) {
+            FfiConverterString.write(value.`text`, buf)
+            FfiConverterString.write(value.`metadata`, buf)
+            FfiConverterString.write(value.`idInYrs`, buf)
     }
 }
 
-data class ErrorInfo(
-    var `errorMsg`: kotlin.String,
-    var `file`: kotlin.String,
-    var `method`: kotlin.String,
-) {
 
+
+data class ErrorInfo (
+    var `errorMsg`: kotlin.String
+    , 
+    var `file`: kotlin.String
+    , 
+    var `method`: kotlin.String
+    
+){
+    
+
+    
+
+    
     companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeErrorInfo : FfiConverterRustBuffer<ErrorInfo> {
+public object FfiConverterTypeErrorInfo: FfiConverterRustBuffer<ErrorInfo> {
     override fun read(buf: ByteBuffer): ErrorInfo {
         return ErrorInfo(
             FfiConverterString.read(buf),
@@ -2810,31 +2515,41 @@ public object FfiConverterTypeErrorInfo : FfiConverterRustBuffer<ErrorInfo> {
         )
     }
 
-    override fun allocationSize(value: ErrorInfo) =
-        (
+    override fun allocationSize(value: ErrorInfo) = (
             FfiConverterString.allocationSize(value.`errorMsg`) +
-                FfiConverterString.allocationSize(value.`file`) +
-                FfiConverterString.allocationSize(value.`method`)
-        )
+            FfiConverterString.allocationSize(value.`file`) +
+            FfiConverterString.allocationSize(value.`method`)
+    )
 
-    override fun write(
-        value: ErrorInfo,
-        buf: ByteBuffer,
-    ) {
-        FfiConverterString.write(value.`errorMsg`, buf)
-        FfiConverterString.write(value.`file`, buf)
-        FfiConverterString.write(value.`method`, buf)
+    override fun write(value: ErrorInfo, buf: ByteBuffer) {
+            FfiConverterString.write(value.`errorMsg`, buf)
+            FfiConverterString.write(value.`file`, buf)
+            FfiConverterString.write(value.`method`, buf)
     }
 }
 
+
+
 sealed class DeadlockPrediction {
+    
     data class PotentiallyJustSlowOperation(
-        val v1: kotlin.String,
-    ) : DeadlockPrediction() {
+        val v1: kotlin.String) : DeadlockPrediction()
+        
+    {
+        
+
         companion object
     }
-
+    
     object ProbablyJustADeadlock : DeadlockPrediction()
+    
+    
+
+    
+
+    
+    
+
 
     companion object
 }
@@ -2842,40 +2557,35 @@ sealed class DeadlockPrediction {
 /**
  * @suppress
  */
-public object FfiConverterTypeDeadlockPrediction : FfiConverterRustBuffer<DeadlockPrediction> {
+public object FfiConverterTypeDeadlockPrediction : FfiConverterRustBuffer<DeadlockPrediction>{
     override fun read(buf: ByteBuffer): DeadlockPrediction {
-        return when (buf.getInt()) {
-            1 ->
-                DeadlockPrediction.PotentiallyJustSlowOperation(
-                    FfiConverterString.read(buf),
+        return when(buf.getInt()) {
+            1 -> DeadlockPrediction.PotentiallyJustSlowOperation(
+                FfiConverterString.read(buf),
                 )
             2 -> DeadlockPrediction.ProbablyJustADeadlock
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: DeadlockPrediction): ULong =
-        when (value) {
-            is DeadlockPrediction.PotentiallyJustSlowOperation -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL +
-                        FfiConverterString.allocationSize(value.v1)
-                )
-            }
-            is DeadlockPrediction.ProbablyJustADeadlock -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL
-                )
-            }
+    override fun allocationSize(value: DeadlockPrediction): ULong = when(value) {
+        is DeadlockPrediction.PotentiallyJustSlowOperation -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
         }
+        is DeadlockPrediction.ProbablyJustADeadlock -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+    }
 
-    override fun write(
-        value: DeadlockPrediction,
-        buf: ByteBuffer,
-    ) {
-        when (value) {
+    override fun write(value: DeadlockPrediction, buf: ByteBuffer) {
+        when(value) {
             is DeadlockPrediction.PotentiallyJustSlowOperation -> {
                 buf.putInt(1)
                 FfiConverterString.write(value.v1, buf)
@@ -2889,43 +2599,64 @@ public object FfiConverterTypeDeadlockPrediction : FfiConverterRustBuffer<Deadlo
     }
 }
 
+
+
+
+
+
 enum class EditTarget {
+    
     TEXT,
-    META,
-    ;
+    META;
+
+    
+
 
     companion object
 }
 
+
 /**
  * @suppress
  */
-public object FfiConverterTypeEditTarget : FfiConverterRustBuffer<EditTarget> {
-    override fun read(buf: ByteBuffer) =
-        try {
-            EditTarget.values()[buf.getInt() - 1]
-        } catch (e: IndexOutOfBoundsException) {
-            throw RuntimeException("invalid enum value, something is very wrong!!", e)
-        }
+public object FfiConverterTypeEditTarget: FfiConverterRustBuffer<EditTarget> {
+    override fun read(buf: ByteBuffer) = try {
+        EditTarget.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
 
     override fun allocationSize(value: EditTarget) = 4UL
 
-    override fun write(
-        value: EditTarget,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: EditTarget, buf: ByteBuffer) {
         buf.putInt(value.ordinal + 1)
     }
 }
 
-sealed class PositionToInsert {
-    object AtEnd : PositionToInsert()
 
+
+
+
+sealed class PositionToInsert {
+    
+    object AtEnd : PositionToInsert()
+    
+    
     data class SpecificPosition(
-        val v1: kotlin.UInt,
-    ) : PositionToInsert() {
+        val v1: kotlin.UInt) : PositionToInsert()
+        
+    {
+        
+
         companion object
     }
+    
+
+    
+
+    
+    
+
 
     companion object
 }
@@ -2933,40 +2664,35 @@ sealed class PositionToInsert {
 /**
  * @suppress
  */
-public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<PositionToInsert> {
+public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<PositionToInsert>{
     override fun read(buf: ByteBuffer): PositionToInsert {
-        return when (buf.getInt()) {
+        return when(buf.getInt()) {
             1 -> PositionToInsert.AtEnd
-            2 ->
-                PositionToInsert.SpecificPosition(
-                    FfiConverterUInt.read(buf),
+            2 -> PositionToInsert.SpecificPosition(
+                FfiConverterUInt.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: PositionToInsert): ULong =
-        when (value) {
-            is PositionToInsert.AtEnd -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL
-                )
-            }
-            is PositionToInsert.SpecificPosition -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL +
-                        FfiConverterUInt.allocationSize(value.v1)
-                )
-            }
+    override fun allocationSize(value: PositionToInsert): ULong = when(value) {
+        is PositionToInsert.AtEnd -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
         }
+        is PositionToInsert.SpecificPosition -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.v1)
+            )
+        }
+    }
 
-    override fun write(
-        value: PositionToInsert,
-        buf: ByteBuffer,
-    ) {
-        when (value) {
+    override fun write(value: PositionToInsert, buf: ByteBuffer) {
+        when(value) {
             is PositionToInsert.AtEnd -> {
                 buf.putInt(1)
                 Unit
@@ -2980,28 +2706,49 @@ public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<Position
     }
 }
 
+
+
+
+
 sealed class TextEdit {
+    
     data class Insert(
-        val `text`: kotlin.String,
-        val `position`: kotlin.UInt,
-    ) : TextEdit() {
+        val `text`: kotlin.String, 
+        val `position`: kotlin.UInt) : TextEdit()
+        
+    {
+        
+
         companion object
     }
-
+    
     data class Delete(
-        val `text`: kotlin.String,
-        val `position`: kotlin.UInt,
-    ) : TextEdit() {
-        companion object
-    }
+        val `text`: kotlin.String, 
+        val `position`: kotlin.UInt) : TextEdit()
+        
+    {
+        
 
-    data class Replace(
-        val `oldText`: kotlin.String,
-        val `newText`: kotlin.String,
-        val `position`: kotlin.UInt,
-    ) : TextEdit() {
         companion object
     }
+    
+    data class Replace(
+        val `oldText`: kotlin.String, 
+        val `newText`: kotlin.String, 
+        val `position`: kotlin.UInt) : TextEdit()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+
+    
+    
+
 
     companion object
 }
@@ -3009,63 +2756,56 @@ sealed class TextEdit {
 /**
  * @suppress
  */
-public object FfiConverterTypeTextEdit : FfiConverterRustBuffer<TextEdit> {
+public object FfiConverterTypeTextEdit : FfiConverterRustBuffer<TextEdit>{
     override fun read(buf: ByteBuffer): TextEdit {
-        return when (buf.getInt()) {
-            1 ->
-                TextEdit.Insert(
-                    FfiConverterString.read(buf),
-                    FfiConverterUInt.read(buf),
+        return when(buf.getInt()) {
+            1 -> TextEdit.Insert(
+                FfiConverterString.read(buf),
+                FfiConverterUInt.read(buf),
                 )
-            2 ->
-                TextEdit.Delete(
-                    FfiConverterString.read(buf),
-                    FfiConverterUInt.read(buf),
+            2 -> TextEdit.Delete(
+                FfiConverterString.read(buf),
+                FfiConverterUInt.read(buf),
                 )
-            3 ->
-                TextEdit.Replace(
-                    FfiConverterString.read(buf),
-                    FfiConverterString.read(buf),
-                    FfiConverterUInt.read(buf),
+            3 -> TextEdit.Replace(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                FfiConverterUInt.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
 
-    override fun allocationSize(value: TextEdit): ULong =
-        when (value) {
-            is TextEdit.Insert -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL +
-                        FfiConverterString.allocationSize(value.`text`) +
-                        FfiConverterUInt.allocationSize(value.`position`)
-                )
-            }
-            is TextEdit.Delete -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL +
-                        FfiConverterString.allocationSize(value.`text`) +
-                        FfiConverterUInt.allocationSize(value.`position`)
-                )
-            }
-            is TextEdit.Replace -> {
-                // Add the size for the Int that specifies the variant plus the size needed for all fields
-                (
-                    4UL +
-                        FfiConverterString.allocationSize(value.`oldText`) +
-                        FfiConverterString.allocationSize(value.`newText`) +
-                        FfiConverterUInt.allocationSize(value.`position`)
-                )
-            }
+    override fun allocationSize(value: TextEdit): ULong = when(value) {
+        is TextEdit.Insert -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`text`)
+                + FfiConverterUInt.allocationSize(value.`position`)
+            )
         }
+        is TextEdit.Delete -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`text`)
+                + FfiConverterUInt.allocationSize(value.`position`)
+            )
+        }
+        is TextEdit.Replace -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`oldText`)
+                + FfiConverterString.allocationSize(value.`newText`)
+                + FfiConverterUInt.allocationSize(value.`position`)
+            )
+        }
+    }
 
-    override fun write(
-        value: TextEdit,
-        buf: ByteBuffer,
-    ) {
-        when (value) {
+    override fun write(value: TextEdit, buf: ByteBuffer) {
+        when(value) {
             is TextEdit.Insert -> {
                 buf.putInt(1)
                 FfiConverterString.write(value.`text`, buf)
@@ -3089,32 +2829,49 @@ public object FfiConverterTypeTextEdit : FfiConverterRustBuffer<TextEdit> {
     }
 }
 
-sealed class YrsException : kotlin.Exception() {
+
+
+
+
+
+
+sealed class YrsException: kotlin.Exception() {
+    
     class GenericException(
-        val `info`: ErrorInfo,
-    ) : YrsException() {
+        
+        val `info`: ErrorInfo
+        ) : YrsException() {
         override val message
             get() = "info=${ `info` }"
     }
-
+    
     class YrsInternalException(
-        val `info`: ErrorInfo,
-    ) : YrsException() {
+        
+        val `info`: ErrorInfo
+        ) : YrsException() {
         override val message
             get() = "info=${ `info` }"
     }
-
+    
     class Deadlock(
-        val `prediction`: DeadlockPrediction,
-        val `info`: ErrorInfo,
-    ) : YrsException() {
+        
+        val `prediction`: DeadlockPrediction, 
+        
+        val `info`: ErrorInfo
+        ) : YrsException() {
         override val message
             get() = "prediction=${ `prediction` }, info=${ `info` }"
     }
+    
+
+    
+
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<YrsException> {
         override fun lift(error_buf: RustBuffer.ByValue): YrsException = FfiConverterTypeYrsError.lift(error_buf)
     }
+
+    
 }
 
 /**
@@ -3122,50 +2879,46 @@ sealed class YrsException : kotlin.Exception() {
  */
 public object FfiConverterTypeYrsError : FfiConverterRustBuffer<YrsException> {
     override fun read(buf: ByteBuffer): YrsException {
-        return when (buf.getInt()) {
-            1 ->
-                YrsException.GenericException(
-                    FfiConverterTypeErrorInfo.read(buf),
+        
+
+        return when(buf.getInt()) {
+            1 -> YrsException.GenericException(
+                FfiConverterTypeErrorInfo.read(buf),
                 )
-            2 ->
-                YrsException.YrsInternalException(
-                    FfiConverterTypeErrorInfo.read(buf),
+            2 -> YrsException.YrsInternalException(
+                FfiConverterTypeErrorInfo.read(buf),
                 )
-            3 ->
-                YrsException.Deadlock(
-                    FfiConverterTypeDeadlockPrediction.read(buf),
-                    FfiConverterTypeErrorInfo.read(buf),
+            3 -> YrsException.Deadlock(
+                FfiConverterTypeDeadlockPrediction.read(buf),
+                FfiConverterTypeErrorInfo.read(buf),
                 )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
     }
 
     override fun allocationSize(value: YrsException): ULong {
-        return when (value) {
+        return when(value) {
             is YrsException.GenericException -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL +
-                    FfiConverterTypeErrorInfo.allocationSize(value.`info`)
+                4UL
+                + FfiConverterTypeErrorInfo.allocationSize(value.`info`)
             )
             is YrsException.YrsInternalException -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL +
-                    FfiConverterTypeErrorInfo.allocationSize(value.`info`)
+                4UL
+                + FfiConverterTypeErrorInfo.allocationSize(value.`info`)
             )
             is YrsException.Deadlock -> (
                 // Add the size for the Int that specifies the variant plus the size needed for all fields
-                4UL +
-                    FfiConverterTypeDeadlockPrediction.allocationSize(value.`prediction`) +
-                    FfiConverterTypeErrorInfo.allocationSize(value.`info`)
+                4UL
+                + FfiConverterTypeDeadlockPrediction.allocationSize(value.`prediction`)
+                + FfiConverterTypeErrorInfo.allocationSize(value.`info`)
             )
         }
     }
 
-    override fun write(
-        value: YrsException,
-        buf: ByteBuffer,
-    ) {
-        when (value) {
+    override fun write(value: YrsException, buf: ByteBuffer) {
+        when(value) {
             is YrsException.GenericException -> {
                 buf.putInt(1)
                 FfiConverterTypeErrorInfo.write(value.`info`, buf)
@@ -3184,12 +2937,16 @@ public object FfiConverterTypeYrsError : FfiConverterRustBuffer<YrsException> {
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
+
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalString : FfiConverterRustBuffer<kotlin.String?> {
+public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
     override fun read(buf: ByteBuffer): kotlin.String? {
         if (buf.get().toInt() == 0) {
             return null
@@ -3205,10 +2962,7 @@ public object FfiConverterOptionalString : FfiConverterRustBuffer<kotlin.String?
         }
     }
 
-    override fun write(
-        value: kotlin.String?,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: kotlin.String?, buf: ByteBuffer) {
         if (value == null) {
             buf.put(0)
         } else {
@@ -3218,10 +2972,13 @@ public object FfiConverterOptionalString : FfiConverterRustBuffer<kotlin.String?
     }
 }
 
+
+
+
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeBlock : FfiConverterRustBuffer<List<Block>> {
+public object FfiConverterSequenceTypeBlock: FfiConverterRustBuffer<List<Block>> {
     override fun read(buf: ByteBuffer): List<Block> {
         val len = buf.getInt()
         return List<Block>(len) {
@@ -3235,76 +2992,63 @@ public object FfiConverterSequenceTypeBlock : FfiConverterRustBuffer<List<Block>
         return sizeForLength + sizeForItems
     }
 
-    override fun write(
-        value: List<Block>,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: List<Block>, buf: ByteBuffer) {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeBlock.write(it, buf)
         }
     }
 }
-
-@Throws(YrsException::class)
-fun `createBookmarkOfSyncedState`(`boss`: BossOfYrs): kotlin.ByteArray {
-    return FfiConverterByteArray.lift(
-        uniffiRustCallWithError(YrsException) { _status ->
-            UniffiLib.uniffi_my_yrs_lib_fn_func_create_bookmark_of_synced_state(
-                FfiConverterTypeBossOfYrs.lower(`boss`),
-                _status,
-            )
-        },
-    )
+    @Throws(YrsException::class) fun `createBookmark`(`boss`: BossOfYrs): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_create_bookmark(
+    
+        
+        FfiConverterTypeBossOfYrs.lower(`boss`),_status)
 }
-
-@Throws(YrsException::class)
-fun `docFromSnapshot`(
-    `snapshot`: kotlin.ByteArray,
-    `userId`: kotlin.String,
-    `pageId`: kotlin.String,
-    `time`: kotlin.String,
-): BossOfYrs {
-    return FfiConverterTypeBossOfYrs.lift(
-        uniffiRustCallWithError(YrsException) { _status ->
-            UniffiLib.uniffi_my_yrs_lib_fn_func_doc_from_snapshot(
-                FfiConverterByteArray.lower(`snapshot`),
-                FfiConverterString.lower(`userId`),
-                FfiConverterString.lower(`pageId`),
-                FfiConverterString.lower(`time`),
-                _status,
-            )
-        },
     )
-}
+    }
+    
 
-@Throws(YrsException::class)
-fun `generateDiffSnapshot`(
-    `boss`: BossOfYrs,
-    `bookmarkSerialized`: kotlin.ByteArray,
-): kotlin.ByteArray {
-    return FfiConverterByteArray.lift(
-        uniffiRustCallWithError(YrsException) { _status ->
-            UniffiLib.uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(
-                FfiConverterTypeBossOfYrs.lower(`boss`),
-                FfiConverterByteArray.lower(`bookmarkSerialized`),
-                _status,
-            )
-        },
-    )
+    @Throws(YrsException::class) fun `docFromSnapshot`(`snapshot`: kotlin.ByteArray, `userId`: kotlin.String, `pageId`: kotlin.String, `time`: kotlin.String): BossOfYrs {
+            return FfiConverterTypeBossOfYrs.lift(
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_doc_from_snapshot(
+    
+        
+        FfiConverterByteArray.lower(`snapshot`),
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`pageId`),
+        FfiConverterString.lower(`time`),_status)
 }
+    )
+    }
+    
 
-fun `generateUniqueKey`(
-    `userId`: kotlin.String,
-    `time`: kotlin.String,
-): kotlin.String {
-    return FfiConverterString.lift(
-        uniffiRustCall { _status ->
-            UniffiLib.uniffi_my_yrs_lib_fn_func_generate_unique_key(
-                FfiConverterString.lower(`userId`),
-                FfiConverterString.lower(`time`),
-                _status,
-            )
-        },
-    )
+    @Throws(YrsException::class) fun `generateDiffSnapshot`(`boss`: BossOfYrs, `bookmarkSerialized`: kotlin.ByteArray): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(
+    
+        
+        FfiConverterTypeBossOfYrs.lower(`boss`),
+        FfiConverterByteArray.lower(`bookmarkSerialized`),_status)
 }
+    )
+    }
+    
+ fun `generateUniqueKey`(`userId`: kotlin.String, `time`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_generate_unique_key(
+    
+        
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`time`),_status)
+}
+    )
+    }
+    
+
+

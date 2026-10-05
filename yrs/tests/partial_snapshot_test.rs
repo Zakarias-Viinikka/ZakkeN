@@ -26,7 +26,7 @@ mod tests {
         let snapshot = Arc::clone(&server).snapshot().unwrap();
         Arc::clone(&client).merge_with_snapshot(snapshot).unwrap();
 
-        let sync_point_sv_bytes = create_bookmark_of_synced_state(Arc::clone(&client)).unwrap();
+        let sync_point_sv_bytes = create_bookmark(Arc::clone(&client)).unwrap();
 
         Arc::clone(&client)
             .edit_text_block(

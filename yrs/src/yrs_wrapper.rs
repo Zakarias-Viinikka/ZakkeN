@@ -605,16 +605,16 @@ pub fn doc_from_snapshot(
 }
 
 #[uniffi::export]
-pub fn create_bookmark_of_synced_state(boss: Arc<BossOfYrs>) -> Result<Vec<u8>, YrsError> {
+pub fn create_bookmark(boss: Arc<BossOfYrs>) -> Result<Vec<u8>, YrsError> {
     prevent_deadlock(
         DeadlockCtx::new(
-            "create_bookmark_of_synced_state",
+            "create_bookmark",
             file!(),
             DeadlockPrediction::ProbablyJustADeadlock,
         ),
         move || {
             let doc = boss.doc.read().map_err(|_| YrsError::GenericError {
-                info: error_info("lock poisoned", "create_bookmark_of_synced_state"),
+                info: error_info("lock poisoned", "create_bookmark"),
             })?;
             Ok(doc.transact().state_vector().encode_v1())
         },

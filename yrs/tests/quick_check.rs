@@ -69,7 +69,7 @@ fn call_all_methods_and_helpers_without_errors() {
     Arc::clone(&boss).merge_with(other_boss2).unwrap();
 
     // Free functions
-    let bookmark = create_bookmark_of_synced_state(Arc::clone(&boss)).unwrap();
+    let bookmark = create_bookmark(Arc::clone(&boss)).unwrap();
     let _diff = generate_diff_snapshot(Arc::clone(&boss), bookmark).unwrap();
 
     // doc_from_snapshot

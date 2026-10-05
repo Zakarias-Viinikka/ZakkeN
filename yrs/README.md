@@ -57,6 +57,8 @@ ACTIVE PAGES AND BACKLINKS
         let pages = YrsActivePages::new(loaded_from_db)?;
         let links = YrsBacklinks::new_empty();
         let links = YrsBacklinks::new(loaded_from_db)?;
+    new(loaded_from_db) is how you unserialize. Pass the blob, get
+    the unserialized one back.
     Both have snapshot() and merge_with_snapshot(bytes) with the same
     meaning as on the boss.
 
@@ -66,6 +68,9 @@ ACTIVE PAGES
     pages.mark_page_deleted(page_id)?;
     let active = pages.is_page_active(page_id)?;
     Returns true if the page isn't in the map at all.
+
+    The blob in tbl_pages's page_status column is what you pass to
+    YrsActivePages::new(loaded_from_db).
 
 
 BACKLINKS
