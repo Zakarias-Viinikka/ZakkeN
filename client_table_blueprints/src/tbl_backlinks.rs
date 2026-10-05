@@ -86,7 +86,7 @@ pub fn new_backlink_row(
 ) -> Result<Vec<ColumnValue>, YrsError> {
     let backlinks_doc = Arc::new(YrsBacklinks::new_empty());
     let disabled = backlinks_doc.clone().snapshot()?;
-    let version = backlinks_doc.create_bookmark_of_synced_state()?;
+    let version = backlinks_doc.create_bookmark()?;
 
     Ok(vec![
         ColumnValue {
