@@ -52,31 +52,26 @@ BUILD A BOSS FROM A SNAPSHOT
 
 
 ACTIVE PAGES AND BACKLINKS
-    Both work the same way.
-        let pages = YrsActivePages::new_empty();
-        let pages = YrsActivePages::new(loaded_from_db)?;
-        let links = YrsBacklinks::new_empty();
-        let links = YrsBacklinks::new(loaded_from_db)?;
-    new(loaded_from_db) is how you unserialize. Pass the blob, get
-    the unserialized one back.
-    Both have snapshot() and merge_with_snapshot(bytes) with the same
-    meaning as on the boss.
+
+    Both have these:
+        new_empty()
+        new(loaded_from_db)          ## takes the blob, returns the unserialized one
+        snapshot()                   
+        merge_with_snapshot(bytes)   ## applies bytes (whole doc or just edits)
+        create_bookmark()            ## the "before edits" marker
+        generate_diff_snapshot(bookmark)  ## the edits since the bookmark
 
 
 ACTIVE PAGES
-    pages.mark_page_active(page_id)?;
-    pages.mark_page_deleted(page_id)?;
-    let active = pages.is_page_active(page_id)?;
-    Returns true if the page isn't in the map at all.
 
-    The blob in tbl_pages's page_status column is what you pass to
-    YrsActivePages::new(loaded_from_db).
+        mark_page_active(page_id)
+        mark_page_deleted(page_id)
+        is_page_active(page_id)      ## true if not in the map
+
+    ## the blob in tbl_pages's page_status column goes to new
 
 
 BACKLINKS
-    links.set_disabled(bool)?;
-    let disabled = links.is_disabled()?;
-    Defaults to false if never set.
 
-    And it has the bookmark, same as the boss:
-        let bookmark = links.create_bookmark_of_synced_state()?;
+        set_disabled(bool)
+        is_disabled()                ## defaults to false

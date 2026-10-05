@@ -154,4 +154,29 @@ impl YrsBacklinks {
             },
         )
     }
+
+    pub fn generate_diff_snapshot(
+        self: Arc<Self>,
+        bookmark_serialized: Vec<u8>,
+    ) -> Result<Vec<u8>, YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "generate_diff_snapshot",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let bookmark = StateVector::decode_v1(&bookmark_serialized).map_err(|e| {
+                    yrs_error(
+                        format!("generate_diff_snapshot: failed to decode bookmark: {e}"),
+                        "generate_diff_snapshot",
+                    )
+                })?;
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "generate_diff_snapshot"),
+                })?;
+                Ok(doc.transact().encode_diff_v1(&bookmark))
+            },
+        )
+    }
 }

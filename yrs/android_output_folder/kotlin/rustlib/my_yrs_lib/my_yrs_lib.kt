@@ -685,6 +685,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_create_bookmark(
     ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_generate_diff_snapshot(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_mark_page_active(
@@ -696,6 +698,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_snapshot(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_generate_diff_snapshot(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled(
     ): Int
@@ -765,6 +769,8 @@ internal object UniffiLib {
     ): Long
     external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_create_bookmark(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_generate_diff_snapshot(`ptr`: Long,`bookmarkSerialized`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_is_page_active(`ptr`: Long,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
     external fun uniffi_my_yrs_lib_fn_method_yrsactivepages_mark_page_active(`ptr`: Long,`pageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -784,6 +790,8 @@ internal object UniffiLib {
     external fun uniffi_my_yrs_lib_fn_constructor_yrsbacklinks_new_empty(uniffi_out_err: UniffiRustCallStatus, 
     ): Long
     external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_generate_diff_snapshot(`ptr`: Long,`bookmarkSerialized`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_yrsbacklinks_is_disabled(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
@@ -963,6 +971,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_create_bookmark() != 51218) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_generate_diff_snapshot() != 26971) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_is_page_active() != 9169) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -979,6 +990,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_create_bookmark() != 54428) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_generate_diff_snapshot() != 42592) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_is_disabled() != 54983) {
@@ -1849,6 +1863,8 @@ public interface YrsActivePagesInterface {
     
     fun `createBookmark`(): kotlin.ByteArray
     
+    fun `generateDiffSnapshot`(`bookmarkSerialized`: kotlin.ByteArray): kotlin.ByteArray
+    
     fun `isPageActive`(`pageId`: kotlin.String): kotlin.Boolean
     
     fun `markPageActive`(`pageId`: kotlin.String)
@@ -1980,6 +1996,21 @@ open class YrsActivePages: Disposable, AutoCloseable, YrsActivePagesInterface
     UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_create_bookmark(
         it,
         _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `generateDiffSnapshot`(`bookmarkSerialized`: kotlin.ByteArray): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsactivepages_generate_diff_snapshot(
+        it,
+        
+        FfiConverterByteArray.lower(`bookmarkSerialized`),_status)
 }
     }
     )
@@ -2204,6 +2235,8 @@ public interface YrsBacklinksInterface {
     
     fun `createBookmark`(): kotlin.ByteArray
     
+    fun `generateDiffSnapshot`(`bookmarkSerialized`: kotlin.ByteArray): kotlin.ByteArray
+    
     fun `isDisabled`(): kotlin.Boolean
     
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
@@ -2333,6 +2366,21 @@ open class YrsBacklinks: Disposable, AutoCloseable, YrsBacklinksInterface
     UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_create_bookmark(
         it,
         _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `generateDiffSnapshot`(`bookmarkSerialized`: kotlin.ByteArray): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_yrsbacklinks_generate_diff_snapshot(
+        it,
+        
+        FfiConverterByteArray.lower(`bookmarkSerialized`),_status)
 }
     }
     )
