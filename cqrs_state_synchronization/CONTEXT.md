@@ -48,7 +48,3 @@ Things to read to understand what cqrs_state_synchronization is about.
 - DocEvents/EditTextInBlock.kt — how edits apply to yrs and the mirror.
 - DocEvents/CheckIfTablesInSync.kt — the check.
 - Tests/PageDataSyncTest.kt — the closest thing to what this crate is for.
-
-## create_page and is_main_menu_page
-
-The button in the main menu calls create_page with is_main_menu_page hardcoded to true. That's correct — that's how creating a page in the main menu is supposed to work. If you create a page from inside a page, that would pass false. That's way down the line.

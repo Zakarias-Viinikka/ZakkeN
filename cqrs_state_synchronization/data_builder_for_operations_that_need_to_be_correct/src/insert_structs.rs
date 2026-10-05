@@ -4,9 +4,14 @@ pub struct EverythingToInsertForNewPage {
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }
 
-pub struct EditBlockCtx {
+pub struct EverythingForEditBlock {
     pub pages_update: PagesUpdateCtx,
     pub every_block_in_existence_update: EveryBlockInExistenceUpdateCtx,
+    pub uncommitted_diffs: UncommitedDiffsInsertCtx,
+}
+
+pub struct EverythingForDeletePage {
+    pub pages_update: PagesUpdateCtx,
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }
 

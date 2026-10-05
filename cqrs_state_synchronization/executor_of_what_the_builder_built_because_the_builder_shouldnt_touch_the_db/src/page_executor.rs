@@ -41,7 +41,7 @@ pub async fn insert_page_requires_three_db_inserts(
 }
 
 pub async fn edit_block_requires_three_db_inserts(
-    edit_block_ctx: EditBlockCtx,
+    edit_block_ctx: EverythingForEditBlock,
 ) -> Result<(), CqrsErr> {
     db_helper::begin_all_or_nothing().await?;
 
@@ -50,6 +50,37 @@ pub async fn edit_block_requires_three_db_inserts(
         update_every_block_content(edit_block_ctx.every_block_in_existence_update).await
     );
     unwrap_or_bail!(insert_into_uncommitted_diffs(edit_block_ctx.uncommitted_diffs).await);
+
+    db_helper::everything_went_perfectly().await?;
+    Ok(())
+}
+
+pub async fn delete_page_requires_three_db_actions(
+    page_id: String,
+    uncommitted_diff_ctx: UncommitedDiffsInsertCtx,
+) -> Result<(), CqrsErr> {
+    let delete_row_where_in = DeleteRowWhereIn {
+        table_name: tbl_pages::TABLE_NAME.to_string(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_pages::PAGE_ID.name.to_string(),
+            y: page_id.clone(),
+        }),
+    };
+    db_helper::begin_all_or_nothing().await?;
+    unwrap_or_bail!(db_helper::delete_row_where(delete_row_where_in).await);
+
+    let delete_row_where_in = DeleteRowWhereIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                .name
+                .into(),
+            y: page_id,
+        }),
+    };
+    unwrap_or_bail!(db_helper::delete_row_where(delete_row_where_in).await);
+
+    unwrap_or_bail!(insert_into_uncommitted_diffs(uncommitted_diff_ctx).await);
 
     db_helper::everything_went_perfectly().await?;
     Ok(())

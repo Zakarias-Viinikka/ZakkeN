@@ -1,10 +1,11 @@
+use client_table_blueprints::{tbl_logs::SESSION_ID, tbl_pages};
 use error_stuff::cqrs_err::CqrsErr;
 use protocol::serialization::Convert;
 use std::sync::Arc;
 use text_diff::diff_logic::DiffResult;
 
 use my_yrs_lib::{
-    BossOfYrs, EditTarget, TextEdit, YrsError,
+    BossOfYrs, EditTarget, TextEdit, YrsError, yrs_active_pages,
     yrs_error::ErrorInfo,
     yrs_wrapper::{self, PositionToInsert},
 };
@@ -28,7 +29,7 @@ pub fn create_page(
     let snapshot_of_yrs_doc = BossOfYrs::snapshot(Arc::clone(&boss_of_yrs))?;
 
     let yrs_representation_of_version_status =
-        yrs_wrapper::create_bookmark_of_synced_state(Arc::clone(&boss_of_yrs))?;
+        yrs_wrapper::create_bookmark(Arc::clone(&boss_of_yrs))?;
 
     let page_id = boss_of_yrs.page_id();
     let insert_page_ctx = PagesInsertCtx {
@@ -94,13 +95,13 @@ pub fn edit_block(
     block_id: String,
     diff: DiffResult,
     session_id: String,
-) -> Result<Option<EditBlockCtx>, CqrsErr> {
+) -> Result<Option<EverythingForEditBlock>, CqrsErr> {
     let text_edit = match diff_result_to_text_edit(diff.clone()) {
         Some(t) => t,
         None => return Ok(None),
     };
 
-    let bookmark_before_edit = yrs_wrapper::create_bookmark_of_synced_state(yrs.clone())?;
+    let bookmark_before_edit = yrs_wrapper::create_bookmark(yrs.clone())?;
 
     yrs.clone()
         .edit_text_block(block_id.clone(), text_edit.clone(), EditTarget::Text)?;
@@ -123,7 +124,7 @@ pub fn edit_block(
     let love_letter_sketch =
         make_love_letter_sketch_for_editing_block(text_edit, page_id.clone(), block_id.clone())?;
 
-    Ok(Some(EditBlockCtx {
+    Ok(Some(EverythingForEditBlock {
         pages_update: PagesUpdateCtx {
             page_id: page_id.clone(),
             new_blobbed_page,
@@ -140,6 +141,52 @@ pub fn edit_block(
         },
     }))
 }
+
+pub fn delete_page(
+    page_id: String,
+    boss_of_yrs: Arc<BossOfYrs>,
+    session_id: String,
+    active_pages_serialized_form: Vec<u8>,
+) -> Result<EverythingForDeletePage, CqrsErr> {
+    let boss_of_active_pages = Arc::new(yrs_active_pages::YrsActivePages::new(
+        active_pages_serialized_form,
+    )?);
+    let bookmark = boss_of_active_pages.clone().create_bookmark()?;
+    boss_of_active_pages
+        .clone()
+        .mark_page_deleted(page_id.clone())?;
+    let snapshot_of_edit = boss_of_active_pages
+        .clone()
+        .generate_diff_snapshot(bookmark)?;
+    let target_id = page_id.clone();
+    let love_letter_sketch = LoveLetterSketch::DisablePage {
+        page_id: page_id.clone(),
+    };
+
+    let love_letter_sketch_bytes = sketch_to_bytes(&love_letter_sketch)?;
+
+    let new_active_pages_blob = boss_of_active_pages.clone().snapshot()?;
+
+    let uncommitted_diffs_ctx = UncommitedDiffsInsertCtx {
+        snapshot_of_edit,
+        love_letter_sketch: love_letter_sketch_bytes,
+        session_id,
+        target_id,
+    };
+
+    let pages_update = PagesUpdateCtx {
+        page_id,
+        new_blobbed_page: new_active_pages_blob,
+    };
+
+    Ok(EverythingForDeletePage {
+        pages_update,
+        uncommitted_diffs: uncommitted_diffs_ctx,
+    })
+}
+// update boss_of_yrs
+// update pages table
+// updat every_page_ever table
 
 //
 // ~~~
