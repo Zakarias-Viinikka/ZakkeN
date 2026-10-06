@@ -12,4 +12,4 @@ uniffi = { version = "0.32", features = ["cli"] }
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 #my_yrs_lib = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main", package = "yrs" }
 yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
-paste = "1.0.15"
+#paste = "1.0.15"

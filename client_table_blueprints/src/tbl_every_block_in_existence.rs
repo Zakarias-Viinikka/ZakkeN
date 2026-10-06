@@ -24,6 +24,7 @@ pub fn new_table_every_block_in_existence() -> Vec<ColumnDef> {
         not_null_col(ColumnType::Text, "my_id_as_given_by_yrs"),
         not_null_col(ColumnType::Text, "id_of_page_i_belong_to"),
         not_null_col(ColumnType::Real, "position"),
+        not_null_col(ColumnType::Text, "page_is_disabled"),
     ]
 }
 
@@ -67,6 +68,13 @@ pub const ID_OF_PAGE_I_BELONG_TO: SchemaColumn<String> = SchemaColumn::<String> 
 pub const POSITION: SchemaColumn<f64> = SchemaColumn::<f64> {
     name: "position",
     type_of_col: &TypeOfCol::Real,
+    can_be_null: false,
+    _marker: PhantomData,
+};
+
+pub const PAGE_IS_DISABLED: SchemaColumn<String> = SchemaColumn::<String> {
+    name: "page_is_disabled",
+    type_of_col: &TypeOfCol::Text,
     can_be_null: false,
     _marker: PhantomData,
 };
@@ -119,6 +127,10 @@ pub fn new_every_block_in_existence_row(
         ColumnValue {
             column_name: POSITION.name.to_string(),
             value: Col::Real(position),
+        },
+        ColumnValue {
+            column_name: PAGE_IS_DISABLED.name.to_string(),
+            value: Col::Text("false".to_string()),
         },
     ])
 }
