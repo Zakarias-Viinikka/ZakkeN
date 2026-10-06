@@ -7,7 +7,7 @@ use crate::checkbox_logic::Checkbox;
 pub fn HappyLittleCheckbox(checkbox: RwSignal<Checkbox>) -> impl IntoView {
     view! {
         <input type="checkbox"
-            prop:checked=checkbox.get().is_active
+            prop:checked=checkbox.with_untracked(|c| c.is_active)
             on:change=move |ev| {
                 let new_check_state = event_target_checked(&ev);
                 checkbox.update(|checkbox| {

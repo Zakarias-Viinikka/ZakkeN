@@ -15,7 +15,7 @@ use text_diff::diff_logic::get_diff;
 use web_internal_db::db_helper;
 
 pub async fn get_title_and_id_of_all_menu_pages() -> Result<GetDataOut, DbError> {
-    let arguments = SelectArguments::Two {
+    let arguments = SelectArguments::Three {
         first: SelectArgument::XEqualY {
             x: IS_TITLE.name.to_string(),
             y: "true".to_string(),
@@ -24,6 +24,11 @@ pub async fn get_title_and_id_of_all_menu_pages() -> Result<GetDataOut, DbError>
         second: SelectArgument::XEqualY {
             x: IS_PART_OF_MAIN_MENU_PAGE.name.to_string(),
             y: "true".to_string(),
+        },
+        join2: JoinType::And,
+        third: SelectArgument::XEqualY {
+            x: PAGE_IS_DISABLED.name.to_string(),
+            y: "false".to_string(),
         },
     };
     let get_data_in = GetDataIn {

@@ -10,7 +10,7 @@ pub struct EverythingForEditBlock {
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }
 
-pub struct EverythingForDeletePage {
+pub struct EverythingForDisablePage {
     pub pages_update: PagesUpdateCtx,
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }

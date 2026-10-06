@@ -2,9 +2,13 @@ use std::collections::HashMap;
 
 use client_table_blueprints::{tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs};
 use data_builder_for_operations_that_need_to_be_correct::create_page;
-use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::insert_page_requires_three_db_inserts;
+use data_builder_for_operations_that_need_to_be_correct::page;
+use error_stuff::CqrsErr;
+use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
+    disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
+};
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
-use protocol::payload::DeleteAllRowsIn;
+use protocol::{error::DbError, payload::*, schema_helper::DestructDbReturnCol};
 use web_internal_db::db_helper;
 
 use crate::{
@@ -14,26 +18,24 @@ use crate::{
     shared_structs::LocalPages,
 };
 
-pub async fn create_new_page(page_ctr: RwSignal<usize>, local_pages: WriteSignal<Vec<LocalPages>>) {
+pub async fn create_new_page(
+    page_ctr: RwSignal<usize>,
+    local_pages: WriteSignal<Vec<LocalPages>>,
+) -> Result<(), CqrsErr> {
     let session_id = crate::FAKE_SESSION_ID.to_string();
-    let ctr = page_ctr.get();
+    let ctr = page_ctr.get_untracked();
     page_ctr.update(|ctr| *ctr += 1);
-    let everything = match create_page(true, session_id.clone()) {
-        Ok(v) => v,
-        Err(e) => {
-            log!("create_page failed: {:?}", e);
-            return;
-        }
-    };
+
+    let everything = create_page(true, session_id.clone())?;
+
     let title_block_id = everything
         .blocks_to_insert
         .title_block
         .my_id_as_given_by_yrs
         .clone();
     let page_id = everything.page_to_insert.page_id.clone();
-    if let Err(e) = insert_page_requires_three_db_inserts(everything).await {
-        log!("insert failed: {:?}", e);
-    }
+
+    insert_page_requires_three_db_inserts(everything).await?;
 
     let new_title = format!("Title {}", ctr);
 
@@ -42,41 +44,76 @@ pub async fn create_new_page(page_ctr: RwSignal<usize>, local_pages: WriteSignal
             title: new_title.clone(),
             id: ctr as usize,
             yrs_id: page_id.clone(),
+            is_disabled: false,
         });
     });
 
-    let yrs = match db_helpers_for_web_client::get_yrs_unblobbed(
+    let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
         page_id,
         crate::FAKE_USER_ID.to_string(),
         crate::FAKE_TIME.to_string(),
     )
-    .await
-    {
-        Ok(v) => v,
-        Err(e) => {
-            log!("get_yrs_unblobbed failed: {:?}", e);
-            create_popup(format!("Error: {:?}", e));
-            return;
-        }
-    };
+    .await?;
 
-    let result = db_helpers_for_web_client::edit_title_for_page(
+    db_helpers_for_web_client::edit_title_for_page(
         yrs,
         title_block_id,
         new_title,
         crate::FAKE_SESSION_ID.to_string(),
     )
-    .await;
+    .await?;
 
-    match result {
-        Err(e) => {
-            log!("edit_title_for_page failed: {:?}", e);
-            create_popup(format!("Error: {:?}", e));
-        }
-        _ => {}
+    Ok(())
+}
+
+pub async fn disable_page(page_id: String, session_id: String) -> Result<(), CqrsErr> {
+    let existing = db_helper::get_single_col(GetSingleColIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO.name.to_string(),
+            y: page_id.clone(),
+        }),
+        column_to_read: tbl_every_block_in_existence::PAGE_IS_DISABLED.name.to_string(),
+    })
+    .await?;
+
+    let is_disabled = tbl_every_block_in_existence::PAGE_IS_DISABLED
+        .try_destruct_db_col(existing.value)
+        .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
+        .ok_or_else(|| {
+            CqrsErr::DbErrorContainer(DbError::IllegalInput(
+                "page_is_disabled was null".to_string(),
+            ))
+        })?;
+
+    if is_disabled == "true" {
+        return Ok(());
     }
 
-    create_popup("Created Page".into());
+    let out = db_helper::get_single_col(GetSingleColIn {
+        table_name: tbl_pages::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_pages::PAGE_ID.name.to_string(),
+            y: page_id.clone(),
+        }),
+        column_to_read: tbl_pages::PAGE_STATUS.name.to_string(),
+    })
+    .await?;
+
+    let active_pages_blob = tbl_pages::PAGE_STATUS
+        .try_destruct_db_col(out.value)
+        .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
+        .ok_or_else(|| {
+            CqrsErr::DbErrorContainer(DbError::IllegalInput(
+                "db doesn't stop us from asking for the col for a row that doesn't exist".to_string(),
+            ))
+        })?;
+
+    let everything = page::disable_page(page_id, session_id, active_pages_blob)?;
+
+    disabled_page_requires_three_db_actions(everything).await?;
+
+    Ok(())
 }
 
 pub fn delete_everything(ctr: RwSignal<usize>, local_pages_set: WriteSignal<Vec<LocalPages>>) {
@@ -128,7 +165,7 @@ pub async fn run_all_seeds(
     map_of_callbacks: &CheckboxToCallbackMap,
 ) {
     let map_of_callbacks = &map_of_callbacks.map;
-    let checkboxes = checkboxes.get();
+    let checkboxes = checkboxes.get_untracked();
 
     let mut callbacks_to_run: Vec<&checkbox_logic::AsyncCallback> = vec![];
 
@@ -137,7 +174,7 @@ pub async fn run_all_seeds(
             .get(&key)
             .expect("no callback for checkbox");
 
-        if checkbox.get().is_active.get() {
+        if checkbox.with_untracked(|c| c.is_active.get_untracked()) {
             callbacks_to_run.push(callback);
         }
     }

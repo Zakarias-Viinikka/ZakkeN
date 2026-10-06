@@ -1,4 +1,3 @@
-use client_table_blueprints::{tbl_logs::SESSION_ID, tbl_pages};
 use error_stuff::cqrs_err::CqrsErr;
 use protocol::serialization::Convert;
 use std::sync::Arc;
@@ -142,12 +141,11 @@ pub fn edit_block(
     }))
 }
 
-pub fn delete_page(
+pub fn disable_page(
     page_id: String,
-    boss_of_yrs: Arc<BossOfYrs>,
     session_id: String,
     active_pages_serialized_form: Vec<u8>,
-) -> Result<EverythingForDeletePage, CqrsErr> {
+) -> Result<EverythingForDisablePage, CqrsErr> {
     let boss_of_active_pages = Arc::new(yrs_active_pages::YrsActivePages::new(
         active_pages_serialized_form,
     )?);
@@ -179,7 +177,7 @@ pub fn delete_page(
         new_blobbed_page: new_active_pages_blob,
     };
 
-    Ok(EverythingForDeletePage {
+    Ok(EverythingForDisablePage {
         pages_update,
         uncommitted_diffs: uncommitted_diffs_ctx,
     })

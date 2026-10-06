@@ -20,7 +20,7 @@ static POPUPS: LazyLock<ArcRwSignal<Vec<PopupSpawner>>> =
 static CTR: LazyLock<ArcRwSignal<i32>> = LazyLock::new(|| ArcRwSignal::new(0));
 
 pub fn create_popup(what_to_say: String) {
-    POPUPS.update(|list| list.push(PopupSpawner::new(what_to_say, CTR.get())));
+    POPUPS.update(|list| list.push(PopupSpawner::new(what_to_say, CTR.get_untracked())));
     CTR.update(|c| *c += 1);
 }
 

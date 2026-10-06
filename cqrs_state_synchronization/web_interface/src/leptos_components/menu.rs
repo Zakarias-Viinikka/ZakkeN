@@ -30,12 +30,13 @@ pub fn Menu() -> impl IntoView {
 
         <action_buttons::PageEdits
             current_title_ctr=ctr
+            local_pages=local_pages
             local_pages_set=local_pages_set
         />
 
         <div id="menu_container">
             <For
-                each=move || local_pages.get()
+                each=move || local_pages.get().into_iter().filter(|p| !p.is_disabled)
                 key=|list_item| list_item.id.clone()
                 let(list_item)
             >
@@ -83,8 +84,9 @@ fn create_local_pages(
                 let (title, yrs_id) = destruct_get_title_and_id_of_all_menu_pages(row);
                 pages.push(LocalPages {
                     title,
-                    id: ctr.get(),
+                    id: ctr.get_untracked(),
                     yrs_id,
+                    is_disabled: false,
                 });
                 ctr.update(|c| *c += 1);
                 log!("added page to leptos' local pages list");

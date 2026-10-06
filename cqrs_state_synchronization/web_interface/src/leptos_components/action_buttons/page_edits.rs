@@ -7,10 +7,12 @@ use leptos::logging::log;
 use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 use leptos_meta::Stylesheet;
+use crate::leptos_components::small_components::popup::create_popup;
 
 #[component]
 pub fn PageEdits(
     current_title_ctr: RwSignal<usize>,
+    local_pages: ReadSignal<Vec<LocalPages>>,
     local_pages_set: WriteSignal<Vec<LocalPages>>,
 ) -> impl IntoView {
     let (all_checkboxes, map_checkbox_to_callback) =
@@ -31,7 +33,7 @@ pub fn PageEdits(
             </button>
             <span class="this_should_take_up_rest_of_width"></span>
             <HappyLittleCheckbox
-                checkbox=checkbox_from_map(all_checkboxes.checkboxes.get(), "insert_three_pages")
+                checkbox=checkbox_from_map(all_checkboxes.checkboxes.get_untracked(), "insert_three_pages")
             />
             "this will create 3 pages"
         </div>
@@ -48,7 +50,7 @@ pub fn PageEdits(
             }>
             "Append New Page with 'Title X'"
             </button>
-            <button on:click=move |_| delete_page(selected_title_to_manipulate)>"Delete Page"</button>
+            <button on:click=move |_| disable_page(selected_title_to_manipulate.get(), local_pages, local_pages_set)>"Disable Page"</button>
             <button>"Moving (Todo)"</button>
 
             <span class="action_buttons_title"> "change selected title"</span>
@@ -87,6 +89,36 @@ fn checkbox_from_map(
         .unwrap_or_else(|| panic!("{} | key = {}", PANIC_MSG, key))
 }
 
-fn delete_page(page_ctr: RwSignal<i32>) {
-    log!("deleted page 'Title {}'", page_ctr.get());
+fn disable_page(
+    selected_title_to_manipulate: i32,
+    local_pages: ReadSignal<Vec<LocalPages>>,
+    local_pages_set: WriteSignal<Vec<LocalPages>>,
+) {
+    let target_id = selected_title_to_manipulate;
+    let yrs_id = match local_pages
+        .get()
+        .into_iter()
+        .find(|p| p.id == target_id as usize)
+    {
+        Some(p) => p.yrs_id,
+        None => {
+            create_popup("No page selected".into());
+            return;
+        }
+    };
+
+    spawn_local(async move {
+        match ui_actions::disable_page(yrs_id, crate::FAKE_SESSION_ID.to_string()).await {
+            Err(e) => create_popup(format!("Error: {:?}", e)),
+            Ok(()) => {
+                local_pages_set.update(|pages| {
+                    for p in pages.iter_mut() {
+                        if p.id == target_id as usize {
+                            p.is_disabled = true;
+                        }
+                    }
+                });
+            }
+        }
+    });
 }

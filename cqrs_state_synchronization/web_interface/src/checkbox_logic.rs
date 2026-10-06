@@ -3,7 +3,10 @@ use std::{collections::HashMap, pin::Pin, sync::Arc};
 use leptos::{prelude::*, reactive::spawn_local, server::codee::string::JsonSerdeCodec};
 use leptos_use::storage::use_local_storage;
 
-use crate::{db::ui_actions, shared_structs::LocalPages};
+use crate::{
+    db::ui_actions, leptos_components::small_components::popup::create_popup,
+    shared_structs::LocalPages,
+};
 
 pub type AsyncCallback = Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>;
 
@@ -77,7 +80,10 @@ pub async fn insert_three_pages(
     ctr: RwSignal<usize>,
     local_pages_set: WriteSignal<Vec<LocalPages>>,
 ) {
-    let _ = ui_actions::create_new_page(ctr, local_pages_set).await;
-    let _ = ui_actions::create_new_page(ctr, local_pages_set).await;
-    let _ = ui_actions::create_new_page(ctr, local_pages_set).await;
+    for _ in 0..3 {
+        if let Err(e) = ui_actions::create_new_page(ctr, local_pages_set).await {
+            create_popup(format!("Error: {:?}", e));
+            return;
+        }
+    }
 }

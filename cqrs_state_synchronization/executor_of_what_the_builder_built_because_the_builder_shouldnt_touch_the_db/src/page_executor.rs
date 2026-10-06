@@ -55,34 +55,54 @@ pub async fn edit_block_requires_three_db_inserts(
     Ok(())
 }
 
-pub async fn delete_page_requires_three_db_actions(
-    page_id: String,
-    uncommitted_diff_ctx: UncommitedDiffsInsertCtx,
+pub async fn disabled_page_requires_three_db_actions(
+    everything_to_disable: EverythingForDisablePage,
 ) -> Result<(), CqrsErr> {
-    let delete_row_where_in = DeleteRowWhereIn {
-        table_name: tbl_pages::TABLE_NAME.to_string(),
-        arguments: SelectArguments::Single(SelectArgument::XEqualY {
-            x: tbl_pages::PAGE_ID.name.to_string(),
-            y: page_id.clone(),
-        }),
-    };
+    let page_id = everything_to_disable.pages_update.page_id.clone();
+    let new_active_pages_blob = everything_to_disable.pages_update.new_blobbed_page;
+
     db_helper::begin_all_or_nothing().await?;
-    unwrap_or_bail!(db_helper::delete_row_where(delete_row_where_in).await);
 
-    let delete_row_where_in = DeleteRowWhereIn {
-        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
-        arguments: SelectArguments::Single(SelectArgument::XEqualY {
-            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
-                .name
-                .into(),
-            y: page_id,
-        }),
-    };
-    unwrap_or_bail!(db_helper::delete_row_where(delete_row_where_in).await);
-
-    unwrap_or_bail!(insert_into_uncommitted_diffs(uncommitted_diff_ctx).await);
+    unwrap_or_bail!(update_pages_status(page_id.clone(), new_active_pages_blob).await);
+    unwrap_or_bail!(mark_all_blocks_for_page_disabled(page_id).await);
+    unwrap_or_bail!(insert_into_uncommitted_diffs(everything_to_disable.uncommitted_diffs).await);
 
     db_helper::everything_went_perfectly().await?;
+    Ok(())
+}
+
+async fn update_pages_status(
+    page_id: String,
+    new_active_pages_blob: Vec<u8>,
+) -> Result<(), CqrsErr> {
+    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+        table_name: tbl_pages::TABLE_NAME.to_string(),
+        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_pages::PAGE_ID.name.to_string(),
+            y: page_id,
+        }),
+        column: tbl_pages::PAGE_STATUS.name.to_string(),
+        new_value: Col::Blob(new_active_pages_blob),
+    })
+    .await?;
+    Ok(())
+}
+
+async fn mark_all_blocks_for_page_disabled(page_id: String) -> Result<(), CqrsErr> {
+    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                .name
+                .to_string(),
+            y: page_id,
+        }),
+        column: tbl_every_block_in_existence::PAGE_IS_DISABLED
+            .name
+            .to_string(),
+        new_value: Col::Text("true".to_string()),
+    })
+    .await?;
     Ok(())
 }
 
