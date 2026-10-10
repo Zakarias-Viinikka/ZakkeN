@@ -1,3 +1,47 @@
+Tuesday, 6 October 2026
+=======================
+
+changes since last write:
+- cqrs builder: delete_page renamed to disable_page. EverythingForDeletePage renamed to EverythingForDisablePage.
+- cqrs executor: delete_page_requires_three_db_actions being replaced by disabled_page_requires_three_db_actions. New shape: update pages.PAGE_STATUS with the new active_pages blob, set page_is_disabled on every every_block row for that page, insert the uncommitted diff. No delete_row_where calls. The old version still had two.
+
+new context learned this session:
+
+the column for this already exists. It's page_is_disabled, a Text column, in new_table_every_block_in_existence and in new_every_block_in_existence_row (defaults to "false"). Added in the most recent commit. No migration needed. Value when disabling is Col::Text("true".to_string()).
+
+EverythingForDisablePage has no every_block ctx on purpose. Nothing about this operation is per-block — the executor derives which rows to touch from page_id alone. EveryBlockInExistenceUpdateCtx only exists for edit_block because that operation names one specific block.
+
+PagesUpdateCtx.new_blobbed_page now means two different things. For edit_block it's the page's own yrs snapshot. For disable_page it's the active_pages blob going into PAGE_STATUS. Same field, two meanings. Needs resolving — rename to something neutral, or split the struct.
+
+the page counter is going away. page_ctr, LocalPages, and the db rows are three copies of the same list, and they disagree whenever one of them is wrong. Instead: read the page list from db on load, selection becomes Option<usize> so None can mean "nothing selected", and the move buttons are bounds checks instead of arithmetic on a counter. Titles come from every_block_in_existence (is_title + is_part_of_main_menu_page), which get_title_and_id_of_all_menu_pages already queries.
+
+every read path has to decide what to do with disabled pages. get_title_and_id_of_all_menu_pages, get_data, get_entire_page. Filter in the query, or filter at the caller. Not decided yet.
+
+Tuesday, 6 October 2026
+======================
+
+changes since last write:
+
+- z_db: `SelectArguments` got a `Three` variant. sql_builder's `to_sql_condition` and `would_delete_everything` have matching arms.
+- z_db web_output rebuilt with wasm-pack, copied to cqrs via `update_hard_copied_z_db_web_output.sh`, connection name renamed `leptos_db` -> `cqrs`.
+- builder: `delete_page` renamed to `disable_page`. `EverythingForDeletePage` renamed to `EverythingForDisablePage`. Signature dropped `boss_of_yrs` (was unused).
+- executor: `disabled_page_requires_three_db_actions` replaces `delete_page_requires_three_db_actions`. No more `delete_row_where`. It updates `pages.page_status`, sets `page_is_disabled = "true"` on every block with `id_of_page_i_belong_to = page_id`, and inserts the uncommitted diff.
+- web_interface `LocalPages` gained `is_disabled: bool`. Menu's `For` loop filters out pages where it's true.
+- `ui_actions::disable_page` returns `Result<(), CqrsErr>`. Before doing anything it reads `every_block_in_existence.page_is_disabled` for the page and returns `Ok(())` if any row is already `"true"`.
+- `db_helpers_for_web_client::get_title_and_id_of_all_menu_pages` now uses `SelectArguments::Three` with `PAGE_IS_DISABLED = "false"` as the third condition.
+- `create_new_page`, `insert_three_pages`, and `disable_page` no longer swallow errors. They return `Result` and the callers show a popup.
+- Many Leptos warnings silenced with `get_untracked` / `with_untracked` where the code was reading signals outside a reactive context.
+
+new context learned this session:
+
+refresh breaks. disabling a page works until reload; after reload the id or page_status read comes back wrong, which breaks disable too. Not diagnosed. This is the next thing to fix.
+
+disabling a page twice used to panic (`destruct_db_col` on `page_status`). The `is_disabled` pre-check should stop that. The popup `DbErrorContainer(IllegalInput("illegal"))` still appeared at least once after that check was added. Cause not confirmed.
+
+"illegal" is what `schema_helper.rs`'s `try_destruct_db_col` returns when a Col isn't the type the schema expects for that column. Every impl's match arm ended with `_ => Err("illegal")`. `destruct_db_col` calls `.expect()` on that Err, which is where the panic came from. cqrs now calls `try_destruct_db_col` and propagates the error instead.
+
+user is overwhelmed by the code structure. Menu holds `LocalPages` and passes it down to `PageEdits`. Each button in `PageEdits` does its own db call (builder -> executor -> db_helper -> db), so the flow is spread out and hard to hold in the head. Idea floated: make each button its own component, co-locate its builder and executor calls, accept the tight coupling.
+
 Monday, 5 October 2026
 ======================
 

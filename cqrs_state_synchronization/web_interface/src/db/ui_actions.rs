@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use client_table_blueprints::{tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs};
-use data_builder_for_operations_that_need_to_be_correct::create_page;
-use data_builder_for_operations_that_need_to_be_correct::page;
+use data_builder_for_operations_that_need_to_be_correct::{
+    create_page, disable_page as build_disable_page,
+};
 use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
@@ -12,7 +13,6 @@ use protocol::{error::DbError, payload::*, schema_helper::DestructDbReturnCol};
 use web_internal_db::db_helper;
 
 use crate::{
-    checkbox_logic::{self, Checkbox, CheckboxToCallbackMap},
     db::db_helpers_for_web_client::{self},
     leptos_components::small_components::popup::create_popup,
     shared_structs::LocalPages,
@@ -70,10 +70,14 @@ pub async fn disable_page(page_id: String, session_id: String) -> Result<(), Cqr
     let existing = db_helper::get_single_col(GetSingleColIn {
         table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         arguments: SelectArguments::Single(SelectArgument::XEqualY {
-            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO.name.to_string(),
+            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                .name
+                .to_string(),
             y: page_id.clone(),
         }),
-        column_to_read: tbl_every_block_in_existence::PAGE_IS_DISABLED.name.to_string(),
+        column_to_read: tbl_every_block_in_existence::PAGE_IS_DISABLED
+            .name
+            .to_string(),
     })
     .await?;
 
@@ -105,11 +109,12 @@ pub async fn disable_page(page_id: String, session_id: String) -> Result<(), Cqr
         .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
         .ok_or_else(|| {
             CqrsErr::DbErrorContainer(DbError::IllegalInput(
-                "db doesn't stop us from asking for the col for a row that doesn't exist".to_string(),
+                "db doesn't stop us from asking for the col for a row that doesn't exist"
+                    .to_string(),
             ))
         })?;
 
-    let everything = page::disable_page(page_id, session_id, active_pages_blob)?;
+    let everything = build_disable_page(page_id, session_id, active_pages_blob)?;
 
     disabled_page_requires_three_db_actions(everything).await?;
 
@@ -147,41 +152,4 @@ fn alert_if_error<T, E: std::fmt::Debug>(result: Result<T, E>) {
         log!("Error: {:?}", e);
         create_popup(format!("Error: {:?}", e));
     }
-}
-
-/*
-* pub struct CheckboxToCallbackMap {
-    pub map: HashMap<String, Box<dyn Fn() + Send + Sync>>,
-}
-
-#[derive(Clone)]
-pub struct AllCheckboxes {
-    pub checkboxes: RwSignal<HashMap<String, RwSignal<Checkbox>>>,
-}
-*/
-
-pub async fn run_all_seeds(
-    checkboxes: RwSignal<HashMap<String, RwSignal<Checkbox>>>,
-    map_of_callbacks: &CheckboxToCallbackMap,
-) {
-    let map_of_callbacks = &map_of_callbacks.map;
-    let checkboxes = checkboxes.get_untracked();
-
-    let mut callbacks_to_run: Vec<&checkbox_logic::AsyncCallback> = vec![];
-
-    for (key, checkbox) in checkboxes.into_iter() {
-        let callback = map_of_callbacks
-            .get(&key)
-            .expect("no callback for checkbox");
-
-        if checkbox.with_untracked(|c| c.is_active.get_untracked()) {
-            callbacks_to_run.push(callback);
-        }
-    }
-
-    for callback in callbacks_to_run {
-        callback().await;
-    }
-
-    create_popup("finished seeding".into());
 }

@@ -3,9 +3,7 @@ use client_table_blueprints::tbl_every_block_in_existence::{
 };
 use client_table_blueprints::tbl_pages::{self, new_page_row};
 use client_table_blueprints::tbl_uncommitted_diffs::{self, new_uncommitted_diff_row};
-use data_builder_for_operations_that_need_to_be_correct::{
-    EverythingToInsertForNewPage, insert_structs::*,
-};
+use data_builder_for_operations_that_need_to_be_correct::*;
 use error_stuff::cqrs_err::CqrsErr;
 use protocol::payload::*;
 use protocol::row_col::*;
@@ -59,7 +57,7 @@ pub async fn disabled_page_requires_three_db_actions(
     everything_to_disable: EverythingForDisablePage,
 ) -> Result<(), CqrsErr> {
     let page_id = everything_to_disable.pages_update.page_id.clone();
-    let new_active_pages_blob = everything_to_disable.pages_update.new_blobbed_page;
+    let new_active_pages_blob = everything_to_disable.pages_update.yrs_blob;
 
     db_helper::begin_all_or_nothing().await?;
 
@@ -114,7 +112,7 @@ async fn update_pages_blob(update_ctx: PagesUpdateCtx) -> Result<(), CqrsErr> {
             y: update_ctx.page_id,
         }),
         column: tbl_pages::BLOBBED_PAGE.name.to_string(),
-        new_value: Col::Blob(update_ctx.new_blobbed_page),
+        new_value: Col::Blob(update_ctx.yrs_blob),
     })
     .await?;
 

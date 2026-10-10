@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use client_table_blueprints::tbl_every_block_in_existence::{self, *};
 use client_table_blueprints::tbl_pages::{self, BLOBBED_PAGE, PAGE_ID};
-use data_builder_for_operations_that_need_to_be_correct::page::edit_block;
+use data_builder_for_operations_that_need_to_be_correct::edit_block;
 use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::edit_block_requires_three_db_inserts;
 use my_yrs_lib::{BossOfYrs, YrsError, doc_from_snapshot, yrs_error::ErrorInfo};

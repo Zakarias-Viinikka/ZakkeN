@@ -2,6 +2,7 @@ use crate::{
     db::{self, db_helpers_for_web_client::destruct_get_title_and_id_of_all_menu_pages},
     leptos_components::{
         action_buttons::{self},
+        dev_panel::sidebar::SidebarContainer,
         small_components::popup::PopupContainer,
     },
     shared_structs::LocalPages,
@@ -24,15 +25,12 @@ pub fn Menu() -> impl IntoView {
     let (local_pages, local_pages_set) = create_local_pages(ctr).unwrap();
     view! {
         <Stylesheet href="/css/main_menu.css" />
+
+        <SidebarContainer/>
+
         <h1>"Menu"</h1>
         <A href="/DbGui">"ORM"</A>
         <p>"placeholder nav page"</p>
-
-        <action_buttons::PageEdits
-            current_title_ctr=ctr
-            local_pages=local_pages
-            local_pages_set=local_pages_set
-        />
 
         <div id="menu_container">
             <For

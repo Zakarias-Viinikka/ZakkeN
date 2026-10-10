@@ -1,6 +1,5 @@
 #[macro_use]
 pub mod db;
-pub mod checkbox_logic;
 pub mod leptos_components;
 pub mod shared_structs;
 

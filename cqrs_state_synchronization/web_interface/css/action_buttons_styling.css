@@ -66,17 +66,3 @@
   transform: translateY(1px);
 }
 /* just for looks */
-
-.check_box_container {
-    border: 1px solid black;
-    max-width: 350px;
-
-
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-
-.this_should_take_up_rest_of_width {
-    flex: 1;
-}
