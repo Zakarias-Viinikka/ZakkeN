@@ -1,16 +1,17 @@
 use crate::{
-    db::{self, db_helpers_for_web_client::destruct_get_title_and_id_of_all_menu_pages},
+    db,
     leptos_components::{
-        action_buttons::{self},
+        action_buttons::{
+            disable_page_button::DisablePageButton, edit_title_button::EditTitleButton,
+        },
         dev_panel::sidebar::SidebarContainer,
-        small_components::popup::PopupContainer,
+        small_components::popup::{PopupContainer, create_popup},
     },
     shared_structs::LocalPages,
 };
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;
 use leptos_router::components::A;
-use protocol::error::DbError;
 
 #[derive(Clone)]
 struct PagesToNavTo {
@@ -20,9 +21,7 @@ struct PagesToNavTo {
 
 #[component]
 pub fn Menu() -> impl IntoView {
-    let ctr = RwSignal::<usize>::new(0);
-
-    let (local_pages, local_pages_set) = create_local_pages(ctr).unwrap();
+    let (local_pages, local_pages_set) = create_local_pages();
     view! {
         <Stylesheet href="/css/main_menu.css" />
 
@@ -35,15 +34,20 @@ pub fn Menu() -> impl IntoView {
         <div id="menu_container">
             <For
                 each=move || local_pages.get().into_iter().filter(|p| !p.is_disabled)
-                key=|list_item| list_item.id.clone()
+                key=|list_item| list_item.db_id.clone()
                 let(list_item)
             >
-                <div class="select_page_to_go_to">
-                    <button>
+                <div class="select_page_to_go_to" style="display: flex; align-items: center; gap: 8px;">
+                    <EditTitleButton />
+                    <button class="title_button">
                         <span>
                             {list_item.title}
-                        </span> <br/>
+                        </span>
                     </button>
+                    <DisablePageButton
+                        page_id=list_item.page_id.clone()
+                        local_pages_set=local_pages_set
+                    />
                 </div>
             </For>
         </div>
@@ -60,37 +64,18 @@ pub fn Menu() -> impl IntoView {
     }
 }
 
-fn create_local_pages(
-    ctr: RwSignal<usize>,
-) -> Result<(ReadSignal<Vec<LocalPages>>, WriteSignal<Vec<LocalPages>>), DbError> {
+fn create_local_pages() -> (ReadSignal<Vec<LocalPages>>, WriteSignal<Vec<LocalPages>>) {
     let (local_pages, local_pages_set) = signal(Vec::<LocalPages>::new());
 
     spawn_local(async move {
-        let get_data_out =
-            match db::db_helpers_for_web_client::get_title_and_id_of_all_menu_pages().await {
-                Ok(o) => o,
-                Err(e) => {
-                    log!("get_data failed: {:?}", e);
-                    return;
-                }
-            };
-
-        log!("{:?}", get_data_out.clone());
-        local_pages_set.update(|pages| {
-            let mut rows_iter = get_data_out.rows.into_iter();
-            while let Some(row) = rows_iter.next() {
-                let (title, yrs_id) = destruct_get_title_and_id_of_all_menu_pages(row);
-                pages.push(LocalPages {
-                    title,
-                    id: ctr.get_untracked(),
-                    yrs_id,
-                    is_disabled: false,
-                });
-                ctr.update(|c| *c += 1);
-                log!("added page to leptos' local pages list");
+        match db::db_helpers_for_web_client::get_all_menu_pages().await {
+            Ok(pages) => local_pages_set.set(pages),
+            Err(e) => {
+                log!("get_all_menu_pages failed: {:?}", e);
+                create_popup(format!("get_all_menu_pages failed: {:?}", e));
             }
-        });
+        }
     });
 
-    Ok((local_pages, local_pages_set))
+    (local_pages, local_pages_set)
 }

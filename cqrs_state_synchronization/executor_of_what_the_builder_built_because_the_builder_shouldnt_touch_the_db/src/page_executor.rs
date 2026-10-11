@@ -5,6 +5,7 @@ use client_table_blueprints::tbl_pages::{self, new_page_row};
 use client_table_blueprints::tbl_uncommitted_diffs::{self, new_uncommitted_diff_row};
 use data_builder_for_operations_that_need_to_be_correct::*;
 use error_stuff::cqrs_err::CqrsErr;
+use protocol::error::DbError;
 use protocol::payload::*;
 use protocol::row_col::*;
 use web_internal_db::db_helper;
@@ -13,43 +14,91 @@ use web_internal_db::db_helper;
 macro_rules! unwrap_or_bail {
     ($method:expr) => {
         if let Err(result) = $method {
-            web_internal_db::db_helper::regret_everything().await?;
             return Err(result.into());
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! unwrap_or_bail_and_regret {
+    ($method:expr, $own:expr) => {
+        match $method {
+            Ok(v) => v,
+            Err(result) => {
+                if $own {
+                    web_internal_db::db_helper::regret_everything().await?;
+                }
+                return Err(result.into());
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! start_transaction_if_not_in_one {
+    () => {{
+        let we_own = !db_helper::are_we_in_middle_of_transaction().await?.value;
+        if we_own {
+            db_helper::begin_all_or_nothing().await?;
+        }
+        we_own
+    }};
+}
+
+#[macro_export]
+macro_rules! end_transaction_if_i_own_the_transaction {
+    ($we_own:expr) => {
+        if $we_own {
+            db_helper::everything_went_perfectly().await?;
         }
     };
 }
 
 pub async fn insert_page_requires_three_db_inserts(
     everything_to_insert_ctx: EverythingToInsertForNewPage,
-) -> Result<String, CqrsErr> {
-    //method returns the yrs id of the page
+) -> Result<i64, CqrsErr> {
+    // returns the title block's row id in every_block_in_existence
 
-    let page_id_cloned = everything_to_insert_ctx.page_to_insert.page_id.clone();
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
 
-    db_helper::begin_all_or_nothing().await?;
-    unwrap_or_bail!(insert_into_pages(everything_to_insert_ctx.page_to_insert).await);
-    unwrap_or_bail!(
-        insert_into_every_block_in_existence(everything_to_insert_ctx.blocks_to_insert).await
+    unwrap_or_bail_and_regret!(
+        insert_into_pages(everything_to_insert_ctx.page_to_insert).await,
+        do_i_own_the_transaction
     );
-    unwrap_or_bail!(
-        insert_into_uncommitted_diffs(everything_to_insert_ctx.uncommitted_diffs).await
+    let title_db_id = unwrap_or_bail_and_regret!(
+        insert_into_every_block_in_existence(everything_to_insert_ctx.blocks_to_insert).await,
+        do_i_own_the_transaction
     );
-    db_helper::everything_went_perfectly().await?;
-    Ok(page_id_cloned)
+    unwrap_or_bail_and_regret!(
+        insert_into_uncommitted_diffs(everything_to_insert_ctx.uncommitted_diffs).await,
+        do_i_own_the_transaction
+    );
+
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
+    Ok(title_db_id)
 }
 
 pub async fn edit_block_requires_three_db_inserts(
     edit_block_ctx: EverythingForEditBlock,
 ) -> Result<(), CqrsErr> {
-    db_helper::begin_all_or_nothing().await?;
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
 
-    unwrap_or_bail!(update_pages_blob(edit_block_ctx.pages_update).await);
-    unwrap_or_bail!(
-        update_every_block_content(edit_block_ctx.every_block_in_existence_update).await
+    unwrap_or_bail_and_regret!(
+        update_pages_blob(edit_block_ctx.pages_update).await,
+        do_i_own_the_transaction
     );
-    unwrap_or_bail!(insert_into_uncommitted_diffs(edit_block_ctx.uncommitted_diffs).await);
+    unwrap_or_bail_and_regret!(
+        update_every_block_content(edit_block_ctx.every_block_in_existence_update).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        insert_into_uncommitted_diffs(edit_block_ctx.uncommitted_diffs).await,
+        do_i_own_the_transaction
+    );
 
-    db_helper::everything_went_perfectly().await?;
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
     Ok(())
 }
 
@@ -59,13 +108,23 @@ pub async fn disabled_page_requires_three_db_actions(
     let page_id = everything_to_disable.pages_update.page_id.clone();
     let new_active_pages_blob = everything_to_disable.pages_update.yrs_blob;
 
-    db_helper::begin_all_or_nothing().await?;
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
 
-    unwrap_or_bail!(update_pages_status(page_id.clone(), new_active_pages_blob).await);
-    unwrap_or_bail!(mark_all_blocks_for_page_disabled(page_id).await);
-    unwrap_or_bail!(insert_into_uncommitted_diffs(everything_to_disable.uncommitted_diffs).await);
+    unwrap_or_bail_and_regret!(
+        update_pages_status(page_id.clone(), new_active_pages_blob).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        mark_all_blocks_for_page_disabled(page_id).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        insert_into_uncommitted_diffs(everything_to_disable.uncommitted_diffs).await,
+        do_i_own_the_transaction
+    );
 
-    db_helper::everything_went_perfectly().await?;
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
     Ok(())
 }
 
@@ -157,7 +216,7 @@ async fn insert_into_pages(insert_ctx: PagesInsertCtx) -> Result<(), CqrsErr> {
 
 async fn insert_into_every_block_in_existence(
     insert_ctx: BlocksToInsertCtx,
-) -> Result<(), CqrsErr> {
+) -> Result<i64, CqrsErr> {
     let title_values = new_every_block_in_existence_row(
         true,
         insert_ctx.title_block.is_part_of_main_menu_page,
@@ -167,11 +226,21 @@ async fn insert_into_every_block_in_existence(
         insert_ctx.title_block.position,
     )?;
 
-    db_helper::insert_data(InsertDataIn {
+    let title_out = db_helper::insert_data_and_get_col(InsertDataAndGetColIn {
         table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         values: title_values,
+        column_to_return: "id".to_string(),
     })
     .await?;
+
+    let title_db_id = match title_out.value {
+        Col::Integer(i) => i,
+        _ => {
+            return Err(CqrsErr::DbErrorContainer(DbError::ColDestructFail(
+                "title block id was not an integer".into(),
+            )))
+        }
+    };
 
     let normal_values = new_every_block_in_existence_row(
         false,
@@ -188,7 +257,7 @@ async fn insert_into_every_block_in_existence(
     })
     .await?;
 
-    Ok(())
+    Ok(title_db_id)
 }
 
 async fn insert_into_uncommitted_diffs(

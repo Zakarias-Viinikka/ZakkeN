@@ -11,12 +11,12 @@ fn disable_page(
     local_pages_set: WriteSignal<Vec<LocalPages>>,
 ) {
     let target_id = selected_title_to_manipulate;
-    let yrs_id = match local_pages
+    let page_id = match local_pages
         .get()
         .into_iter()
-        .find(|p| p.id == target_id as usize)
+        .find(|p| p.db_id == target_id as usize)
     {
-        Some(p) => p.yrs_id,
+        Some(p) => p.page_id,
         None => {
             create_popup("No page selected".into());
             return;
@@ -24,12 +24,12 @@ fn disable_page(
     };
 
     spawn_local(async move {
-        match ui_actions::disable_page(yrs_id, crate::FAKE_SESSION_ID.to_string()).await {
+        match ui_actions::disable_page(page_id, crate::FAKE_SESSION_ID.to_string()).await {
             Err(e) => create_popup(format!("Error: {:?}", e)),
             Ok(()) => {
                 local_pages_set.update(|pages| {
                     for p in pages.iter_mut() {
-                        if p.id == target_id as usize {
+                        if p.db_id == target_id as usize {
                             p.is_disabled = true;
                         }
                     }

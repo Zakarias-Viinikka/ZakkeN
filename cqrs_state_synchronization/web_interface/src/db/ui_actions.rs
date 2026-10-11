@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use client_table_blueprints::{tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs};
 use data_builder_for_operations_that_need_to_be_correct::{
     create_page, disable_page as build_disable_page,
@@ -8,24 +6,32 @@ use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
 };
-use leptos::{logging::log, prelude::*, reactive::spawn_local};
-use protocol::{error::DbError, payload::*, schema_helper::DestructDbReturnCol};
+use protocol::payload::*;
 use web_internal_db::db_helper;
 
-use crate::{
-    db::db_helpers_for_web_client::{self},
-    leptos_components::small_components::popup::create_popup,
-    shared_structs::LocalPages,
-};
+use crate::db::db_helpers_for_web_client;
+use crate::db::ui_actions_helper::{get_active_pages_blob, get_page_is_disabled};
 
-pub async fn create_new_page(
-    page_ctr: RwSignal<usize>,
-    local_pages: WriteSignal<Vec<LocalPages>>,
+async fn write_title_to_block(
+    page_id: String,
+    block_id: String,
+    title: String,
+    session_id: String,
 ) -> Result<(), CqrsErr> {
-    let session_id = crate::FAKE_SESSION_ID.to_string();
-    let ctr = page_ctr.get_untracked();
-    page_ctr.update(|ctr| *ctr += 1);
+    let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
+        page_id,
+        crate::FAKE_USER_ID.to_string(),
+        crate::FAKE_TIME.to_string(),
+    )
+    .await?;
 
+    db_helpers_for_web_client::edit_title_for_page(yrs, block_id, title, session_id).await?;
+
+    Ok(())
+}
+
+pub async fn create_new_page() -> Result<(), CqrsErr> {
+    let session_id = crate::FAKE_SESSION_ID.to_string();
     let everything = create_page(true, session_id.clone())?;
 
     let title_block_id = everything
@@ -37,82 +43,17 @@ pub async fn create_new_page(
 
     insert_page_requires_three_db_inserts(everything).await?;
 
-    let new_title = format!("Title {}", ctr);
-
-    local_pages.update(|pages| {
-        pages.push(LocalPages {
-            title: new_title.clone(),
-            id: ctr as usize,
-            yrs_id: page_id.clone(),
-            is_disabled: false,
-        });
-    });
-
-    let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
-        page_id,
-        crate::FAKE_USER_ID.to_string(),
-        crate::FAKE_TIME.to_string(),
-    )
-    .await?;
-
-    db_helpers_for_web_client::edit_title_for_page(
-        yrs,
-        title_block_id,
-        new_title,
-        crate::FAKE_SESSION_ID.to_string(),
-    )
-    .await?;
+    write_title_to_block(page_id, title_block_id, "title".to_string(), session_id).await?;
 
     Ok(())
 }
 
 pub async fn disable_page(page_id: String, session_id: String) -> Result<(), CqrsErr> {
-    let existing = db_helper::get_single_col(GetSingleColIn {
-        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
-        arguments: SelectArguments::Single(SelectArgument::XEqualY {
-            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
-                .name
-                .to_string(),
-            y: page_id.clone(),
-        }),
-        column_to_read: tbl_every_block_in_existence::PAGE_IS_DISABLED
-            .name
-            .to_string(),
-    })
-    .await?;
-
-    let is_disabled = tbl_every_block_in_existence::PAGE_IS_DISABLED
-        .try_destruct_db_col(existing.value)
-        .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
-        .ok_or_else(|| {
-            CqrsErr::DbErrorContainer(DbError::IllegalInput(
-                "page_is_disabled was null".to_string(),
-            ))
-        })?;
-
-    if is_disabled == "true" {
+    if get_page_is_disabled(page_id.clone()).await? {
         return Ok(());
     }
 
-    let out = db_helper::get_single_col(GetSingleColIn {
-        table_name: tbl_pages::TABLE_NAME.into(),
-        arguments: SelectArguments::Single(SelectArgument::XEqualY {
-            x: tbl_pages::PAGE_ID.name.to_string(),
-            y: page_id.clone(),
-        }),
-        column_to_read: tbl_pages::PAGE_STATUS.name.to_string(),
-    })
-    .await?;
-
-    let active_pages_blob = tbl_pages::PAGE_STATUS
-        .try_destruct_db_col(out.value)
-        .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
-        .ok_or_else(|| {
-            CqrsErr::DbErrorContainer(DbError::IllegalInput(
-                "db doesn't stop us from asking for the col for a row that doesn't exist"
-                    .to_string(),
-            ))
-        })?;
+    let active_pages_blob = get_active_pages_blob(page_id.clone()).await?;
 
     let everything = build_disable_page(page_id, session_id, active_pages_blob)?;
 
@@ -121,10 +62,7 @@ pub async fn disable_page(page_id: String, session_id: String) -> Result<(), Cqr
     Ok(())
 }
 
-pub fn delete_everything(ctr: RwSignal<usize>, local_pages_set: WriteSignal<Vec<LocalPages>>) {
-    ctr.set(0);
-    local_pages_set.set(Vec::new());
-
+pub async fn delete_everything() -> Result<(), CqrsErr> {
     let tables_to_delete = vec![
         tbl_pages::TABLE_NAME,
         tbl_every_block_in_existence::TABLE_NAME,
@@ -132,24 +70,11 @@ pub fn delete_everything(ctr: RwSignal<usize>, local_pages_set: WriteSignal<Vec<
     ];
 
     for table_name in &tables_to_delete {
-        do_delete_all_rows(table_name);
+        db_helper::delete_all_rows(DeleteAllRowsIn {
+            table_name: table_name.to_string(),
+        })
+        .await?;
     }
-}
 
-fn do_delete_all_rows(table_name: &str) {
-    let delete_all_rows_in = DeleteAllRowsIn {
-        table_name: table_name.into(),
-    };
-
-    spawn_local(async move {
-        let result = db_helper::delete_all_rows(delete_all_rows_in).await;
-        alert_if_error(result);
-    });
-}
-
-fn alert_if_error<T, E: std::fmt::Debug>(result: Result<T, E>) {
-    if let Err(e) = result {
-        log!("Error: {:?}", e);
-        create_popup(format!("Error: {:?}", e));
-    }
+    Ok(())
 }

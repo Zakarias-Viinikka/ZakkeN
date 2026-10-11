@@ -1,3 +1,17 @@
+finished fixing issues and old logic since repurposing began, good to move forward from here and build out project
+
+LocalPages rewritten. Don't need to say more, look at the struct for details. Comments explain the fields.
+
+get_all_menu_pages replaced get_title_and_id_of_all_menu_pages.
+
+New db related files and docs that explain them.
+
+Dev sidebar functional.
+
+Disable page button functional, want to change how it works, but for now it's fine.
+
+Docs should be up to date.
+
 Tuesday, 6 October 2026
 =======================
 

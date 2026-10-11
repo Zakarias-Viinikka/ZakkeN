@@ -15,9 +15,15 @@
   margin: 2px 0 6px 0;
 }
 
-.select_page_to_go_to button {
-  width: 100%;
+.select_page_to_go_to .title_button {
+  flex: 1;
   text-align: left;
+}
+
+.select_page_to_go_to .peek_button {
+  width: auto;
+  padding: 4px 8px;
+  flex-shrink: 0;
 }
 
 
@@ -29,7 +35,7 @@
   font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
 
-.select_page_to_go_to button {
+.select_page_to_go_to .title_button {
   background: #1c1f26;
   border: 1px solid #2c303a;
   border-radius: 6px;
@@ -40,7 +46,21 @@
   cursor: pointer;
 }
 
-.select_page_to_go_to button:hover {
+.select_page_to_go_to .title_button:hover {
   border-color: #5fd0b8;
+  color: #5fd0b8;
+}
+
+.select_page_to_go_to .peek_button {
+  background: transparent;
+  border: none;
+  color: #555a63;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.select_page_to_go_to .peek_button:hover {
   color: #5fd0b8;
 }
