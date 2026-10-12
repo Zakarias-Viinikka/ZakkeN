@@ -1,8 +1,5 @@
-## Replays
+## Testing and sync checks
 
-A way to "record" buttons. Do stuff, record it, get a replay, make a
-test based off the replay.
+Add testing support using testing_wasm32_template.
 
-A method that takes a string, splits by spaces, turns it into enum
-variants. Each enum variant calls a respective method. So a replay can be
-created, and a test made from it directly.
+Build a way to run methods that check if stuff is in sync, for various things: active pages agree, the number of blocks in a page agrees, the content in blocks agrees. The content check is what tests will assert on later.
