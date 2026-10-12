@@ -1,0 +1,14 @@
+[package]
+name = "db_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8.21", features = ["csr"] }
+leptos_router = "0.8.16"
+js-sys = "0.3.103"
+protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
+web_internal_db.path = "/home/zakke/ProgStuff/z_db/web_internal_db"
+random_word = { version = "0.5.2", features = ["en"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }

@@ -1,0 +1,99 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    background: #171e2b;
+    color: #e4e9f2;
+    font: 16px / 1.7 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+    min-height: 100vh;
+}
+
+.stage-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: #171e2b;
+}
+
+.stage {
+    position: relative;
+    background: #1c2433;
+    border: 1px solid rgba(228, 233, 242, 0.09);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+}
+
+.box {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    background: #2b3648;
+    border: 1px solid rgba(228, 233, 242, 0.12);
+    border-radius: 10px;
+    user-select: none;
+    overflow: hidden;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+
+    &.is-moving {
+        border-color: rgba(138, 180, 255, 0.85);
+        box-shadow: 0 0 0 1px rgba(138, 180, 255, 0.35);
+    }
+
+    &.is-refusing {
+        border-color: rgba(245, 169, 127, 0.9);
+        box-shadow: 0 0 0 1px rgba(245, 169, 127, 0.45);
+    }
+
+    &.is-queued {
+        opacity: 0.7;
+        border-style: dashed;
+    }
+}
+
+.box-region {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #a4b1c9;
+    font-size: 1.4rem;
+    line-height: 1;
+    transition: background 0.1s ease, color 0.1s ease;
+
+    &:hover {
+        background: rgba(138, 180, 255, 0.08);
+        color: #e4e9f2;
+    }
+}
+
+.arrow {
+    pointer-events: none;
+}
+
+.box-hr {
+    border: none;
+    border-top: 1px solid rgba(228, 233, 242, 0.18);
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.box-label {
+    position: absolute;
+    top: 3px;
+    right: 8px;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    color: rgba(228, 233, 242, 0.35);
+    pointer-events: none;
+    text-transform: uppercase;
+}

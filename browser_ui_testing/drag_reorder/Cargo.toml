@@ -1,0 +1,3 @@
+[workspace]
+members = ["db_test", "rapier_collision_test", "rapier_test", "rapier_test_2"]
+resolver = "3"
