@@ -8,7 +8,7 @@ fn main() {
 }
 
 const STAGE_W: f32 = 900.0;
-const STAGE_H: f32 = 700.0;
+const STAGE_H: f32 = 900.0;
 
 const BOX_W: f32 = 220.0;
 const BOX_H: f32 = 100.0;
@@ -18,17 +18,16 @@ const BOX_Y0: f32 = 60.0;
 const OFFSET: f32 = BOX_STEP;
 
 const EDGE_PAD: f32 = 10.0;
-const MAX_SLOT: i32 = ((STAGE_H - BOX_Y0 - BOX_H - EDGE_PAD) / BOX_STEP) as i32;
-const MIN_Y: f32 = BOX_Y0;
-const MAX_Y: f32 = BOX_Y0 + MAX_SLOT as f32 * BOX_STEP;
+const MIN_Y: f32 = EDGE_PAD;
+const MAX_Y: f32 = STAGE_H - BOX_H - EDGE_PAD;
 
 const ACCEL: f32 = 1500.0;
 const MAX_V: f32 = 600.0;
 const PROXIMITY: f32 = 2.0;
 const DT: f32 = 0.016;
 
-/// Boundary refusers are effectively unbeatable — nothing overrides them by
-/// seniority. Chained refusers decrease from here outward.
+/// Boundary refusers are effectively unbeatable. Chained refusers decrease
+/// from here outward.
 const BOUNDARY_SENIORITY: u32 = 1000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -38,7 +37,7 @@ enum Mode {
     /// Box refuses to move in `dir` (the direction it would be pushed).
     /// `seniority` is the strength of the refusal — a mover with strictly
     /// higher seniority can override it; otherwise the mover is stopped and
-    /// snapped back one slot.
+    /// snapped back one step.
     Refusing { dir: i8, seniority: u32 },
 }
 
@@ -52,9 +51,6 @@ struct BoxState {
     dir: i8,
     target_y: f32,
     vel: f32,
-    /// Only meaningful while Moving: how deep in the propagation chain this
-    /// box is. A fresh click is 0; a box pushed into moving by a chain is its
-    /// triggerer's + 1. Higher = more authority.
     seniority: u32,
     queued: bool,
 }
@@ -82,21 +78,10 @@ fn initial_boxes() -> Vec<BoxState> {
         .collect()
 }
 
-fn slot_of(y: f32) -> i32 {
-    ((y - BOX_Y0) / BOX_STEP).round() as i32
-}
-
-fn slot_y(s: i32) -> f32 {
-    BOX_Y0 + s as f32 * BOX_STEP
-}
-
 fn compute_target(y: f32, dir: i8) -> f32 {
     y + dir as f32 * OFFSET
 }
 
-/// Every moving box looks for the nearest box ahead. If that box is Idle and
-/// within PROXIMITY, it starts moving at the triggerer's velocity, one slot
-/// further, and inherits seniority + 1. Movers are never slowed by this.
 fn propagate(bs: &mut [BoxState]) {
     let triggers: Vec<(usize, f32, i8, u32)> = bs
         .iter()
@@ -113,7 +98,7 @@ fn propagate(bs: &mut [BoxState]) {
 
         let mut best: Option<(f32, usize)> = None;
         for other in bs.iter() {
-            if other.id == b_id {
+            if other.id == b_id || other.queued {
                 continue;
             }
             let o_cy = other.y + BOX_H / 2.0;
@@ -132,7 +117,7 @@ fn propagate(bs: &mut [BoxState]) {
         let Some(ahead) = bs.iter().find(|x| x.id == ahead_id) else {
             continue;
         };
-        if ahead.queued || ahead.mode != Mode::Idle {
+        if ahead.mode != Mode::Idle {
             continue;
         }
         let ahead_y = ahead.y;
@@ -146,20 +131,21 @@ fn propagate(bs: &mut [BoxState]) {
             continue;
         }
 
+        let b_target = b.target_y;
         if let Some(a) = bs.iter_mut().find(|x| x.id == ahead_id) {
             a.mode = Mode::Moving;
             a.dir = b_dir;
-            a.target_y = compute_target(a.y, b_dir);
+            a.target_y = b_target + b_dir as f32 * BOX_STEP;
             a.vel = b_vel;
             a.seniority = b_sen.saturating_add(1);
         }
     }
 }
 
-/// Each refusing box R pushes any non-refusing box B on its pressure side
-/// (opposite to R.dir) back to B's correct slot — `slot_of(R.y) - R.dir` —
-/// and turns B into a refuser with `seniority = R.seniority + 1`. Loops until
-/// stable so cascades propagate in a single frame.
+/// Each refusing box pushes the single closest touching non-refusing box on
+/// its pressure side back one step relative to itself, and turns that box
+/// into a refuser with seniority + 1. Loops until stable so cascades spread
+/// in a single frame.
 fn spread_refusal(bs: &mut [BoxState]) {
     loop {
         let mut changed = false;
@@ -172,26 +158,21 @@ fn spread_refusal(bs: &mut [BoxState]) {
             .collect();
 
         for (r_id, r_dir, r_sen, r_y) in refusers {
-            let r_slot = slot_of(r_y);
-            let target_slot = r_slot - r_dir as i32;
-            let target_y = slot_y(target_slot);
             let r_cy = r_y + BOX_H / 2.0;
 
-            for b in bs.iter_mut() {
-                if b.id == r_id {
+            let mut best: Option<(f32, usize)> = None;
+            for b in bs.iter() {
+                if b.id == r_id || b.queued {
                     continue;
                 }
                 if matches!(b.mode, Mode::Refusing { .. }) {
                     continue;
                 }
-
                 let b_cy = b.y + BOX_H / 2.0;
-                // B must be on R's pressure side (opposite to r_dir).
                 let diff = (b_cy - r_cy) * -(r_dir as f32);
                 if diff <= 0.0 {
                     continue;
                 }
-
                 let gap = if r_dir > 0 {
                     r_y - (b.y + BOX_H)
                 } else {
@@ -200,7 +181,16 @@ fn spread_refusal(bs: &mut [BoxState]) {
                 if gap > PROXIMITY {
                     continue;
                 }
+                if best.map_or(true, |(d, _)| diff < d) {
+                    best = Some((diff, b.id));
+                }
+            }
 
+            let Some((_, pushed_id)) = best else {
+                continue;
+            };
+            let target_y = r_y - r_dir as f32 * BOX_STEP;
+            if let Some(b) = bs.iter_mut().find(|x| x.id == pushed_id) {
                 b.y = target_y;
                 b.vel = 0.0;
                 b.dir = 0;
@@ -218,10 +208,9 @@ fn spread_refusal(bs: &mut [BoxState]) {
     }
 }
 
-/// A moving box M that touches a Refusing box R: R yields if M is travelling
-/// the opposite of R.dir (movement in the right direction) or if M.seniority
-/// strictly exceeds R.seniority. Otherwise M is stopped, snapped to the slot
-/// behind R, and becomes a refuser at R.seniority + 1.
+/// A moving box that reaches a Refusing box either overrides it (direction
+/// is opposite to its refuse direction, or seniority is higher) or is stopped
+/// one step behind it and turns into a refuser itself.
 fn resolve_mover_refuser(bs: &mut [BoxState]) {
     let movers: Vec<(usize, i8, f32, u32, f32)> = bs
         .iter()
@@ -234,7 +223,7 @@ fn resolve_mover_refuser(bs: &mut [BoxState]) {
 
         let mut best: Option<(f32, usize)> = None;
         for other in bs.iter() {
-            if other.id == m_id {
+            if other.id == m_id || other.queued {
                 continue;
             }
             let o_cy = other.y + BOX_H / 2.0;
@@ -282,9 +271,7 @@ fn resolve_mover_refuser(bs: &mut [BoxState]) {
                     a.seniority = m_sen.saturating_add(1);
                 }
             } else {
-                let r_slot = slot_of(ahead_y);
-                let m_slot = r_slot - m_dir as i32;
-                let m_target_y = slot_y(m_slot);
+                let m_target_y = ahead_y - m_dir as f32 * BOX_STEP;
                 if let Some(m) = bs.iter_mut().find(|x| x.id == m_id) {
                     m.y = m_target_y;
                     m.mode = Mode::Refusing {
@@ -340,16 +327,9 @@ fn tick(boxes: &RwSignal<Vec<BoxState>>, click_queue: &RwSignal<Option<(usize, i
         }
     }
 
-    // 2. Movers push idle neighbours into moving.
     propagate(&mut bs);
-
-    // 3. Refusers push anyone touching them back; pushed boxes also refuse.
     spread_refusal(&mut bs);
-
-    // 4. Movers that reach a refuser: override or get blocked.
     resolve_mover_refuser(&mut bs);
-
-    // 5. In case step 4 created new refusers, propagate the pressure once more.
     spread_refusal(&mut bs);
 
     let settled = !bs.iter().any(|b| !b.queued && b.mode == Mode::Moving);
@@ -366,7 +346,6 @@ fn tick(boxes: &RwSignal<Vec<BoxState>>, click_queue: &RwSignal<Option<(usize, i
 fn start_move(boxes: &RwSignal<Vec<BoxState>>, id: usize, dir: i8) {
     boxes.update(|bs| {
         if let Some(b) = bs.iter_mut().find(|b| b.id == id) {
-            // Refusing boxes can't be moved in the direction they refuse.
             if let Mode::Refusing { dir: r_dir, .. } = b.mode {
                 if dir == r_dir {
                     return;

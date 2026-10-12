@@ -1,0 +1,19 @@
+# --- Your Custom Rules ---
+**/target/
+**/pkg/
+**/dist/
+**/node_modules/
+**/*.env
+**/.zed/
+**/.DS_Store
+**/Thumbs.db
+
+# --- Essential Android/Gradle Junk ---
+**/.gradle/
+**/build/
+**/local.properties
+**/.idea/
+**/*.iml
+.cxx/
+.externalNativeBuild/
+**/*ip.kt

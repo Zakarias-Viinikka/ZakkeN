@@ -87,3 +87,11 @@ The `wait mode` edge case: a box clicked while a chain is still animating is hel
 Two sub-questions are deliberately open for guessing, because the user declined to decide them: the proximity threshold that starts the 0.5s countdown (fixed pixels, or touching plus a margin), and the exact exit condition for the pushing mode. Guess, and say what was guessed.
 
 The fork that is still unresolved: whether this crate finally steps the rapier world for real, or stays DOM-driven with hand-written velocity. The user leaned toward query-and-manual-velocity but did not commit. Decide it explicitly before writing code, and say which.
+## `rapier_tests_combined` specifics
+
+This crate merges drag-reorder and cascade motion into a two-page layout.
+
+- **Target vs Drawn Split**: `target_y` is the logical slot computed by `commit`. `y` is the drawn position animated by `cascade::step`. Rapier is rebuilt using `target_y`, never `y`, ensuring queries reflect the final intended layout, not the in-flight animation.
+- **Page Regions in World**: The rapier world contains invisible hit regions for each page, identified by `id = PAGE_ID_BASE + page_index`. These span from `PAGE_TOP` down to `y = 20000`, inflated horizontally by `PAGE_SLOP`. This allows empty pages to still validly receive drops.
+- **The Release Rule**: A `Waiting` block becomes `Moving` when its `prev` is `None`, `Idle`, or when the gap between them drifts by `TRIGGER` (13px) from the ideal `GAP`. This single rule handles both downward bumps (gap closing) and upward pulls (gap opening), and the `Idle` clause prevents deadlocks if a chain leader finishes early.
+- **Top-Anchored Stage**: `stage_height` is a pure function of the maximum of any block's `y` or `target_y` plus `BOTTOM_SLACK`. The stage grows instantly on drop and shrinks only after blocks have animated upward, keeping the top edge anchored.

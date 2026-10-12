@@ -1823,6 +1823,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rapier_tests_combined"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "rapier2d",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "rawpointer"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
