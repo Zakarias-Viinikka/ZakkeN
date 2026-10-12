@@ -1,0 +1,11 @@
+[package]
+name = "theme7_leptos"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8.21", features = ["csr"] }
+leptos_router = "0.8.16"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window"] }
