@@ -99,8 +99,8 @@ pub fn new_every_block_in_existence_row(
     is_title: bool,
     is_part_of_main_menu_page: bool,
     content: String,
-    my_id_as_given_by_yrs: String,
-    id_of_page_i_belong_to: String,
+    my_id_as_given_by_yrs: String,  //block id
+    id_of_page_i_belong_to: String, //page id
     position: f64,
 ) -> Result<Vec<ColumnValue>, YrsError> {
     Ok(vec![

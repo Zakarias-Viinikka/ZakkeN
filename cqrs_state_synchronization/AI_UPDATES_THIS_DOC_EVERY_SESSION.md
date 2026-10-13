@@ -48,7 +48,7 @@ changes since last write:
 
 new context learned this session:
 
-refresh breaks. disabling a page works until reload; after reload the id or page_status read comes back wrong, which breaks disable too. Not diagnosed. This is the next thing to fix.
+refresh was broken: disabling a page worked until reload; after reload the id or page_status read came back wrong, which broke disable too. Fixed since.
 
 disabling a page twice used to panic (`destruct_db_col` on `page_status`). The `is_disabled` pre-check should stop that. The popup `DbErrorContainer(IllegalInput("illegal"))` still appeared at least once after that check was added. Cause not confirmed.
 

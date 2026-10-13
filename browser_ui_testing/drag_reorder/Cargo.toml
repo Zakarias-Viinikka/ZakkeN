@@ -1,3 +1,3 @@
 [workspace]
-members = ["db_test", "rapier_collision_test", "rapier_test", "rapier_test_2", "rapier_tests_combined"]
+members = ["db_test", "final_test", "rapier_collision_test", "rapier_test", "rapier_test_2", "rapier_tests_combined"]
 resolver = "3"

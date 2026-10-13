@@ -1,0 +1,13 @@
+[package]
+name = "final_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8.22", features = ["csr"] }
+leptos_router = "0.8.17"
+rapier2d = "0.36.0"
+send_wrapper = "0.6.0"
+wasm-bindgen = "0.2.129"
+web-sys = { version = "0.3.106", features = ["MouseEvent", "Element", "HtmlElement", "DomRect", "Window", "HtmlTextAreaElement", "CssStyleDeclaration", "ResizeObserver", "ResizeObserverEntry"] }

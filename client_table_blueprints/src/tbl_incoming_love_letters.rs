@@ -1,9 +1,6 @@
 #![allow(non_snake_case)]
 use std::marker::PhantomData;
 
-//use protocol::error::DbError;
-//use protocol::error::DbError::ColDestructFail;
-//use protocol::schema_helper::DestructDbReturnCol;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
 use protocol::new_table::id_column;
@@ -16,9 +13,6 @@ pub fn new_table_incoming_love_letters() -> Vec<ColumnDef> {
         id_column(),
         not_null_col(ColumnType::Blob, "love_letter"),
         not_null_col(ColumnType::Text, "target_page_id"),
-        not_null_col(ColumnType::Integer, "timestamp"),
-        not_null_col(ColumnType::Text, "applied"),
-        not_null_col(ColumnType::Text, "session_id"),
     ]
 }
 
@@ -38,27 +32,6 @@ pub const TARGET_PAGE_ID: SchemaColumn<String> = SchemaColumn::<String> {
     _marker: PhantomData,
 };
 
-pub const TIMESTAMP: SchemaColumn<i64> = SchemaColumn::<i64> {
-    name: "timestamp",
-    type_of_col: &TypeOfCol::Integer,
-    can_be_null: false,
-    _marker: PhantomData,
-};
-
-pub const APPLIED: SchemaColumn<String> = SchemaColumn::<String> {
-    name: "applied",
-    type_of_col: &TypeOfCol::Text,
-    can_be_null: false,
-    _marker: PhantomData,
-};
-
-pub const SESSION_ID: SchemaColumn<String> = SchemaColumn::<String> {
-    name: "session_id",
-    type_of_col: &TypeOfCol::Text,
-    can_be_null: false,
-    _marker: PhantomData,
-};
-
 // ---
 /*
    new row helper here
@@ -72,8 +45,6 @@ use protocol::row_col::Col;
 pub fn new_incoming_love_letter_row(
     love_letter: Vec<u8>,
     target_page_id: String,
-    timestamp: i64, //i dont remember why i have this col. but ill leave it for now
-    session_id: String,
 ) -> Result<Vec<ColumnValue>, YrsError> {
     Ok(vec![
         ColumnValue {
@@ -83,18 +54,6 @@ pub fn new_incoming_love_letter_row(
         ColumnValue {
             column_name: TARGET_PAGE_ID.name.to_string(),
             value: Col::Text(target_page_id),
-        },
-        ColumnValue {
-            column_name: TIMESTAMP.name.to_string(),
-            value: Col::Integer(timestamp),
-        },
-        ColumnValue {
-            column_name: APPLIED.name.to_string(),
-            value: Col::Text("false".to_string()),
-        },
-        ColumnValue {
-            column_name: SESSION_ID.name.to_string(),
-            value: Col::Text(session_id),
         },
     ])
 }
