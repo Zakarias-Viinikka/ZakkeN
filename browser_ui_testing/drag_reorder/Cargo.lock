@@ -622,12 +622,16 @@ name = "final_test"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "getrandom 0.3.4",
+ "js-sys",
  "leptos",
  "leptos_router",
- "rapier2d 0.36.0",
- "send_wrapper",
+ "protocol",
+ "random_word",
+ "rapier2d",
  "wasm-bindgen",
  "web-sys",
+ "web_internal_db",
 ]
 
 [[package]]
@@ -1439,17 +1443,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-derive"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4e98dc3b890f6c23a0f9d3d491a2823d0dea0fa656302a13dd225fa924112a8"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.6",
-]
-
-[[package]]
 name = "num-integer"
 version = "0.1.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1532,33 +1525,7 @@ dependencies = [
  "glamx",
  "hashbrown 0.17.1",
  "log",
- "num-derive 0.4.2",
- "num-traits",
- "ordered-float",
- "simba",
- "slab",
- "smallvec",
- "spade",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "parry2d"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe1ba500175e957aaa27ddc92290ec8ff503d73331365443660816d6302e2a31"
-dependencies = [
- "approx",
- "arrayvec",
- "bitflags",
- "downcast-rs",
- "either",
- "ena",
- "foldhash",
- "glamx",
- "hashbrown 0.17.1",
- "log",
- "num-derive 0.5.1",
+ "num-derive",
  "num-traits",
  "ordered-float",
  "simba",
@@ -1807,29 +1774,7 @@ dependencies = [
  "log",
  "nalgebra",
  "num-traits",
- "parry2d 0.30.2",
- "profiling",
- "serde",
- "simba",
- "static_assertions",
- "thiserror 2.0.21",
- "wide",
-]
-
-[[package]]
-name = "rapier2d"
-version = "0.36.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6708b492a19e936d66ba45fd0749ea8e20275f9a8e9891050944c35b8305349"
-dependencies = [
- "approx",
- "arrayvec",
- "bitflags",
- "glamx",
- "log",
- "nalgebra",
- "num-traits",
- "parry2d 0.31.1",
+ "parry2d",
  "profiling",
  "serde",
  "simba",
@@ -1844,7 +1789,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
- "rapier2d 0.35.3",
+ "rapier2d",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -1856,7 +1801,7 @@ dependencies = [
  "console_error_panic_hook",
  "leptos",
  "leptos_router",
- "rapier2d 0.35.3",
+ "rapier2d",
  "web-sys",
 ]
 
@@ -1867,7 +1812,7 @@ dependencies = [
  "console_error_panic_hook",
  "leptos",
  "leptos_router",
- "rapier2d 0.35.3",
+ "rapier2d",
  "web-sys",
 ]
 
@@ -1877,7 +1822,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
- "rapier2d 0.35.3",
+ "rapier2d",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -2180,8 +2125,6 @@ dependencies = [
 [[package]]
 name = "server_fn_macro"
 version = "0.8.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce79d7b6ab93f7994e5ff4999eb962f2aea370d7c3b91986eb75da738a8e65f9"
 dependencies = [
  "const_format",
  "convert_case 0.11.0",
@@ -2195,11 +2138,9 @@ dependencies = [
 [[package]]
 name = "server_fn_macro_default"
 version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63eb08f80db903d3c42f64e60ebb3875e0305be502bdc064ec0a0eab42207f00"
 dependencies = [
  "server_fn_macro",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]

@@ -5,9 +5,13 @@ edition = "2024"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-leptos = { version = "0.8.22", features = ["csr"] }
-leptos_router = "0.8.17"
-rapier2d = "0.36.0"
-send_wrapper = "0.6.0"
-wasm-bindgen = "0.2.129"
-web-sys = { version = "0.3.106", features = ["MouseEvent", "Element", "HtmlElement", "DomRect", "Window", "HtmlTextAreaElement", "CssStyleDeclaration", "ResizeObserver", "ResizeObserverEntry"] }
+leptos = { version = "0.8.21", features = ["csr"] }
+leptos_router = "0.8.16"
+js-sys = "0.3.103"
+rapier2d = "0.35.3"
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["MouseEvent", "Element", "HtmlElement", "DomRect", "Window", "HtmlTextAreaElement", "CssStyleDeclaration", "ResizeObserver", "ResizeObserverEntry"] }
+protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
+web_internal_db.path = "/home/zakke/ProgStuff/z_db/web_internal_db"
+random_word = { version = "0.5.2", features = ["en"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }

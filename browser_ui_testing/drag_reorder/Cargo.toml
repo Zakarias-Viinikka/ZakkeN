@@ -1,3 +1,7 @@
 [workspace]
 members = ["db_test", "final_test", "rapier_collision_test", "rapier_test", "rapier_test_2", "rapier_tests_combined"]
 resolver = "3"
+
+[patch.crates-io]
+server_fn_macro = { path = "./final_test/vendor/server_fn_macro" }
+server_fn_macro_default = { path = "./final_test/vendor/server_fn_macro_default" }
