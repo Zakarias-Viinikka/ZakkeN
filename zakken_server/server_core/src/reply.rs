@@ -1,4 +1,5 @@
-use protocol::{messages::*, serialization::*};
+use protocol::serialization::Base64Bytes;
+use server_protocol::{Request, Response, response_to_json_str};
 
 pub fn craft_response(data: Vec<u8>, message_id: usize, request: Request) -> String {
     let response = Response {
@@ -6,15 +7,8 @@ pub fn craft_response(data: Vec<u8>, message_id: usize, request: Request) -> Str
         request,
         payload: Base64Bytes(data),
     };
-    let prepared_response = response_to_json_str(&response)
-        .map_err(|e| serialization_error_as_jsonstr(e.to_string()))
-        .unwrap_or_else(|e| e);
-
-    prepared_response
-}
-
-fn serialization_error_as_jsonstr(err: String) -> String {
-    format!(r#"{{"error":"failed to serialize response: {}"}}"#, err)
+    response_to_json_str(&response)
+        .unwrap_or_else(|e| format!(r#"{{"error":"failed to serialize response: {}"}}"#, e))
 }
 
 use axum::extract::ws::{Message, WebSocket};

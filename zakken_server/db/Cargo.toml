@@ -1,0 +1,12 @@
+[package]
+name = "db_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+#db_wrapper = { git = "https://github.com/Zakarias-Viinikka/z_db", features = ["android"], default-features = false }
+db_wrapper = { path = "/home/zakke/ProgStuff/z_db/db_wrapper", features = ["android"], default-features = false }
+#protocol = { git = "https://github.com/Zakarias-Viinikka/z_db" }
+protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
+#db = { git = "https://github.com/Zakarias-Viinikka/z_db" }
+db.path = "/home/zakke/ProgStuff/z_db/db"

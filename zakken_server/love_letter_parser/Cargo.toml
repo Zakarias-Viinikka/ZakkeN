@@ -1,0 +1,8 @@
+[package]
+name = "love_letter_parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+#love_letter = { git = "https://github.com/Zakarias-Viinikka/ZakkeN", branch = "main" }
+love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
