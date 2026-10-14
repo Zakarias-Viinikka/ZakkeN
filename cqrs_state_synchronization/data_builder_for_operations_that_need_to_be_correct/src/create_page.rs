@@ -98,6 +98,7 @@ pub fn create_page(
     let snapshot_of_edit = snapshot_of_yrs_doc;
     let love_letter_sketch = LoveLetterSketch::CreateNewPage {
         page_id: page_id.clone(),
+        is_main_menu_page,
     }
     .to_payload();
 

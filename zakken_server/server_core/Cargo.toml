@@ -19,3 +19,4 @@ db_core = { path = "../db" }
 server_protocol = { path = "../server_protocol" }
 error_stuff = { path = "../error_stuff" }
 love_letter_parser = { path = "../love_letter_parser" }
+love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"

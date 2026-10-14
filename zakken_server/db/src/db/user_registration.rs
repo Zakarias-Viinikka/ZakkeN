@@ -33,9 +33,11 @@ pub fn user_exists(liver: &LiveForever, user_name: &str) -> Result<bool, DbError
     Ok(out.count > 0)
 }
 
-pub fn register_user(liver: &LiveForever, user_name: &str) -> Result<(), DbError> {
+pub fn create_user(liver: &LiveForever, user_name: &str) -> Result<(), DbError> {
     if user_exists(liver, user_name)? {
-        return Ok(());
+        return Err(DbError::IllegalInput(format!(
+            "user '{user_name}' is already registered"
+        )));
     }
 
     liver.insert_data(InsertDataIn {

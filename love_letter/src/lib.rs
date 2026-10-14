@@ -49,6 +49,7 @@ pub enum LoveLetterSketch {
     },
     CreateNewPage {
         page_id: String,
+        is_main_menu_page: bool,
     },
 }
 
@@ -77,6 +78,7 @@ pub enum LoveLetter {
     },
     CreateNewPage {
         page_id: String,
+        is_main_menu_page: bool,
         snapshot_of_edit: Vec<u8>,
     },
 }
@@ -116,8 +118,12 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
             page_id,
             snapshot_of_edit,
         },
-        LoveLetterSketch::CreateNewPage { page_id } => LoveLetter::CreateNewPage {
+        LoveLetterSketch::CreateNewPage {
             page_id,
+            is_main_menu_page,
+        } => LoveLetter::CreateNewPage {
+            page_id,
+            is_main_menu_page,
             snapshot_of_edit,
         },
     }

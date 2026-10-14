@@ -10,3 +10,6 @@ db_wrapper = { path = "/home/zakke/ProgStuff/z_db/db_wrapper", features = ["andr
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 #db = { git = "https://github.com/Zakarias-Viinikka/z_db" }
 db.path = "/home/zakke/ProgStuff/z_db/db"
+client_table_blueprints.path = "/home/zakke/ProgStuff/ZakkeN/client_table_blueprints"
+love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
+yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"

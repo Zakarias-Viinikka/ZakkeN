@@ -1,3 +1,11 @@
 [workspace]
-members = ["db", "server_core", "error_stuff", "love_letter_parser", "server_protocol"]
+members = [
+    "db",
+    "server_core",
+    "error_stuff",
+    "love_letter_parser",
+    "server_protocol",
+    "mock_client/mock_client_core",
+    "mock_client/cli_gui",
+]
 resolver = "3"

@@ -1,0 +1,17 @@
+[package]
+name = "mock_client_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3.34"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.10"
+yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
+love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
+protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
+server_protocol = { path = "../../server_protocol" }
+error_stuff = { path = "../../error_stuff" }

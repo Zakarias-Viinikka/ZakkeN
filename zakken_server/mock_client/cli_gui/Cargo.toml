@@ -1,0 +1,12 @@
+[package]
+name = "cli_gui"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "cli_gui"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.53.1", features = ["full"] }
+mock_client_core = { path = "../mock_client_core" }
