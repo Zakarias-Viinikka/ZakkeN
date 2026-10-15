@@ -101,3 +101,26 @@ pub struct ServerLogEntry {
     /// there's no separate details blob.
     pub message: String,
 }
+
+impl ServerLogEntry {
+    pub fn now(
+        level: LogLevel,
+        category: LogCategory,
+        source: impl Into<String>,
+        session_id: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        Self {
+            timestamp,
+            level,
+            category,
+            source: source.into(),
+            session_id: session_id.into(),
+            message: message.into(),
+        }
+    }
+}

@@ -1626,6 +1626,7 @@ name = "server_core"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "connected_clients",
  "db_core",
  "db_wrapper",
  "error_stuff",
@@ -1633,6 +1634,7 @@ dependencies = [
  "love_letter",
  "love_letter_parser",
  "protocol",
+ "queue",
  "server_protocol",
  "tokio",
 ]

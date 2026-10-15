@@ -1,5 +1,5 @@
 use crate::commands::Command;
-use error_stuff::{ErrorDetails, ServErr};
+use error_stuff::{ErrorDetails, ServerLogEntry, ServErr};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{mpsc, oneshot};
 
@@ -13,52 +13,62 @@ pub struct FanOutReport {
 /// command to the task and, where an answer is needed, await a reply.
 #[derive(Clone)]
 pub struct ConnectedClients {
-    tx: mpsc::UnboundedSender<Command>,
+    alert_connected_clients_manager_to_fan_out_tx: mpsc::UnboundedSender<Command>,
 }
 
 impl ConnectedClients {
     /// Spawn the task that owns the map and return a handle to it.
-    pub fn new() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
-        tokio::spawn(crate::task::run(rx));
-        Self { tx }
+    /// `log_tx` is where the task sends a log entry when it drops a client
+    /// whose channel turned out to be gone.
+    pub fn new(log_tx: mpsc::UnboundedSender<ServerLogEntry>) -> Self {
+        let (
+            alert_connected_clients_manager_to_fan_out_tx,
+            alert_connected_clients_manager_to_fan_out_rx,
+        ) = mpsc::unbounded_channel();
+        tokio::spawn(crate::task::run(
+            alert_connected_clients_manager_to_fan_out_rx,
+            log_tx,
+        ));
+        Self {
+            alert_connected_clients_manager_to_fan_out_tx,
+        }
     }
 
     /// Register a new connection for `user_name`, returning the receiver
     /// half of that user's push channel. The caller keeps the receiver
     /// and reads pushed letter ids from it.
     ///
+    /// Sync on purpose: login has to call this inside the same db-lock
+    /// critical section that runs the backfill, so a new letter can't
+    /// overtake the backlog. An async version would force the lock to be
+    /// released in between.
+    ///
     /// If the task is gone, the server is shutting down; a receiver that
     /// will never fire is the logically correct thing to hand back.
-    pub async fn add_client(&self, user_name: String) -> UnboundedReceiver<i64> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
+    pub fn add_client(&self, user_name: String) -> UnboundedReceiver<i64> {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let _ = self
+            .alert_connected_clients_manager_to_fan_out_tx
             .send(Command::AddClient {
                 user_name,
-                reply: reply_tx,
-            })
-            .is_err()
-        {
-            return mpsc::unbounded_channel().1;
-        }
-        match reply_rx.await {
-            Ok(rx) => rx,
-            Err(_) => mpsc::unbounded_channel().1,
-        }
+                sender: tx,
+            });
+        rx
     }
 
     /// Forget `user_name`. Fire-and-forget: nothing needs a reply. If the
     /// task is gone, the server is shutting down and there is nothing to
     /// forget.
     pub fn remove_client(&self, user_name: String) {
-        let _ = self.tx.send(Command::RemoveClient { user_name });
+        let _ = self
+            .alert_connected_clients_manager_to_fan_out_tx
+            .send(Command::RemoveClient { user_name });
     }
 
     pub async fn send_to(&self, user_name: String, letter_id: i64) -> Result<(), ServErr> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
-            .tx
+            .alert_connected_clients_manager_to_fan_out_tx
             .send(Command::SendTo {
                 user_name: user_name.clone(),
                 letter_id,
@@ -79,7 +89,7 @@ impl ConnectedClients {
     pub async fn is_connected(&self, user_name: String) -> bool {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
-            .tx
+            .alert_connected_clients_manager_to_fan_out_tx
             .send(Command::IsConnected {
                 user_name,
                 reply: reply_tx,
@@ -95,7 +105,7 @@ impl ConnectedClients {
     pub async fn connected_user_names(&self) -> Vec<String> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
-            .tx
+            .alert_connected_clients_manager_to_fan_out_tx
             .send(Command::ConnectedUserNames { reply: reply_tx })
             .is_err()
         {
@@ -113,7 +123,7 @@ impl ConnectedClients {
     pub async fn fan_out(&self, letter_id: i64, except: Option<String>) -> FanOutReport {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
-            .tx
+            .alert_connected_clients_manager_to_fan_out_tx
             .send(Command::FanOut {
                 letter_id,
                 except,
@@ -148,10 +158,11 @@ mod tests {
 
     #[tokio::test]
     async fn fan_out_reaches_everyone_except_the_sender() {
-        let clients = ConnectedClients::new();
-        let mut alice = clients.add_client("alice".to_string()).await;
-        let mut bob = clients.add_client("bob".to_string()).await;
-        let mut carol = clients.add_client("carol".to_string()).await;
+        let (log_tx, _log_rx) = mpsc::unbounded_channel();
+        let clients = ConnectedClients::new(log_tx);
+        let mut alice = clients.add_client("alice".to_string());
+        let mut bob = clients.add_client("bob".to_string());
+        let mut carol = clients.add_client("carol".to_string());
 
         let report = clients.fan_out(7, Some("alice".to_string())).await;
 
@@ -166,8 +177,9 @@ mod tests {
 
     #[tokio::test]
     async fn fan_out_drops_a_client_whose_receiver_is_gone() {
-        let clients = ConnectedClients::new();
-        let bob = clients.add_client("bob".to_string()).await;
+        let (log_tx, _log_rx) = mpsc::unbounded_channel();
+        let clients = ConnectedClients::new(log_tx);
+        let bob = clients.add_client("bob".to_string());
         drop(bob);
 
         let report = clients.fan_out(7, None).await;
@@ -179,8 +191,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_removed_client_is_not_reached() {
-        let clients = ConnectedClients::new();
-        let mut alice = clients.add_client("alice".to_string()).await;
+        let (log_tx, _log_rx) = mpsc::unbounded_channel();
+        let clients = ConnectedClients::new(log_tx);
+        let mut alice = clients.add_client("alice".to_string());
         clients.remove_client("alice".to_string());
 
         let report = clients.fan_out(7, None).await;

@@ -1,16 +1,13 @@
-use crate::connected_clients::ConnectedClients;
 use db_wrapper::android_mascot::LiveForever;
 
+/// The one thing the server needs behind a lock: the sqlite handle.
+/// Connections live in their own crate now, so they don't share this lock.
 pub struct ServerState {
     pub liver: LiveForever,
-    pub connected: ConnectedClients,
 }
 
 impl ServerState {
     pub fn new(liver: LiveForever) -> Self {
-        ServerState {
-            liver,
-            connected: ConnectedClients::new(),
-        }
+        ServerState { liver }
     }
 }

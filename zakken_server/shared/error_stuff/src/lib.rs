@@ -44,3 +44,7 @@ impl fmt::Display for ErrorDetails {
 }
 
 pub mod server_internal_error_logging;
+
+pub use server_internal_error_logging::{
+    LogCategory, LogLevel, ServerLogEntry,
+};

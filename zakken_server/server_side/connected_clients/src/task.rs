@@ -1,20 +1,25 @@
 use crate::commands::Command;
 use crate::handle::FanOutReport;
-use error_stuff::ServErr;
+use error_stuff::{LogCategory, LogLevel, ServerLogEntry, ServErr};
 use std::collections::HashMap;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 /// The single owner of the user_name -> push-sender map. Every handle
 /// talks to this loop and nothing else touches the map.
-pub async fn run(mut rx: UnboundedReceiver<Command>) {
+///
+/// When a client's channel turns out to be gone, the loop logs it through
+/// `log_tx`. That's how this crate reports something without depending on
+/// db_core: it sends a `ServerLogEntry` and the executor writes the row.
+pub async fn run(
+    mut alert_connected_clients_manager_to_fan_out_rx: UnboundedReceiver<Command>,
+    log_tx: UnboundedSender<ServerLogEntry>,
+) {
     let mut senders: HashMap<String, UnboundedSender<i64>> = HashMap::new();
 
-    while let Some(cmd) = rx.recv().await {
+    while let Some(cmd) = alert_connected_clients_manager_to_fan_out_rx.recv().await {
         match cmd {
-            Command::AddClient { user_name, reply } => {
-                let (tx, client_rx) = mpsc::unbounded_channel();
-                senders.insert(user_name, tx);
-                let _ = reply.send(client_rx);
+            Command::AddClient { user_name, sender } => {
+                senders.insert(user_name, sender);
             }
             Command::RemoveClient { user_name } => {
                 senders.remove(&user_name);
@@ -60,8 +65,15 @@ pub async fn run(mut rx: UnboundedReceiver<Command>) {
                         }
                     }
                 }
-                for name in to_remove {
-                    senders.remove(&name);
+                for name in &to_remove {
+                    senders.remove(name);
+                    let _ = log_tx.send(ServerLogEntry::now(
+                        LogLevel::Warn,
+                        LogCategory::Connection,
+                        "connected_clients::task::run",
+                        String::new(),
+                        format!("lost contact with {name}, dropped them"),
+                    ));
                 }
                 let _ = reply.send(FanOutReport { reached, dropped });
             }

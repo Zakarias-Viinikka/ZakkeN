@@ -6,10 +6,10 @@ use std::marker::PhantomData;
 //use protocol::schema_helper::DestructDbReturnCol;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
-use protocol::new_table::default_col;
+
 use protocol::new_table::id_column;
 use protocol::new_table::not_null_col;
-use protocol::row_col::StructRepresentingNull;
+
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
 #[uniffi::export]

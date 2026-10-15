@@ -1,12 +1,12 @@
 use crate::handle::FanOutReport;
 use error_stuff::ServErr;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
 pub enum Command {
     AddClient {
         user_name: String,
-        reply: oneshot::Sender<UnboundedReceiver<i64>>,
+        sender: UnboundedSender<i64>,
     },
     RemoveClient {
         user_name: String,
