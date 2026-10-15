@@ -373,6 +373,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "connected_clients"
+version = "0.1.0"
+dependencies = [
+ "error_stuff",
+ "tokio",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1323,6 +1331,14 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "uniffi",
+]
+
+[[package]]
+name = "queue"
+version = "0.1.0"
+dependencies = [
+ "server_protocol",
+ "tokio",
 ]
 
 [[package]]

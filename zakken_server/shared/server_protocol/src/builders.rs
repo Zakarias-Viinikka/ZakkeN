@@ -22,5 +22,6 @@ fn protocol_err(method: &str, err_msg: String) -> ServErr {
         err_msg,
         file: file!().to_string(),
         method: method.to_string(),
+        probable_cause: String::new(),
     })
 }

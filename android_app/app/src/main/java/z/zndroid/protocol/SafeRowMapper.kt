@@ -11,12 +11,43 @@ import uniffi.protocol.Row
 object SafeRowMapper {
 
     /**
+     * Maps/validates a List<ColumnValue> returned by Rust 'new_xxx_row' helpers against table definition.
+     */
+    fun mapRow(
+        row: List<ColumnValue>,
+        columnDefs: List<ColumnDef>,
+        expectedNames: List<String>,
+        skipId: Boolean = true
+    ): List<ColumnValue> {
+        val offset = if (skipId) 1 else 0
+        
+        if (row.size != expectedNames.size) {
+            throw IllegalStateException(
+                "Row column count (${row.size}) does not match expected count (${expectedNames.size})"
+            )
+        }
+
+        row.forEachIndexed { index, colValue ->
+            val defIndex = index + offset
+            if (defIndex >= columnDefs.size) {
+                throw IllegalStateException("Column index $defIndex out of bounds for table definition")
+            }
+
+            val actualName = columnDefs[defIndex].name
+            val expectedName = expectedNames[index]
+
+            if (actualName != expectedName) {
+                throw IllegalStateException(
+                    "Column mismatch at index $defIndex! Rust library returned '$actualName' but Kotlin expected '$expectedName'."
+                )
+            }
+        }
+
+        return row
+    }
+
+    /**
      * Maps a Row to a List of ColumnValues by verifying names against the table definition.
-     * 
-     * @param row The Row returned by a Rust 'new_xxx_row' helper.
-     * @param columnDefs The full list of ColumnDefs (including 'id') from Rust 'xxx_columns'.
-     * @param expectedNames The sequence of column names we expect to be in the Row (in order).
-     * @return A list of ColumnValues ready for DbManager.insertData.
      */
     fun mapRow(
         row: Row,
@@ -24,7 +55,6 @@ object SafeRowMapper {
         expectedNames: List<String>,
         skipId: Boolean = true
     ): List<ColumnValue> {
-        // Rust row builders usually skip the auto-increment 'id' column (usually at index 0).
         val offset = if (skipId) 1 else 0
         
         if (row.cols.size != expectedNames.size) {
@@ -44,8 +74,7 @@ object SafeRowMapper {
 
             if (actualName != expectedName) {
                 throw IllegalStateException(
-                    "Column mismatch at index $defIndex! Rust library returned '$actualName' but Kotlin expected '$expectedName'. " +
-                    "Positional mapping is unsafe."
+                    "Column mismatch at index $defIndex! Rust library returned '$actualName' but Kotlin expected '$expectedName'."
                 )
             }
 

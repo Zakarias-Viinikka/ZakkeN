@@ -1,6 +1,6 @@
 package z.zndroid.Storage
 
-import rustlib.client_table_blueprints.keyValueStorageColumns
+import rustlib.client_table_blueprints.newTableKeyValueStorage
 import rustlib.client_table_blueprints.newKeyValueItem
 import uniffi.protocol.ColumnValue
 import uniffi.protocol.InsertDataIn
@@ -36,7 +36,7 @@ object StorageInitializer {
                 
                 val values = SafeRowMapper.mapRow(
                     row = row,
-                    columnDefs = keyValueStorageColumns(),
+                    columnDefs = newTableKeyValueStorage(),
                     expectedNames = listOf("key", "value"),
                     skipId = false // No auto-increment ID in this table
                 )

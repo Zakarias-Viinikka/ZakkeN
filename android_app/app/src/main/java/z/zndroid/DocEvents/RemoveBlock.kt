@@ -52,7 +52,7 @@ object RemoveBlock {
             )
             val diffValues = SafeRowMapper.mapRow(
                 row = diffRow,
-                columnDefs = uncommittedDiffsColumns(),
+                columnDefs = rustlib.client_table_blueprints.newTableUncommittedDiffs(),
                 expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
             )
 

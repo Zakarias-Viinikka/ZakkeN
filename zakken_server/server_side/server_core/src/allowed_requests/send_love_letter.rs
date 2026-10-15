@@ -2,7 +2,7 @@ use crate::logging::log;
 use crate::server_state::ServerState;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
-use love_letter::{LoveLetter, deserialize_love_letter};
+use love_letter::deserialize_love_letter;
 use love_letter_parser::get_target_page_id_from_letter;
 use protocol::error::DbError;
 use protocol::serialization::{Convert, ok_serialized};

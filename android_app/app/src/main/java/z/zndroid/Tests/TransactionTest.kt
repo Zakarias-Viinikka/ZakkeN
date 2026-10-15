@@ -2,7 +2,7 @@ package z.zndroid.Tests
 
 import uniffi.protocol.*
 import z.zndroid.DbManager
-import rustlib.client_table_blueprints.keyValueStorageColumns
+import rustlib.client_table_blueprints.newTableKeyValueStorage
 import rustlib.client_table_blueprints.newKeyValueItem
 import z.zndroid.protocol.SafeRowMapper
 import java.util.UUID
@@ -90,7 +90,7 @@ class TransactionTest : AppTest {
         val row = newKeyValueItem(key, value)
         val values = SafeRowMapper.mapRow(
             row = row,
-            columnDefs = keyValueStorageColumns(),
+            columnDefs = newTableKeyValueStorage(),
             expectedNames = listOf("key", "value"),
             skipId = false
         )

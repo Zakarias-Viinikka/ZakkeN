@@ -4,7 +4,7 @@ import com.z_db.android_mascot.LiveForever
 import uniffi.protocol.*
 import z.zndroid.LocalDbError
 import z.zndroid.protocol.SafeRowMapper
-import rustlib.client_table_blueprints.keyValueStorageColumns
+import rustlib.client_table_blueprints.newTableKeyValueStorage
 import rustlib.client_table_blueprints.newKeyValueItem
 
 object MigrationManager {
@@ -16,8 +16,8 @@ object MigrationManager {
         try {
             val currentVersionInt = readCurrentVersion(db)
             if (currentVersionInt == null) {
-                // Fresh Database -> bootstrap V0 directly
-                SchemaVersion.V0.bootstrap(db)
+                // Fresh Database -> bootstrap LATEST directly
+                SchemaVersion.LATEST.bootstrap(db)
                 writeVersion(db, SchemaVersion.LATEST.version)
             } else {
                 val maxKnownVersion = SchemaVersion.LATEST.version
@@ -52,7 +52,7 @@ object MigrationManager {
                 emptyList()
             ))
             val row = result.rows.firstOrNull() ?: return null
-            val valueCol = row.cols.getOrNull(1) as? Col.Text ?: return null
+            val valueCol = row.cols.lastOrNull() as? Col.Text ?: return null
             valueCol.v1.toIntOrNull()
         } catch (e: Exception) {
             // key_value_storage table doesn't even exist yet
@@ -84,7 +84,7 @@ object MigrationManager {
         val row = newKeyValueItem(SCHEMA_VERSION_KEY, version.toString())
         val values = SafeRowMapper.mapRow(
             row = row,
-            columnDefs = keyValueStorageColumns(),
+            columnDefs = newTableKeyValueStorage(),
             expectedNames = listOf("key", "value"),
             skipId = false
         )

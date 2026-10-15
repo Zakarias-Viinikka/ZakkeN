@@ -1,0 +1,8 @@
+[package]
+name = "queue"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+server_protocol = { path = "../../shared/server_protocol" }
+tokio = { version = "1.53.1", features = ["sync", "rt", "macros"] }

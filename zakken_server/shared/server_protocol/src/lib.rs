@@ -7,5 +7,6 @@ pub use builders::{
 };
 pub use message::{Message, Response};
 pub use request::{
-    GetAllYrsPagesPayload, LoginPayload, PageRow, RegisterPayload, Request, SendLoveLetterPayload,
+    AckPayload, GetAllYrsPagesPayload, LoginPayload, PageRow, RegisterPayload, Request,
+    SendLoveLetterPayload,
 };

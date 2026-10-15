@@ -1,10 +1,12 @@
 [workspace]
 members = [
-    "db",
-    "server_core",
-    "error_stuff",
-    "love_letter_parser",
-    "server_protocol",
+    "server_side/db",
+    "server_side/server_core",
+    "shared/error_stuff",
+    "server_side/love_letter_parser",
+    "server_side/queue",
+    "server_side/connected_clients",
+    "shared/server_protocol",
     "mock_client/mock_client_core",
     "mock_client/cli_gui",
 ]

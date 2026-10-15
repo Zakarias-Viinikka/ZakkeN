@@ -19,11 +19,11 @@ class SchemaSyncTest : AppTest {
         // 1. Define the library functions to check
         val libraryBlueprints = try {
             mapOf(
-                "pages" to pagesColumns(),
-                "every_block_in_existence" to everyBlockInExistenceColumns(),
-                "uncommitted_diffs" to uncommittedDiffsColumns(),
-                "key_value_storage" to keyValueStorageColumns(),
-                "backlinks" to backlinksColumns()
+                "pages" to newTablePages(),
+                "every_block_in_existence" to newTableEveryBlockInExistence(),
+                "uncommitted_diffs" to newTableUncommittedDiffs(),
+                "key_value_storage" to newTableKeyValueStorage(),
+                "backlinks" to newTableBacklinks()
             )
         } catch (e: UnsatisfiedLinkError) {
             emptyMap()

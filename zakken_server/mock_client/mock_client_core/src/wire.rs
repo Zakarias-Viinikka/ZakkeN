@@ -21,6 +21,7 @@ fn client_err(msg: impl Into<String>, method: &str) -> ServErr {
         err_msg: msg.into(),
         file: file!().to_string(),
         method: method.to_string(),
+        probable_cause: String::new(),
     })
 }
 

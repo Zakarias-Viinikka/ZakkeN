@@ -24,6 +24,9 @@ pub struct ErrorDetails {
     pub err_msg: String,
     pub file: String,
     pub method: String,
+    /// A guess at why this happened, when the cause is easy to name.
+    /// Empty string means "no guess".
+    pub probable_cause: String,
 }
 
 impl fmt::Display for ErrorDetails {
@@ -32,6 +35,12 @@ impl fmt::Display for ErrorDetails {
             f,
             "server error in {}::{}: {}",
             self.file, self.method, self.err_msg
-        )
+        )?;
+        if !self.probable_cause.is_empty() {
+            write!(f, " (probably: {})", self.probable_cause)?;
+        }
+        Ok(())
     }
 }
+
+pub mod server_internal_error_logging;

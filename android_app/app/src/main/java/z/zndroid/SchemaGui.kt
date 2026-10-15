@@ -15,11 +15,11 @@ import uniffi.protocol.ForeignKeyDef
 @Composable
 fun SchemaGui(onBack: () -> Unit) {
     val tableSchemas = listOf(
-        TableSchema("pages", pagesColumns(), emptyList()),
-        TableSchema("uncommitted_diffs", uncommittedDiffsColumns(), emptyList()),
-        TableSchema("backlinks", backlinksColumns(), getForeignDefBacklinks()),
-        TableSchema("every_block_in_existence", everyBlockInExistenceColumns(), getForeignDefEveryBlockInExistence()),
-        TableSchema("key_value_storage", keyValueStorageColumns(), emptyList())
+        TableSchema("pages", newTablePages(), emptyList()),
+        TableSchema("uncommitted_diffs", newTableUncommittedDiffs(), emptyList()),
+        TableSchema("backlinks", newTableBacklinks(), getForeignDefBacklinks()),
+        TableSchema("every_block_in_existence", newTableEveryBlockInExistence(), getForeignDefEveryBlockInExistence()),
+        TableSchema("key_value_storage", newTableKeyValueStorage(), emptyList())
     )
 
     Scaffold(

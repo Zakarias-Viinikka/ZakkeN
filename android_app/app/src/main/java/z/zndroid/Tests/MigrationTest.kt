@@ -42,7 +42,7 @@ class MigrationTest : AppTest {
             val versionRow = queryResult.rows.firstOrNull()
                 ?: return TestResult(name, false, "Migration completed but schema_version key is missing in key_value_storage")
 
-            val valueCol = versionRow.cols.getOrNull(1) as? Col.Text
+            val valueCol = versionRow.cols.lastOrNull() as? Col.Text
                 ?: return TestResult(name, false, "schema_version value is not a text column")
 
             val persistedVersion = valueCol.v1.toIntOrNull()
@@ -52,7 +52,7 @@ class MigrationTest : AppTest {
 
             // Verify basic operational state of one of the created tables
             val listTables = testDb.listTables()
-            val expectedTables = listOf("pages", "uncommitted_diffs", "backlinks", "every_block_in_existence", "key_value_storage")
+            val expectedTables = listOf("pages", "uncommitted_diffs", "backlinks", "every_block_in_existence", "key_value_storage", "incoming_love_letters", "logs")
             val missingTables = expectedTables.filter { it !in listTables.tableNames }
 
             if (missingTables.isNotEmpty()) {

@@ -6,6 +6,8 @@ pub enum Request {
     Login,
     SendLoveLetter,
     GetAllYrsPages,
+    /// how a client acknowledges it's received a love letter response
+    Ack,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -35,4 +37,9 @@ pub struct PageRow {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct GetAllYrsPagesPayload {
     pub pages: Vec<PageRow>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct AckPayload {
+    pub letter_id: i64,
 }

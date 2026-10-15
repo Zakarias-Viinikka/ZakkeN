@@ -189,12 +189,15 @@ object DbManager {
      */
     suspend fun addPage(pageId: String, isMainMenu: Boolean = false): Result<Unit> {
         val userId = z.zndroid.Storage.StorageAccess.getUserId()
+        val boss = rustlib.my_yrs_lib.BossOfYrs(userId, System.currentTimeMillis().toString())
+        val blobbedPage = boss.snapshot()
+        val version = ByteArray(0)
         return executeNative { db ->
-            val row = newPageRow(pageId, isMainMenu, userId)
+            val row = newPageRow(pageId, isMainMenu, blobbedPage, version)
             
             val values = SafeRowMapper.mapRow(
                 row = row,
-                columnDefs = pagesColumns(),
+                columnDefs = newTablePages(),
                 expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
             )
 

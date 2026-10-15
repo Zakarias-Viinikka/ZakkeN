@@ -857,8 +857,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_db_wrapper_checksum_method_liveforever_swap_columns(
     ): Int
-    external fun uniffi_db_wrapper_checksum_method_liveforever_zzz_test_hello(
-    ): Int
     external fun uniffi_db_wrapper_checksum_constructor_liveforever_new(
     ): Int
     external fun ffi_db_wrapper_uniffi_contract_version(
@@ -953,8 +951,6 @@ internal object UniffiLib {
     external fun uniffi_db_wrapper_fn_method_liveforever_search_fts5(`ptr`: Long,`data`: RustBufferSearchFts5In.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferGetDataOut.ByValue
     external fun uniffi_db_wrapper_fn_method_liveforever_swap_columns(`ptr`: Long,`data`: RustBufferSwapColumnsIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    external fun uniffi_db_wrapper_fn_method_liveforever_zzz_test_hello(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun ffi_db_wrapper_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1175,9 +1171,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_swap_columns() and 0xFFFF) != 41881) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_zzz_test_hello() and 0xFFFF) != 53823) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_constructor_liveforever_new() and 0xFFFF) != 57802) {
@@ -1562,8 +1555,6 @@ public interface LiveForeverInterface {
     fun `searchFts5`(`data`: SearchFts5In): GetDataOut
     
     fun `swapColumns`(`data`: SwapColumnsIn)
-    
-    fun `zzzTestHello`()
     
     companion object
 }
@@ -2156,19 +2147,6 @@ open class LiveForever: Disposable, AutoCloseable, LiveForeverInterface
         it,
         
         FfiConverterTypeSwapColumnsIn.lower(`data`),_status)
-}
-    }
-    
-    
-
-    
-    @Throws(DbException::class)override fun `zzzTestHello`()
-        = 
-    callWithHandle {
-    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_zzz_test_hello(
-        it,
-        _status)
 }
     }
     

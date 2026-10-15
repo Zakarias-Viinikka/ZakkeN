@@ -6,9 +6,9 @@ import rustlib.my_yrs_lib.createBookmarkOfSyncedState
 import rustlib.my_yrs_lib.generateDiffSnapshot
 import rustlib.love_letter.*
 import rustlib.client_table_blueprints.newUncommittedDiffRow
-import rustlib.client_table_blueprints.uncommittedDiffsColumns
+import rustlib.client_table_blueprints.newTableUncommittedDiffs
 import rustlib.client_table_blueprints.newEveryBlockInExistenceRow
-import rustlib.client_table_blueprints.everyBlockInExistenceColumns
+import rustlib.client_table_blueprints.newTableEveryBlockInExistence
 import z.zndroid.DbManager
 import uniffi.protocol.*
 import z.zndroid.components.GlobalPopupManager
@@ -34,7 +34,7 @@ data class AddBlockCtx(
 object AddBlock {
     private suspend fun computeDbPosition(ctx: AddBlockCtx): Double {
         val pageId = ctx.boss.pageId()
-        val colDefs = everyBlockInExistenceColumns()
+        val colDefs = newTableEveryBlockInExistence()
         val posIdx = colDefs.indexOfFirst { it.name == "position" }
         if (posIdx < 0) return 1.0
 
@@ -88,8 +88,10 @@ object AddBlock {
             
             // 5. Build the data row for 'every_block_in_existence' using Rust helpers
             val dbPosition = computeDbPosition(ctx)
+            val isMainMenu = (pageId == "main" || pageId == "main_menu")
             val blockRow = newEveryBlockInExistenceRow(
                 isTitle = ctx.isTitle,
+                isPartOfMainMenuPage = isMainMenu,
                 content = ctx.content,
                 myIdAsGivenByYrs = blockId,
                 idOfPageIBelongTo = pageId,
@@ -97,8 +99,8 @@ object AddBlock {
             )
             val blockValues = SafeRowMapper.mapRow(
                 row = blockRow,
-                columnDefs = everyBlockInExistenceColumns(),
-                expectedNames = listOf("is_title", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "position")
+                columnDefs = newTableEveryBlockInExistence(),
+                expectedNames = listOf("is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "position")
             )
 
             // 6. Build the sync row for 'uncommitted_diffs'
@@ -110,7 +112,7 @@ object AddBlock {
             )
             val diffValues = SafeRowMapper.mapRow(
                 row = diffRow,
-                columnDefs = uncommittedDiffsColumns(),
+                columnDefs = newTableUncommittedDiffs(),
                 expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
             )
 

@@ -34,7 +34,7 @@ object CheckIfTablesInSync {
             val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
             
             val crdtBlocks = if (blob != null) {
-                val boss = docFromSnapshot(blob, userId, pageId)
+                val boss = docFromSnapshot(blob, userId, pageId, System.currentTimeMillis().toString())
                 val blocks = boss.getEntirePage()
                 boss.destroy()
                 blocks

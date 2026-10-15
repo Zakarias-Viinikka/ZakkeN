@@ -1,0 +1,8 @@
+[package]
+name = "connected_clients"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+error_stuff = { path = "../../shared/error_stuff" }
+tokio = { version = "1.53.1", features = ["sync", "rt", "macros"] }

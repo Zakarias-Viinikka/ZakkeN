@@ -22,8 +22,6 @@ pub fn new_table_logs() -> Vec<ColumnDef> {
         not_null_col(ColumnType::Text, "source"),
         not_null_col(ColumnType::Text, "session_id"),
         not_null_col(ColumnType::Text, "message"),
-        default_col(ColumnType::Blob, "details"),
-        default_col(ColumnType::Text, "details_type"),
     ]
 }
 
@@ -71,20 +69,6 @@ pub const MESSAGE: SchemaColumn<String> = SchemaColumn::<String> {
     _marker: PhantomData,
 };
 
-pub const DETAILS: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
-    name: "details",
-    type_of_col: &TypeOfCol::Blob,
-    can_be_null: true,
-    _marker: PhantomData,
-};
-
-pub const DETAILS_TYPE: SchemaColumn<String> = SchemaColumn::<String> {
-    name: "details_type",
-    type_of_col: &TypeOfCol::Text,
-    can_be_null: true,
-    _marker: PhantomData,
-};
-
 // ---
 /*
    new row helper here
@@ -101,9 +85,7 @@ pub fn new_log_row(
     category: String,             // feature area, e.g. "VIEW_PAGE"
     source: String,               // finer-grained origin: file/class/function
     session_id: String,           // app session id
-    message: String,              // log text
-    details: Option<Vec<u8>>,     // error message, or serialized rust struct
-    details_type: Option<String>, // how to deserialize details, if it's a struct
+    message: String,              // log text. errors carry err_msg/file/method inside it
 ) -> Result<Vec<ColumnValue>, YrsError> {
     Ok(vec![
         ColumnValue {
@@ -129,18 +111,6 @@ pub fn new_log_row(
         ColumnValue {
             column_name: MESSAGE.name.to_string(),
             value: Col::Text(message),
-        },
-        ColumnValue {
-            column_name: DETAILS.name.to_string(),
-            value: details
-                .map(Col::Blob)
-                .unwrap_or(Col::Null(StructRepresentingNull {})),
-        },
-        ColumnValue {
-            column_name: DETAILS_TYPE.name.to_string(),
-            value: details_type
-                .map(Col::Text)
-                .unwrap_or(Col::Null(StructRepresentingNull {})),
         },
     ])
 }

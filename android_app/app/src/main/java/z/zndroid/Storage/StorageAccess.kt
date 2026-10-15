@@ -1,9 +1,10 @@
 package z.zndroid.Storage
 
 import uniffi.protocol.*
-import rustlib.client_table_blueprints.keyValueStorageColumns
+import rustlib.client_table_blueprints.newTableKeyValueStorage
 import rustlib.client_table_blueprints.newKeyValueItem
 import z.zndroid.DbManager
+import z.zndroid.protocol.SafeRowMapper
 
 /**
  * Provides methods for accessing values from the key-value storage.
@@ -37,8 +38,8 @@ object StorageAccess {
                 if (row == null) {
                     RummageResult.NotFound
                 } else {
-                    // In key_value_storage: key (0), value (1)
-                    val valueCol = row.cols.getOrNull(1) 
+                    // In key_value_storage: value is the last column
+                    val valueCol = row.cols.lastOrNull()
                     if (valueCol is Col.Text) {
                         RummageResult.StringValue(valueCol.v1)
                     } else {
@@ -85,10 +86,12 @@ object StorageAccess {
                 )).getOrThrow()
             } else {
                 val row = newKeyValueItem(key.keyName, value)
-                val columnDefs = keyValueStorageColumns()
-                val values = row.cols.mapIndexed { index, col ->
-                    ColumnValue(columnDefs[index].name, col)
-                }
+                val values = SafeRowMapper.mapRow(
+                    row = row,
+                    columnDefs = newTableKeyValueStorage(),
+                    expectedNames = listOf("key", "value"),
+                    skipId = false
+                )
                 DbManager.insertData(InsertDataIn("key_value_storage", values)).getOrThrow()
             }
         }

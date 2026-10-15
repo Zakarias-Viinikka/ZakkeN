@@ -1,3 +1,4 @@
+pub mod ack;
 pub mod get_all_yrs_pages;
 pub mod login;
 pub mod register;
@@ -28,5 +29,6 @@ pub fn do_request(
         Request::Login => login::handle(msg_content, state),
         Request::SendLoveLetter => send_love_letter::handle(msg_content, state, sender),
         Request::GetAllYrsPages => get_all_yrs_pages::handle(msg_content, state),
+        Request::Ack => ack::handle(msg_content, state, sender),
     }
 }

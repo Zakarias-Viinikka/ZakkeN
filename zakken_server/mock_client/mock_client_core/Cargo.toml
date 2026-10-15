@@ -13,5 +13,5 @@ rand = "0.10"
 yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
-server_protocol = { path = "../../server_protocol" }
-error_stuff = { path = "../../error_stuff" }
+server_protocol = { path = "../../shared/server_protocol" }
+error_stuff = { path = "../../shared/error_stuff" }

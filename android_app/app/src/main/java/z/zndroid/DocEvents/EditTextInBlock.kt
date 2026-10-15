@@ -77,7 +77,7 @@ object EditTextInBlock {
                 )
                 val diffValues = SafeRowMapper.mapRow(
                     row = diffRow,
-                    columnDefs = uncommittedDiffsColumns(),
+                    columnDefs = rustlib.client_table_blueprints.newTableUncommittedDiffs(),
                     expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
                 )
                 DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
@@ -145,7 +145,7 @@ object EditTextInBlock {
                 var currentBookmark = createBookmarkOfSyncedState(boss)
                 val pageId = boss.pageId()
                 val sessionId = SessionManager.currentSessionId
-                val colDefs = uncommittedDiffsColumns()
+                val colDefs = rustlib.client_table_blueprints.newTableUncommittedDiffs()
                 val expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
 
                 // 4. Apply each squashed edit to in-memory BossOfYrs

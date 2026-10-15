@@ -83,6 +83,18 @@ pub enum LoveLetter {
     },
 }
 
+#[derive(uniffi::Record, Serialize, Deserialize)]
+pub struct LoveLetterResponse {
+    pub love_letter: LoveLetter,
+    /// this is the id the client uses to keep track of whether it's received a love letter twice.
+    /// this can happen if it receives a love letter, the connection dies, and then it reconnects,
+    /// the server would send the love letter again since it never received an acknowledgment since server crashed.
+    /// alternative would be to wrap the entire thing in a transaction client side, but that means
+    /// every love letter starts a transaction and blocks other transactions, which is a problem
+    /// since every edit to a page is a transaction.
+    pub letter_id: i64,
+}
+
 #[uniffi::export]
 pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<u8>) -> LoveLetter {
     match love_letter {
@@ -146,5 +158,19 @@ pub fn deserialize_sketch(bytes: Vec<u8>) -> Result<LoveLetterSketch, BrokenHear
 
 #[uniffi::export]
 pub fn deserialize_love_letter(bytes: Vec<u8>) -> Result<LoveLetter, BrokenHeart> {
+    bincode::deserialize(&bytes).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn love_letter_response_to_bytes(
+    response: &LoveLetterResponse,
+) -> Result<Vec<u8>, BrokenHeart> {
+    bincode::serialize(response).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn deserialize_love_letter_response(
+    bytes: Vec<u8>,
+) -> Result<LoveLetterResponse, BrokenHeart> {
     bincode::deserialize(&bytes).map_err(Into::into)
 }
