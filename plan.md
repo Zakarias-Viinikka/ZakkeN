@@ -36,6 +36,13 @@ The mock client always creates pages with is_main_menu_page = false, so a main-m
 
 plan.md itself was stale until this rewrite.
 
+## Next
+
+Reshape zakken_server into server_template_3's structure. The structure
+comes from server_3; the db and schema work stays as it is, because
+server_3 is lazy there and is not an example. A pre-plan for this has
+been written. Decided 2026-10-15, not started.
+
 ## Deferred
 
 Retention — deleting a letter once every registered user has received it. A letter with no unsent rows is harmless sitting in the table; cleanup can wait.

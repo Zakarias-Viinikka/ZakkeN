@@ -216,16 +216,20 @@ ZakkeN apps import z_db's protocol and web_internal_db; the app never
 touches rusqlite directly. The server imports protocol and
 db_wrapper's android_mascot.
 
-## server_template_3 — 2026-10-13
+## server_template_3 — 2026-10-15
 
 ~/ProgStuff/rust_practice/server_template_3 — the reference for how
 this server is shaped. server_template_2 is where the axum websocket
 started; server_template_3 separates "receiving a request" from
 "doing it" using the actor-queue shape from
-rust_practice/actor_audition (a priority list, a wake channel so the
-worker doesn't spin when idle). That refactor hasn't landed in
+rust_practice/actor_audition. The queue there ended up as two tokio
+channels, one important and one normal, drained with a biased select
+so important jobs go first. That refactor hasn't landed in
 zakken_server — zakken_server still locks a Mutex around one
-ServerState, which is fine at this scale.
+ServerState, which is fine at this scale. Reshaping zakken_server into
+this structure is decided and not started: shared/ and server_side/
+folders, the queue between the socket and the handler, and
+ConnectedClients pulled out of server_core into its own crate.
 
 What zakken_server borrowed from server_template_3: the protocol crate
 shape (lib.rs as pure re-exports over message.rs / request.rs /
@@ -306,7 +310,7 @@ rust_practice/server_template_0 through _3, server_ffi_recv,
 actor_audition — reference implementations for websocket patterns.
 Not part of ZakkeN, but worth reading when working on zakken_server.
 
-## Build and environment gotchas — 2026-10-14
+## Build and environment gotchas — 2026-10-15
 
 The z_db web build is a wasm artifact committed into the repo. It's
 built with wasm-pack and copied into cqrs/web_interface/zdb_web_output
@@ -324,9 +328,6 @@ nightly rustc hashes change daily. Every workspace with a target dir
 built on the old hash fails every dep with "found crate X compiled by
 an incompatible version of rustc". cargo clean in each, rebuild.
 
-zap (the file-sharing tool) refuses mv on directories — use /bin/mv
-in a real shell. chmod requires a real shell too.
-
 Cargo needs the package name on the left of a dependency line, not
 the lib name. yrs's package name is "yrs" but its lib name is
 "my_yrs_lib", so Cargo.toml says yrs.path = "..." and the code says
@@ -338,10 +339,9 @@ zakken_server's db crate was renamed to db_core for exactly this
 reason — z_db also has a crate named db, and the lockfile can't hold
 two.
 
-local_cargo.sh is a per-directory script the user's shell function
-`c` looks for by walking up from cwd. It sets RUSTFLAGS for mold and
-then forwards to cargo. Each package that needs a default binary puts
-one at its own root: zakken_server/local_cargo.sh runs zakken_server,
-mock_client/local_cargo.sh runs cli_gui. If a directory has no
-local_cargo.sh, `c r` finds the nearest one above it, which is often
-the wrong thing.
+local_cargo.sh is a per-directory wrapper around cargo. It sets
+RUSTFLAGS for mold and then forwards to cargo. Each package that needs
+a default binary puts one at its own root: zakken_server/local_cargo.sh
+runs zakken_server, mock_client/local_cargo.sh runs cli_gui. A lookup
+walks up from the current directory, so a directory with no
+local_cargo.sh of its own finds the nearest one above it.
