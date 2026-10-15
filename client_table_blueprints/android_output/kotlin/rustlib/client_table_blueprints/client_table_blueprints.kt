@@ -743,7 +743,7 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_incoming_love_letter_row(`loveLetter`: RustBuffer.ByValue,`targetPageId`: RustBuffer.ByValue,`timestamp`: Long,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_incoming_love_letter_row(`loveLetter`: RustBuffer.ByValue,`targetPageId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_incoming_love_letters(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -900,7 +900,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_every_block_in_existence() and 0xFFFF) != 19192) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() and 0xFFFF) != 5307) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() and 0xFFFF) != 20982) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_incoming_love_letters() and 0xFFFF) != 3812) {
@@ -1404,16 +1404,14 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newIncomingLoveLetterRow`(`loveLetter`: kotlin.ByteArray, `targetPageId`: kotlin.String, `timestamp`: kotlin.Long, `sessionId`: kotlin.String): List<ColumnValue> {
+    @Throws(YrsException::class) fun `newIncomingLoveLetterRow`(`loveLetter`: kotlin.ByteArray, `targetPageId`: kotlin.String): List<ColumnValue> {
             return FfiConverterSequenceTypeColumnValue.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_incoming_love_letter_row(
     
         
         FfiConverterByteArray.lower(`loveLetter`),
-        FfiConverterString.lower(`targetPageId`),
-        FfiConverterLong.lower(`timestamp`),
-        FfiConverterString.lower(`sessionId`),_status)
+        FfiConverterString.lower(`targetPageId`),_status)
 }
     )
     }

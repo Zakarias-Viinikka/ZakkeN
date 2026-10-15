@@ -17,20 +17,31 @@ package com.z_db.android_mascot
 // compile the Rust component. The easiest way to ensure this is to bundle the Kotlin
 // helpers directly inline like we're doing here.
 
-import android.os.Build
-import androidx.annotation.RequiresApi
-import com.sun.jna.Callback
+import com.sun.jna.Library
+import com.sun.jna.IntegerType
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
+import com.sun.jna.Callback
 import com.sun.jna.ptr.*
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.CharBuffer
+import java.nio.charset.CodingErrorAction
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.ConcurrentHashMap
+import android.os.Build
+import androidx.annotation.RequiresApi
+import java.util.concurrent.atomic.AtomicBoolean
 import uniffi.protocol.AddColumnIn
+import uniffi.protocol.AreWeInMiddleOfTransactionOut
 import uniffi.protocol.CheckIndexIn
 import uniffi.protocol.CheckIndexOut
 import uniffi.protocol.CheckTableIn
 import uniffi.protocol.CheckTableOut
 import uniffi.protocol.CopyTableIn
 import uniffi.protocol.CountAllRowsIn
+import uniffi.protocol.CountRowsIn
 import uniffi.protocol.CountRowsOut
 import uniffi.protocol.CreateForeignTableIn
 import uniffi.protocol.CreateFts5TableIn
@@ -38,26 +49,33 @@ import uniffi.protocol.CreateIndexIn
 import uniffi.protocol.CreateTableFromExportIn
 import uniffi.protocol.CreateTableIn
 import uniffi.protocol.DbException
+import uniffi.protocol.DeleteAllRowsIn
 import uniffi.protocol.DeleteRowIn
+import uniffi.protocol.DeleteRowWhereIn
 import uniffi.protocol.DropTableIn
 import uniffi.protocol.EditColInRowIn
 import uniffi.protocol.EditColInRowWhereIn
 import uniffi.protocol.ExportTablesIn
 import uniffi.protocol.ExportTablesOut
 import uniffi.protocol.FfiConverterTypeAddColumnIn
+import uniffi.protocol.FfiConverterTypeAreWeInMiddleOfTransactionOut
 import uniffi.protocol.FfiConverterTypeCheckIndexIn
 import uniffi.protocol.FfiConverterTypeCheckIndexOut
 import uniffi.protocol.FfiConverterTypeCheckTableIn
 import uniffi.protocol.FfiConverterTypeCheckTableOut
 import uniffi.protocol.FfiConverterTypeCopyTableIn
 import uniffi.protocol.FfiConverterTypeCountAllRowsIn
+import uniffi.protocol.FfiConverterTypeCountRowsIn
 import uniffi.protocol.FfiConverterTypeCountRowsOut
 import uniffi.protocol.FfiConverterTypeCreateForeignTableIn
 import uniffi.protocol.FfiConverterTypeCreateFts5TableIn
 import uniffi.protocol.FfiConverterTypeCreateIndexIn
 import uniffi.protocol.FfiConverterTypeCreateTableFromExportIn
 import uniffi.protocol.FfiConverterTypeCreateTableIn
+import uniffi.protocol.FfiConverterTypeDbError
+import uniffi.protocol.FfiConverterTypeDeleteAllRowsIn
 import uniffi.protocol.FfiConverterTypeDeleteRowIn
+import uniffi.protocol.FfiConverterTypeDeleteRowWhereIn
 import uniffi.protocol.FfiConverterTypeDropTableIn
 import uniffi.protocol.FfiConverterTypeEditColInRowIn
 import uniffi.protocol.FfiConverterTypeEditColInRowWhereIn
@@ -67,6 +85,10 @@ import uniffi.protocol.FfiConverterTypeFundamentallyEditExistingColIn
 import uniffi.protocol.FfiConverterTypeGetDataIn
 import uniffi.protocol.FfiConverterTypeGetDataOrderedIn
 import uniffi.protocol.FfiConverterTypeGetDataOut
+import uniffi.protocol.FfiConverterTypeGetSingleColIn
+import uniffi.protocol.FfiConverterTypeGetSingleColOut
+import uniffi.protocol.FfiConverterTypeInsertDataAndGetColIn
+import uniffi.protocol.FfiConverterTypeInsertDataAndGetColOut
 import uniffi.protocol.FfiConverterTypeInsertDataIn
 import uniffi.protocol.FfiConverterTypeListTablesOut
 import uniffi.protocol.FfiConverterTypeRebuildFts5In
@@ -77,26 +99,25 @@ import uniffi.protocol.FundamentallyEditExistingColIn
 import uniffi.protocol.GetDataIn
 import uniffi.protocol.GetDataOrderedIn
 import uniffi.protocol.GetDataOut
+import uniffi.protocol.GetSingleColIn
+import uniffi.protocol.GetSingleColOut
+import uniffi.protocol.InsertDataAndGetColIn
+import uniffi.protocol.InsertDataAndGetColOut
 import uniffi.protocol.InsertDataIn
 import uniffi.protocol.ListTablesOut
 import uniffi.protocol.RebuildFts5In
 import uniffi.protocol.RemoveColumnIn
 import uniffi.protocol.SearchFts5In
 import uniffi.protocol.SwapColumnsIn
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.nio.CharBuffer
-import java.nio.charset.CodingErrorAction
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import uniffi.protocol.RustBuffer as RustBufferAddColumnIn
+import uniffi.protocol.RustBuffer as RustBufferAreWeInMiddleOfTransactionOut
 import uniffi.protocol.RustBuffer as RustBufferCheckIndexIn
 import uniffi.protocol.RustBuffer as RustBufferCheckIndexOut
 import uniffi.protocol.RustBuffer as RustBufferCheckTableIn
 import uniffi.protocol.RustBuffer as RustBufferCheckTableOut
 import uniffi.protocol.RustBuffer as RustBufferCopyTableIn
 import uniffi.protocol.RustBuffer as RustBufferCountAllRowsIn
+import uniffi.protocol.RustBuffer as RustBufferCountRowsIn
 import uniffi.protocol.RustBuffer as RustBufferCountRowsOut
 import uniffi.protocol.RustBuffer as RustBufferCreateForeignTableIn
 import uniffi.protocol.RustBuffer as RustBufferCreateFts5TableIn
@@ -104,7 +125,9 @@ import uniffi.protocol.RustBuffer as RustBufferCreateIndexIn
 import uniffi.protocol.RustBuffer as RustBufferCreateTableFromExportIn
 import uniffi.protocol.RustBuffer as RustBufferCreateTableIn
 import uniffi.protocol.RustBuffer as RustBufferDbError
+import uniffi.protocol.RustBuffer as RustBufferDeleteAllRowsIn
 import uniffi.protocol.RustBuffer as RustBufferDeleteRowIn
+import uniffi.protocol.RustBuffer as RustBufferDeleteRowWhereIn
 import uniffi.protocol.RustBuffer as RustBufferDropTableIn
 import uniffi.protocol.RustBuffer as RustBufferEditColInRowIn
 import uniffi.protocol.RustBuffer as RustBufferEditColInRowWhereIn
@@ -114,6 +137,10 @@ import uniffi.protocol.RustBuffer as RustBufferFundamentallyEditExistingColIn
 import uniffi.protocol.RustBuffer as RustBufferGetDataIn
 import uniffi.protocol.RustBuffer as RustBufferGetDataOrderedIn
 import uniffi.protocol.RustBuffer as RustBufferGetDataOut
+import uniffi.protocol.RustBuffer as RustBufferGetSingleColIn
+import uniffi.protocol.RustBuffer as RustBufferGetSingleColOut
+import uniffi.protocol.RustBuffer as RustBufferInsertDataAndGetColIn
+import uniffi.protocol.RustBuffer as RustBufferInsertDataAndGetColOut
 import uniffi.protocol.RustBuffer as RustBufferInsertDataIn
 import uniffi.protocol.RustBuffer as RustBufferListTablesOut
 import uniffi.protocol.RustBuffer as RustBufferRebuildFts5In
@@ -133,37 +160,29 @@ open class RustBuffer : Structure() {
     // Note: `capacity` and `len` are actually `ULong` values, but JVM only supports signed values.
     // When dealing with these fields, make sure to call `toULong()`.
     @JvmField var capacity: Long = 0
-
     @JvmField var len: Long = 0
-
     @JvmField var data: Pointer? = null
 
-    class ByValue : RustBuffer(), Structure.ByValue
+    class ByValue: RustBuffer(), Structure.ByValue
+    class ByReference: RustBuffer(), Structure.ByReference
 
-    class ByReference : RustBuffer(), Structure.ByReference
-
-    internal fun setValue(other: RustBuffer) {
+   internal fun setValue(other: RustBuffer) {
         capacity = other.capacity
         len = other.len
         data = other.data
     }
 
     companion object {
-        internal fun alloc(size: ULong = 0UL) =
-            uniffiRustCall { status ->
-                // Note: need to convert the size to a `Long` value to make this work with JVM.
-                UniffiLib.ffi_db_wrapper_rustbuffer_alloc(size.toLong(), status)
-            }.also {
-                if (it.data == null) {
-                    throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=$size)")
-                }
-            }
+        internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
+            // Note: need to convert the size to a `Long` value to make this work with JVM.
+            UniffiLib.ffi_db_wrapper_rustbuffer_alloc(size.toLong(), status)
+        }.also {
+            if(it.data == null) {
+               throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
+           }
+        }
 
-        internal fun create(
-            capacity: ULong,
-            len: ULong,
-            data: Pointer?,
-        ): RustBuffer.ByValue {
+        internal fun create(capacity: ULong, len: ULong, data: Pointer?): RustBuffer.ByValue {
             var buf = RustBuffer.ByValue()
             buf.capacity = capacity.toLong()
             buf.len = len.toLong()
@@ -171,10 +190,9 @@ open class RustBuffer : Structure() {
             return buf
         }
 
-        internal fun free(buf: RustBuffer.ByValue) =
-            uniffiRustCall { status ->
-                UniffiLib.ffi_db_wrapper_rustbuffer_free(buf, status)
-            }
+        internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
+            UniffiLib.ffi_db_wrapper_rustbuffer_free(buf, status)
+        }
     }
 
     @Suppress("TooGenericExceptionThrown")
@@ -193,7 +211,6 @@ open class RustBuffer : Structure() {
 @Structure.FieldOrder("len", "data")
 internal open class ForeignBytes : Structure() {
     @JvmField var len: Int = 0
-
     @JvmField var data: Pointer? = null
 
     class ByValue : ForeignBytes(), Structure.ByValue
@@ -227,24 +244,14 @@ internal object FfiConverterByRefBytes : FfiConverter<java.nio.ByteBuffer, Forei
         error("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
 
     override fun read(buf: java.nio.ByteBuffer): java.nio.ByteBuffer =
-        error(
-            "ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
-        )
+        error("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 
-    override fun write(
-        value: java.nio.ByteBuffer,
-        buf: java.nio.ByteBuffer,
-    ): Unit =
-        error(
-            "ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
-        )
+    override fun write(value: java.nio.ByteBuffer, buf: java.nio.ByteBuffer): Unit =
+        error("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 
     override fun allocationSize(value: java.nio.ByteBuffer): ULong =
-        error(
-            "ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.",
-        )
+        error("ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 }
-
 /**
  * The FfiConverter interface handles converter types to and from the FFI
  *
@@ -274,10 +281,7 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun allocationSize(value: KotlinType): ULong
 
     // Write a Kotlin type to a `ByteBuffer`
-    fun write(
-        value: KotlinType,
-        buf: ByteBuffer,
-    )
+    fun write(value: KotlinType, buf: ByteBuffer)
 
     // Lower a value into a `RustBuffer`
     //
@@ -288,10 +292,9 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun lowerIntoRustBuffer(value: KotlinType): RustBuffer.ByValue {
         val rbuf = RustBuffer.alloc(allocationSize(value))
         try {
-            val bbuf =
-                rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
-                    it.order(ByteOrder.BIG_ENDIAN)
-                }
+            val bbuf = rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
+                it.order(ByteOrder.BIG_ENDIAN)
+            }
             write(value, bbuf)
             rbuf.writeField("len", bbuf.position().toLong())
             return rbuf
@@ -308,11 +311,11 @@ public interface FfiConverter<KotlinType, FfiType> {
     fun liftFromRustBuffer(rbuf: RustBuffer.ByValue): KotlinType {
         val byteBuf = rbuf.asByteBuffer()!!
         try {
-            val item = read(byteBuf)
-            if (byteBuf.hasRemaining()) {
-                throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
-            }
-            return item
+           val item = read(byteBuf)
+           if (byteBuf.hasRemaining()) {
+               throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
+           }
+           return item
         } finally {
             RustBuffer.free(rbuf)
         }
@@ -324,9 +327,8 @@ public interface FfiConverter<KotlinType, FfiType> {
  *
  * @suppress
  */
-public interface FfiConverterRustBuffer<KotlinType> : FfiConverter<KotlinType, RustBuffer.ByValue> {
+public interface FfiConverterRustBuffer<KotlinType>: FfiConverter<KotlinType, RustBuffer.ByValue> {
     override fun lift(value: RustBuffer.ByValue) = liftFromRustBuffer(value)
-
     override fun lower(value: KotlinType) = lowerIntoRustBuffer(value)
 }
 // A handful of classes and functions to support the generated data structures.
@@ -339,10 +341,9 @@ internal const val UNIFFI_CALL_UNEXPECTED_ERROR = 2.toByte()
 @Structure.FieldOrder("code", "error_buf")
 internal open class UniffiRustCallStatus : Structure() {
     @JvmField var code: Byte = 0
-
     @JvmField var error_buf: RustBuffer.ByValue = RustBuffer.ByValue()
 
-    class ByValue : UniffiRustCallStatus(), Structure.ByValue
+    class ByValue: UniffiRustCallStatus(), Structure.ByValue
 
     fun isSuccess(): Boolean {
         return code == UNIFFI_CALL_SUCCESS
@@ -357,10 +358,7 @@ internal open class UniffiRustCallStatus : Structure() {
     }
 
     companion object {
-        fun create(
-            code: Byte,
-            errorBuf: RustBuffer.ByValue,
-        ): UniffiRustCallStatus.ByValue {
+        fun create(code: Byte, errorBuf: RustBuffer.ByValue): UniffiRustCallStatus.ByValue {
             val callStatus = UniffiRustCallStatus.ByValue()
             callStatus.code = code
             callStatus.error_buf = errorBuf
@@ -377,7 +375,7 @@ class InternalException(message: String) : kotlin.Exception(message)
  * @suppress
  */
 interface UniffiRustCallStatusErrorHandler<E> {
-    fun lift(error_buf: RustBuffer.ByValue): E
+    fun lift(error_buf: RustBuffer.ByValue): E;
 }
 
 // Helpers for calling Rust
@@ -385,10 +383,7 @@ interface UniffiRustCallStatusErrorHandler<E> {
 // synchronize itself
 
 // Call a rust function that returns a Result<>.  Pass in the Error class companion that corresponds to the Err
-private inline fun <U, E : kotlin.Exception> uniffiRustCallWithError(
-    errorHandler: UniffiRustCallStatusErrorHandler<E>,
-    callback: (UniffiRustCallStatus) -> U,
-): U {
+private inline fun <U, E: kotlin.Exception> uniffiRustCallWithError(errorHandler: UniffiRustCallStatusErrorHandler<E>, callback: (UniffiRustCallStatus) -> U): U {
     var status = UniffiRustCallStatus()
     val return_value = callback(status)
     uniffiCheckCallStatus(errorHandler, status)
@@ -396,10 +391,7 @@ private inline fun <U, E : kotlin.Exception> uniffiRustCallWithError(
 }
 
 // Check UniffiRustCallStatus and throw an error if the call wasn't successful
-private fun <E : kotlin.Exception> uniffiCheckCallStatus(
-    errorHandler: UniffiRustCallStatusErrorHandler<E>,
-    status: UniffiRustCallStatus,
-) {
+private fun<E: kotlin.Exception> uniffiCheckCallStatus(errorHandler: UniffiRustCallStatusErrorHandler<E>, status: UniffiRustCallStatus) {
     if (status.isSuccess()) {
         return
     } else if (status.isError()) {
@@ -423,7 +415,7 @@ private fun <E : kotlin.Exception> uniffiCheckCallStatus(
  *
  * @suppress
  */
-object UniffiNullRustCallStatusErrorHandler : UniffiRustCallStatusErrorHandler<InternalException> {
+object UniffiNullRustCallStatusErrorHandler: UniffiRustCallStatusErrorHandler<InternalException> {
     override fun lift(error_buf: RustBuffer.ByValue): InternalException {
         RustBuffer.free(error_buf)
         return InternalException("Unexpected CALL_ERROR")
@@ -435,51 +427,40 @@ private inline fun <U> uniffiRustCall(callback: (UniffiRustCallStatus) -> U): U 
     return uniffiRustCallWithError(UniffiNullRustCallStatusErrorHandler, callback)
 }
 
-internal inline fun <T> uniffiTraitInterfaceCall(
+internal inline fun<T> uniffiTraitInterfaceCall(
     callStatus: UniffiRustCallStatus,
     makeCall: () -> T,
     writeReturn: (T) -> Unit,
 ) {
     try {
         writeReturn(makeCall())
-    } catch (e: kotlin.Exception) {
-        val err =
-            try {
-                e.stackTraceToString()
-            } catch (_: Throwable) {
-                ""
-            }
+    } catch(e: kotlin.Exception) {
+        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
         callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
         callStatus.error_buf = FfiConverterString.lower(err)
     }
 }
 
-internal inline fun <T, reified E : Throwable> uniffiTraitInterfaceCallWithError(
+internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
     callStatus: UniffiRustCallStatus,
     makeCall: () -> T,
     writeReturn: (T) -> Unit,
-    lowerError: (E) -> RustBuffer.ByValue,
+    lowerError: (E) -> RustBuffer.ByValue
 ) {
     try {
         writeReturn(makeCall())
-    } catch (e: kotlin.Exception) {
+    } catch(e: kotlin.Exception) {
         if (e is E) {
             callStatus.code = UNIFFI_CALL_ERROR
             callStatus.error_buf = lowerError(e)
         } else {
-            val err =
-                try {
-                    e.stackTraceToString()
-                } catch (_: Throwable) {
-                    ""
-                }
+            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
             callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
             callStatus.error_buf = FfiConverterString.lower(err)
         }
     }
 }
-
-// Initial value and increment amount for handles.
+// Initial value and increment amount for handles. 
 // These ensure that Kotlin-generated handles always have the lowest bit set
 private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
 private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
@@ -487,10 +468,9 @@ private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
 // Map handles to objects
 //
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
-internal class UniffiHandleMap<T : Any> {
+internal class UniffiHandleMap<T: Any> {
     private val map = ConcurrentHashMap<Long, T>()
-
-    // Start
+    // Start 
     private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
@@ -533,24 +513,18 @@ private fun findLibraryName(componentName: String): String {
 
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
-    fun callback(
-        `data`: Long,
-        `pollResult`: Byte,
-    )
+    fun callback(`data`: Long,`pollResult`: Byte,)
 }
-
 internal interface UniffiForeignFutureDroppedCallback : com.sun.jna.Callback {
-    fun callback(`handle`: Long)
+    fun callback(`handle`: Long,)
 }
-
 internal interface UniffiCallbackInterfaceFree : com.sun.jna.Callback {
-    fun callback(`handle`: Long)
+    fun callback(`handle`: Long,)
 }
-
 internal interface UniffiCallbackInterfaceClone : com.sun.jna.Callback {
-    fun callback(`handle`: Long): Long
+    fun callback(`handle`: Long,)
+    : Long
 }
-
 @Structure.FieldOrder("handle", "free")
 internal open class UniffiForeignFutureDroppedCallbackStruct(
     @JvmField internal var `handle`: Long = 0.toLong(),
@@ -559,14 +533,14 @@ internal open class UniffiForeignFutureDroppedCallbackStruct(
     class UniffiByValue(
         `handle`: Long = 0.toLong(),
         `free`: UniffiForeignFutureDroppedCallback? = null,
-    ) : UniffiForeignFutureDroppedCallbackStruct(`handle`, `free`), Structure.ByValue
+    ): UniffiForeignFutureDroppedCallbackStruct(`handle`,`free`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
         `handle` = other.`handle`
         `free` = other.`free`
     }
-}
 
+}
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
@@ -575,21 +549,17 @@ internal open class UniffiForeignFutureResultU8(
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU8(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU8(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU8 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU8.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU8.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
@@ -598,21 +568,17 @@ internal open class UniffiForeignFutureResultI8(
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI8(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI8(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI8 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI8.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI8.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
@@ -621,21 +587,17 @@ internal open class UniffiForeignFutureResultU16(
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU16(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU16(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU16 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU16.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU16.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
@@ -644,21 +606,17 @@ internal open class UniffiForeignFutureResultI16(
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI16(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI16(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI16 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI16.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI16.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU32(
     @JvmField internal var `returnValue`: Int = 0,
@@ -667,21 +625,17 @@ internal open class UniffiForeignFutureResultU32(
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU32(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU32(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU32 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU32.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI32(
     @JvmField internal var `returnValue`: Int = 0,
@@ -690,21 +644,17 @@ internal open class UniffiForeignFutureResultI32(
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI32(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI32(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI32 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI32.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
@@ -713,21 +663,17 @@ internal open class UniffiForeignFutureResultU64(
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultU64(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultU64(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteU64 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultU64.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
@@ -736,21 +682,17 @@ internal open class UniffiForeignFutureResultI64(
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultI64(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultI64(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteI64 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultI64.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF32(
     @JvmField internal var `returnValue`: Float = 0.0f,
@@ -759,21 +701,17 @@ internal open class UniffiForeignFutureResultF32(
     class UniffiByValue(
         `returnValue`: Float = 0.0f,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultF32(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultF32(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteF32 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultF32.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF64(
     @JvmField internal var `returnValue`: Double = 0.0,
@@ -782,21 +720,17 @@ internal open class UniffiForeignFutureResultF64(
     class UniffiByValue(
         `returnValue`: Double = 0.0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultF64(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultF64(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteF64 : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultF64.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultRustBuffer(
     @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
@@ -805,39 +739,32 @@ internal open class UniffiForeignFutureResultRustBuffer(
     class UniffiByValue(
         `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultRustBuffer(`returnValue`, `callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteRustBuffer : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,)
 }
-
 @Structure.FieldOrder("callStatus")
 internal open class UniffiForeignFutureResultVoid(
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ) : UniffiForeignFutureResultVoid(`callStatus`), Structure.ByValue
+    ): UniffiForeignFutureResultVoid(`callStatus`,), Structure.ByValue
 
-    internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
         `callStatus` = other.`callStatus`
     }
-}
 
+}
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
-    fun callback(
-        `callbackData`: Long,
-        `result`: UniffiForeignFutureResultVoid.UniffiByValue,
-    )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultVoid.UniffiByValue,)
 }
 
 // A JNA Library to expose the extern-C FFI definitions.
@@ -862,458 +789,279 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_db_wrapper_checksum_method_liveforever_add_column(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_are_we_in_middle_of_transaction(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_begin_all_or_nothing(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_check_index(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_check_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_copy_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_count_all_rows(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_count_rows(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_create_fts5_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_create_index(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_create_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_create_table_from_export(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_delete_all_rows(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_delete_row(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_delete_row_where(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_drop_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row_where(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_everything_went_perfectly(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_export_tables(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_force_drop_table(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_fundamentally_edit_existing_col(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_get_data(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_get_single_col(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_insert_data(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_insert_data_and_get_col(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_list_tables(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_rebuild_fts5_index(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_regret_everything(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_remove_column(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_search_fts5(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_swap_columns(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_method_liveforever_zzz_test_hello(
+    ): Int
+    external fun uniffi_db_wrapper_checksum_constructor_liveforever_new(
+    ): Int
+    external fun ffi_db_wrapper_uniffi_contract_version(
+    ): Int
 
-    external fun uniffi_db_wrapper_checksum_method_liveforever_add_column(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_begin_all_or_nothing(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_check_index(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_check_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_copy_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_count_all_rows(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_create_fts5_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_create_index(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_create_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_create_table_from_export(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_delete_row(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_drop_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row_where(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_everything_went_perfectly(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_export_tables(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_force_drop_table(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_fundamentally_edit_existing_col(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_get_data(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_insert_data(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_list_tables(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_rebuild_fts5_index(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_regret_everything(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_remove_column(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_search_fts5(): Int
-
-    external fun uniffi_db_wrapper_checksum_method_liveforever_swap_columns(): Int
-
-    external fun uniffi_db_wrapper_checksum_constructor_liveforever_new(): Int
-
-    external fun ffi_db_wrapper_uniffi_contract_version(): Int
+        
 }
 
 internal object UniffiLib {
+    
     // The Cleaner for the whole library
     internal val CLEANER: UniffiCleaner by lazy {
         UniffiCleaner.create()
     }
+    
 
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "db_wrapper"))
         uniffi.protocol.uniffiEnsureInitialized()
+        
     }
-
-    external fun uniffi_db_wrapper_fn_clone_liveforever(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_clone_liveforever(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_db_wrapper_fn_free_liveforever(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_free_liveforever(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_constructor_liveforever_new(
-        `sqlitedbPath`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_constructor_liveforever_new(`sqlitedbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_add_column(
-        `ptr`: Long,
-        `data`: RustBufferAddColumnIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_add_column(`ptr`: Long,`data`: RustBufferAddColumnIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_begin_all_or_nothing(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_are_we_in_middle_of_transaction(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferAreWeInMiddleOfTransactionOut.ByValue
+    external fun uniffi_db_wrapper_fn_method_liveforever_begin_all_or_nothing(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_check_index(
-        `ptr`: Long,
-        `data`: RustBufferCheckIndexIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_check_index(`ptr`: Long,`data`: RustBufferCheckIndexIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferCheckIndexOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_check_table(
-        `ptr`: Long,
-        `data`: RustBufferCheckTableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_check_table(`ptr`: Long,`data`: RustBufferCheckTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferCheckTableOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_copy_table(
-        `ptr`: Long,
-        `data`: RustBufferCopyTableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_copy_table(`ptr`: Long,`data`: RustBufferCopyTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_count_all_rows(
-        `ptr`: Long,
-        `data`: RustBufferCountAllRowsIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_count_all_rows(`ptr`: Long,`data`: RustBufferCountAllRowsIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferCountRowsOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_create_foreign_table(
-        `ptr`: Long,
-        `data`: RustBufferCreateForeignTableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_count_rows(`ptr`: Long,`data`: RustBufferCountRowsIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferCountRowsOut.ByValue
+    external fun uniffi_db_wrapper_fn_method_liveforever_create_foreign_table(`ptr`: Long,`data`: RustBufferCreateForeignTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_create_fts5_table(
-        `ptr`: Long,
-        `data`: RustBufferCreateFts5TableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_create_fts5_table(`ptr`: Long,`data`: RustBufferCreateFts5TableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_create_index(
-        `ptr`: Long,
-        `data`: RustBufferCreateIndexIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_create_index(`ptr`: Long,`data`: RustBufferCreateIndexIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_create_table(
-        `ptr`: Long,
-        `data`: RustBufferCreateTableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_create_table(`ptr`: Long,`data`: RustBufferCreateTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_create_table_from_export(
-        `ptr`: Long,
-        `data`: RustBufferCreateTableFromExportIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_create_table_from_export(`ptr`: Long,`data`: RustBufferCreateTableFromExportIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_delete_row(
-        `ptr`: Long,
-        `data`: RustBufferDeleteRowIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_delete_all_rows(`ptr`: Long,`data`: RustBufferDeleteAllRowsIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_drop_table(
-        `ptr`: Long,
-        `data`: RustBufferDropTableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_delete_row(`ptr`: Long,`data`: RustBufferDeleteRowIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row(
-        `ptr`: Long,
-        `data`: RustBufferEditColInRowIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_delete_row_where(`ptr`: Long,`data`: RustBufferDeleteRowWhereIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row_where(
-        `ptr`: Long,
-        `data`: RustBufferEditColInRowWhereIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_drop_table(`ptr`: Long,`data`: RustBufferDropTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_everything_went_perfectly(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row(`ptr`: Long,`data`: RustBufferEditColInRowIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_export_tables(
-        `ptr`: Long,
-        `data`: RustBufferExportTablesIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row_where(`ptr`: Long,`data`: RustBufferEditColInRowWhereIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_db_wrapper_fn_method_liveforever_everything_went_perfectly(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_db_wrapper_fn_method_liveforever_export_tables(`ptr`: Long,`data`: RustBufferExportTablesIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferExportTablesOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_force_drop_table(
-        `ptr`: Long,
-        `data`: RustBufferDropTableIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_force_drop_table(`ptr`: Long,`data`: RustBufferDropTableIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_fundamentally_edit_existing_col(
-        `ptr`: Long,
-        `data`: RustBufferFundamentallyEditExistingColIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_fundamentally_edit_existing_col(`ptr`: Long,`data`: RustBufferFundamentallyEditExistingColIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_get_data(
-        `ptr`: Long,
-        `data`: RustBufferGetDataIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_get_data(`ptr`: Long,`data`: RustBufferGetDataIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferGetDataOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_get_data_ordered(
-        `ptr`: Long,
-        `data`: RustBufferGetDataOrderedIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_get_data_ordered(`ptr`: Long,`data`: RustBufferGetDataOrderedIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferGetDataOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_insert_data(
-        `ptr`: Long,
-        `data`: RustBufferInsertDataIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_get_single_col(`ptr`: Long,`data`: RustBufferGetSingleColIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferGetSingleColOut.ByValue
+    external fun uniffi_db_wrapper_fn_method_liveforever_insert_data(`ptr`: Long,`data`: RustBufferInsertDataIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_list_tables(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_insert_data_and_get_col(`ptr`: Long,`data`: RustBufferInsertDataAndGetColIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBufferInsertDataAndGetColOut.ByValue
+    external fun uniffi_db_wrapper_fn_method_liveforever_list_tables(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferListTablesOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_rebuild_fts5_index(
-        `ptr`: Long,
-        `data`: RustBufferRebuildFts5In.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_rebuild_fts5_index(`ptr`: Long,`data`: RustBufferRebuildFts5In.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_regret_everything(
-        `ptr`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_regret_everything(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_remove_column(
-        `ptr`: Long,
-        `data`: RustBufferRemoveColumnIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_remove_column(`ptr`: Long,`data`: RustBufferRemoveColumnIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_search_fts5(
-        `ptr`: Long,
-        `data`: RustBufferSearchFts5In.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_search_fts5(`ptr`: Long,`data`: RustBufferSearchFts5In.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBufferGetDataOut.ByValue
-
-    external fun uniffi_db_wrapper_fn_method_liveforever_swap_columns(
-        `ptr`: Long,
-        `data`: RustBufferSwapColumnsIn.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_swap_columns(`ptr`: Long,`data`: RustBufferSwapColumnsIn.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun ffi_db_wrapper_rustbuffer_alloc(
-        `size`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-
-    external fun ffi_db_wrapper_rustbuffer_from_bytes(
-        `bytes`: ForeignBytes.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
-    ): RustBuffer.ByValue
-
-    external fun ffi_db_wrapper_rustbuffer_free(
-        `buf`: RustBuffer.ByValue,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_db_wrapper_fn_method_liveforever_zzz_test_hello(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun ffi_db_wrapper_rustbuffer_reserve(
-        `buf`: RustBuffer.ByValue,
-        `additional`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_db_wrapper_rust_future_poll_u8(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun ffi_db_wrapper_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_u8(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_u8(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_u8(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun ffi_db_wrapper_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_cancel_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_db_wrapper_rust_future_poll_i8(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_i8(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_i8(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_i8(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-
-    external fun ffi_db_wrapper_rust_future_poll_u16(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_u16(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_u16(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_u16(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_db_wrapper_rust_future_poll_i16(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_i16(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_i16(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_i16(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-
-    external fun ffi_db_wrapper_rust_future_poll_u32(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_u32(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_u32(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_u32(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_db_wrapper_rust_future_poll_i32(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_i32(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_i32(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_i32(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-
-    external fun ffi_db_wrapper_rust_future_poll_u64(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_u64(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_u64(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_u64(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun ffi_db_wrapper_rust_future_poll_i64(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_i64(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_i64(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_i64(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-
-    external fun ffi_db_wrapper_rust_future_poll_f32(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_f32(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_f32(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_f32(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Float
-
-    external fun ffi_db_wrapper_rust_future_poll_f64(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_f64(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_f64(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_f64(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Double
-
-    external fun ffi_db_wrapper_rust_future_poll_rust_buffer(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-
-    external fun ffi_db_wrapper_rust_future_cancel_rust_buffer(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_rust_buffer(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_rust_buffer(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
+    external fun ffi_db_wrapper_rust_future_cancel_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-
-    external fun ffi_db_wrapper_rust_future_poll_void(
-        `handle`: Long,
-        `callback`: UniffiRustFutureContinuationCallback,
-        `callbackData`: Long,
+    external fun ffi_db_wrapper_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_cancel_void(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_free_void(`handle`: Long,
+    ): Unit
+    external fun ffi_db_wrapper_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
 
-    external fun ffi_db_wrapper_rust_future_cancel_void(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_free_void(`handle`: Long): Unit
-
-    external fun ffi_db_wrapper_rust_future_complete_void(
-        `handle`: Long,
-        uniffi_out_err: UniffiRustCallStatus,
-    ): Unit
+        
 }
 
 private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
@@ -1325,10 +1073,12 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_add_column() and 0xFFFF) != 64117) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_are_we_in_middle_of_transaction() and 0xFFFF) != 45524) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_begin_all_or_nothing() and 0xFFFF) != 18291) {
@@ -1346,6 +1096,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_count_all_rows() and 0xFFFF) != 37156) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_count_rows() and 0xFFFF) != 46394) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table() and 0xFFFF) != 17456) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1361,7 +1114,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_table_from_export() and 0xFFFF) != 51410) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_all_rows() and 0xFFFF) != 3534) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_row() and 0xFFFF) != 37060) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_row_where() and 0xFFFF) != 5784) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_drop_table() and 0xFFFF) != 33779) {
@@ -1391,7 +1150,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered() and 0xFFFF) != 54005) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_single_col() and 0xFFFF) != 52203) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_insert_data() and 0xFFFF) != 12765) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_insert_data_and_get_col() and 0xFFFF) != 56059) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_list_tables() and 0xFFFF) != 59841) {
@@ -1410,6 +1175,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_swap_columns() and 0xFFFF) != 41881) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_zzz_test_hello() and 0xFFFF) != 53823) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_constructor_liveforever_new() and 0xFFFF) != 57802) {
@@ -1431,6 +1199,7 @@ public fun uniffiEnsureInitialized() {
 
 // Public interface members begin here.
 
+
 // Interface implemented by anything that can contain an object reference.
 //
 // Such types expose a `destroy()` method that must be called to cleanly
@@ -1441,7 +1210,6 @@ public fun uniffiEnsureInitialized() {
 // helper method to execute a block and destroy the object at the end.
 interface Disposable {
     fun destroy()
-
     companion object {
         fun destroy(vararg args: Any?) {
             for (arg in args) {
@@ -1490,7 +1258,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/**
+/** 
  * Placeholder object used to signal that we're constructing an interface with a FFI handle.
  *
  * This is the first argument for interface constructors that input a raw handle. It exists is that
@@ -1501,13 +1269,12 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * */
 object UniffiWithHandle
 
-/**
+/** 
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
  * */
 object NoHandle
-
 /**
  * The cleaner interface for Object finalization code to run.
  * This is the entry point to any implementation that we're using.
@@ -1523,10 +1290,7 @@ interface UniffiCleaner {
         fun clean()
     }
 
-    fun register(
-        value: Any,
-        cleanUpTask: Runnable,
-    ): UniffiCleaner.Cleanable
+    fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable
 
     companion object
 }
@@ -1535,10 +1299,8 @@ interface UniffiCleaner {
 private class UniffiJnaCleaner : UniffiCleaner {
     private val cleaner = com.sun.jna.internal.Cleaner.getCleaner()
 
-    override fun register(
-        value: Any,
-        cleanUpTask: Runnable,
-    ): UniffiCleaner.Cleanable = UniffiJnaCleanable(cleaner.register(value, cleanUpTask))
+    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
+        UniffiJnaCleanable(cleaner.register(value, cleanUpTask))
 }
 
 private class UniffiJnaCleanable(
@@ -1547,10 +1309,12 @@ private class UniffiJnaCleanable(
     override fun clean() = cleanable.clean()
 }
 
+
 // We decide at uniffi binding generation time whether we were
 // using Android or not.
 // There are further runtime checks to chose the correct implementation
 // of the cleaner.
+
 
 private fun UniffiCleaner.Companion.create(): UniffiCleaner =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -1565,10 +1329,8 @@ private fun UniffiCleaner.Companion.create(): UniffiCleaner =
 private class AndroidSystemCleaner : UniffiCleaner {
     val cleaner = android.system.SystemCleaner.cleaner()
 
-    override fun register(
-        value: Any,
-        cleanUpTask: Runnable,
-    ): UniffiCleaner.Cleanable = AndroidSystemCleanable(cleaner.register(value, cleanUpTask))
+    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
+        AndroidSystemCleanable(cleaner.register(value, cleanUpTask))
 }
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -1581,7 +1343,7 @@ private class AndroidSystemCleanable(
 /**
  * @suppress
  */
-public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
+public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
     // store our length and avoid writing it out to the buffer.
@@ -1628,15 +1390,13 @@ public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
         return sizeForLength + sizeForString
     }
 
-    override fun write(
-        value: String,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: String, buf: ByteBuffer) {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
     }
 }
+
 
 // This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
@@ -1732,71 +1492,89 @@ public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
 // [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
 //
 
+
 public interface LiveForeverInterface {
+    
     fun `addColumn`(`data`: AddColumnIn)
-
+    
+    fun `areWeInMiddleOfTransaction`(): AreWeInMiddleOfTransactionOut
+    
     fun `beginAllOrNothing`()
-
+    
     fun `checkIndex`(`data`: CheckIndexIn): CheckIndexOut
-
+    
     fun `checkTable`(`data`: CheckTableIn): CheckTableOut
-
+    
     fun `copyTable`(`data`: CopyTableIn)
-
+    
     fun `countAllRows`(`data`: CountAllRowsIn): CountRowsOut
-
+    
+    fun `countRows`(`data`: CountRowsIn): CountRowsOut
+    
     fun `createForeignTable`(`data`: CreateForeignTableIn)
-
+    
     fun `createFts5Table`(`data`: CreateFts5TableIn)
-
+    
     fun `createIndex`(`data`: CreateIndexIn)
-
+    
     fun `createTable`(`data`: CreateTableIn)
-
+    
     fun `createTableFromExport`(`data`: CreateTableFromExportIn)
-
+    
+    fun `deleteAllRows`(`data`: DeleteAllRowsIn)
+    
     fun `deleteRow`(`data`: DeleteRowIn)
-
+    
+    fun `deleteRowWhere`(`data`: DeleteRowWhereIn)
+    
     fun `dropTable`(`data`: DropTableIn)
-
+    
     fun `editColInRow`(`data`: EditColInRowIn)
-
+    
     fun `editColInRowWhere`(`data`: EditColInRowWhereIn)
-
+    
     fun `everythingWentPerfectly`()
-
+    
     fun `exportTables`(`data`: ExportTablesIn): ExportTablesOut
-
+    
     fun `forceDropTable`(`data`: DropTableIn)
-
+    
     fun `fundamentallyEditExistingCol`(`data`: FundamentallyEditExistingColIn)
-
+    
     fun `getData`(`data`: GetDataIn): GetDataOut
-
+    
     fun `getDataOrdered`(`data`: GetDataOrderedIn): GetDataOut
-
+    
+    fun `getSingleCol`(`data`: GetSingleColIn): GetSingleColOut
+    
     fun `insertData`(`data`: InsertDataIn)
-
+    
+    fun `insertDataAndGetCol`(`data`: InsertDataAndGetColIn): InsertDataAndGetColOut
+    
     fun `listTables`(): ListTablesOut
-
+    
     fun `rebuildFts5Index`(`data`: RebuildFts5In)
-
+    
     fun `regretEverything`()
-
+    
     fun `removeColumn`(`data`: RemoveColumnIn)
-
+    
     fun `searchFts5`(`data`: SearchFts5In): GetDataOut
-
+    
     fun `swapColumns`(`data`: SwapColumnsIn)
-
+    
+    fun `zzzTestHello`()
+    
     companion object
 }
 
-open class LiveForever : Disposable, AutoCloseable, LiveForeverInterface {
+open class LiveForever: Disposable, AutoCloseable, LiveForeverInterface
+{
+
+    @Suppress("UNUSED_PARAMETER")
     /**
      * @suppress
      */
-    @Suppress("UNUSED_PARAMETER")
     constructor(withHandle: UniffiWithHandle, handle: Long) {
         this.handle = handle
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
@@ -1815,15 +1593,14 @@ open class LiveForever : Disposable, AutoCloseable, LiveForeverInterface {
         this.cleanable = null
     }
     constructor(`sqlitedbPath`: kotlin.String) :
-        this(
-            UniffiWithHandle,
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_constructor_liveforever_new(
-                    FfiConverterString.lower(`sqlitedbPath`),
-                    _status,
-                )
-            },
-        )
+        this(UniffiWithHandle, 
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_constructor_liveforever_new(
+    
+        
+        FfiConverterString.lower(`sqlitedbPath`),_status)
+}
+    )
 
     protected val handle: Long
     protected val cleanable: UniffiCleaner.Cleanable?
@@ -1863,7 +1640,7 @@ open class LiveForever : Disposable, AutoCloseable, LiveForeverInterface {
             if (c == Long.MAX_VALUE) {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
-        } while (!this.callCounter.compareAndSet(c, c + 1L))
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
         // Now we can safely do the method call without the handle being freed concurrently.
         try {
             return block(this.uniffiCloneHandle())
@@ -1881,7 +1658,7 @@ open class LiveForever : Disposable, AutoCloseable, LiveForeverInterface {
         override fun run() {
             if (handle == 0.toLong()) {
                 // Fake object created with `NoHandle`, don't try to free.
-                return
+                return;
             }
             uniffiRustCall { status ->
                 UniffiLib.uniffi_db_wrapper_fn_free_liveforever(handle, status)
@@ -1894,435 +1671,528 @@ open class LiveForever : Disposable, AutoCloseable, LiveForeverInterface {
      */
     fun uniffiCloneHandle(): Long {
         if (handle == 0.toLong()) {
-            throw InternalException("uniffiCloneHandle() called on NoHandle object")
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
-        return uniffiRustCall { status ->
+        return uniffiRustCall() { status ->
             UniffiLib.uniffi_db_wrapper_fn_clone_liveforever(handle, status)
         }
     }
 
-    @Throws(
-        DbException::class,
-        )
-    override fun `addColumn`(`data`: AddColumnIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_add_column(
-                    it,
-                    FfiConverterTypeAddColumnIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `beginAllOrNothing`() =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_begin_all_or_nothing(
-                    it,
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `checkIndex`(`data`: CheckIndexIn): CheckIndexOut {
-        return FfiConverterTypeCheckIndexOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_check_index(
-                        it,
-                        FfiConverterTypeCheckIndexIn.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(DbException::class)override fun `addColumn`(`data`: AddColumnIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_add_column(
+        it,
+        
+        FfiConverterTypeAddColumnIn.lower(`data`),_status)
+}
     }
+    
+    
 
-    @Throws(
-        DbException::class,
-        )
-    override fun `checkTable`(`data`: CheckTableIn): CheckTableOut {
-        return FfiConverterTypeCheckTableOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_check_table(
-                        it,
-                        FfiConverterTypeCheckTableIn.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(DbException::class)override fun `areWeInMiddleOfTransaction`(): AreWeInMiddleOfTransactionOut {
+            return FfiConverterTypeAreWeInMiddleOfTransactionOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_are_we_in_middle_of_transaction(
+        it,
+        _status)
+}
     }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `copyTable`(`data`: CopyTableIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_copy_table(
-                    it,
-                    FfiConverterTypeCopyTableIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `countAllRows`(`data`: CountAllRowsIn): CountRowsOut {
-        return FfiConverterTypeCountRowsOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_count_all_rows(
-                        it,
-                        FfiConverterTypeCountAllRowsIn.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    )
     }
+    
 
-    @Throws(
-        DbException::class,
-        )
-    override fun `createForeignTable`(`data`: CreateForeignTableIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_foreign_table(
-                    it,
-                    FfiConverterTypeCreateForeignTableIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `createFts5Table`(`data`: CreateFts5TableIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_fts5_table(
-                    it,
-                    FfiConverterTypeCreateFts5TableIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `createIndex`(`data`: CreateIndexIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_index(
-                    it,
-                    FfiConverterTypeCreateIndexIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `createTable`(`data`: CreateTableIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_table(
-                    it,
-                    FfiConverterTypeCreateTableIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `createTableFromExport`(`data`: CreateTableFromExportIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_table_from_export(
-                    it,
-                    FfiConverterTypeCreateTableFromExportIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `deleteRow`(`data`: DeleteRowIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_delete_row(
-                    it,
-                    FfiConverterTypeDeleteRowIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `dropTable`(`data`: DropTableIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_drop_table(
-                    it,
-                    FfiConverterTypeDropTableIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `editColInRow`(`data`: EditColInRowIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row(
-                    it,
-                    FfiConverterTypeEditColInRowIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `editColInRowWhere`(`data`: EditColInRowWhereIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row_where(
-                    it,
-                    FfiConverterTypeEditColInRowWhereIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `everythingWentPerfectly`() =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_everything_went_perfectly(
-                    it,
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `exportTables`(`data`: ExportTablesIn): ExportTablesOut {
-        return FfiConverterTypeExportTablesOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_export_tables(
-                        it,
-                        FfiConverterTypeExportTablesIn.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(DbException::class)override fun `beginAllOrNothing`()
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_begin_all_or_nothing(
+        it,
+        _status)
+}
     }
+    
+    
 
-    @Throws(
-        DbException::class,
-        )
-    override fun `forceDropTable`(`data`: DropTableIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_force_drop_table(
-                    it,
-                    FfiConverterTypeDropTableIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `fundamentallyEditExistingCol`(`data`: FundamentallyEditExistingColIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_fundamentally_edit_existing_col(
-                    it,
-                    FfiConverterTypeFundamentallyEditExistingColIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `getData`(`data`: GetDataIn): GetDataOut {
-        return FfiConverterTypeGetDataOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_get_data(
-                        it,
-                        FfiConverterTypeGetDataIn.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(DbException::class)override fun `checkIndex`(`data`: CheckIndexIn): CheckIndexOut {
+            return FfiConverterTypeCheckIndexOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_check_index(
+        it,
+        
+        FfiConverterTypeCheckIndexIn.lower(`data`),_status)
+}
     }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `getDataOrdered`(`data`: GetDataOrderedIn): GetDataOut {
-        return FfiConverterTypeGetDataOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_get_data_ordered(
-                        it,
-                        FfiConverterTypeGetDataOrderedIn.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    )
     }
+    
 
-    @Throws(
-        DbException::class,
-        )
-    override fun `insertData`(`data`: InsertDataIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_insert_data(
-                    it,
-                    FfiConverterTypeInsertDataIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `listTables`(): ListTablesOut {
-        return FfiConverterTypeListTablesOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_list_tables(
-                        it,
-                        _status,
-                    )
-                }
-            },
-        )
+    
+    @Throws(DbException::class)override fun `checkTable`(`data`: CheckTableIn): CheckTableOut {
+            return FfiConverterTypeCheckTableOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_check_table(
+        it,
+        
+        FfiConverterTypeCheckTableIn.lower(`data`),_status)
+}
     }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `rebuildFts5Index`(`data`: RebuildFts5In) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_rebuild_fts5_index(
-                    it,
-                    FfiConverterTypeRebuildFts5In.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `regretEverything`() =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_regret_everything(
-                    it,
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `removeColumn`(`data`: RemoveColumnIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_remove_column(
-                    it,
-                    FfiConverterTypeRemoveColumnIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
-
-    @Throws(
-        DbException::class,
-        )
-    override fun `searchFts5`(`data`: SearchFts5In): GetDataOut {
-        return FfiConverterTypeGetDataOut.lift(
-            callWithHandle {
-                uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_search_fts5(
-                        it,
-                        FfiConverterTypeSearchFts5In.lower(`data`),
-                        _status,
-                    )
-                }
-            },
-        )
+    )
     }
+    
 
-    @Throws(
-        DbException::class,
-        )
-    override fun `swapColumns`(`data`: SwapColumnsIn) =
-        callWithHandle {
-            uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
-                UniffiLib.uniffi_db_wrapper_fn_method_liveforever_swap_columns(
-                    it,
-                    FfiConverterTypeSwapColumnsIn.lower(`data`),
-                    _status,
-                )
-            }
-        }
+    
+    @Throws(DbException::class)override fun `copyTable`(`data`: CopyTableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_copy_table(
+        it,
+        
+        FfiConverterTypeCopyTableIn.lower(`data`),_status)
+}
+    }
+    
+    
 
+    
+    @Throws(DbException::class)override fun `countAllRows`(`data`: CountAllRowsIn): CountRowsOut {
+            return FfiConverterTypeCountRowsOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_count_all_rows(
+        it,
+        
+        FfiConverterTypeCountAllRowsIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `countRows`(`data`: CountRowsIn): CountRowsOut {
+            return FfiConverterTypeCountRowsOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_count_rows(
+        it,
+        
+        FfiConverterTypeCountRowsIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `createForeignTable`(`data`: CreateForeignTableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_foreign_table(
+        it,
+        
+        FfiConverterTypeCreateForeignTableIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `createFts5Table`(`data`: CreateFts5TableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_fts5_table(
+        it,
+        
+        FfiConverterTypeCreateFts5TableIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `createIndex`(`data`: CreateIndexIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_index(
+        it,
+        
+        FfiConverterTypeCreateIndexIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `createTable`(`data`: CreateTableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_table(
+        it,
+        
+        FfiConverterTypeCreateTableIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `createTableFromExport`(`data`: CreateTableFromExportIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_create_table_from_export(
+        it,
+        
+        FfiConverterTypeCreateTableFromExportIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `deleteAllRows`(`data`: DeleteAllRowsIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_delete_all_rows(
+        it,
+        
+        FfiConverterTypeDeleteAllRowsIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `deleteRow`(`data`: DeleteRowIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_delete_row(
+        it,
+        
+        FfiConverterTypeDeleteRowIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `deleteRowWhere`(`data`: DeleteRowWhereIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_delete_row_where(
+        it,
+        
+        FfiConverterTypeDeleteRowWhereIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `dropTable`(`data`: DropTableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_drop_table(
+        it,
+        
+        FfiConverterTypeDropTableIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `editColInRow`(`data`: EditColInRowIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row(
+        it,
+        
+        FfiConverterTypeEditColInRowIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `editColInRowWhere`(`data`: EditColInRowWhereIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_edit_col_in_row_where(
+        it,
+        
+        FfiConverterTypeEditColInRowWhereIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `everythingWentPerfectly`()
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_everything_went_perfectly(
+        it,
+        _status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `exportTables`(`data`: ExportTablesIn): ExportTablesOut {
+            return FfiConverterTypeExportTablesOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_export_tables(
+        it,
+        
+        FfiConverterTypeExportTablesIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `forceDropTable`(`data`: DropTableIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_force_drop_table(
+        it,
+        
+        FfiConverterTypeDropTableIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `fundamentallyEditExistingCol`(`data`: FundamentallyEditExistingColIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_fundamentally_edit_existing_col(
+        it,
+        
+        FfiConverterTypeFundamentallyEditExistingColIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `getData`(`data`: GetDataIn): GetDataOut {
+            return FfiConverterTypeGetDataOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_get_data(
+        it,
+        
+        FfiConverterTypeGetDataIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `getDataOrdered`(`data`: GetDataOrderedIn): GetDataOut {
+            return FfiConverterTypeGetDataOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_get_data_ordered(
+        it,
+        
+        FfiConverterTypeGetDataOrderedIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `getSingleCol`(`data`: GetSingleColIn): GetSingleColOut {
+            return FfiConverterTypeGetSingleColOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_get_single_col(
+        it,
+        
+        FfiConverterTypeGetSingleColIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `insertData`(`data`: InsertDataIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_insert_data(
+        it,
+        
+        FfiConverterTypeInsertDataIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `insertDataAndGetCol`(`data`: InsertDataAndGetColIn): InsertDataAndGetColOut {
+            return FfiConverterTypeInsertDataAndGetColOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_insert_data_and_get_col(
+        it,
+        
+        FfiConverterTypeInsertDataAndGetColIn.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `listTables`(): ListTablesOut {
+            return FfiConverterTypeListTablesOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_list_tables(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `rebuildFts5Index`(`data`: RebuildFts5In)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_rebuild_fts5_index(
+        it,
+        
+        FfiConverterTypeRebuildFts5In.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `regretEverything`()
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_regret_everything(
+        it,
+        _status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `removeColumn`(`data`: RemoveColumnIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_remove_column(
+        it,
+        
+        FfiConverterTypeRemoveColumnIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `searchFts5`(`data`: SearchFts5In): GetDataOut {
+            return FfiConverterTypeGetDataOut.lift(
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_search_fts5(
+        it,
+        
+        FfiConverterTypeSearchFts5In.lower(`data`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(DbException::class)override fun `swapColumns`(`data`: SwapColumnsIn)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_swap_columns(
+        it,
+        
+        FfiConverterTypeSwapColumnsIn.lower(`data`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(DbException::class)override fun `zzzTestHello`()
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(DbExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_db_wrapper_fn_method_liveforever_zzz_test_hello(
+        it,
+        _status)
+}
+    }
+    
+    
+
+    
+
+    
+
+
+    
+    
     /**
      * @suppress
      */
     companion object
+    
 }
+
 
 /**
  * @suppress
  */
-public object FfiConverterTypeLiveForever : FfiConverter<LiveForever, Long> {
+public object FfiConverterTypeLiveForever: FfiConverter<LiveForever, Long> {
     override fun lower(value: LiveForever): Long {
         return value.uniffiCloneHandle()
     }
@@ -2337,13 +2207,86 @@ public object FfiConverterTypeLiveForever : FfiConverter<LiveForever, Long> {
 
     override fun allocationSize(value: LiveForever) = 8UL
 
-    override fun write(
-        value: LiveForever,
-        buf: ByteBuffer,
-    ) {
+    override fun write(value: LiveForever, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 object DbExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<DbException> {
     override fun lift(error_buf: RustBuffer.ByValue): DbException =
@@ -2352,6 +2295,7 @@ object DbExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<DbExce
                 capacity = error_buf.capacity
                 len = error_buf.len
                 data = error_buf.data
-            },
+            }
         )
 }
+

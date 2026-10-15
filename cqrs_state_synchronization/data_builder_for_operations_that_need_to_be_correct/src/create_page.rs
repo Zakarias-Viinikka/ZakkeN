@@ -9,17 +9,20 @@ use std::sync::Arc;
 
 use crate::shared::UncommitedDiffsInsertCtx;
 
+#[derive(uniffi::Record)]
 pub struct EverythingToInsertForNewPage {
     pub page_to_insert: PagesInsertCtx,
     pub blocks_to_insert: BlocksToInsertCtx,
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }
 
+#[derive(uniffi::Record)]
 pub struct BlocksToInsertCtx {
     pub title_block: TitleBlock,
     pub normal_block: NormalBlock,
 }
 
+#[derive(uniffi::Record)]
 pub struct TitleBlock {
     pub my_id_as_given_by_yrs: String,
     pub content: String,
@@ -28,6 +31,7 @@ pub struct TitleBlock {
     pub is_part_of_main_menu_page: bool,
 }
 
+#[derive(uniffi::Record)]
 pub struct NormalBlock {
     pub my_id_as_given_by_yrs: String,
     pub content: String,
@@ -36,6 +40,7 @@ pub struct NormalBlock {
     pub is_part_of_main_menu_page: bool,
 }
 
+#[derive(uniffi::Record)]
 pub struct PagesInsertCtx {
     pub page_id: String,
     pub blobbed_page: Vec<u8>,

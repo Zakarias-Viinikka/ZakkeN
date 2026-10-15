@@ -1,0 +1,6 @@
+[crate-roots]
+data_builder_for_operations_that_need_to_be_correct = "."
+
+[crates.data_builder_for_operations_that_need_to_be_correct.bindings.kotlin]
+package_name = "rustlib.data_builder_for_operations_that_need_to_be_correct"
+android = true

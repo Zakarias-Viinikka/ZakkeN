@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::shared::{PagesUpdateCtx, UncommitedDiffsInsertCtx};
 
+#[derive(uniffi::Record)]
 pub struct EverythingForDisablePage {
     pub pages_update: PagesUpdateCtx,
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,

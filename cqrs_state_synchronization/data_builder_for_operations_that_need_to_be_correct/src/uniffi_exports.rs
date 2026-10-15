@@ -1,0 +1,67 @@
+//! Android-facing entry points.
+//!
+//! Thin wrappers around the real builder functions. The real functions
+//! return `CqrsErr`, which holds `YrsError`, `DbError` or `BrokenHeart`
+//! inside it. Exporting that through uniffi would mean exporting all
+//! three inner types recursively. Instead these wrappers convert any
+//! `CqrsErr` into `BuilderErr`, which carries a single string.
+//!
+//! Rust callers keep using the real functions in `create_page`,
+//! `edit_block` and `disable_page`. Android calls the wrappers here.
+//! Nothing about the real functions or `CqrsErr` changes.
+
+use std::sync::Arc;
+
+use my_yrs_lib::BossOfYrs;
+use text_diff::diff_logic::DiffResult;
+
+use crate::create_page::{
+    EverythingToInsertForNewPage, create_page as real_create_page,
+};
+use crate::disable_page::{
+    EverythingForDisablePage, disable_page as real_disable_page,
+};
+use crate::edit_block::{
+    EverythingForEditBlock, edit_block as real_edit_block,
+};
+
+/// Error type Android sees. One string, no inner types. Rust code never
+/// matches on this — it's constructed at the uniffi boundary.
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum BuilderErr {
+    #[error("{0}")]
+    Failed(String),
+}
+
+impl From<error_stuff::CqrsErr> for BuilderErr {
+    fn from(e: error_stuff::CqrsErr) -> Self {
+        BuilderErr::Failed(format!("{e:?}"))
+    }
+}
+
+#[uniffi::export]
+pub fn create_page(
+    is_main_menu_page: bool,
+    session_id: String,
+) -> Result<EverythingToInsertForNewPage, BuilderErr> {
+    real_create_page(is_main_menu_page, session_id).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn edit_block(
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    diff: DiffResult,
+    session_id: String,
+) -> Result<Option<EverythingForEditBlock>, BuilderErr> {
+    real_edit_block(yrs, block_id, diff, session_id).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn disable_page(
+    page_id: String,
+    session_id: String,
+    active_pages_serialized_form: Vec<u8>,
+) -> Result<EverythingForDisablePage, BuilderErr> {
+    real_disable_page(page_id, session_id, active_pages_serialized_form).map_err(Into::into)
+}

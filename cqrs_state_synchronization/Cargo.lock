@@ -562,7 +562,8 @@ dependencies = [
  "love_letter",
  "protocol",
  "text_diff",
- "web_internal_db",
+ "thiserror 2.0.21",
+ "uniffi",
  "yrs 0.1.0",
 ]
 
@@ -667,7 +668,6 @@ dependencies = [
  "client_table_blueprints",
  "love_letter",
  "protocol",
- "web_internal_db",
  "yrs 0.1.0",
 ]
 

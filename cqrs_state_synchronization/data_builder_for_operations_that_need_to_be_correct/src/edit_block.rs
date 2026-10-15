@@ -13,12 +13,14 @@ use crate::{
     shared::{PagesUpdateCtx, UncommitedDiffsInsertCtx},
 };
 
+#[derive(uniffi::Record)]
 pub struct EverythingForEditBlock {
     pub pages_update: PagesUpdateCtx,
     pub every_block_in_existence_update: EveryBlockInExistenceUpdateCtx,
     pub uncommitted_diffs: UncommitedDiffsInsertCtx,
 }
 
+#[derive(uniffi::Record)]
 pub struct EveryBlockInExistenceUpdateCtx {
     pub block_id: String,
     pub new_content: String,

@@ -1147,6 +1147,39 @@ public object FfiConverterTypeAddColumnIn: FfiConverterRustBuffer<AddColumnIn> {
 
 
 
+data class AreWeInMiddleOfTransactionOut (
+    var `value`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeAreWeInMiddleOfTransactionOut: FfiConverterRustBuffer<AreWeInMiddleOfTransactionOut> {
+    override fun read(buf: ByteBuffer): AreWeInMiddleOfTransactionOut {
+        return AreWeInMiddleOfTransactionOut(
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: AreWeInMiddleOfTransactionOut) = (
+            FfiConverterBoolean.allocationSize(value.`value`)
+    )
+
+    override fun write(value: AreWeInMiddleOfTransactionOut, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`value`, buf)
+    }
+}
+
+
+
 data class CheckIndexIn (
     var `tableName`: kotlin.String
     , 
@@ -2405,6 +2438,82 @@ public object FfiConverterTypeGetSingleColOut: FfiConverterRustBuffer<GetSingleC
     )
 
     override fun write(value: GetSingleColOut, buf: ByteBuffer) {
+            FfiConverterTypeCol.write(value.`value`, buf)
+    }
+}
+
+
+
+data class InsertDataAndGetColIn (
+    var `tableName`: kotlin.String
+    , 
+    var `values`: List<ColumnValue>
+    , 
+    var `columnToReturn`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeInsertDataAndGetColIn: FfiConverterRustBuffer<InsertDataAndGetColIn> {
+    override fun read(buf: ByteBuffer): InsertDataAndGetColIn {
+        return InsertDataAndGetColIn(
+            FfiConverterString.read(buf),
+            FfiConverterSequenceTypeColumnValue.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: InsertDataAndGetColIn) = (
+            FfiConverterString.allocationSize(value.`tableName`) +
+            FfiConverterSequenceTypeColumnValue.allocationSize(value.`values`) +
+            FfiConverterString.allocationSize(value.`columnToReturn`)
+    )
+
+    override fun write(value: InsertDataAndGetColIn, buf: ByteBuffer) {
+            FfiConverterString.write(value.`tableName`, buf)
+            FfiConverterSequenceTypeColumnValue.write(value.`values`, buf)
+            FfiConverterString.write(value.`columnToReturn`, buf)
+    }
+}
+
+
+
+data class InsertDataAndGetColOut (
+    var `value`: Col
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeInsertDataAndGetColOut: FfiConverterRustBuffer<InsertDataAndGetColOut> {
+    override fun read(buf: ByteBuffer): InsertDataAndGetColOut {
+        return InsertDataAndGetColOut(
+            FfiConverterTypeCol.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: InsertDataAndGetColOut) = (
+            FfiConverterTypeCol.allocationSize(value.`value`)
+    )
+
+    override fun write(value: InsertDataAndGetColOut, buf: ByteBuffer) {
             FfiConverterTypeCol.write(value.`value`, buf)
     }
 }
@@ -4043,6 +4152,19 @@ sealed class SelectArguments {
         companion object
     }
     
+    data class Three(
+        val `first`: uniffi.protocol.SelectArgument, 
+        val `join`: uniffi.protocol.JoinType, 
+        val `second`: uniffi.protocol.SelectArgument, 
+        val `join2`: uniffi.protocol.JoinType, 
+        val `third`: uniffi.protocol.SelectArgument) : SelectArguments()
+        
+    {
+        
+
+        companion object
+    }
+    
 
     
 
@@ -4063,6 +4185,13 @@ public object FfiConverterTypeSelectArguments : FfiConverterRustBuffer<SelectArg
                 FfiConverterTypeSelectArgument.read(buf),
                 )
             2 -> SelectArguments.Two(
+                FfiConverterTypeSelectArgument.read(buf),
+                FfiConverterTypeJoinType.read(buf),
+                FfiConverterTypeSelectArgument.read(buf),
+                )
+            3 -> SelectArguments.Three(
+                FfiConverterTypeSelectArgument.read(buf),
+                FfiConverterTypeJoinType.read(buf),
                 FfiConverterTypeSelectArgument.read(buf),
                 FfiConverterTypeJoinType.read(buf),
                 FfiConverterTypeSelectArgument.read(buf),
@@ -4088,6 +4217,17 @@ public object FfiConverterTypeSelectArguments : FfiConverterRustBuffer<SelectArg
                 + FfiConverterTypeSelectArgument.allocationSize(value.`second`)
             )
         }
+        is SelectArguments.Three -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeSelectArgument.allocationSize(value.`first`)
+                + FfiConverterTypeJoinType.allocationSize(value.`join`)
+                + FfiConverterTypeSelectArgument.allocationSize(value.`second`)
+                + FfiConverterTypeJoinType.allocationSize(value.`join2`)
+                + FfiConverterTypeSelectArgument.allocationSize(value.`third`)
+            )
+        }
     }
 
     override fun write(value: SelectArguments, buf: ByteBuffer) {
@@ -4102,6 +4242,15 @@ public object FfiConverterTypeSelectArguments : FfiConverterRustBuffer<SelectArg
                 FfiConverterTypeSelectArgument.write(value.`first`, buf)
                 FfiConverterTypeJoinType.write(value.`join`, buf)
                 FfiConverterTypeSelectArgument.write(value.`second`, buf)
+                Unit
+            }
+            is SelectArguments.Three -> {
+                buf.putInt(3)
+                FfiConverterTypeSelectArgument.write(value.`first`, buf)
+                FfiConverterTypeJoinType.write(value.`join`, buf)
+                FfiConverterTypeSelectArgument.write(value.`second`, buf)
+                FfiConverterTypeJoinType.write(value.`join2`, buf)
+                FfiConverterTypeSelectArgument.write(value.`third`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

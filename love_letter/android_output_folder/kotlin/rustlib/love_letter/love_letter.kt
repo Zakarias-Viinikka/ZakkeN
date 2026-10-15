@@ -968,6 +968,29 @@ public object FfiConverterUInt: FfiConverter<UInt, Int> {
 /**
  * @suppress
  */
+public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
+    override fun lift(value: Byte): Boolean {
+        return value.toInt() != 0
+    }
+
+    override fun read(buf: ByteBuffer): Boolean {
+        return lift(buf.get())
+    }
+
+    override fun lower(value: Boolean): Byte {
+        return if (value) 1.toByte() else 0.toByte()
+    }
+
+    override fun allocationSize(value: Boolean) = 1UL
+
+    override fun write(value: Boolean, buf: ByteBuffer) {
+        buf.put(lower(value))
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
@@ -1154,6 +1177,7 @@ sealed class LoveLetter {
     
     data class CreateNewPage(
         val `pageId`: kotlin.String, 
+        val `isMainMenuPage`: kotlin.Boolean, 
         val `snapshotOfEdit`: kotlin.ByteArray) : LoveLetter()
         
     {
@@ -1201,6 +1225,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 )
             5 -> LoveLetter.CreateNewPage(
                 FfiConverterString.read(buf),
+                FfiConverterBoolean.read(buf),
                 FfiConverterByteArray.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -1250,6 +1275,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
             (
                 4UL
                 + FfiConverterString.allocationSize(value.`pageId`)
+                + FfiConverterBoolean.allocationSize(value.`isMainMenuPage`)
                 + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
             )
         }
@@ -1289,6 +1315,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
             is LoveLetter.CreateNewPage -> {
                 buf.putInt(5)
                 FfiConverterString.write(value.`pageId`, buf)
+                FfiConverterBoolean.write(value.`isMainMenuPage`, buf)
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
                 Unit
             }
@@ -1344,7 +1371,8 @@ sealed class LoveLetterSketch {
     }
     
     data class CreateNewPage(
-        val `pageId`: kotlin.String) : LoveLetterSketch()
+        val `pageId`: kotlin.String, 
+        val `isMainMenuPage`: kotlin.Boolean) : LoveLetterSketch()
         
     {
         
@@ -1387,6 +1415,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 )
             5 -> LoveLetterSketch.CreateNewPage(
                 FfiConverterString.read(buf),
+                FfiConverterBoolean.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -1431,6 +1460,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
             (
                 4UL
                 + FfiConverterString.allocationSize(value.`pageId`)
+                + FfiConverterBoolean.allocationSize(value.`isMainMenuPage`)
             )
         }
     }
@@ -1465,6 +1495,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
             is LoveLetterSketch.CreateNewPage -> {
                 buf.putInt(5)
                 FfiConverterString.write(value.`pageId`, buf)
+                FfiConverterBoolean.write(value.`isMainMenuPage`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
