@@ -285,8 +285,12 @@ asks "where was I doing X", the answer is often in here.
 
 old_stuff — text_diff_old and an old zakken_server. Ignore.
 
-messing_around — UI style explorations (themes). Not dead; the user
-looks at them for design ideas. Not part of the build.
+messing_around — UI style explorations and small Leptos playgrounds.
+Not dead; the user looks at them for design ideas. Not part of the
+build. feel_labs is a Leptos csr playground for testing how typing and
+editing effects should feel; one lab per idea, a picker at the top,
+no persistence. Its README.md and STORED_AI_CONTEXT.md live in
+messing_around/feel_labs/.
 
 fts5 — an fts5 search demo. Parked but not deleted; may become the
 search story later.
