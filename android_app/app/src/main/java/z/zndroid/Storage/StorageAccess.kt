@@ -90,7 +90,7 @@ object StorageAccess {
                     row = row,
                     columnDefs = newTableKeyValueStorage(),
                     expectedNames = listOf("key", "value"),
-                    skipId = false
+                    skipId = true
                 )
                 DbManager.insertData(InsertDataIn("key_value_storage", values)).getOrThrow()
             }

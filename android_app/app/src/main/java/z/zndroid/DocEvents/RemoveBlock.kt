@@ -26,7 +26,7 @@ object RemoveBlock {
     suspend fun execute(ctx: RemoveBlockCtx): Result<Unit> {
         return try {
             // 1. Capture the "Before" state of the Yrs document
-            val bookmark = createBookmarkOfSyncedState(ctx.boss)
+            val bookmark = rustlib.my_yrs_lib.createBookmark(ctx.boss)
 
             // 2. Perform the removal on the Yrs document (in-memory)
             ctx.boss.deleteBlock(ctx.blockId)

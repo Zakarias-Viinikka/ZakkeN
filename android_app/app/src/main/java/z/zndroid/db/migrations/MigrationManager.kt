@@ -61,24 +61,11 @@ object MigrationManager {
     }
 
     private fun writeVersion(db: LiveForever, version: Int) {
-        // Since we don't have direct rowId for 'schema_version' and key_value_storage has no auto-increment id,
-        // we can check if it exists first, or just try to delete if we had raw hooks. Since deleteRow needs a rowId,
-        // we can use editColInRowWhere if available, or just fetch rowId first via getData.
         try {
-            val query = db.getData(GetDataIn(
+            db.deleteRowWhere(DeleteRowWhereIn(
                 "key_value_storage",
-                SelectArguments.Single(SelectArgument.XEqualY("key", SCHEMA_VERSION_KEY)),
-                emptyList()
+                SelectArguments.Single(SelectArgument.XEqualY("key", SCHEMA_VERSION_KEY))
             ))
-            val existingRow = query.rows.firstOrNull()
-            if (existingRow != null) {
-                val internalId = when (val idCol = existingRow.cols.firstOrNull()) {
-                    is Col.Integer -> idCol.v1.toString()
-                    is Col.Text -> idCol.v1
-                    else -> SCHEMA_VERSION_KEY // fallback
-                }
-                db.deleteRow(DeleteRowIn("key_value_storage", internalId))
-            }
         } catch (_: Exception) {}
 
         val row = newKeyValueItem(SCHEMA_VERSION_KEY, version.toString())
@@ -86,7 +73,7 @@ object MigrationManager {
             row = row,
             columnDefs = newTableKeyValueStorage(),
             expectedNames = listOf("key", "value"),
-            skipId = false
+            skipId = true
         )
         db.insertData(InsertDataIn("key_value_storage", values))
     }

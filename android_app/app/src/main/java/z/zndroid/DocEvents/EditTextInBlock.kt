@@ -43,7 +43,7 @@ object EditTextInBlock {
             }
 
             // 3. Capture the "Before" state of the Yrs document
-            val bookmark = createBookmarkOfSyncedState(ctx.boss)
+            val bookmark = rustlib.my_yrs_lib.createBookmark(ctx.boss)
 
             // 4. Apply the edit to the Yrs document
             ctx.boss.editTextBlock(
@@ -142,7 +142,7 @@ object EditTextInBlock {
                 if (squashed.isEmpty()) return@withTransaction
 
                 // 3. Capture baseline for CRDT diff
-                var currentBookmark = createBookmarkOfSyncedState(boss)
+                var currentBookmark = rustlib.my_yrs_lib.createBookmark(boss)
                 val pageId = boss.pageId()
                 val sessionId = SessionManager.currentSessionId
                 val colDefs = rustlib.client_table_blueprints.newTableUncommittedDiffs()
@@ -177,7 +177,7 @@ object EditTextInBlock {
                     )
                     
                     // Refresh bookmark for incremental snapshots
-                    currentBookmark = createBookmarkOfSyncedState(boss)
+                    currentBookmark = rustlib.my_yrs_lib.createBookmark(boss)
 
                     // 6. DB Write Part 1: uncommitted_diffs
                     val diffValues = SafeRowMapper.mapRow(diffRow, colDefs, expectedNames)

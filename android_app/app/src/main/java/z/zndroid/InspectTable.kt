@@ -135,7 +135,7 @@ fun InspectTable(tableName: String, onBack: () -> Unit) {
                                             is Col.Real -> col.v1.toString()
                                             is Col.Text -> col.v1
                                             is Col.Blob -> "Blob(${col.v1.size} bytes)"
-                                            Col.Null -> "NULL"
+                                            else -> "NULL"
                                         }
                                         Text("$colName: $valueStr", style = MaterialTheme.typography.bodySmall)
                                     }

@@ -102,7 +102,7 @@ fun ViewPage(
             val blob = (row.cols.getOrNull(2) as? Col.Blob)?.v1
             if (blob != null) {
                 try {
-                    val newBoss = docFromSnapshot(blob, userId, pageId)
+                    val newBoss = docFromSnapshot(blob, userId, pageId, System.currentTimeMillis().toString())
                     boss = newBoss
                     uiStates = ViewPageHelper.syncUiStates(newBoss, emptyList())
                     ViewPageLogs.logPageLoadSuccess(pageId, uiStates.size)

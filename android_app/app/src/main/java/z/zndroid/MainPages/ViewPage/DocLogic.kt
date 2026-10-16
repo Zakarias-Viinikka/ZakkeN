@@ -69,31 +69,34 @@ suspend fun splitBlock(
     onHardReload: () -> Unit,
     onUpdate: (String?) -> Unit
 ) {
-    // 1. Flush any pending buffered edits first
-    EditTextInBlock.flushBuffer(boss, state, onHardReload).getOrThrow()
+    var newBlockId: String? = null
+    z.zndroid.DbManager.withTransaction {
+        // 1. Flush any pending buffered edits first within the transaction
+        EditTextInBlock.flushBuffer(boss, state, onHardReload).getOrThrow()
 
-    val fullText = state.text
-    val head = fullText.substring(0, cursorPosition)
-    val tail = fullText.substring(cursorPosition)
+        val fullText = state.text
+        val head = fullText.substring(0, cursorPosition.coerceAtMost(fullText.length))
+        val tail = fullText.substring(cursorPosition.coerceAtMost(fullText.length))
 
-    // 2. Truncate current block to the 'head'
-    EditTextInBlock.execute(
-        EditTextInBlockCtx(
-            boss = boss,
-            blockId = state.blockId,
-            oldText = fullText,
-            newText = head
-        )
-    ).getOrThrow()
+        // 2. Truncate current block to the 'head'
+        EditTextInBlock.execute(
+            EditTextInBlockCtx(
+                boss = boss,
+                blockId = state.blockId,
+                oldText = fullText,
+                newText = head
+            )
+        ).getOrThrow()
 
-    // 3. Create the new block with the 'tail' text
-    val newBlockId = AddBlock.execute(
-        AddBlockCtx(
-            boss = boss,
-            content = tail,
-            position = PositionToInsert.SpecificPosition(nextPosition.toUInt())
-        )
-    ).getOrThrow()
+        // 3. Create the new block with the 'tail' text
+        newBlockId = AddBlock.execute(
+            AddBlockCtx(
+                boss = boss,
+                content = tail,
+                position = PositionToInsert.SpecificPosition(nextPosition.toUInt())
+            )
+        ).getOrThrow()
+    }.getOrThrow()
 
     onUpdate(newBlockId)
 }
@@ -106,6 +109,7 @@ suspend fun mergeWithPreviousBlock(
     boss: BossOfYrs,
     state: BlockUiState, // Current block state to ensure cleanup
     currentIndex: Int,
+    onHardReload: () -> Unit,
     onUpdate: (String?, Int?) -> Unit
 ) {
     // Block 0 is the title, block 1 is the non-deletable body placeholder.
@@ -115,34 +119,43 @@ suspend fun mergeWithPreviousBlock(
         return
     }
 
-    // Flush/Clear the current block's buffer to prevent stale debounced writes
-    state.diffBuffer.clear()
+    var targetId: String? = null
+    var cursorAt: Int? = null
 
-    val blocks = boss.getEntirePage()
-    val prevBlock = blocks[currentIndex - 1]
-    val currBlock = blocks[currentIndex]
+    z.zndroid.DbManager.withTransaction {
+        // 1. Flush pending buffered edits before merging
+        EditTextInBlock.flushBuffer(boss, state, onHardReload).getOrThrow()
 
-    val combinedText = prevBlock.text + currBlock.text
-    val mergePoint = prevBlock.text.length
+        val blocks = boss.getEntirePage()
+        if (currentIndex >= blocks.size) return@withTransaction
+        val prevBlock = blocks[currentIndex - 1]
+        val currBlock = blocks[currentIndex]
 
-    // 1. Update previous block with combined content
-    EditTextInBlock.execute(
-        EditTextInBlockCtx(
-            boss = boss,
-            blockId = prevBlock.idInYrs,
-            oldText = prevBlock.text,
-            newText = combinedText
-        )
-    ).getOrThrow()
+        val combinedText = prevBlock.text + currBlock.text
+        val mergePoint = prevBlock.text.length
 
-    // 2. Remove the current block
-    RemoveBlock.execute(
-        RemoveBlockCtx(
-            boss = boss,
-            blockId = currBlock.idInYrs,
-            position = currentIndex.toUInt()
-        )
-    ).getOrThrow()
+        // 2. Update previous block with combined content
+        EditTextInBlock.execute(
+            EditTextInBlockCtx(
+                boss = boss,
+                blockId = prevBlock.idInYrs,
+                oldText = prevBlock.text,
+                newText = combinedText
+            )
+        ).getOrThrow()
 
-    onUpdate(prevBlock.idInYrs, mergePoint)
+        // 3. Remove the current block
+        RemoveBlock.execute(
+            RemoveBlockCtx(
+                boss = boss,
+                blockId = currBlock.idInYrs,
+                position = currentIndex.toUInt()
+            )
+        ).getOrThrow()
+
+        targetId = prevBlock.idInYrs
+        cursorAt = mergePoint
+    }.getOrThrow()
+
+    onUpdate(targetId, cursorAt)
 }

@@ -22,18 +22,71 @@ object DbManager {
     // This mirrors the 'askQueue' logic from the WASM worker implementation.
     private val dbMutex = Mutex()
 
+    internal val activeTransactionThreadLocal = ThreadLocal<DbTransactionElement?>()
+
     /**
      * Element to store the active database instance in the coroutine context during a transaction.
      */
     internal class DbTransactionElement(val db: LiveForever) : CoroutineContext.Element {
         companion object Key : CoroutineContext.Key<DbTransactionElement>
         override val key: CoroutineContext.Key<*> get() = Key
+
+        val logBuffer = mutableListOf<z.zndroid.log.LogEntry>()
+
+        fun onCommit() {
+            logBuffer.clear()
+        }
+
+        fun onRollback(db: LiveForever) {
+            val items = logBuffer.toList()
+            logBuffer.clear()
+            items.forEach { entry ->
+                try {
+                    val row = newLogRow(
+                        timestamp = entry.timestamp,
+                        level = entry.level,
+                        category = entry.category,
+                        source = entry.source,
+                        sessionId = entry.sessionId,
+                        message = entry.message
+                    )
+                    val values = SafeRowMapper.mapRow(
+                        row = row,
+                        columnDefs = newTableLogs(),
+                        expectedNames = listOf("timestamp", "level", "category", "source", "session_id", "message")
+                    )
+                    db.insertData(InsertDataIn("logs", values))
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     /**
      * Suspends until the database is initialized and tables are created.
      */
     suspend fun awaitReady() = readyDeferred.await()
+
+    /**
+     * Writes a single LogEntry to the logs table in SQLite.
+     */
+    suspend fun writeLogEntry(entry: z.zndroid.log.LogEntry): Result<Unit> {
+        return executeNative { db ->
+            val row = newLogRow(
+                timestamp = entry.timestamp,
+                level = entry.level,
+                category = entry.category,
+                source = entry.source,
+                sessionId = entry.sessionId,
+                message = entry.message
+            )
+            val values = SafeRowMapper.mapRow(
+                row = row,
+                columnDefs = newTableLogs(),
+                expectedNames = listOf("timestamp", "level", "category", "source", "session_id", "message")
+            )
+            db.insertData(InsertDataIn("logs", values))
+        }
+    }
 
     /**
      * Internal helper to execute database calls with safety checks and serialization.
@@ -80,19 +133,25 @@ object DbManager {
 
         val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
         return dbMutex.withLock {
+            val txElement = DbTransactionElement(currentDb)
+            activeTransactionThreadLocal.set(txElement)
             try {
                 currentDb.beginAllOrNothing()
-                val result = kotlinx.coroutines.withContext(DbTransactionElement(currentDb)) {
+                val result = kotlinx.coroutines.withContext(txElement) {
                     block()
                 }
                 currentDb.everythingWentPerfectly()
+                txElement.onCommit()
                 Result.success(result)
             } catch (e: Exception) {
                 try {
                     currentDb.regretEverything()
                 } catch (_: Exception) {
                 }
+                txElement.onRollback(currentDb)
                 Result.failure(e)
+            } finally {
+                activeTransactionThreadLocal.remove()
             }
         }
     }
@@ -206,42 +265,49 @@ object DbManager {
     }
 
     /**
-     * Renames a page: updates pages.page_id and cascades to every_block_in_existence and backlinks.
-     * Runs as a single transaction.
+     * Renames a page title: edits the title block's content using the builder/executor path.
+     * Note: page_id remains unchanged as the stable identity.
      */
-    suspend fun renamePage(oldPageId: String, newPageId: String): Result<Unit> = withTransaction {
-        val pagesQuery = DbManager.getData(GetDataIn(
-            "pages",
-            SelectArguments.Single(SelectArgument.XEqualY("page_id", oldPageId)),
-            listOf("id")
-        )).getOrThrow()
-        val pageRowId = (pagesQuery.rows.firstOrNull()?.cols?.firstOrNull() as? Col.Integer)?.v1?.toString()
-            ?: throw Exception("Page not found: $oldPageId")
+    suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
+        return try {
+            val pageRow = getPage(pageId).getOrThrow()
+            val userId = z.zndroid.Storage.StorageAccess.getUserId()
+            val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
+                ?: throw Exception("Snapshot blob not found for page $pageId")
 
-        DbManager.editColInRow(EditColInRowIn(
-            "pages", pageRowId, "page_id", Col.Text(newPageId)
-        )).getOrThrow()
+            val boss = rustlib.my_yrs_lib.docFromSnapshot(
+                blob, userId, pageId, System.currentTimeMillis().toString()
+            )
 
-        DbManager.editColInRowWhere(EditColInRowWhereIn(
-            "every_block_in_existence",
-            SelectArguments.Single(SelectArgument.XEqualY("id_of_page_i_belong_to", oldPageId)),
-            "id_of_page_i_belong_to",
-            Col.Text(newPageId)
-        )).getOrThrow()
+            try {
+                val blocks = boss.getEntirePage()
+                val titleBlock = blocks.firstOrNull()
 
-        DbManager.editColInRowWhere(EditColInRowWhereIn(
-            "backlinks",
-            SelectArguments.Single(SelectArgument.XEqualY("page_that_holds_link_id", oldPageId)),
-            "page_that_holds_link_id",
-            Col.Text(newPageId)
-        )).getOrThrow()
-
-        DbManager.editColInRowWhere(EditColInRowWhereIn(
-            "backlinks",
-            SelectArguments.Single(SelectArgument.XEqualY("page_being_linked_to_id", oldPageId)),
-            "page_being_linked_to_id",
-            Col.Text(newPageId)
-        )).getOrThrow()
+                if (titleBlock != null) {
+                    z.zndroid.DocEvents.EditTextInBlock.execute(
+                        z.zndroid.DocEvents.EditTextInBlockCtx(
+                            boss = boss,
+                            blockId = titleBlock.idInYrs,
+                            oldText = titleBlock.text,
+                            newText = newTitle
+                        )
+                    ).getOrThrow()
+                } else {
+                    z.zndroid.DocEvents.AddBlock.execute(
+                        z.zndroid.DocEvents.AddBlockCtx(
+                            boss = boss,
+                            content = newTitle,
+                            isTitle = true
+                        )
+                    ).getOrThrow()
+                }
+                Result.success(Unit)
+            } finally {
+                boss.destroy()
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**

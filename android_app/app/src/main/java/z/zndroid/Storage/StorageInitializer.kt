@@ -38,7 +38,7 @@ object StorageInitializer {
                     row = row,
                     columnDefs = newTableKeyValueStorage(),
                     expectedNames = listOf("key", "value"),
-                    skipId = false // No auto-increment ID in this table
+                    skipId = true
                 )
                 
                 DbManager.insertData(InsertDataIn("key_value_storage", values))

@@ -22,7 +22,7 @@ object ViewPageHelper {
         return blocks.map { b ->
             val existing = currentStates.find { s -> s.blockId == b.idInYrs }
             if (existing != null) {
-                if (existing.text != b.text) {
+                if (existing.diffBuffer.isEmpty() && existing.text != b.text) {
                     existing.textFieldValue = existing.textFieldValue.copy(text = b.text)
                 }
                 existing

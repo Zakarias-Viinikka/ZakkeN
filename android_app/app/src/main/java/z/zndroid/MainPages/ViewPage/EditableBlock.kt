@@ -123,7 +123,7 @@ fun EditableBlock(
                                         // Cancel pending flush before structural change
                                         debounceJob.value?.cancel()
                                         scope.launch {
-                                            mergeWithPreviousBlock(boss, state, index) { targetId, cursorAt ->
+                                            mergeWithPreviousBlock(boss, state, index, onHardReload) { targetId, cursorAt ->
                                                 onRefreshWithFocus(targetId, cursorAt)
                                             }
                                         }

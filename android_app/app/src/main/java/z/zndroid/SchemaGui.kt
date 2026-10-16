@@ -78,7 +78,7 @@ fun SchemaCard(schema: TableSchema) {
                 Text(text = "Foreign Keys:", style = MaterialTheme.typography.titleMedium)
                 schema.foreignKeys.forEach { fk ->
                     Text(
-                        text = "• ${fk.column} → ${fk.referencedTable}(${fk.referencedColumn})",
+                        text = "• ${fk.columnName} → ${fk.referencedTableName}(${fk.referencedColumnName})",
                         modifier = Modifier.padding(start = 8.dp, top = 4.dp),
                         style = MaterialTheme.typography.bodyMedium
                     )

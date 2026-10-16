@@ -2,7 +2,7 @@ package z.zndroid.DocEvents
 
 import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.PositionToInsert
-import rustlib.my_yrs_lib.createBookmarkOfSyncedState
+import rustlib.my_yrs_lib.createBookmark
 import rustlib.my_yrs_lib.generateDiffSnapshot
 import rustlib.love_letter.*
 import rustlib.client_table_blueprints.newUncommittedDiffRow
@@ -64,7 +64,7 @@ object AddBlock {
     suspend fun execute(ctx: AddBlockCtx): Result<String> {
         return try {
             // 1. Capture the "Before" state of the Yrs document
-            val bookmark = createBookmarkOfSyncedState(ctx.boss)
+            val bookmark = createBookmark(ctx.boss)
 
             // 2. Perform the edit on the Yrs document (in-memory)
             // returns the newly generated block ID

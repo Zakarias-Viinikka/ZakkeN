@@ -34,7 +34,7 @@ enum class SchemaVersion(val version: Int) {
                 val v = (oldRow.cols.getOrNull(1) as? Col.Text)?.v1
                 if (k != null && v != null) {
                     val newRow = rustlib.client_table_blueprints.newKeyValueItem(k, v)
-                    val values = SafeRowMapper.mapRow(newRow, Version1.keyValueStorageColumns(), listOf("key", "value"), skipId = false)
+                    val values = SafeRowMapper.mapRow(newRow, Version1.keyValueStorageColumns(), listOf("key", "value"), skipId = true)
                     db.insertData(InsertDataIn("key_value_storage", values))
                 }
             }
