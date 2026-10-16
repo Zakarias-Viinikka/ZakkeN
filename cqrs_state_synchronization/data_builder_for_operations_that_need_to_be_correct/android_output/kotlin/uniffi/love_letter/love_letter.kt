@@ -687,7 +687,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_love_letter_checksum_func_deserialize_love_letter(
     ): Int
+    external fun uniffi_love_letter_checksum_func_deserialize_love_letter_response(
+    ): Int
     external fun uniffi_love_letter_checksum_func_deserialize_sketch(
+    ): Int
+    external fun uniffi_love_letter_checksum_func_love_letter_response_to_bytes(
     ): Int
     external fun uniffi_love_letter_checksum_func_love_letter_to_bytes(
     ): Int
@@ -713,7 +717,11 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_love_letter_fn_func_deserialize_love_letter(`bytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_love_letter_fn_func_deserialize_love_letter_response(`bytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_love_letter_fn_func_deserialize_sketch(`bytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_love_letter_fn_func_love_letter_response_to_bytes(`response`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_love_letter_fn_func_love_letter_to_bytes(`letter`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -844,7 +852,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_love_letter_checksum_func_deserialize_love_letter() and 0xFFFF) != 62268) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_love_letter_checksum_func_deserialize_love_letter_response() and 0xFFFF) != 36491) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_love_letter_checksum_func_deserialize_sketch() and 0xFFFF) != 47737) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_love_letter_checksum_func_love_letter_response_to_bytes() and 0xFFFF) != 36342) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_love_letter_checksum_func_love_letter_to_bytes() and 0xFFFF) != 14070) {
@@ -972,6 +986,29 @@ public object FfiConverterUInt: FfiConverter<UInt, Int> {
 /**
  * @suppress
  */
+public object FfiConverterLong: FfiConverter<Long, Long> {
+    override fun lift(value: Long): Long {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Long {
+        return buf.getLong()
+    }
+
+    override fun lower(value: Long): Long {
+        return value
+    }
+
+    override fun allocationSize(value: Long) = 8UL
+
+    override fun write(value: Long, buf: ByteBuffer) {
+        buf.putLong(value)
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
     override fun lift(value: Byte): Boolean {
         return value.toInt() != 0
@@ -1065,6 +1102,52 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
     override fun write(value: ByteArray, buf: ByteBuffer) {
         buf.putInt(value.size)
         buf.put(value)
+    }
+}
+
+
+
+data class LoveLetterResponse (
+    var `loveLetter`: LoveLetter
+    , 
+    /**
+     * this is the id the client uses to keep track of whether it's received a love letter twice.
+     * this can happen if it receives a love letter, the connection dies, and then it reconnects,
+     * the server would send the love letter again since it never received an acknowledgment since server crashed.
+     * alternative would be to wrap the entire thing in a transaction client side, but that means
+     * every love letter starts a transaction and blocks other transactions, which is a problem
+     * since every edit to a page is a transaction.
+     */
+    var `letterId`: kotlin.Long
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeLoveLetterResponse: FfiConverterRustBuffer<LoveLetterResponse> {
+    override fun read(buf: ByteBuffer): LoveLetterResponse {
+        return LoveLetterResponse(
+            FfiConverterTypeLoveLetter.read(buf),
+            FfiConverterLong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: LoveLetterResponse) = (
+            FfiConverterTypeLoveLetter.allocationSize(value.`loveLetter`) +
+            FfiConverterLong.allocationSize(value.`letterId`)
+    )
+
+    override fun write(value: LoveLetterResponse, buf: ByteBuffer) {
+            FfiConverterTypeLoveLetter.write(value.`loveLetter`, buf)
+            FfiConverterLong.write(value.`letterId`, buf)
     }
 }
 
@@ -1537,6 +1620,18 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
     }
     
 
+    @Throws(BrokenHeart::class) fun `deserializeLoveLetterResponse`(`bytes`: kotlin.ByteArray): LoveLetterResponse {
+            return FfiConverterTypeLoveLetterResponse.lift(
+    uniffiRustCallWithError(BrokenHeart) { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_deserialize_love_letter_response(
+    
+        
+        FfiConverterByteArray.lower(`bytes`),_status)
+}
+    )
+    }
+    
+
     @Throws(BrokenHeart::class) fun `deserializeSketch`(`bytes`: kotlin.ByteArray): LoveLetterSketch {
             return FfiConverterTypeLoveLetterSketch.lift(
     uniffiRustCallWithError(BrokenHeart) { _status ->
@@ -1544,6 +1639,18 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
     
         
         FfiConverterByteArray.lower(`bytes`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BrokenHeart::class) fun `loveLetterResponseToBytes`(`response`: LoveLetterResponse): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    uniffiRustCallWithError(BrokenHeart) { _status ->
+    UniffiLib.uniffi_love_letter_fn_func_love_letter_response_to_bytes(
+    
+        
+        FfiConverterTypeLoveLetterResponse.lower(`response`),_status)
 }
     )
     }

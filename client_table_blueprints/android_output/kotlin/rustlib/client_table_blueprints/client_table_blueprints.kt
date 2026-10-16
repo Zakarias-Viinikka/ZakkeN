@@ -751,7 +751,7 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_key_value_storage(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_log_row(`timestamp`: Long,`level`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`source`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`message`: RustBuffer.ByValue,`details`: RustBuffer.ByValue,`detailsType`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_log_row(`timestamp`: Long,`level`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`source`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_logs(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -912,7 +912,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_key_value_storage() and 0xFFFF) != 27735) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_log_row() and 0xFFFF) != 60649) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_log_row() and 0xFFFF) != 11817) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_logs() and 0xFFFF) != 37062) {
@@ -1174,70 +1174,6 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 /**
  * @suppress
  */
-public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
-    override fun read(buf: ByteBuffer): kotlin.String? {
-        if (buf.get().toInt() == 0) {
-            return null
-        }
-        return FfiConverterString.read(buf)
-    }
-
-    override fun allocationSize(value: kotlin.String?): ULong {
-        if (value == null) {
-            return 1UL
-        } else {
-            return 1UL + FfiConverterString.allocationSize(value)
-        }
-    }
-
-    override fun write(value: kotlin.String?, buf: ByteBuffer) {
-        if (value == null) {
-            buf.put(0)
-        } else {
-            buf.put(1)
-            FfiConverterString.write(value, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterOptionalByteArray: FfiConverterRustBuffer<kotlin.ByteArray?> {
-    override fun read(buf: ByteBuffer): kotlin.ByteArray? {
-        if (buf.get().toInt() == 0) {
-            return null
-        }
-        return FfiConverterByteArray.read(buf)
-    }
-
-    override fun allocationSize(value: kotlin.ByteArray?): ULong {
-        if (value == null) {
-            return 1UL
-        } else {
-            return 1UL + FfiConverterByteArray.allocationSize(value)
-        }
-    }
-
-    override fun write(value: kotlin.ByteArray?, buf: ByteBuffer) {
-        if (value == null) {
-            buf.put(0)
-        } else {
-            buf.put(1)
-            FfiConverterByteArray.write(value, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
 public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<ColumnDef>> {
     override fun read(buf: ByteBuffer): List<ColumnDef> {
         val len = buf.getInt()
@@ -1450,7 +1386,7 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newLogRow`(`timestamp`: kotlin.Long, `level`: kotlin.String, `category`: kotlin.String, `source`: kotlin.String, `sessionId`: kotlin.String, `message`: kotlin.String, `details`: kotlin.ByteArray?, `detailsType`: kotlin.String?): List<ColumnValue> {
+    @Throws(YrsException::class) fun `newLogRow`(`timestamp`: kotlin.Long, `level`: kotlin.String, `category`: kotlin.String, `source`: kotlin.String, `sessionId`: kotlin.String, `message`: kotlin.String): List<ColumnValue> {
             return FfiConverterSequenceTypeColumnValue.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_log_row(
@@ -1461,9 +1397,7 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
         FfiConverterString.lower(`category`),
         FfiConverterString.lower(`source`),
         FfiConverterString.lower(`sessionId`),
-        FfiConverterString.lower(`message`),
-        FfiConverterOptionalByteArray.lower(`details`),
-        FfiConverterOptionalString.lower(`detailsType`),_status)
+        FfiConverterString.lower(`message`),_status)
 }
     )
     }
