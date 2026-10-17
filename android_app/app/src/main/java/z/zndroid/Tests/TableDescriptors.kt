@@ -80,8 +80,6 @@ object LogsTableSchema {
     val source = ColumnDescriptor("source", "TEXT") { (it as Col.Text).v1 }
     val sessionId = ColumnDescriptor("session_id", "TEXT") { (it as Col.Text).v1 }
     val message = ColumnDescriptor("message", "TEXT") { (it as Col.Text).v1 }
-    val details = ColumnDescriptor("details", "BLOB") { (it as Col.Blob).v1 }
-    val detailsType = ColumnDescriptor("details_type", "TEXT") { (it as Col.Text).v1 }
 
-    val allColumns = listOf(id, timestamp, level, category, source, sessionId, message, details, detailsType)
+    val allColumns = listOf(id, timestamp, level, category, source, sessionId, message)
 }

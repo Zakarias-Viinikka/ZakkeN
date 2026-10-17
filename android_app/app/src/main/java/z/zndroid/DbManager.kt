@@ -245,22 +245,43 @@ object DbManager {
 
     /**
      * Proper way to add a new page using Yrs initial snapshots from blueprints.
+     * Creates the title block with [title] content and persists the initial page snapshot to SQLite.
      */
-    suspend fun addPage(pageId: String, isMainMenu: Boolean = false): Result<Unit> {
-        val userId = z.zndroid.Storage.StorageAccess.getUserId()
-        val boss = rustlib.my_yrs_lib.BossOfYrs(userId, System.currentTimeMillis().toString())
-        val blobbedPage = boss.snapshot()
-        val version = ByteArray(0)
-        return executeNative { db ->
-            val row = newPageRow(pageId, isMainMenu, blobbedPage, version)
-            
-            val values = SafeRowMapper.mapRow(
-                row = row,
-                columnDefs = newTablePages(),
-                expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
-            )
+    suspend fun addPage(title: String, isMainMenu: Boolean = false): Result<Unit> {
+        return try {
+            val pageId = title.ifBlank { java.util.UUID.randomUUID().toString() }
+            val userId = z.zndroid.Storage.StorageAccess.getUserId()
+            val boss = rustlib.my_yrs_lib.BossOfYrs(userId, System.currentTimeMillis().toString())
 
-            db.insertData(InsertDataIn("pages", values))
+            try {
+                withTransaction {
+                    // 1. Create the title block with title content
+                    z.zndroid.DocEvents.AddBlock.execute(
+                        z.zndroid.DocEvents.AddBlockCtx(
+                            boss = boss,
+                            content = title,
+                            isTitle = true
+                        )
+                    ).getOrThrow()
+
+                    // 2. Persist page row to pages table
+                    val blobbedPage = boss.snapshot()
+                    val version = ByteArray(0)
+                    val row = newPageRow(pageId, isMainMenu, blobbedPage, version)
+                    val values = SafeRowMapper.mapRow(
+                        row = row,
+                        columnDefs = newTablePages(),
+                        expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
+                    )
+                    insertData(InsertDataIn("pages", values)).getOrThrow()
+                }.getOrThrow()
+
+                Result.success(Unit)
+            } finally {
+                boss.destroy()
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

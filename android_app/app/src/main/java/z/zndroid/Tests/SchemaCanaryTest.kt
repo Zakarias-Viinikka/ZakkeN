@@ -79,8 +79,7 @@ class SchemaCanaryTest : AppTest {
         LogsTableSchema.allColumns.forEach { col ->
             val expected = when (col.name) {
                 "id", "timestamp" -> "INTEGER"
-                "level", "category", "source", "session_id", "message", "details_type" -> "TEXT"
-                "details" -> "BLOB"
+                "level", "category", "source", "session_id", "message" -> "TEXT"
                 else -> "UNKNOWN"
             }
             assertCol("logs", col.name, col.typeName, expected)

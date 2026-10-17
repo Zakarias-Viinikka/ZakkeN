@@ -68,8 +68,6 @@ object Version1 {
         ColumnDef("category", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
         ColumnDef("source", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
         ColumnDef("session_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("message", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("details", "BLOB", primaryKey = false, notNull = false, unique = false, defaultValue = "", autoincrement = false),
-        ColumnDef("details_type", "TEXT", primaryKey = false, notNull = false, unique = false, defaultValue = "", autoincrement = false)
+        ColumnDef("message", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
     )
 }

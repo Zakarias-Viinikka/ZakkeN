@@ -100,7 +100,7 @@ object AddBlock {
             val blockValues = SafeRowMapper.mapRow(
                 row = blockRow,
                 columnDefs = newTableEveryBlockInExistence(),
-                expectedNames = listOf("is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "position")
+                expectedNames = listOf("is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "position", "page_is_disabled")
             )
 
             // 6. Build the sync row for 'uncommitted_diffs'

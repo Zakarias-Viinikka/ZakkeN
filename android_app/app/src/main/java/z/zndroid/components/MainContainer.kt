@@ -15,7 +15,9 @@ fun MainContainer(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        content()
-        GlobalPopup()
+        androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+            content()
+            GlobalPopup()
+        }
     }
 }
