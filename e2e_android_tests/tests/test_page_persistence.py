@@ -17,12 +17,7 @@ def test_page_lifecycle(run):
     new_name = f"{page_name}_renamed"
     body_text = f"body_{uniq}"
 
-    run.step(
-        "Clean up any leftover test pages from previous runs",
-        f"No pages with prefix '{PREFIX}' remain",
-        lambda: flows.cleanup_test_pages(run.driver, PREFIX),
-    )
-
+    # Cleanup and app reset happen in the session fixture before this test runs.
     run.step(
         "Create a new page from the nav list",
         f"Dialog opens, page '{page_name}' is created and visible in the list",

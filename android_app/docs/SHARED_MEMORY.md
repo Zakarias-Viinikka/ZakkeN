@@ -23,6 +23,22 @@
   - **Modular**: Experiments in `lab/experiments/` (e.g., `scroll`, `selection`, `undoredo`).
   - **Core**: `LabNavigator` handles routing; `LabContainer` wraps the app for overlays.
   - **Rules**: Governed by `docs/AI_LAB_RULE.md`.
+- **E2E Testing**: External Python/Appium harness at `../e2e_android_tests/`
+  drives the UI on a physical phone via adb. Runs against the already-installed
+  app; does not build or install it. App-side hooks:
+  - **`TestTransactionReceiver`** (`src/debug/`): debug-only broadcast receiver.
+    Three actions: `BEGIN_TEST_TX`, `END_TEST_TX_ROLLBACK`, `END_TEST_TX_COMMIT`.
+    Calls `DbManager.beginExternalTransaction()` / `endExternalTransaction(commit)`.
+    A whole test run happens inside one transaction; teardown rolls it back,
+    leaving user data untouched.
+  - **`DbManager` external transaction hook**: `withTransaction` runs its block
+    inside an already-open external transaction (via `externalTransactionActive`)
+    instead of starting a nested one. Do not remove.
+  - **Popup severity**: `GlobalPopupManager.show(msg)` = info,
+    `showError(msg)` = error (prefixed `ERROR:` in the snackbar). Both logged
+    to logcat tag `GlobalPopup`. Harness reads popups from there, because
+    snackbars render behind `Dialog` windows and are not in the a11y tree
+    when a modal is up.
 - **Logging System**: Modular system in `log/` package writing to Logcat and SQLite `logs` table.
   - **Engine**: `Logger.kt` processes logs in background `CoroutineScope` and handles transaction boundaries.
   - **Transactional Buffering**: Outside transaction -> inserts directly into `logs` table. Inside transaction -> buffers in `DbTransactionElement.logBuffer`. On commit -> drops buffer. On rollback -> flushes buffer to `logs` table outside failed transaction.

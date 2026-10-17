@@ -39,20 +39,21 @@ def _row_sibling(element, label, timeout):
     raise RuntimeError(f"Could not find '{label}' button in this row: {last_error}")
 
 
-def ensure_nav_page(driver, attempts=6):
-    for _ in range(attempts):
-        if ui.text_present(driver, NEW_PAGE_BUTTON):
-            return
-        ui.press_back(driver)
-        time.sleep(0.4)
-    raise RuntimeError(
-        "Could not reach NavPage: '+ New Page' button never appeared after back presses"
-    )
+def ensure_nav_page(driver, timeout=WAIT):
+    """Wait for NavPage. If it never appears, try ONE back press as a last resort."""
+    if ui.text_present(driver, NEW_PAGE_BUTTON):
+        return
+    try:
+        ui.wait_for_text(driver, NEW_PAGE_BUTTON, timeout=timeout)
+        return
+    except Exception:
+        pass
+    ui.press_back(driver)
+    ui.wait_for_text(driver, NEW_PAGE_BUTTON, timeout=timeout)
 
 
 def cleanup_test_pages(driver, prefix=PREFIX, timeout=WAIT):
-    """Delete every page whose title starts with `prefix`. No-op if none exist."""
-    ensure_nav_page(driver)
+    """Delete every page whose title starts with `prefix`. Assumes NavPage is ready."""
     title_xpath = f'//*[starts-with(@text, {ui.xpath_literal(prefix)})]'
 
     for _ in range(50):
@@ -106,6 +107,20 @@ def create_page(driver, name):
         EC.element_to_be_clickable((AppiumBy.XPATH, create_xp))
     )
     create_btn.click()
+
+    # The dialog closing is the real proof the page was created. If the app
+    # errors, the dialog stays up and an ERROR popup appears. Waiting here
+    # also gives the async DB write time to fail (and surface its popup)
+    # before we give up — so runner.step() will see the popup text.
+    try:
+        ui.wait_text_gone(driver, NEW_PAGE_DIALOG_TITLE, timeout=15)
+    except Exception:
+        time.sleep(0.5)
+        raise AssertionError(
+            f"New Page dialog did not close after clicking Create for {name!r}. "
+            f"Page creation almost certainly failed — the error popup text should "
+            f"be captured alongside this failure in the report."
+        )
 
     ui.wait_for_text(driver, name, timeout=WAIT)
 

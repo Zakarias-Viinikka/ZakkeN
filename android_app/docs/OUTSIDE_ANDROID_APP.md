@@ -295,3 +295,30 @@ After making changes, update these where they have drifted:
   docs/AI_READ_THIS.md — the library guide
   docs/SHARED_MEMORY.md — architecture highlights
   docs/UX_INTENT.md — only if UX behaviour changed
+
+## The e2e test harness (2026-10-17)
+
+An external Python/Appium test suite lives at `../e2e_android_tests/`. It is
+not part of the Android build. It runs against the app already installed on a
+physical phone, over adb. It does not build or install the APK — the human
+rebuilds and installs via Android Studio or `android_app/build_and_install.sh`
+before running tests.
+
+Two things the app must provide for the harness to work:
+
+- `TestTransactionReceiver` (`src/debug/`): a debug-only broadcast receiver
+  that calls `DbManager.beginExternalTransaction()` and
+  `endExternalTransaction(commit)`. When active, every DB write the app makes
+  during a test is inside the transaction; teardown rolls it back and the DB
+  on disk is unchanged. Removing or gating this receiver breaks the harness
+  silently — it will time out waiting for the transaction to be acknowledged
+  in logcat.
+
+- Popup logging: `GlobalPopupManager.show()` and `showError()` both write to
+  logcat with tag `GlobalPopup`. The harness reads popup messages from there,
+  because Compose snackbars render behind modal `Dialog` windows and are not
+  visible in the a11y tree when a dialog is open. Do not remove these log
+  calls.
+
+Details in `AI_READ_THIS.md`, sections "End-to-end testing" and "Popup
+severity".

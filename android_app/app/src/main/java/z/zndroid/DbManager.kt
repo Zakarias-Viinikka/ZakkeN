@@ -133,6 +133,21 @@ object DbManager {
 
         val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
         return dbMutex.withLock {
+            // Test-tool hook: TestTransactionReceiver may be holding an external
+            // transaction open across the whole test run. In that case, run the
+            // block inside it without beginning/committing a nested transaction.
+            if (externalTransactionActive) {
+                val routingElement = DbTransactionElement(currentDb)
+                return@withLock try {
+                    val result = kotlinx.coroutines.withContext(routingElement) {
+                        block()
+                    }
+                    Result.success(result)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+
             val txElement = DbTransactionElement(currentDb)
             activeTransactionThreadLocal.set(txElement)
             try {
@@ -152,6 +167,50 @@ object DbManager {
                 Result.failure(e)
             } finally {
                 activeTransactionThreadLocal.remove()
+            }
+        }
+    }
+
+    @Volatile
+    private var externalTransactionActive: Boolean = false
+
+    /**
+     * Called by TestTransactionReceiver (debug only). Opens a transaction that
+     * stays open until endExternalTransaction is called. The mutex is held only
+     * for the duration of this call, not for the whole transaction.
+     */
+    suspend fun beginExternalTransaction(): Result<Unit> {
+        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
+        return dbMutex.withLock {
+            if (externalTransactionActive) {
+                return@withLock Result.failure(Exception("external transaction already active"))
+            }
+            try {
+                currentDb.beginAllOrNothing()
+                externalTransactionActive = true
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Called by TestTransactionReceiver (debug only). Ends the external
+     * transaction opened by beginExternalTransaction.
+     */
+    suspend fun endExternalTransaction(commit: Boolean): Result<Unit> {
+        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
+        return dbMutex.withLock {
+            if (!externalTransactionActive) {
+                return@withLock Result.failure(Exception("no external transaction active"))
+            }
+            try {
+                if (commit) currentDb.everythingWentPerfectly() else currentDb.regretEverything()
+                externalTransactionActive = false
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
             }
         }
     }
@@ -249,13 +308,24 @@ object DbManager {
      */
     suspend fun addPage(title: String, isMainMenu: Boolean = false): Result<Unit> {
         return try {
-            val pageId = title.ifBlank { java.util.UUID.randomUUID().toString() }
             val userId = z.zndroid.Storage.StorageAccess.getUserId()
             val boss = rustlib.my_yrs_lib.BossOfYrs(userId, System.currentTimeMillis().toString())
+            val pageId = boss.pageId()
 
             try {
                 withTransaction {
-                    // 1. Create the title block with title content
+                    // 1. Persist initial page row to pages table first so foreign key constraints pass
+                    val initialBlob = boss.snapshot()
+                    val version = ByteArray(0)
+                    val row = newPageRow(pageId, isMainMenu, initialBlob, version)
+                    val values = SafeRowMapper.mapRow(
+                        row = row,
+                        columnDefs = newTablePages(),
+                        expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
+                    )
+                    insertData(InsertDataIn("pages", values)).getOrThrow()
+
+                    // 2. Create the title block with title content (which also updates pages.blobbed_page)
                     z.zndroid.DocEvents.AddBlock.execute(
                         z.zndroid.DocEvents.AddBlockCtx(
                             boss = boss,
@@ -263,17 +333,6 @@ object DbManager {
                             isTitle = true
                         )
                     ).getOrThrow()
-
-                    // 2. Persist page row to pages table
-                    val blobbedPage = boss.snapshot()
-                    val version = ByteArray(0)
-                    val row = newPageRow(pageId, isMainMenu, blobbedPage, version)
-                    val values = SafeRowMapper.mapRow(
-                        row = row,
-                        columnDefs = newTablePages(),
-                        expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
-                    )
-                    insertData(InsertDataIn("pages", values)).getOrThrow()
                 }.getOrThrow()
 
                 Result.success(Unit)
@@ -290,7 +349,7 @@ object DbManager {
      * Note: page_id remains unchanged as the stable identity.
      */
     suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
-        return try {
+        return withTransaction {
             val pageRow = getPage(pageId).getOrThrow()
             val userId = z.zndroid.Storage.StorageAccess.getUserId()
             val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
@@ -322,12 +381,11 @@ object DbManager {
                         )
                     ).getOrThrow()
                 }
-                Result.success(Unit)
+                val updatedSnapshot = boss.snapshot()
+                updatePageSnapshot(pageId, updatedSnapshot).getOrThrow()
             } finally {
                 boss.destroy()
             }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 

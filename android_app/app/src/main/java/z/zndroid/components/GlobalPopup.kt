@@ -26,18 +26,35 @@ import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Global Manager for showing popups (Snackbars) from anywhere in the app.
+ *
+ * Two entry points:
+ *   - show(msg)      : informational popup; tester records but does not fail.
+ *   - showError(msg) : error popup; tester fails the step that produced it.
+ *
+ * Error popups are rendered with an "ERROR: " prefix so the running-app a11y
+ * tree distinguishes them without needing access to logcat.
  */
-object GlobalPopupManager {
-    private val messages = MutableSharedFlow<String>()
+internal data class Popup(val text: String, val isError: Boolean)
 
-    /**
-     * Shows a popup with the given message.
-     */
+object GlobalPopupManager {
+    private val messages = MutableSharedFlow<Popup>()
+
     suspend fun show(message: String) {
+        if (BuildConfig.DEBUG) {
+            Log.i("GlobalPopup", message)
+        }
+        messages.emit(Popup(message, isError = false))
+    }
+
+    suspend fun showError(message: String) {
         if (BuildConfig.DEBUG) {
             Log.e("GlobalPopup", message)
         }
-        messages.emit(message)
+        val cleaned = message
+            .removePrefix("ERROR: ")
+            .removePrefix("Error: ")
+            .removePrefix("error: ")
+        messages.emit(Popup(cleaned, isError = true))
     }
 
     internal val events = messages
@@ -48,9 +65,10 @@ fun GlobalPopup() {
     val state = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        GlobalPopupManager.events.collectLatest { message ->
+        GlobalPopupManager.events.collectLatest { msg ->
+            val display = if (msg.isError) "ERROR: ${msg.text}" else msg.text
             state.showSnackbar(
-                message = message,
+                message = display,
                 actionLabel = "Dismiss",
                 duration = SnackbarDuration.Indefinite
             )

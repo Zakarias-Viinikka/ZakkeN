@@ -42,7 +42,7 @@ fun NavPage(
 
             val pagesRes = DbManager.getPages()
             if (pagesRes.isFailure) {
-                GlobalPopupManager.show("Failed to load pages: ${pagesRes.exceptionOrNull()?.message}")
+                GlobalPopupManager.showError("Failed to load pages: ${pagesRes.exceptionOrNull()?.message}")
                 isLoading = false
                 return@launch
             }
@@ -200,7 +200,7 @@ fun NavPage(
                         showNewPagePopup = false
                         refreshPages()
                     }.onFailure { error ->
-                        GlobalPopupManager.show("Error: ${error.message}")
+                        GlobalPopupManager.showError("Error: ${error.message}")
                     }
                 }
             }
@@ -230,7 +230,7 @@ fun NavPage(
                                     pageToRename = null
                                     refreshPages()
                                 }.onFailure { error ->
-                                    GlobalPopupManager.show("Rename failed: ${error.message}")
+                                    GlobalPopupManager.showError("Rename failed: ${error.message}")
                                 }
                             }
                         }
@@ -259,7 +259,7 @@ fun NavPage(
                             pageToDelete = null
                             refreshPages()
                         }.onFailure { error ->
-                            GlobalPopupManager.show("Delete failed: ${error.message}")
+                            GlobalPopupManager.showError("Delete failed: ${error.message}")
                         }
                     }
                 }) {

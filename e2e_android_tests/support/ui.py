@@ -59,6 +59,10 @@ def press_move_end(driver):
     driver.press_keycode(123)
 
 
+def press_move_home(driver):
+    driver.press_keycode(122)
+
+
 def press_enter(driver):
     driver.press_keycode(66)
 
@@ -73,3 +77,83 @@ def press_delete(driver):
 
 def type_text(driver, text):
     driver.execute_script('mobile: type', {'text': text})
+
+
+POPUP_ACTION_LABEL = "Dismiss"
+
+
+def popup_present(driver) -> bool:
+    return bool(driver.find_elements(
+        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
+    ))
+
+
+def get_popup_message(driver):
+    """Return the app-popup message if a GlobalPopup snackbar is visible, else None."""
+    dismiss = driver.find_elements(
+        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
+    )
+    if not dismiss:
+        return None
+    for xp in (
+        'ancestor::*[count(descendant::*[@text]) = 2][1]',
+        'ancestor::*[count(descendant::*[@text]) <= 3][1]',
+        'ancestor::*[descendant::*[@text="Dismiss"]][1]',
+    ):
+        try:
+            container = dismiss[0].find_element(AppiumBy.XPATH, xp)
+            for t in container.find_elements(AppiumBy.XPATH, './/*[@text]'):
+                txt = (t.text or '').strip()
+                if txt and txt != POPUP_ACTION_LABEL:
+                    return txt
+        except Exception:
+            continue
+    return "(popup visible, message not readable)"
+
+
+def dismiss_popup(driver) -> bool:
+    for n in driver.find_elements(
+        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
+    ):
+        try:
+            n.click()
+            return True
+        except Exception:
+            continue
+    return False
+
+
+ERROR_PREFIX = "ERROR: "
+
+
+def get_popup(driver):
+    """Return (message, is_error) if a GlobalPopup is visible, else None.
+
+    is_error is True when the visible text starts with ERROR_PREFIX, which
+    GlobalPopupManager.showError() prepends.
+    """
+    dismiss = driver.find_elements(
+        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
+    )
+    if not dismiss:
+        return None
+    text = None
+    for xp in (
+        'ancestor::*[count(descendant::*[@text]) = 2][1]',
+        'ancestor::*[count(descendant::*[@text]) <= 3][1]',
+        'ancestor::*[descendant::*[@text="Dismiss"]][1]',
+    ):
+        try:
+            container = dismiss[0].find_element(AppiumBy.XPATH, xp)
+            for t in container.find_elements(AppiumBy.XPATH, './/*[@text]'):
+                txt = (t.text or '').strip()
+                if txt and txt != POPUP_ACTION_LABEL:
+                    text = txt
+                    break
+        except Exception:
+            continue
+        if text:
+            break
+    if text is None:
+        return ("(popup visible, message not readable)", False)
+    return (text, text.startswith(ERROR_PREFIX))

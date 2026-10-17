@@ -269,6 +269,30 @@ don't trust them as a picture of current state.
 web_client — superseded by cqrs_state_synchronization/web_interface.
 The current web client is the cqrs one.
 
+## E2E Android testing — 2026-10-17
+
+e2e_android_tests/ — an external Python/Appium UI test harness for the
+Android app. Not part of any Cargo workspace; not part of the Android
+build. It drives the already-installed app on a physical phone over
+adb, from the terminal on the PC. The phone is connected via wireless
+debugging; `ip.env` holds the current `PHONE_IP:PHONE_PORT`.
+
+Run it with `~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`.
+Rebuild the app first if app code changed (`android_app/build_and_install.sh`).
+It writes artifacts to `e2e_android_tests/artifacts/<timestamp>/` — those
+are diagnostic detail for the human, not for the Android AI.
+
+The app provides two debug-only receivers (`android_app/app/src/debug/`)
+for the harness. `TestTransactionReceiver` opens a DB transaction that
+spans the whole test run and rolls it back at teardown, so a test cannot
+leave user data modified. `TestNotificationReceiver` posts a silent
+"Tests done" notification on the phone. See `android_app/docs/AI_READ_THIS.md`
+for the actions, message shapes, and the deliberate 2-block minimum
+that tests must account for.
+
+The Android AI runs the tests itself, reads the terminal output, and
+fixes what it reports. It never edits anything under `e2e_android_tests/`.
+
 ## Dead or parked — 2026-10-13
 
 These exist but aren't part of the working set. Worth knowing about
@@ -344,3 +368,26 @@ runs zakken_server (and `c t` there runs `cargo test --workspace`),
 mock_client/local_cargo.sh runs cli_gui. A lookup walks up from the
 current directory, so a directory with no local_cargo.sh of its own
 finds the nearest one above it.
+
+## E2E Android testing — 2026-10-17
+
+e2e_android_tests/ — an external Python/Appium UI test harness for the
+Android app. Not part of any Cargo workspace; not part of the Android
+build. Drives the already-installed app on a physical phone over adb,
+from the terminal on the PC. The phone is connected via wireless
+debugging; `ip.env` holds the current `PHONE_IP:PHONE_PORT`.
+
+Run with `~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`. Rebuild
+the app first if app code changed (`android_app/build_and_install.sh`).
+Artifacts go to `e2e_android_tests/artifacts/<timestamp>/` — diagnostic
+detail for the human, not for the Android AI.
+
+App-side debug hooks (`android_app/app/src/debug/`):
+`TestTransactionReceiver` opens a DB transaction that spans the whole
+test run and rolls it back at teardown, so tests cannot leave user data
+modified. `TestNotificationReceiver` posts a silent "Tests done"
+notification on the phone. Actions and details in
+`android_app/docs/AI_READ_THIS.md`.
+
+The Android AI runs the suite itself, reads the terminal output, fixes
+what it reports. Never edits anything under `e2e_android_tests/`.

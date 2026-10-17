@@ -105,3 +105,127 @@ All architectural notes and rules are located in the docs/ folder.
 - INVENTED_ON_ANDROID.md: Choices and designs created on Android without a reference yet.
 - AI_LAB_RULE.md: Rules for the AI Lab.
 - UX_INTENT.md: UX philosophy and intended editor behavior.
+
+## End-to-end testing (2026-10-17)
+
+The app is tested by an external Python/Appium harness that drives the UI on a
+physical phone over adb. It lives at `../e2e_android_tests/`, outside this
+project tree, and is not part of the Android build.
+
+Two things the app provides to the harness:
+
+**`TestTransactionReceiver`** (in `src/debug/java/z/zndroid/`) — debug-only
+broadcast receiver. Three actions:
+
+    z.zndroid.debug.BEGIN_TEST_TX         — DbManager.beginExternalTransaction()
+    z.zndroid.debug.END_TEST_TX_ROLLBACK  — DbManager.endExternalTransaction(commit = false)
+    z.zndroid.debug.END_TEST_TX_COMMIT    — DbManager.endExternalTransaction(commit = true)
+
+The harness broadcasts BEGIN before a run and ROLLBACK at teardown. Every DB
+write the app makes during the run happens inside that transaction; rollback
+discards them, so the harness cannot leave user data modified. A run that is
+force-killed leaves the transaction open on the phone until the app process is
+killed (adb force-stop, or reboot).
+
+**DbManager external transaction hook.** When `externalTransactionActive` is
+true (set by `beginExternalTransaction`), `withTransaction` runs its block
+inside the already-open transaction instead of starting a nested one. This
+must stay. Removing it breaks every UI action that wraps writes in
+`withTransaction` while the harness holds a transaction open.
+
+## Popup severity (2026-10-17)
+
+`GlobalPopupManager` has two entry points:
+
+    show(msg)      — informational popup. Harness records, does not fail.
+    showError(msg) — error popup. Harness fails the step that produced it.
+                     Rendered with an "ERROR: " prefix in the snackbar text.
+
+Both are logged to logcat under tag `GlobalPopup` (`Log.i` for info, `Log.e`
+for errors). The harness reads popups from logcat, not the a11y tree, because
+a Compose `Snackbar` renders in the activity window while a `Dialog` (used by
+`NewPagePopup` and other modals) is a separate, higher window. When a dialog
+is open, the snackbar is behind it and not visible to Appium.
+
+Rule: if the popup is telling the user something went wrong, use `showError`.
+If it is telling them something informational happened, use `show`.
+
+## Known bugs (2026-10-17)
+
+**`DbManager.addPage` insert order.** Current code calls `AddBlock.execute()`
+(insert into `every_block_in_existence`) before `insertData("pages", ...)`.
+The foreign key from `every_block_in_existence.id_of_page_i_belong_to` to
+`pages.page_id` rejects the block insert because the pages row does not exist
+yet. Every page creation fails with `FOREIGN KEY constraint failed`; the
+dialog stays open and the user sees the ERROR popup. Fix: insert the pages
+row first, or declare the FK `DEFERRABLE INITIALLY DEFERRED`.
+
+**`DbManager.renamePage` doesn't persist.** Current code opens `BossOfYrs`
+from the snapshot, applies the edit, then `boss.destroy()` — but never writes
+the new snapshot back to the `pages` table. The rename appears to revert
+because the next read of the DB returns the old title. Fix: after the edit
+succeeds, call `boss.snapshot()` and write it back via
+`updatePageSnapshot(pageId, blob)` inside the same transaction.
+
+**Popup renders behind dialogs.** `GlobalPopup`'s `Snackbar` lives in the
+activity's `Box`; `NewPagePopup` is a Compose `Dialog`, a separate window.
+When both are visible the snackbar is behind the dialog's scrim. Visual only
+— the harness reads popups from logcat so it is not blocked. Fixable by
+moving the snackbar to a top-level `Popup`/`Dialog`, but not urgent.
+
+## E2E tests — how you run them
+
+You run the tests yourself. One command:
+
+    ~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh
+
+It handles connecting to the phone, starting Appium if needed, and running
+the suite against the already-installed app. It does not build or install
+the APK — do that first if you changed app code:
+
+    cd ~/ProgStuff/ZakkeN/android_app && ./build_and_install.sh
+
+Then run the test script. Read its terminal output. The script stops at
+the first failing step, so each run shows you one failure at a time. Fix
+what it reports, rebuild, rerun.
+
+The terminal output tells you everything you need: which step failed, the
+exception, any app `logcat:` lines with `GlobalPopup:` messages, and any
+ERROR popups. Do not go into `../e2e_android_tests/artifacts/` — that is
+diagnostic detail for the test system itself, not for fixing the app.
+
+Do not edit anything under `../e2e_android_tests/`. If a test is failing
+because the test itself is wrong (not the app), report that to the human
+and stop — do not try to fix the test.
+
+## Additional test hooks (2026-10-17)
+
+**`CHECK_SYNC`** — debug broadcast `z.zndroid.debug.CHECK_SYNC`, takes an
+`--es pageId <id>` extra. Runs `CheckIfTablesInSync.checkPageSync(pageId)`
+and logs the result to logcat under `TestTransactionReceiver`:
+`SyncCheck page=X synced=true/false total=N mismatches=M`. The harness uses
+this as a backend assertion: after every mutating step in some tests, Yrs
+blob and `every_block_in_existence` must agree.
+
+**`NOTIFY_TEST_DONE`** — debug broadcast `z.zndroid.debug.NOTIFY_TEST_DONE`,
+takes `--es result PASS|FAIL` and `--es summary <text>`. Posts a silent
+notification so the human sees the run finished without checking the
+terminal. No sound, no vibration. `POST_NOTIFICATIONS` is declared in the
+debug manifest; on Android 13+ that needs a runtime grant once.
+
+## 2-block minimum (deliberate)
+
+Every page has at least two blocks: the title (index 0) and a body
+placeholder (index 1). `DocLogic.kt` enforces this — backspace-at-pos-0
+on either block is a no-op. Tests that assert "1 EditText remains after
+deleting the last body block" are wrong; 2 is correct. The body
+placeholder's ghost text ("Type '/' for commands...") is the cue that
+there's always an editable block below the title.
+
+## Force-stop on failure
+
+When a test run fails, the harness force-stops the app (`am force-stop
+z.zndroid`) before exiting. The human is told their phone is free. On
+success, the app is left on the nav page instead. A force-stopped app
+loses its in-memory Yrs state, which is fine — the DB on disk is
+authoritative and the next launch reloads from it.

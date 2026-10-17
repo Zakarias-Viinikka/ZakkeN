@@ -21,4 +21,21 @@ much before it corrupts the state it's testing against. It should
 become a way to edit documents from the terminal deliberately instead.
 Future work, not started.
 
-## playwright but for andoid, gotta figure out how that stuff works. alternatively some kind of "vizual test system" that runs preset stuff so i can tell ai to write some basic tests for the android app where i can just look at if stuff is working correctly. no clue if that's better or worse or a good idea. just an idea for now
+## E2E android testing — done, ongoing
+
+Built. See `e2e_android_tests/` and the section in `STORED_AI_CONTEXT.md`
+(section "E2E Android testing — 2026-10-17"). Android AI runs the suite
+itself, reads the terminal output, and fixes the app. Tests that fail
+because the test is wrong get reported to the human — the AI doesn't
+edit the test tree.
+
+Two things still open in the harness:
+- Screenshot/XML artifacts were removed for speed. If diagnosing a
+  visual-only regression becomes hard, the artifact-writing code is
+  still present in `support/runner.py` — just re-add the calls.
+- The `CHECK_SYNC` backend assertion only fires in tests that call it.
+  Consider adding it to more behavioral tests as they're written.
+
+The original wish ("visual test system", "AI writes the tests") is what
+exists now. Playwright-the-library is web-only; this is the Android
+equivalent built from Appium + adb, not a port of Playwright itself.

@@ -57,3 +57,42 @@ Android: Extended `SafeRowMapper` to accept `List<ColumnValue>` returned directl
 Reference location: `client_table_blueprints` in Rust / Kotlin UniFFI bindings.
 
 To verify: Compare `SafeRowMapper` column name validation logic against UniFFI bindings output for row builders.
+
+---
+
+### External Transaction Hook for E2E Testing
+
+Android: `TestTransactionReceiver` in `src/debug/` listens for three broadcast
+actions and calls `DbManager.beginExternalTransaction()`,
+`endExternalTransaction(commit = false)`, or
+`endExternalTransaction(commit = true)`. While `externalTransactionActive` is
+true, `withTransaction` runs its block inside the already-open transaction
+instead of starting a nested one. Used by the external Python/Appium test
+harness to wrap a whole test run in one transaction that rolls back at
+teardown. Debug-only (source folder `src/debug/`), absent from release builds.
+
+Reference location: none. This is testing infrastructure, not a domain
+feature. If the web or Rust side ever gains an equivalent harness, it should
+live in a similarly isolated test-only module.
+
+To verify: N/A — this is a testing-apparatus choice, not a domain design.
+
+---
+
+### Popup Severity Convention (show vs showError)
+
+Android: `GlobalPopupManager` has two entry points. `show(msg)` is for
+informational popups; `showError(msg)` is for errors and is rendered with an
+`ERROR: ` prefix in the snackbar text. Both are logged to logcat: `Log.i` for
+info, `Log.e` for errors, tag `GlobalPopup`. The convention exists because the
+external test harness needs to distinguish "the user should be told something"
+from "the operation failed", and it reads popups from logcat rather than the
+a11y tree.
+
+Reference location: if the web client has an equivalent of "popup severity"
+(it likely does — snackbar vs toast vs alert), this convention should match.
+Check `cqrs_state_synchronization/web_interface` UI components.
+
+To verify: confirm the web client distinguishes error notifications from
+informational ones with the same semantic split (error → user knows something
+broke; info → user is informed of an expected outcome).

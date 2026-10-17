@@ -1,5 +1,16 @@
-artifacts/
+# Python
 __pycache__/
-*.pyc
-.venv/
+*.py[cod]
 .pytest_cache/
+.venv/
+
+# Test artifacts and local config
+artifacts/
+ip.env
+.device_addr
+.env
+.env.local
+
+# Editor state
+.vscode/
+.idea/

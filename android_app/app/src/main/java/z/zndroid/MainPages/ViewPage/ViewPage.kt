@@ -68,7 +68,7 @@ fun ViewPage(
             } catch (e: Exception) {
                 ViewPageLogs.logDocEventError("updateUI", e.message ?: "Unknown error")
                 coroutineScope.launch {
-                    GlobalPopupManager.show("Failed to load blocks: ${e.message}")
+                    GlobalPopupManager.showError("Failed to load blocks: ${e.message}")
                 }
             }
         }
@@ -92,7 +92,7 @@ fun ViewPage(
                 is z.zndroid.Storage.RummageResult.StringValue -> userIdRes.value
                 else -> {
                     ViewPageLogs.logPageLoadError(pageId, "User ID not found in storage")
-                    GlobalPopupManager.show("Error: User ID not found in storage")
+                    GlobalPopupManager.showError("Error: User ID not found in storage")
                     isLoading = false
                     return@onSuccess
                 }
@@ -115,16 +115,16 @@ fun ViewPage(
                     }
                 } catch (e: Exception) {
                     ViewPageLogs.logBossInstanceError(pageId, e.message ?: "Unknown error")
-                    GlobalPopupManager.show("Failed to instance Yrs Doc: ${e.message}")
+                    GlobalPopupManager.showError("Failed to instance Yrs Doc: ${e.message}")
                 }
             } else {
                 ViewPageLogs.logPageLoadError(pageId, "Snapshot blob not found")
-                GlobalPopupManager.show("Error: Snapshot blob not found for page $pageId")
+                GlobalPopupManager.showError("Error: Snapshot blob not found for page $pageId")
             }
             isLoading = false
         }.onFailure { error ->
             ViewPageLogs.logPageLoadError(pageId, error.message ?: "Unknown error")
-            GlobalPopupManager.show("Error loading page: ${error.message}")
+            GlobalPopupManager.showError("Error loading page: ${error.message}")
             isLoading = false
         }
     }
