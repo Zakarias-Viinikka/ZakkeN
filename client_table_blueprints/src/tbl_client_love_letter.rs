@@ -11,7 +11,7 @@ use protocol::new_table::not_null_col;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
 #[uniffi::export]
-pub fn new_table_uncommitted_diffs() -> Vec<ColumnDef> {
+pub fn new_table_client_love_letter() -> Vec<ColumnDef> {
     vec![
         id_column(),
         not_null_col(ColumnType::Blob, "snapshot_of_edit"),
@@ -21,7 +21,7 @@ pub fn new_table_uncommitted_diffs() -> Vec<ColumnDef> {
     ]
 }
 
-pub const TABLE_NAME: &str = "uncommitted_diffs";
+pub const TABLE_NAME: &str = "client_love_letter";
 
 const SNAPSHOT_OF_EDIT: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "snapshot_of_edit",
@@ -61,7 +61,7 @@ use protocol::payload::ColumnValue;
 use protocol::row_col::Col;
 
 #[uniffi::export]
-pub fn new_uncommitted_diff_row(
+pub fn new_client_love_letter_row(
     snapshot_of_edit: Vec<u8>,
     love_letter_sketch: Vec<u8>,
     session_id: String,

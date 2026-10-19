@@ -94,6 +94,8 @@ pub fn get_foreign_def_every_block_in_existence() -> Vec<ForeignKeyDef> {
 */
 // ---
 
+// position: `None` means the caller doesn't know the position yet — insert a
+// placeholder and update the row after the insert.
 #[uniffi::export]
 pub fn new_every_block_in_existence_row(
     is_title: bool,
@@ -101,8 +103,12 @@ pub fn new_every_block_in_existence_row(
     content: String,
     my_id_as_given_by_yrs: String,  //block id
     id_of_page_i_belong_to: String, //page id
-    position: f64,
+    position: Option<f64>,
 ) -> Result<Vec<ColumnValue>, YrsError> {
+    let position_value = match position {
+        Some(p) => p,
+        None => 0.0, // placeholder, caller will update after insert
+    };
     Ok(vec![
         ColumnValue {
             column_name: IS_TITLE.name.to_string(),
@@ -126,7 +132,7 @@ pub fn new_every_block_in_existence_row(
         },
         ColumnValue {
             column_name: POSITION.name.to_string(),
-            value: Col::Real(position),
+            value: Col::Real(position_value),
         },
         ColumnValue {
             column_name: PAGE_IS_DISABLED.name.to_string(),

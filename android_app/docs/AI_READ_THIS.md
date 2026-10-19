@@ -28,14 +28,14 @@ Table blueprints (client_table_blueprints - Note: Historic snapshots are frozen 
 pages: id, page_id, blobbed_page, page_status, version, is_main_menu_page
 backlinks: id, page_that_holds_link_id, page_being_linked_to_id, disabled, version
 every_block_in_existence: id, is_title, is_part_of_main_menu_page, content, my_id_as_given_by_yrs, id_of_page_i_belong_to, position, page_is_disabled
-uncommitted_diffs: id, snapshot_of_edit, love_letter_sketch, session_id, target_id
+client_love_letter: id, snapshot_of_edit, love_letter_sketch, session_id, target_id
 key_value_storage: id, key, value
 incoming_love_letters: id, love_letter, target_page_id
 logs: id, timestamp, level, category, source, session_id, message, details, details_type
 
 Table column creation functions:
 newTablePages()
-newTableUncommittedDiffs()
+newTableClientLoveLetter()
 newTableBacklinks()
 newTableEveryBlockInExistence()
 newTableKeyValueStorage()
@@ -54,7 +54,7 @@ LoveLetter library:
 LoveLetterSketch – describes the user’s intent. Variants:
 EditBlock { text_edit, edit_target, target_page_id, block_id }
 CreateNewBlock { position_to_insert, target_page_id }
-RemoveBlock { position, target_page_id }
+RemoveBlock { block_id, target_page_id }
 
 Document Events (z.zndroid.DocEvents):
 AddBlock: insert new block (persists to data + sync tables). Returns blockId.
@@ -150,22 +150,13 @@ is open, the snackbar is behind it and not visible to Appium.
 Rule: if the popup is telling the user something went wrong, use `showError`.
 If it is telling them something informational happened, use `show`.
 
+## Fixed bugs (2026-10-17)
+
+**`DbManager.addPage` insert order.** (Fixed) `addPage` creates `boss` as `BossOfYrs(userId, pageId)` and inserts the `pages` record into SQLite *before* `AddBlock.execute()` so foreign keys referencing `pages.page_id` succeed.
+
+**`DbManager.renamePage` persistence.** (Fixed) `renamePage` now runs inside `withTransaction { ... }`, applies the edit, and writes the updated snapshot back to the `pages` table via `updatePageSnapshot(pageId, updatedSnapshot)`.
+
 ## Known bugs (2026-10-17)
-
-**`DbManager.addPage` insert order.** Current code calls `AddBlock.execute()`
-(insert into `every_block_in_existence`) before `insertData("pages", ...)`.
-The foreign key from `every_block_in_existence.id_of_page_i_belong_to` to
-`pages.page_id` rejects the block insert because the pages row does not exist
-yet. Every page creation fails with `FOREIGN KEY constraint failed`; the
-dialog stays open and the user sees the ERROR popup. Fix: insert the pages
-row first, or declare the FK `DEFERRABLE INITIALLY DEFERRED`.
-
-**`DbManager.renamePage` doesn't persist.** Current code opens `BossOfYrs`
-from the snapshot, applies the edit, then `boss.destroy()` — but never writes
-the new snapshot back to the `pages` table. The rename appears to revert
-because the next read of the DB returns the old title. Fix: after the edit
-succeeds, call `boss.snapshot()` and write it back via
-`updatePageSnapshot(pageId, blob)` inside the same transaction.
 
 **Popup renders behind dialogs.** `GlobalPopup`'s `Snackbar` lives in the
 activity's `Box`; `NewPagePopup` is a Compose `Dialog`, a separate window.

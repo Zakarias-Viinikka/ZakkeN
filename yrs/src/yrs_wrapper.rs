@@ -651,7 +651,7 @@ fn deserialize_bookmark(bytes: &[u8]) -> Result<StateVector, YrsError> {
     })
 }
 
-#[derive(uniffi::Enum, Serialize, Deserialize)]
+#[derive(uniffi::Enum, Serialize, Deserialize, Clone)]
 pub enum PositionToInsert {
     AtEnd,
     SpecificPosition(u32),

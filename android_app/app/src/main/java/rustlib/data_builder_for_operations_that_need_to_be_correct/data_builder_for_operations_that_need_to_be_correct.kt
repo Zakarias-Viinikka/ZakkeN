@@ -32,9 +32,12 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
 import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.FfiConverterTypeBossOfYrs
+import rustlib.my_yrs_lib.FfiConverterTypePositionToInsert
+import rustlib.my_yrs_lib.PositionToInsert
 import rustlib.text_diff.DiffResult
 import rustlib.text_diff.FfiConverterTypeDiffResult
 import rustlib.my_yrs_lib.RustBuffer as RustBufferBossOfYrs
+import rustlib.my_yrs_lib.RustBuffer as RustBufferPositionToInsert
 import rustlib.text_diff.RustBuffer as RustBufferDiffResult
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
@@ -680,7 +683,11 @@ internal object IntegrityCheckingUniffiLib {
     }
 
     internal fun ensureInitialized() = Unit
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block(
+    ): Int
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_create_page(
+    ): Int
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_delete_block(
     ): Int
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_disable_page(
     ): Int
@@ -703,7 +710,11 @@ internal object UniffiLib {
     }
 
     internal fun ensureInitialized() = Unit
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_add_block(`yrs`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBufferPositionToInsert.ByValue,`isPartOfMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_create_page(`isMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_delete_block(`yrs`: Long,`blockId`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_disable_page(`pageId`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`activePagesSerializedForm`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -828,7 +839,13 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block() and 0xFFFF) != 48808) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_create_page() and 0xFFFF) != 62539) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_delete_block() and 0xFFFF) != 46082) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_disable_page() and 0xFFFF) != 52071) {
@@ -1092,6 +1109,111 @@ public object FfiConverterTypeBlocksToInsertCtx: FfiConverterRustBuffer<BlocksTo
 
 
 
+data class ClientLoveLetterInsertCtx (
+    var `snapshotOfEdit`: kotlin.ByteArray
+    , 
+    var `loveLetterSketch`: kotlin.ByteArray
+    , 
+    var `sessionId`: kotlin.String
+    , 
+    var `targetId`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeClientLoveLetterInsertCtx: FfiConverterRustBuffer<ClientLoveLetterInsertCtx> {
+    override fun read(buf: ByteBuffer): ClientLoveLetterInsertCtx {
+        return ClientLoveLetterInsertCtx(
+            FfiConverterByteArray.read(buf),
+            FfiConverterByteArray.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ClientLoveLetterInsertCtx) = (
+            FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`) +
+            FfiConverterByteArray.allocationSize(value.`loveLetterSketch`) +
+            FfiConverterString.allocationSize(value.`sessionId`) +
+            FfiConverterString.allocationSize(value.`targetId`)
+    )
+
+    override fun write(value: ClientLoveLetterInsertCtx, buf: ByteBuffer) {
+            FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
+            FfiConverterByteArray.write(value.`loveLetterSketch`, buf)
+            FfiConverterString.write(value.`sessionId`, buf)
+            FfiConverterString.write(value.`targetId`, buf)
+    }
+}
+
+
+
+data class EveryBlockInExistenceInsertCtx (
+    var `myIdAsGivenByYrs`: kotlin.String
+    , 
+    var `content`: kotlin.String
+    , 
+    var `idOfPageIBelongTo`: kotlin.String
+    , 
+    /**
+     * Supposed to be the new row's db id cast to f64.
+     * The builder always passes None; the executor fills it in after the insert.
+     */
+    var `position`: kotlin.Double?
+    , 
+    var `isPartOfMainMenuPage`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEveryBlockInExistenceInsertCtx: FfiConverterRustBuffer<EveryBlockInExistenceInsertCtx> {
+    override fun read(buf: ByteBuffer): EveryBlockInExistenceInsertCtx {
+        return EveryBlockInExistenceInsertCtx(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalDouble.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EveryBlockInExistenceInsertCtx) = (
+            FfiConverterString.allocationSize(value.`myIdAsGivenByYrs`) +
+            FfiConverterString.allocationSize(value.`content`) +
+            FfiConverterString.allocationSize(value.`idOfPageIBelongTo`) +
+            FfiConverterOptionalDouble.allocationSize(value.`position`) +
+            FfiConverterBoolean.allocationSize(value.`isPartOfMainMenuPage`)
+    )
+
+    override fun write(value: EveryBlockInExistenceInsertCtx, buf: ByteBuffer) {
+            FfiConverterString.write(value.`myIdAsGivenByYrs`, buf)
+            FfiConverterString.write(value.`content`, buf)
+            FfiConverterString.write(value.`idOfPageIBelongTo`, buf)
+            FfiConverterOptionalDouble.write(value.`position`, buf)
+            FfiConverterBoolean.write(value.`isPartOfMainMenuPage`, buf)
+    }
+}
+
+
+
 data class EveryBlockInExistenceUpdateCtx (
     var `blockId`: kotlin.String
     , 
@@ -1130,10 +1252,96 @@ public object FfiConverterTypeEveryBlockInExistenceUpdateCtx: FfiConverterRustBu
 
 
 
+data class EverythingForAddBlock (
+    var `pagesUpdate`: PagesUpdateCtx
+    , 
+    var `everyBlockInExistenceInsert`: EveryBlockInExistenceInsertCtx
+    , 
+    var `clientLoveLetter`: ClientLoveLetterInsertCtx
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEverythingForAddBlock: FfiConverterRustBuffer<EverythingForAddBlock> {
+    override fun read(buf: ByteBuffer): EverythingForAddBlock {
+        return EverythingForAddBlock(
+            FfiConverterTypePagesUpdateCtx.read(buf),
+            FfiConverterTypeEveryBlockInExistenceInsertCtx.read(buf),
+            FfiConverterTypeClientLoveLetterInsertCtx.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EverythingForAddBlock) = (
+            FfiConverterTypePagesUpdateCtx.allocationSize(value.`pagesUpdate`) +
+            FfiConverterTypeEveryBlockInExistenceInsertCtx.allocationSize(value.`everyBlockInExistenceInsert`) +
+            FfiConverterTypeClientLoveLetterInsertCtx.allocationSize(value.`clientLoveLetter`)
+    )
+
+    override fun write(value: EverythingForAddBlock, buf: ByteBuffer) {
+            FfiConverterTypePagesUpdateCtx.write(value.`pagesUpdate`, buf)
+            FfiConverterTypeEveryBlockInExistenceInsertCtx.write(value.`everyBlockInExistenceInsert`, buf)
+            FfiConverterTypeClientLoveLetterInsertCtx.write(value.`clientLoveLetter`, buf)
+    }
+}
+
+
+
+data class EverythingForDeleteBlock (
+    var `pagesUpdate`: PagesUpdateCtx
+    , 
+    var `blockId`: kotlin.String
+    , 
+    var `clientLoveLetter`: ClientLoveLetterInsertCtx
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEverythingForDeleteBlock: FfiConverterRustBuffer<EverythingForDeleteBlock> {
+    override fun read(buf: ByteBuffer): EverythingForDeleteBlock {
+        return EverythingForDeleteBlock(
+            FfiConverterTypePagesUpdateCtx.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeClientLoveLetterInsertCtx.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EverythingForDeleteBlock) = (
+            FfiConverterTypePagesUpdateCtx.allocationSize(value.`pagesUpdate`) +
+            FfiConverterString.allocationSize(value.`blockId`) +
+            FfiConverterTypeClientLoveLetterInsertCtx.allocationSize(value.`clientLoveLetter`)
+    )
+
+    override fun write(value: EverythingForDeleteBlock, buf: ByteBuffer) {
+            FfiConverterTypePagesUpdateCtx.write(value.`pagesUpdate`, buf)
+            FfiConverterString.write(value.`blockId`, buf)
+            FfiConverterTypeClientLoveLetterInsertCtx.write(value.`clientLoveLetter`, buf)
+    }
+}
+
+
+
 data class EverythingForDisablePage (
     var `pagesUpdate`: PagesUpdateCtx
     , 
-    var `uncommittedDiffs`: UncommitedDiffsInsertCtx
+    var `clientLoveLetter`: ClientLoveLetterInsertCtx
     
 ){
     
@@ -1151,18 +1359,18 @@ public object FfiConverterTypeEverythingForDisablePage: FfiConverterRustBuffer<E
     override fun read(buf: ByteBuffer): EverythingForDisablePage {
         return EverythingForDisablePage(
             FfiConverterTypePagesUpdateCtx.read(buf),
-            FfiConverterTypeUncommitedDiffsInsertCtx.read(buf),
+            FfiConverterTypeClientLoveLetterInsertCtx.read(buf),
         )
     }
 
     override fun allocationSize(value: EverythingForDisablePage) = (
             FfiConverterTypePagesUpdateCtx.allocationSize(value.`pagesUpdate`) +
-            FfiConverterTypeUncommitedDiffsInsertCtx.allocationSize(value.`uncommittedDiffs`)
+            FfiConverterTypeClientLoveLetterInsertCtx.allocationSize(value.`clientLoveLetter`)
     )
 
     override fun write(value: EverythingForDisablePage, buf: ByteBuffer) {
             FfiConverterTypePagesUpdateCtx.write(value.`pagesUpdate`, buf)
-            FfiConverterTypeUncommitedDiffsInsertCtx.write(value.`uncommittedDiffs`, buf)
+            FfiConverterTypeClientLoveLetterInsertCtx.write(value.`clientLoveLetter`, buf)
     }
 }
 
@@ -1173,7 +1381,7 @@ data class EverythingForEditBlock (
     , 
     var `everyBlockInExistenceUpdate`: EveryBlockInExistenceUpdateCtx
     , 
-    var `uncommittedDiffs`: UncommitedDiffsInsertCtx
+    var `clientLoveLetter`: ClientLoveLetterInsertCtx
     
 ){
     
@@ -1192,20 +1400,20 @@ public object FfiConverterTypeEverythingForEditBlock: FfiConverterRustBuffer<Eve
         return EverythingForEditBlock(
             FfiConverterTypePagesUpdateCtx.read(buf),
             FfiConverterTypeEveryBlockInExistenceUpdateCtx.read(buf),
-            FfiConverterTypeUncommitedDiffsInsertCtx.read(buf),
+            FfiConverterTypeClientLoveLetterInsertCtx.read(buf),
         )
     }
 
     override fun allocationSize(value: EverythingForEditBlock) = (
             FfiConverterTypePagesUpdateCtx.allocationSize(value.`pagesUpdate`) +
             FfiConverterTypeEveryBlockInExistenceUpdateCtx.allocationSize(value.`everyBlockInExistenceUpdate`) +
-            FfiConverterTypeUncommitedDiffsInsertCtx.allocationSize(value.`uncommittedDiffs`)
+            FfiConverterTypeClientLoveLetterInsertCtx.allocationSize(value.`clientLoveLetter`)
     )
 
     override fun write(value: EverythingForEditBlock, buf: ByteBuffer) {
             FfiConverterTypePagesUpdateCtx.write(value.`pagesUpdate`, buf)
             FfiConverterTypeEveryBlockInExistenceUpdateCtx.write(value.`everyBlockInExistenceUpdate`, buf)
-            FfiConverterTypeUncommitedDiffsInsertCtx.write(value.`uncommittedDiffs`, buf)
+            FfiConverterTypeClientLoveLetterInsertCtx.write(value.`clientLoveLetter`, buf)
     }
 }
 
@@ -1216,7 +1424,7 @@ data class EverythingToInsertForNewPage (
     , 
     var `blocksToInsert`: BlocksToInsertCtx
     , 
-    var `uncommittedDiffs`: UncommitedDiffsInsertCtx
+    var `clientLoveLetter`: ClientLoveLetterInsertCtx
     
 ){
     
@@ -1235,20 +1443,20 @@ public object FfiConverterTypeEverythingToInsertForNewPage: FfiConverterRustBuff
         return EverythingToInsertForNewPage(
             FfiConverterTypePagesInsertCtx.read(buf),
             FfiConverterTypeBlocksToInsertCtx.read(buf),
-            FfiConverterTypeUncommitedDiffsInsertCtx.read(buf),
+            FfiConverterTypeClientLoveLetterInsertCtx.read(buf),
         )
     }
 
     override fun allocationSize(value: EverythingToInsertForNewPage) = (
             FfiConverterTypePagesInsertCtx.allocationSize(value.`pageToInsert`) +
             FfiConverterTypeBlocksToInsertCtx.allocationSize(value.`blocksToInsert`) +
-            FfiConverterTypeUncommitedDiffsInsertCtx.allocationSize(value.`uncommittedDiffs`)
+            FfiConverterTypeClientLoveLetterInsertCtx.allocationSize(value.`clientLoveLetter`)
     )
 
     override fun write(value: EverythingToInsertForNewPage, buf: ByteBuffer) {
             FfiConverterTypePagesInsertCtx.write(value.`pageToInsert`, buf)
             FfiConverterTypeBlocksToInsertCtx.write(value.`blocksToInsert`, buf)
-            FfiConverterTypeUncommitedDiffsInsertCtx.write(value.`uncommittedDiffs`, buf)
+            FfiConverterTypeClientLoveLetterInsertCtx.write(value.`clientLoveLetter`, buf)
     }
 }
 
@@ -1446,54 +1654,6 @@ public object FfiConverterTypeTitleBlock: FfiConverterRustBuffer<TitleBlock> {
 
 
 
-data class UncommitedDiffsInsertCtx (
-    var `snapshotOfEdit`: kotlin.ByteArray
-    , 
-    var `loveLetterSketch`: kotlin.ByteArray
-    , 
-    var `sessionId`: kotlin.String
-    , 
-    var `targetId`: kotlin.String
-    
-){
-    
-
-    
-
-    
-    companion object
-}
-
-/**
- * @suppress
- */
-public object FfiConverterTypeUncommitedDiffsInsertCtx: FfiConverterRustBuffer<UncommitedDiffsInsertCtx> {
-    override fun read(buf: ByteBuffer): UncommitedDiffsInsertCtx {
-        return UncommitedDiffsInsertCtx(
-            FfiConverterByteArray.read(buf),
-            FfiConverterByteArray.read(buf),
-            FfiConverterString.read(buf),
-            FfiConverterString.read(buf),
-        )
-    }
-
-    override fun allocationSize(value: UncommitedDiffsInsertCtx) = (
-            FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`) +
-            FfiConverterByteArray.allocationSize(value.`loveLetterSketch`) +
-            FfiConverterString.allocationSize(value.`sessionId`) +
-            FfiConverterString.allocationSize(value.`targetId`)
-    )
-
-    override fun write(value: UncommitedDiffsInsertCtx, buf: ByteBuffer) {
-            FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
-            FfiConverterByteArray.write(value.`loveLetterSketch`, buf)
-            FfiConverterString.write(value.`sessionId`, buf)
-            FfiConverterString.write(value.`targetId`, buf)
-    }
-}
-
-
-
 
 
 /**
@@ -1564,6 +1724,38 @@ public object FfiConverterTypeBuilderErr : FfiConverterRustBuffer<BuilderErr> {
 /**
  * @suppress
  */
+public object FfiConverterOptionalDouble: FfiConverterRustBuffer<kotlin.Double?> {
+    override fun read(buf: ByteBuffer): kotlin.Double? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterDouble.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Double?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterDouble.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Double?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterDouble.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBuffer<EverythingForEditBlock?> {
     override fun read(buf: ByteBuffer): EverythingForEditBlock? {
         if (buf.get().toInt() == 0) {
@@ -1593,6 +1785,25 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
 
 
 
+
+
+    @Throws(BuilderErr::class) fun `addBlock`(`yrs`: BossOfYrs, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert, `isPartOfMainMenuPage`: kotlin.Boolean, `sessionId`: kotlin.String): EverythingForAddBlock {
+            return FfiConverterTypeEverythingForAddBlock.lift(
+    uniffiRustCallWithError(BuilderErr) { _status ->
+    UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_add_block(
+    
+        
+        FfiConverterTypeBossOfYrs.lower(`yrs`),
+        FfiConverterString.lower(`blockContent`),
+        FfiConverterString.lower(`blockMetaData`),
+        FfiConverterTypePositionToInsert.lower(`position`),
+        FfiConverterBoolean.lower(`isPartOfMainMenuPage`),
+        FfiConverterString.lower(`sessionId`),_status)
+}
+    )
+    }
+    
+
     @Throws(BuilderErr::class) fun `createPage`(`isMainMenuPage`: kotlin.Boolean, `sessionId`: kotlin.String): EverythingToInsertForNewPage {
             return FfiConverterTypeEverythingToInsertForNewPage.lift(
     uniffiRustCallWithError(BuilderErr) { _status ->
@@ -1600,6 +1811,20 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
     
         
         FfiConverterBoolean.lower(`isMainMenuPage`),
+        FfiConverterString.lower(`sessionId`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BuilderErr::class) fun `deleteBlock`(`yrs`: BossOfYrs, `blockId`: kotlin.String, `sessionId`: kotlin.String): EverythingForDeleteBlock {
+            return FfiConverterTypeEverythingForDeleteBlock.lift(
+    uniffiRustCallWithError(BuilderErr) { _status ->
+    UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_delete_block(
+    
+        
+        FfiConverterTypeBossOfYrs.lower(`yrs`),
+        FfiConverterString.lower(`blockId`),
         FfiConverterString.lower(`sessionId`),_status)
 }
     )

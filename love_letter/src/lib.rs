@@ -41,7 +41,7 @@ pub enum LoveLetterSketch {
         target_page_id: String,
     },
     RemoveBlock {
-        position: u32,
+        block_id: String,
         target_page_id: String,
     },
     DisablePage {
@@ -68,7 +68,7 @@ pub enum LoveLetter {
         snapshot_of_edit: Vec<u8>,
     },
     RemoveBlock {
-        position: u32,
+        block_id: String,
         target_page_id: String,
         snapshot_of_edit: Vec<u8>,
     },
@@ -119,10 +119,10 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
             snapshot_of_edit,
         },
         LoveLetterSketch::RemoveBlock {
-            position,
+            block_id,
             target_page_id,
         } => LoveLetter::RemoveBlock {
-            position,
+            block_id,
             target_page_id,
             snapshot_of_edit,
         },

@@ -690,6 +690,10 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_table_backlinks(
     ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_client_love_letter_row(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_table_client_love_letter(
+    ): Int
     external fun uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence(
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row(
@@ -712,10 +716,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_table_pages(
     ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_table_uncommitted_diffs(
-    ): Int
-    external fun uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row(
-    ): Int
     external fun ffi_client_table_blueprints_uniffi_contract_version(
     ): Int
 
@@ -737,9 +737,13 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_backlinks(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_client_love_letter_row(`snapshotOfEdit`: RustBuffer.ByValue,`loveLetterSketch`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`targetId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_table_client_love_letter(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`isTitle`: Byte,`isPartOfMainMenuPage`: Byte,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,`position`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`isTitle`: Byte,`isPartOfMainMenuPage`: Byte,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -758,10 +762,6 @@ internal object UniffiLib {
     external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`blobbedPage`: RustBuffer.ByValue,`version`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_pages(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_table_uncommitted_diffs(uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(`snapshotOfEdit`: RustBuffer.ByValue,`loveLetterSketch`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`targetId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_client_table_blueprints_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -891,10 +891,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_backlinks() and 0xFFFF) != 379) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_client_love_letter_row() and 0xFFFF) != 37880) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_client_love_letter() and 0xFFFF) != 39430) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence() and 0xFFFF) != 65402) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 63425) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 18828) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_every_block_in_existence() and 0xFFFF) != 19192) {
@@ -922,12 +928,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_pages() and 0xFFFF) != 14304) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_uncommitted_diffs() and 0xFFFF) != 2998) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_uncommitted_diff_row() and 0xFFFF) != 35561) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1174,6 +1174,38 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 /**
  * @suppress
  */
+public object FfiConverterOptionalDouble: FfiConverterRustBuffer<kotlin.Double?> {
+    override fun read(buf: ByteBuffer): kotlin.Double? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterDouble.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Double?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterDouble.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Double?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterDouble.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypeColumnDef: FfiConverterRustBuffer<List<ColumnDef>> {
     override fun read(buf: ByteBuffer): List<ColumnDef> {
         val len = buf.getInt()
@@ -1302,6 +1334,31 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     )
     }
     
+
+    @Throws(YrsException::class) fun `newClientLoveLetterRow`(`snapshotOfEdit`: kotlin.ByteArray, `loveLetterSketch`: kotlin.ByteArray, `sessionId`: kotlin.String, `targetId`: kotlin.String): List<ColumnValue> {
+            return FfiConverterSequenceTypeColumnValue.lift(
+    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_client_love_letter_row(
+    
+        
+        FfiConverterByteArray.lower(`snapshotOfEdit`),
+        FfiConverterByteArray.lower(`loveLetterSketch`),
+        FfiConverterString.lower(`sessionId`),
+        FfiConverterString.lower(`targetId`),_status)
+}
+    )
+    }
+    
+ fun `newTableClientLoveLetter`(): List<ColumnDef> {
+            return FfiConverterSequenceTypeColumnDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_table_client_love_letter(
+    
+        _status)
+}
+    )
+    }
+    
  fun `getForeignDefEveryBlockInExistence`(): List<ForeignKeyDef> {
             return FfiConverterSequenceTypeForeignKeyDef.lift(
     uniffiRustCall() { _status ->
@@ -1313,7 +1370,7 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`isTitle`: kotlin.Boolean, `isPartOfMainMenuPage`: kotlin.Boolean, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String, `position`: kotlin.Double): List<ColumnValue> {
+    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`isTitle`: kotlin.Boolean, `isPartOfMainMenuPage`: kotlin.Boolean, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String, `position`: kotlin.Double?): List<ColumnValue> {
             return FfiConverterSequenceTypeColumnValue.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
@@ -1324,7 +1381,7 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
         FfiConverterString.lower(`content`),
         FfiConverterString.lower(`myIdAsGivenByYrs`),
         FfiConverterString.lower(`idOfPageIBelongTo`),
-        FfiConverterDouble.lower(`position`),_status)
+        FfiConverterOptionalDouble.lower(`position`),_status)
 }
     )
     }
@@ -1433,31 +1490,6 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_table_pages(
     
         _status)
-}
-    )
-    }
-    
- fun `newTableUncommittedDiffs`(): List<ColumnDef> {
-            return FfiConverterSequenceTypeColumnDef.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_table_uncommitted_diffs(
-    
-        _status)
-}
-    )
-    }
-    
-
-    @Throws(YrsException::class) fun `newUncommittedDiffRow`(`snapshotOfEdit`: kotlin.ByteArray, `loveLetterSketch`: kotlin.ByteArray, `sessionId`: kotlin.String, `targetId`: kotlin.String): List<ColumnValue> {
-            return FfiConverterSequenceTypeColumnValue.lift(
-    uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
-    UniffiLib.uniffi_client_table_blueprints_fn_func_new_uncommitted_diff_row(
-    
-        
-        FfiConverterByteArray.lower(`snapshotOfEdit`),
-        FfiConverterByteArray.lower(`loveLetterSketch`),
-        FfiConverterString.lower(`sessionId`),
-        FfiConverterString.lower(`targetId`),_status)
 }
     )
     }

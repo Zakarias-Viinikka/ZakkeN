@@ -1,4 +1,4 @@
-use client_table_blueprints::{tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs};
+use client_table_blueprints::{tbl_client_love_letter, tbl_every_block_in_existence, tbl_pages};
 use data_builder_for_operations_that_need_to_be_correct::{
     create_page, disable_page as build_disable_page,
 };
@@ -66,7 +66,7 @@ pub async fn delete_everything() -> Result<(), CqrsErr> {
     let tables_to_delete = vec![
         tbl_pages::TABLE_NAME,
         tbl_every_block_in_existence::TABLE_NAME,
-        tbl_uncommitted_diffs::TABLE_NAME,
+        tbl_client_love_letter::TABLE_NAME,
     ];
 
     for table_name in &tables_to_delete {

@@ -963,29 +963,6 @@ object NoHandle
 /**
  * @suppress
  */
-public object FfiConverterUInt: FfiConverter<UInt, Int> {
-    override fun lift(value: Int): UInt {
-        return value.toUInt()
-    }
-
-    override fun read(buf: ByteBuffer): UInt {
-        return lift(buf.getInt())
-    }
-
-    override fun lower(value: UInt): Int {
-        return value.toInt()
-    }
-
-    override fun allocationSize(value: UInt) = 4UL
-
-    override fun write(value: UInt, buf: ByteBuffer) {
-        buf.putInt(value.toInt())
-    }
-}
-
-/**
- * @suppress
- */
 public object FfiConverterLong: FfiConverter<Long, Long> {
     override fun lift(value: Long): Long {
         return value
@@ -1242,7 +1219,7 @@ sealed class LoveLetter {
     }
     
     data class RemoveBlock(
-        val `position`: kotlin.UInt, 
+        val `blockId`: kotlin.String, 
         val `targetPageId`: kotlin.String, 
         val `snapshotOfEdit`: kotlin.ByteArray) : LoveLetter()
         
@@ -1302,7 +1279,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 FfiConverterByteArray.read(buf),
                 )
             3 -> LoveLetter.RemoveBlock(
-                FfiConverterUInt.read(buf),
+                FfiConverterString.read(buf),
                 FfiConverterString.read(buf),
                 FfiConverterByteArray.read(buf),
                 )
@@ -1344,7 +1321,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterUInt.allocationSize(value.`position`)
+                + FfiConverterString.allocationSize(value.`blockId`)
                 + FfiConverterString.allocationSize(value.`targetPageId`)
                 + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
             )
@@ -1388,7 +1365,7 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
             }
             is LoveLetter.RemoveBlock -> {
                 buf.putInt(3)
-                FfiConverterUInt.write(value.`position`, buf)
+                FfiConverterString.write(value.`blockId`, buf)
                 FfiConverterString.write(value.`targetPageId`, buf)
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
                 Unit
@@ -1439,7 +1416,7 @@ sealed class LoveLetterSketch {
     }
     
     data class RemoveBlock(
-        val `position`: kotlin.UInt, 
+        val `blockId`: kotlin.String, 
         val `targetPageId`: kotlin.String) : LoveLetterSketch()
         
     {
@@ -1494,7 +1471,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 FfiConverterString.read(buf),
                 )
             3 -> LoveLetterSketch.RemoveBlock(
-                FfiConverterUInt.read(buf),
+                FfiConverterString.read(buf),
                 FfiConverterString.read(buf),
                 )
             4 -> LoveLetterSketch.DisablePage(
@@ -1531,7 +1508,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterUInt.allocationSize(value.`position`)
+                + FfiConverterString.allocationSize(value.`blockId`)
                 + FfiConverterString.allocationSize(value.`targetPageId`)
             )
         }
@@ -1570,7 +1547,7 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
             }
             is LoveLetterSketch.RemoveBlock -> {
                 buf.putInt(3)
-                FfiConverterUInt.write(value.`position`, buf)
+                FfiConverterString.write(value.`blockId`, buf)
                 FfiConverterString.write(value.`targetPageId`, buf)
                 Unit
             }

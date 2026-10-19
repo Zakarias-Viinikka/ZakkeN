@@ -2,7 +2,7 @@ use client_table_blueprints::tbl_every_block_in_existence::{
     self, new_every_block_in_existence_row,
 };
 use client_table_blueprints::tbl_pages::{self, new_page_row};
-use client_table_blueprints::tbl_uncommitted_diffs::{self, new_uncommitted_diff_row};
+use client_table_blueprints::tbl_client_love_letter::{self, new_client_love_letter_row};
 use data_builder_for_operations_that_need_to_be_correct::*;
 use error_stuff::cqrs_err::CqrsErr;
 use protocol::error::DbError;
@@ -70,7 +70,7 @@ pub async fn insert_page_requires_three_db_inserts(
         do_i_own_the_transaction
     );
     unwrap_or_bail_and_regret!(
-        insert_into_uncommitted_diffs(everything_to_insert_ctx.uncommitted_diffs).await,
+        insert_into_client_love_letter(everything_to_insert_ctx.client_love_letter).await,
         do_i_own_the_transaction
     );
 
@@ -93,7 +93,7 @@ pub async fn edit_block_requires_three_db_inserts(
         do_i_own_the_transaction
     );
     unwrap_or_bail_and_regret!(
-        insert_into_uncommitted_diffs(edit_block_ctx.uncommitted_diffs).await,
+        insert_into_client_love_letter(edit_block_ctx.client_love_letter).await,
         do_i_own_the_transaction
     );
 
@@ -119,12 +119,124 @@ pub async fn disabled_page_requires_three_db_actions(
         do_i_own_the_transaction
     );
     unwrap_or_bail_and_regret!(
-        insert_into_uncommitted_diffs(everything_to_disable.uncommitted_diffs).await,
+        insert_into_client_love_letter(everything_to_disable.client_love_letter).await,
         do_i_own_the_transaction
     );
 
     end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
 
+    Ok(())
+}
+
+pub async fn add_block_requires_four_db_actions(
+    add_block_ctx: EverythingForAddBlock,
+) -> Result<(), CqrsErr> {
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
+
+    unwrap_or_bail_and_regret!(
+        update_pages_blob(add_block_ctx.pages_update).await,
+        do_i_own_the_transaction
+    );
+    let block_id = add_block_ctx
+        .every_block_in_existence_insert
+        .my_id_as_given_by_yrs
+        .clone();
+    let new_row_id = unwrap_or_bail_and_regret!(
+        insert_single_every_block_row(add_block_ctx.every_block_in_existence_insert).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        set_block_position_to_id(block_id, new_row_id).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        insert_into_client_love_letter(add_block_ctx.client_love_letter).await,
+        do_i_own_the_transaction
+    );
+
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
+    Ok(())
+}
+
+pub async fn delete_block_requires_three_db_actions(
+    delete_block_ctx: EverythingForDeleteBlock,
+) -> Result<(), CqrsErr> {
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
+
+    unwrap_or_bail_and_regret!(
+        update_pages_blob(delete_block_ctx.pages_update).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        delete_every_block_row(delete_block_ctx.block_id).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        insert_into_client_love_letter(delete_block_ctx.client_love_letter).await,
+        do_i_own_the_transaction
+    );
+
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
+    Ok(())
+}
+
+async fn delete_every_block_row(block_id: String) -> Result<(), CqrsErr> {
+    db_helper::delete_row_where(DeleteRowWhereIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                .name
+                .to_string(),
+            y: block_id,
+        }),
+    })
+    .await?;
+    Ok(())
+}
+
+async fn insert_single_every_block_row(
+    insert_ctx: EveryBlockInExistenceInsertCtx,
+) -> Result<i64, CqrsErr> {
+    // position is None in the ctx on purpose; the executor sets it after the insert.
+    let values = new_every_block_in_existence_row(
+        false,
+        insert_ctx.is_part_of_main_menu_page,
+        insert_ctx.content,
+        insert_ctx.my_id_as_given_by_yrs,
+        insert_ctx.id_of_page_i_belong_to,
+        insert_ctx.position,
+    )?;
+
+    let out = db_helper::insert_data_and_get_col(InsertDataAndGetColIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
+        values,
+        column_to_return: "id".to_string(),
+    })
+    .await?;
+
+    match out.value {
+        Col::Integer(i) => Ok(i),
+        _ => Err(CqrsErr::DbErrorContainer(DbError::ColDestructFail(
+            "block row id was not an integer".into(),
+        ))),
+    }
+}
+
+async fn set_block_position_to_id(block_id: String, row_id: i64) -> Result<(), CqrsErr> {
+    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                .name
+                .to_string(),
+            y: block_id,
+        }),
+        column: tbl_every_block_in_existence::POSITION.name.to_string(),
+        new_value: Col::Real(row_id as f64),
+    })
+    .await?;
     Ok(())
 }
 
@@ -223,7 +335,7 @@ async fn insert_into_every_block_in_existence(
         insert_ctx.title_block.content,
         insert_ctx.title_block.my_id_as_given_by_yrs,
         insert_ctx.title_block.id_of_page_i_belong_to,
-        insert_ctx.title_block.position,
+        Some(insert_ctx.title_block.position),
     )?;
 
     let title_out = db_helper::insert_data_and_get_col(InsertDataAndGetColIn {
@@ -248,7 +360,7 @@ async fn insert_into_every_block_in_existence(
         insert_ctx.normal_block.content,
         insert_ctx.normal_block.my_id_as_given_by_yrs,
         insert_ctx.normal_block.id_of_page_i_belong_to,
-        insert_ctx.normal_block.position,
+        Some(insert_ctx.normal_block.position),
     )?;
 
     db_helper::insert_data(InsertDataIn {
@@ -260,10 +372,10 @@ async fn insert_into_every_block_in_existence(
     Ok(title_db_id)
 }
 
-async fn insert_into_uncommitted_diffs(
-    insert_ctx: UncommitedDiffsInsertCtx,
+async fn insert_into_client_love_letter(
+    insert_ctx: ClientLoveLetterInsertCtx,
 ) -> Result<(), CqrsErr> {
-    let values = new_uncommitted_diff_row(
+    let values = new_client_love_letter_row(
         insert_ctx.snapshot_of_edit,
         insert_ctx.love_letter_sketch,
         insert_ctx.session_id,
@@ -271,7 +383,7 @@ async fn insert_into_uncommitted_diffs(
     )?;
 
     db_helper::insert_data(InsertDataIn {
-        table_name: tbl_uncommitted_diffs::TABLE_NAME.into(),
+        table_name: tbl_client_love_letter::TABLE_NAME.into(),
         values,
     })
     .await?;

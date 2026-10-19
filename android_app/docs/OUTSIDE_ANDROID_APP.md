@@ -322,3 +322,82 @@ Two things the app must provide for the harness to work:
 
 Details in `AI_READ_THIS.md`, sections "End-to-end testing" and "Popup
 severity".
+
+## What changed again — 2026-10-19
+
+A second batch of Rust-side renames and additions, on top of the ones
+above. The Kotlin tree will not compile until these are fixed. The older
+section still applies — this is additional.
+
+### uncommitted_diffs is now client_love_letter
+
+The table, the file, and both helpers are renamed. Nothing about the
+columns changed.
+
+  Old                                   New
+  uncommitted_diffs (table)             client_love_letter
+  tbl_uncommitted_diffs.rs              tbl_client_love_letter.rs
+  newTableUncommittedDiffs()            newTableClientLoveLetter()
+  newUncommittedDiffRow(...)            newClientLoveLetterRow(...)
+
+In the builder crate, `UncommitedDiffsInsertCtx` became
+`ClientLoveLetterInsertCtx`, and the field that carried it is now named
+`client_love_letter` on `EverythingToInsertForNewPage`,
+`EverythingForEditBlock`, `EverythingForDisablePage` and the new
+`EverythingForAddBlock` / `EverythingForDeleteBlock`.
+
+### newEveryBlockInExistenceRow takes an optional position
+
+The `position` argument changed from `f64` to `Option<f64>`.
+`None` means "I don't know the position yet — insert a placeholder and
+update the row afterwards". The executor does exactly that for
+add_block: it inserts with `None`, reads the new row's `id` back, then
+sets `position` to that id as a float.
+
+  newEveryBlockInExistenceRow(..., position: Double?)
+  newEveryBlockInExistenceRow(..., position: Option<Double>)
+
+Kotlin sees it as a nullable Double.
+
+### RemoveBlock love letter carries a block id, not a position
+
+    LoveLetterSketch::RemoveBlock { block_id: String, target_page_id: String }
+    LoveLetter::RemoveBlock       { block_id: String, target_page_id: String, snapshot_of_edit: Vec<u8> }
+
+`position: u32` is gone. A CRDT position is fragile under concurrent
+edits; a block id is not. The server ignores this field either way.
+
+### New builder exports: add_block and delete_block
+
+Both are exported through uniffi and return `BuilderErr` on failure, the
+same as create_page / edit_block / disable_page.
+
+  add_block(yrs, block_content, block_meta_data, position,
+            is_part_of_main_menu_page, session_id)
+    -> EverythingForAddBlock { pages_update,
+                               every_block_in_existence_insert,
+                               client_love_letter }
+
+  delete_block(yrs, block_id, session_id)
+    -> EverythingForDeleteBlock { pages_update, block_id,
+                                  client_love_letter }
+
+The Rust executors for them live in the executor crate as
+`add_block_requires_four_db_actions` and
+`delete_block_requires_three_db_actions`. Those are wasm-only; Android
+writes its own executor in Kotlin, mirroring the behaviour.
+
+add_block's executor does four things in one transaction: update
+pages.blobbed_page, insert the block row, set that row's position to its
+own id as a float, insert the client_love_letter row.
+
+delete_block's executor does three: update pages.blobbed_page, delete
+the every_block_in_existence row matching `my_id_as_given_by_yrs`,
+insert the client_love_letter row.
+
+### z_db gained a read method (additive, nothing broke)
+
+`get_data_ordered_and_skip_first_x` takes a table name, select
+arguments, columns to read, an order_by, and a `skip_first_x: u64`, and
+returns the same rows shape as get_data_ordered. It reads everything
+after the skip; there is no cap. Nothing existing changed.

@@ -7,13 +7,13 @@ use my_yrs_lib::{
 use protocol::serialization::Convert;
 use std::sync::Arc;
 
-use crate::shared::UncommitedDiffsInsertCtx;
+use crate::shared::ClientLoveLetterInsertCtx;
 
 #[derive(uniffi::Record)]
 pub struct EverythingToInsertForNewPage {
     pub page_to_insert: PagesInsertCtx,
     pub blocks_to_insert: BlocksToInsertCtx,
-    pub uncommitted_diffs: UncommitedDiffsInsertCtx,
+    pub client_love_letter: ClientLoveLetterInsertCtx,
 }
 
 #[derive(uniffi::Record)]
@@ -107,7 +107,7 @@ pub fn create_page(
     }
     .to_payload();
 
-    let uncommitted_diffs_ctx = UncommitedDiffsInsertCtx {
+    let client_love_letter_ctx = ClientLoveLetterInsertCtx {
         snapshot_of_edit,
         love_letter_sketch,
         session_id,
@@ -118,7 +118,7 @@ pub fn create_page(
     Ok(EverythingToInsertForNewPage {
         page_to_insert: insert_page_ctx,
         blocks_to_insert: blocks_to_insert_ctx,
-        uncommitted_diffs: uncommitted_diffs_ctx,
+        client_love_letter: client_love_letter_ctx,
     })
 }
 

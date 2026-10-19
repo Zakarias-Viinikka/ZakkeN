@@ -10,14 +10,14 @@ use text_diff::diff_logic::DiffResult;
 
 use crate::{
     diff_result_to_text_edit_conversion::diff_result_to_text_edit,
-    shared::{PagesUpdateCtx, UncommitedDiffsInsertCtx},
+    shared::{ClientLoveLetterInsertCtx, PagesUpdateCtx},
 };
 
 #[derive(uniffi::Record)]
 pub struct EverythingForEditBlock {
     pub pages_update: PagesUpdateCtx,
     pub every_block_in_existence_update: EveryBlockInExistenceUpdateCtx,
-    pub uncommitted_diffs: UncommitedDiffsInsertCtx,
+    pub client_love_letter: ClientLoveLetterInsertCtx,
 }
 
 #[derive(uniffi::Record)]
@@ -69,7 +69,7 @@ pub fn edit_block(
             block_id,
             new_content: new_text,
         },
-        uncommitted_diffs: UncommitedDiffsInsertCtx {
+        client_love_letter: ClientLoveLetterInsertCtx {
             snapshot_of_edit,
             love_letter_sketch,
             session_id,

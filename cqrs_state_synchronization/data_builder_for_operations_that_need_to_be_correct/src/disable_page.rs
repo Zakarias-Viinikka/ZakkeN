@@ -3,12 +3,12 @@ use love_letter::{LoveLetterSketch, sketch_to_bytes};
 use my_yrs_lib::yrs_active_pages;
 use std::sync::Arc;
 
-use crate::shared::{PagesUpdateCtx, UncommitedDiffsInsertCtx};
+use crate::shared::{ClientLoveLetterInsertCtx, PagesUpdateCtx};
 
 #[derive(uniffi::Record)]
 pub struct EverythingForDisablePage {
     pub pages_update: PagesUpdateCtx,
-    pub uncommitted_diffs: UncommitedDiffsInsertCtx,
+    pub client_love_letter: ClientLoveLetterInsertCtx,
 }
 
 pub fn disable_page(
@@ -35,7 +35,7 @@ pub fn disable_page(
 
     let new_active_pages_blob = boss_of_active_pages.clone().snapshot()?;
 
-    let uncommitted_diffs_ctx = UncommitedDiffsInsertCtx {
+    let client_love_letter_ctx = ClientLoveLetterInsertCtx {
         snapshot_of_edit,
         love_letter_sketch: love_letter_sketch_bytes,
         session_id,
@@ -49,6 +49,6 @@ pub fn disable_page(
 
     Ok(EverythingForDisablePage {
         pages_update,
-        uncommitted_diffs: uncommitted_diffs_ctx,
+        client_love_letter: client_love_letter_ctx,
     })
 }

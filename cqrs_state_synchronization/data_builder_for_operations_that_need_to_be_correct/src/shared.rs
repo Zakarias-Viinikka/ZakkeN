@@ -5,7 +5,7 @@ pub struct PagesUpdateCtx {
 }
 
 #[derive(uniffi::Record)]
-pub struct UncommitedDiffsInsertCtx {
+pub struct ClientLoveLetterInsertCtx {
     pub snapshot_of_edit: Vec<u8>,
     pub love_letter_sketch: Vec<u8>,
     pub session_id: String,

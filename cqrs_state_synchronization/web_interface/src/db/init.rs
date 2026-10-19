@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use client_table_blueprints::{tbl_every_block_in_existence, tbl_pages, tbl_uncommitted_diffs};
+use client_table_blueprints::{tbl_client_love_letter, tbl_every_block_in_existence, tbl_pages};
 
 use leptos::logging::log;
 use protocol::{new_table::ColumnDef, payload::*};
@@ -8,13 +8,13 @@ use web_internal_db;
 
 pub async fn create_all_tables() {
     let all_defs = vec![
-        tbl_uncommitted_diffs::new_table_uncommitted_diffs(),
+        tbl_client_love_letter::new_table_client_love_letter(),
         tbl_every_block_in_existence::new_table_every_block_in_existence(),
         tbl_pages::new_table_pages(),
     ];
 
     let mut name_map: HashMap<u8, String> = HashMap::new();
-    name_map.insert(0, tbl_uncommitted_diffs::TABLE_NAME.into());
+    name_map.insert(0, tbl_client_love_letter::TABLE_NAME.into());
     name_map.insert(1, tbl_every_block_in_existence::TABLE_NAME.into());
     name_map.insert(2, tbl_pages::TABLE_NAME.into());
 

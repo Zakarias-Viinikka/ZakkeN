@@ -13,8 +13,15 @@
 use std::sync::Arc;
 
 use my_yrs_lib::BossOfYrs;
+use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use text_diff::diff_logic::DiffResult;
 
+use crate::add_block::{
+    EverythingForAddBlock, add_block as real_add_block,
+};
+use crate::delete_block::{
+    EverythingForDeleteBlock, delete_block as real_delete_block,
+};
 use crate::create_page::{
     EverythingToInsertForNewPage, create_page as real_create_page,
 };
@@ -55,6 +62,35 @@ pub fn edit_block(
     session_id: String,
 ) -> Result<Option<EverythingForEditBlock>, BuilderErr> {
     real_edit_block(yrs, block_id, diff, session_id).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn add_block(
+    yrs: Arc<BossOfYrs>,
+    block_content: String,
+    block_meta_data: String,
+    position: PositionToInsert,
+    is_part_of_main_menu_page: bool,
+    session_id: String,
+) -> Result<EverythingForAddBlock, BuilderErr> {
+    real_add_block(
+        yrs,
+        block_content,
+        block_meta_data,
+        position,
+        is_part_of_main_menu_page,
+        session_id,
+    )
+    .map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn delete_block(
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    session_id: String,
+) -> Result<EverythingForDeleteBlock, BuilderErr> {
+    real_delete_block(yrs, block_id, session_id).map_err(Into::into)
 }
 
 #[uniffi::export]

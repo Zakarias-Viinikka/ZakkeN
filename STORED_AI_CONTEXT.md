@@ -103,6 +103,23 @@ love_letter/android_output_folder, text_diff/android_output_folder —
 build artifacts the Android app downloads via update.sh. Regenerated
 by each crate's build script; committed to the repo.
 
+## cqrs next work — 2026-10-19
+
+Nothing in this section is built yet. It says where the cqrs work is
+going so a fresh AI doesn't mistake the current shape for the final one.
+
+Near-term: addblock / editblock / deleteblock across the builder, the
+executor and the web interface; text_diff as a dependency; a batcher
+owned by main.rs and passed around, with its timer and with an rx/tx
+message every page-affecting executor sends first ("batch immediately
+if still unfinished"). Page-inside-page and the special menu (z+space
+opens, esc or space again closes, down arrow selects) are designed but
+not started; the typed-trigger's planned details are written down
+somewhere and not yet located. The loading system — preload, then
+offline, then server — is designed in ZakkeN/cache_and_preload.md.
+
+GENERAL_TODO.md in the cqrs folder carries the full list.
+
 ## zakken_server — 2026-10-15
 
 A workspace in three folders, shaped like rust_practice/server_template_3:

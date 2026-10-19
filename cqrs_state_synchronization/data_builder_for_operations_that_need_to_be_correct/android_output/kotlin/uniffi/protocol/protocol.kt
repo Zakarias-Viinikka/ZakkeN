@@ -2291,6 +2291,59 @@ public object FfiConverterTypeGetDataIn: FfiConverterRustBuffer<GetDataIn> {
 
 
 
+data class GetDataOrderedAndSkipFirstXIn (
+    var `tableName`: kotlin.String
+    , 
+    var `arguments`: SelectArguments
+    , 
+    var `columnsToRead`: List<kotlin.String>
+    , 
+    var `orderBy`: kotlin.String
+    , 
+    var `skipFirstX`: kotlin.ULong
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeGetDataOrderedAndSkipFirstXIn: FfiConverterRustBuffer<GetDataOrderedAndSkipFirstXIn> {
+    override fun read(buf: ByteBuffer): GetDataOrderedAndSkipFirstXIn {
+        return GetDataOrderedAndSkipFirstXIn(
+            FfiConverterString.read(buf),
+            FfiConverterTypeSelectArguments.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterULong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: GetDataOrderedAndSkipFirstXIn) = (
+            FfiConverterString.allocationSize(value.`tableName`) +
+            FfiConverterTypeSelectArguments.allocationSize(value.`arguments`) +
+            FfiConverterSequenceString.allocationSize(value.`columnsToRead`) +
+            FfiConverterString.allocationSize(value.`orderBy`) +
+            FfiConverterULong.allocationSize(value.`skipFirstX`)
+    )
+
+    override fun write(value: GetDataOrderedAndSkipFirstXIn, buf: ByteBuffer) {
+            FfiConverterString.write(value.`tableName`, buf)
+            FfiConverterTypeSelectArguments.write(value.`arguments`, buf)
+            FfiConverterSequenceString.write(value.`columnsToRead`, buf)
+            FfiConverterString.write(value.`orderBy`, buf)
+            FfiConverterULong.write(value.`skipFirstX`, buf)
+    }
+}
+
+
+
 data class GetDataOrderedIn (
     var `tableName`: kotlin.String
     , 

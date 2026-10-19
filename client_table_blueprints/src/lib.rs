@@ -7,4 +7,4 @@ pub mod tbl_incoming_love_letters;
 pub mod tbl_key_value_storage;
 pub mod tbl_logs;
 pub mod tbl_pages;
-pub mod tbl_uncommitted_diffs;
+pub mod tbl_client_love_letter;
