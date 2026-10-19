@@ -401,3 +401,13 @@ insert the client_love_letter row.
 arguments, columns to read, an order_by, and a `skip_first_x: u64`, and
 returns the same rows shape as get_data_ordered. It reads everything
 after the skip; there is no cap. Nothing existing changed.
+
+## Still open — 2026-10-19
+
+`add_block` and `delete_block` are built on the Rust side as builder functions and uniffi exports. Android can call them once it writes its own executors. Neither is wired to any UI on web either.
+
+Moving a block has no Rust implementation yet — no yrs move method, no love_letter variant, no builder, no executor. Android should not build one either, because there is no reference to mirror yet.
+
+`new_every_block_in_existence_row` takes `position: Option<f64>`. `None` means "insert a placeholder and update the row after insert" — that is what add_block's executor does. Android's executor should follow the same shape.
+
+The db-side ordering scheme is still unresolved. `position` currently holds the row's own id as a float, which is insertion order, not sort order. A real reorder cannot be expressed with it. Whatever Android does here has to match whatever web lands on.

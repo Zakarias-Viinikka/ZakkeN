@@ -120,6 +120,14 @@ offline, then server — is designed in ZakkeN/cache_and_preload.md.
 
 GENERAL_TODO.md in the cqrs folder carries the full list.
 
+Since that section was written, `add_block` and `delete_block` landed in the builder, the executor and the uniffi exports — but not in the web interface.
+
+The drag-reorder UI now lives inside `web_interface`, in `drag_reorder_container/`. The folder has three layers: `drag_reorder_container.rs` is the wrapper the app calls, `my_block_content.rs` is the block UI the human owns and edits, and `drag_reorder_black_box/` is the drag machinery with a renderer-for-blocks prop so the human never touches it. There is no separate `pure_web_ui_components` crate; that was tried and folded back in.
+
+`leptos_components/main_content/` holds the page view. `complicated_signal_flow.rs` at the crate root holds `Page` (one page's whole live state — id, yrs doc, blocks, load state, preload request/response), `PageLoadState`, `BlockRow` and `LocalPages`. The load sequence is two effects per page: one matching on load state and advancing one step, one watching the preload response.
+
+Moving a block is parked — it needs a yrs move method, a love_letter variant, builder, executor, and a real db ordering scheme. Back button doesn't re-render without refresh; cause not diagnosed.
+
 ## zakken_server — 2026-10-15
 
 A workspace in three folders, shaped like rust_practice/server_template_3:

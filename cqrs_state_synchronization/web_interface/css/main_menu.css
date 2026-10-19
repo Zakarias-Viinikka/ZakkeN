@@ -64,3 +64,13 @@
 .select_page_to_go_to .peek_button:hover {
   color: #5fd0b8;
 }
+
+.select_page_to_go_to a {
+  flex: 1;
+  display: flex;
+  text-decoration: none;
+}
+
+.select_page_to_go_to a > .title_button {
+  flex: 1;
+}

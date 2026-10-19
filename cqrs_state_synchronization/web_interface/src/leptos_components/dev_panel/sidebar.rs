@@ -144,14 +144,14 @@ pub fn SidebarContainer() -> impl IntoView {
     let (container_without_fade, _) = signal(content_container.get_class_name().to_string());
     let (container_with_fade, _) = signal(format!(
         "{} {}",
-        container_without_fade.get(),
+        container_without_fade.get_untracked(),
         fade_out.get_class_name().to_string()
     ));
 
     let (just_sidestyle, _) = signal(sidestyle.get_class_name().to_string());
     let (sidestyle_with_slide_applied, _) = signal(format!(
         "{} {}",
-        just_sidestyle.get(),
+        just_sidestyle.get_untracked(),
         slide_effect.get_class_name().to_string()
     ));
 

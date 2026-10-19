@@ -126,10 +126,6 @@ fn apply_move(
     all_orders[dest_page].insert(insert_at, moved_id);
 
     let mut bs = boxes.get_untracked();
-    let old_layout: Vec<(usize, f32, f32)> = bs
-        .iter()
-        .map(|b| (b.internal_id, b.x, b.target_y))
-        .collect();
 
     if is_restore {
         if let Some(b) = bs.iter_mut().find(|b| b.internal_id == moved_id) {
@@ -178,15 +174,8 @@ fn apply_move(
             let ox = rect.left() as f32;
             let oy = rect.top() as f32;
             let mut rects = Vec::new();
-            for b in &bs {
-                let is_moved = b.internal_id == moved_id;
-                let changed = match old_layout.iter().find(|(i, _, _)| *i == b.internal_id) {
-                    Some(&(_, px, py)) => {
-                        (b.x - px).abs() > 0.5 || (b.target_y - py).abs() > 0.5
-                    }
-                    None => true,
-                };
-                if is_moved || changed {
+            for candidate in [above_id, below_id].into_iter().flatten() {
+                if let Some(b) = bs.iter().find(|b| b.internal_id == candidate) {
                     rects.push(Rect {
                         x: b.x + ox,
                         y: b.target_y + oy,
@@ -195,7 +184,9 @@ fn apply_move(
                     });
                 }
             }
-            if !rects.is_empty() {
+            if rects.is_empty() {
+                confirmation.set(None);
+            } else {
                 confirmation.set(Some(Confirmation::Many(rects)));
             }
         }

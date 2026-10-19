@@ -30,8 +30,6 @@ pub fn FourLines(confirmation: RwSignal<Option<Confirmation>>) -> impl IntoView 
                     <>
                         <div class="ps-guide-line ps-guide-h" style:top=format!("{}px", r.y) style:background=color />
                         <div class="ps-guide-line ps-guide-h" style:top=format!("{}px", r.y + r.h) style:background=color />
-                        <div class="ps-guide-line ps-guide-v" style:left=format!("{}px", r.x) style:background=color />
-                        <div class="ps-guide-line ps-guide-v" style:left=format!("{}px", r.x + r.w) style:background=color />
                     </>
                 }
             }).collect_view()

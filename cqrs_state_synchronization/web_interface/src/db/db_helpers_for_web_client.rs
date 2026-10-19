@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use client_table_blueprints::tbl_every_block_in_existence::{self, *};
 use client_table_blueprints::tbl_pages::{self, BLOBBED_PAGE, PAGE_ID};
@@ -10,8 +10,8 @@ use protocol::{error::DbError, payload::*, schema_helper::DestructDbReturnCol};
 use text_diff::diff_logic::get_diff;
 use web_internal_db::db_helper;
 
+use crate::complicated_signal_flow::{BlockRow, LocalPages};
 use crate::db::db_out_destruct_helpers::destruct_entire_get_all_menu_pages;
-use crate::shared_structs::LocalPages;
 
 pub async fn get_all_menu_pages() -> Result<Vec<LocalPages>, DbError> {
     let get_data_in = GetDataIn {
@@ -101,4 +101,67 @@ pub async fn get_yrs_unblobbed(
         .map_err(|e| DbError::IllegalInput(format!("doc_from_snapshot failed: {e:?}")))?;
 
     Ok(Arc::new(boss))
+}
+
+pub async fn get_all_blocks_for_page(page_id: String) -> Result<Vec<BlockRow>, DbError> {
+    let out = db_helper::get_data(GetDataIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                .name
+                .to_string(),
+            y: page_id,
+        }),
+        columns_to_read: vec![
+            tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                .name
+                .to_string(),
+            tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                .name
+                .to_string(),
+            tbl_every_block_in_existence::CONTENT.name.to_string(),
+            tbl_every_block_in_existence::IS_TITLE.name.to_string(),
+        ],
+    })
+    .await?;
+
+    let mut result = Vec::new();
+    for row in out.rows {
+        let mut cols = row.cols.into_iter();
+        let block_id = MY_ID_AS_GIVEN_BY_YRS
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing block_id".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("block_id was null".into()))?;
+        let page_id = ID_OF_PAGE_I_BELONG_TO
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing page_id".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("page_id was null".into()))?;
+        let content = CONTENT
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing content".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("content was null".into()))?;
+        let is_title_str = IS_TITLE
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing is_title".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("is_title was null".into()))?;
+        result.push(BlockRow {
+            block_id,
+            page_id,
+            content,
+            is_title: is_title_str == "true",
+        });
+    }
+    Ok(result)
 }

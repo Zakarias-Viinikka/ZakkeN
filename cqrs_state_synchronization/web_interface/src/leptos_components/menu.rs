@@ -1,4 +1,5 @@
 use crate::{
+    complicated_signal_flow::LocalPages,
     db,
     leptos_components::{
         action_buttons::{
@@ -7,7 +8,6 @@ use crate::{
         dev_panel::sidebar::SidebarContainer,
         small_components::popup::{PopupContainer, create_popup},
     },
-    shared_structs::LocalPages,
 };
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;
@@ -39,11 +39,13 @@ pub fn Menu() -> impl IntoView {
             >
                 <div class="select_page_to_go_to" style="display: flex; align-items: center; gap: 8px;">
                     <EditTitleButton />
-                    <button class="title_button">
-                        <span>
-                            {list_item.title}
-                        </span>
-                    </button>
+                    <A href=format!("/MainContent/{}", list_item.page_id)>
+                        <button class="title_button">
+                            <span>
+                                {list_item.title}
+                            </span>
+                        </button>
+                    </A>
                     <DisablePageButton
                         page_id=list_item.page_id.clone()
                         local_pages_set=local_pages_set

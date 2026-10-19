@@ -51,3 +51,19 @@ flush on close and on visibilitychange, so the last batch isn't lost when the ta
 everything built here gets reflected in the Android docs, so Android knows what it can use as a reference and what it still needs to implement.
 
 add_block and delete_block are built in the builder and executor, plus uniffi exports. Not wired into the web interface yet, because the page UI for it hasn't been designed — that's still in a lab and the lab needs auditing first.
+
+pure_web_ui_components crate exists at cqrs_state_synchronization/pure_web_ui_components. Exports PagesUiThatOnlyOwnsDragReorder with PageInput / BlockInput / MoveEvent. Came from the drag_reorder final_test lab, split into modules (drag_state, rebuild, heights, sync, apply_move, mouse, plus the untouched cascade / layout / rapier_world). Visual confirmation stripped — that was testing-only. Stage background removed, parent owns it. Nothing in web_interface calls it yet; the real page UI hasn't been designed.
+
+Moving a block is parked. It needs: a move method on yrs_wrapper (doesn't exist — the wrapper has insert, delete, edit-text only), a MoveBlock variant in love_letter, a builder, an executor, and a web interface call. Also needs a real db ordering scheme — position is currently the row's own id, which is insertion order, not sort order. None of it is started. on_move in main_content currently only logs.
+
+Back button: navigating back to a previous route doesn't re-render without a manual refresh. Cause not yet diagnosed.
+
+Preload flow lives in complicated_signal_flow.rs. Page is the one struct for a page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response. PageLoadState is the enum, with PreloadLoaded(usize) carrying the count. Page::new builds one; MainContent builds one per page and Copy hands it into that page's effects.
+
+The loading sequence is two effects per page. The state effect matches on page_state, calls preload_pages / load_offline / load_from_server for that step, and the resulting state change fires it again for the next step. The response effect watches preload_response; when it flips to Some it sets the blocks and moves to PreloadLoaded(count). preload_pages writes preload_request, and — because no preloader exists yet — also seeds preload_response with an empty Vec. That fallback goes away when the preloader exists.
+
+Batcher notification has no home right now. When the batcher exists it needs a signal for "this page is about to change", and the executor crate has to reach it, which isn't solved.
+
+BlockRow is the one block type. It lives in complicated_signal_flow.rs. There is no BlockInput anymore.
+
+dev_actions::insert_three_pages seeds three pages with varied titles and bodies.

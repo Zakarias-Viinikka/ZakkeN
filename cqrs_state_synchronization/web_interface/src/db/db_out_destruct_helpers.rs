@@ -7,7 +7,7 @@ use protocol::{
     schema_helper::DestructDbReturnCol,
 };
 
-use crate::shared_structs::LocalPages;
+use crate::complicated_signal_flow::LocalPages;
 
 pub fn destruct_entire_get_all_menu_pages(row: Row) -> Result<LocalPages, DbError> {
     let mut iter = row.cols.into_iter();
@@ -20,9 +20,9 @@ pub fn destruct_entire_get_all_menu_pages(row: Row) -> Result<LocalPages, DbErro
     let block_id_col = iter
         .next()
         .ok_or_else(|| DbError::ColDestructFail("row missing my_id_as_given_by_yrs".into()))?;
-    let page_id_col = iter.next().ok_or_else(|| {
-        DbError::ColDestructFail("row missing id_of_page_i_belong_to".into())
-    })?;
+    let page_id_col = iter
+        .next()
+        .ok_or_else(|| DbError::ColDestructFail("row missing id_of_page_i_belong_to".into()))?;
 
     Ok(LocalPages {
         db_id: destruct_id(id_col)? as usize,

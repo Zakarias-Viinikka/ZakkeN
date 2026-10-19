@@ -12,7 +12,7 @@ js-sys = "0.3.103"
 wasm-bindgen = "0.2.126"
 wasm-bindgen-futures = "0.4.76"
 gloo-timers = { version = "0.4.0", features = ["futures"] }
-web-sys = { version = "0.3.104", features = ["Window"] }
+web-sys = { version = "0.3.104", features = ["Window", "MouseEvent", "Element", "HtmlElement", "DomRect", "HtmlTextAreaElement", "CssStyleDeclaration", "ResizeObserver", "ResizeObserverEntry"] }
 leptos-use = "0.19.2"
 
 #my own dependencies
@@ -27,5 +27,7 @@ web_internal_db.path = "/home/zakke/ProgStuff/z_db/web_internal_db"
 data_builder_for_operations_that_need_to_be_correct = { path = "../data_builder_for_operations_that_need_to_be_correct" }
 executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db = { path = "../executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db" }
 stylist = "0.15.1"
+futures-channel = "0.3"
 error_stuff = { path = "../error_stuff" }
 text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"
+rapier2d = "0.35.3"

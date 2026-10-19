@@ -19,3 +19,21 @@
 - the eye button next to each menu title disables that page.
 
 - main.rs creates 3 tables if they don't exist.
+
+## Update — 2026-10-19
+
+Routes: `/`, `/Menu`, `/DbGui`, and `/MainContent/:page_id` (reads the page id from the URL).
+
+`App` in main.rs gates the whole router behind table creation, so a direct URL load doesn't race the tables.
+
+New crate modules in web_interface:
+
+- `complicated_signal_flow.rs` — `Page` (one page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response), `PageLoadState` (Loading / PreloadLoaded(usize) / Loaded / Online / Offline / LoadFailed), `BlockRow` (the one block type), `LocalPages`.
+- `leptos_components/main_content/` — MainContent, ConnectionIndicator, BackgroundActivityIndicator (placeholder), page_loading_logic.
+- `drag_reorder_container/` — DragReorderContainer (wrapper), my_block_content (block UI, human-edited), drag_reorder_black_box (rapier + drag + reorder + vacuum, untouched).
+
+Loading is two effects per page: one matches on page_state and advances one step (preload_pages, load_offline, load_from_server), one watches preload_response and applies blocks. load_from_server is a no-op until the server path exists; preload_pages seeds an empty response because no preloader exists yet.
+
+on_move logs only — no yrs move method, no db ordering scheme. on_block_input goes through edit_title_for_page into the executor and persists.
+
+dev_actions::insert_three_pages seeds three pages with varied titles and bodies.
