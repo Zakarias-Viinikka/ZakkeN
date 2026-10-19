@@ -13,7 +13,7 @@ object Version1 {
         ColumnDef("is_main_menu_page", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
     )
 
-    fun uncommittedDiffsColumns(): List<ColumnDef> = listOf(
+    fun clientLoveLetterColumns(): List<ColumnDef> = listOf(
         ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
         ColumnDef("snapshot_of_edit", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
         ColumnDef("love_letter_sketch", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),

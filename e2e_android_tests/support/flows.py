@@ -26,16 +26,34 @@ DELETE_DIALOG_TITLE = "Delete Page"
 
 
 def _row_sibling(element, label, timeout):
-    xpaths = (
-        f'following-sibling::*[@text={ui.xpath_literal(label)}]',
-        f'following::*[@text={ui.xpath_literal(label)}][1]',
-    )
+    """Find the `label` text in the same Row as `element`.
+
+    Compose's a11y tree for a row is Row > Button > Text(title) and
+    Row > TextButton > Text("Admin"/"Rename"/"Delete"). The old helper tried
+    `following-sibling::*[@text="Delete"]` and `following::*[@text="Delete"][1]`
+    from the title Text. Both are fragile in this tree and neither retried.
+
+    This version walks up to the nearest ancestor that contains Admin/Rename/
+    Delete (that's the row), then finds `label` inside it. Retries with a
+    fresh query each attempt because a LazyColumn can recycle rows during
+    scroll animations, making the reference stale for a moment.
+    """
+    end = time.time() + timeout
     last_error = None
-    for xp in xpaths:
+    while time.time() < end:
         try:
-            return element.find_element(AppiumBy.XPATH, xp)
+            row = element.find_element(
+                AppiumBy.XPATH,
+                'ancestor::*[.//*[@text="Admin"] and .//*[@text="Rename"] and .//*[@text="Delete"]][1]',
+            )
+            labels = row.find_elements(
+                AppiumBy.XPATH, f'.//*[@text={ui.xpath_literal(label)}]'
+            )
+            if labels:
+                return labels[0]
         except Exception as exc:
             last_error = exc
+        time.sleep(0.2)
     raise RuntimeError(f"Could not find '{label}' button in this row: {last_error}")
 
 
@@ -122,7 +140,17 @@ def create_page(driver, name):
             f"be captured alongside this failure in the report."
         )
 
-    ui.wait_for_text(driver, name, timeout=WAIT)
+    # The app auto-scrolls the nav list to the newly created page.
+    # If this fails, either the scroll didn't happen or the page wasn't created.
+    try:
+        ui.wait_for_text(driver, name, timeout=WAIT)
+    except Exception:
+        raise AssertionError(
+            f"page {name!r} not in nav after creation. "
+            f"dialog closed but the name never appeared. "
+            f"either the nav-scroll-to-new-page didn't run or the page wasn't persisted. "
+            f"check logcat for GlobalPopup or AddBlock errors."
+        )
 
 
 def open_page(driver, title):
@@ -142,21 +170,39 @@ def open_page(driver, title):
         )
 
 
+def _block_is_empty(el):
+    """An empty block reports either '' or the placeholder text, depending
+    on how Compose merges the placeholder into the EditText's a11y node."""
+    text = (el.text or "").strip()
+    return text == "" or text == BODY_PLACEHOLDER
+
+
 def add_body_block(driver, body_text):
-    """Append a body block below the title and type `body_text` into it."""
-    title_field = WebDriverWait(driver, WAIT).until(
+    """Put body_text into a body block.
+
+    Fresh pages have two blocks — a title and an empty body. If the last
+    block is empty, fill it. Otherwise split the last block to create a
+    new empty one, then fill that.
+
+    Both branches are needed. The first call on a fresh page fills the
+    pre-existing body block. Later calls split the last block to add
+    another, which is what multiple-body-block tests want.
+    """
+    WebDriverWait(driver, WAIT).until(
         EC.presence_of_element_located((AppiumBy.XPATH, '//android.widget.EditText'))
     )
-    title_field.click()
-    ui.press_move_end(driver)
-    ui.press_enter(driver)
 
-    WebDriverWait(driver, WAIT).until(
-        EC.presence_of_element_located(
-            (AppiumBy.XPATH, f'//*[@text={ui.xpath_literal(BODY_PLACEHOLDER)}]')
-        )
-    )
-    ui.click_by_text(driver, BODY_PLACEHOLDER)
+    fields = ui.find_edit_fields(driver)
+    if len(fields) >= 2 and _block_is_empty(fields[-1]):
+        fields[-1].click()
+    else:
+        fields[-1].click()
+        ui.press_move_end(driver)
+        ui.press_enter(driver)
+        time.sleep(0.3)
+        fields = ui.find_edit_fields(driver)
+        fields[-1].click()
+
     ui.type_text(driver, body_text)
     ui.wait_for_text(driver, body_text, timeout=WAIT)
 

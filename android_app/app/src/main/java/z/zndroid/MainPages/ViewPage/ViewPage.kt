@@ -16,6 +16,7 @@ import rustlib.my_yrs_lib.docFromSnapshot
 import uniffi.protocol.Col
 import z.zndroid.DbManager
 import z.zndroid.DocEvents.AddBlock
+import z.zndroid.DocEvents.EditTextInBlock
 import z.zndroid.Storage.StorageAccess
 import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
@@ -139,9 +140,30 @@ fun ViewPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(pageId) },
+                title = {
+                    // Show the title block's content, not the page_id.
+                    // page_id is a long UUID now; title block is what the
+                    // user actually named the page.
+                    val titleText = uiStates.firstOrNull()?.text?.takeIf { it.isNotBlank() } ?: "Untitled"
+                    Text(titleText)
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        // Flush any pending buffered edits before leaving
+                        // the page. Without this, text typed in the last
+                        // 500ms (or text whose debounce hadn't fired yet)
+                        // is destroyed along with the BossOfYrs on dispose.
+                        coroutineScope.launch {
+                            val currentBoss = boss
+                            if (currentBoss != null) {
+                                val toFlush = uiStates.toList()
+                                toFlush.forEach { state ->
+                                    EditTextInBlock.flushBuffer(currentBoss, state, { reloadToken++ })
+                                }
+                            }
+                            onBack()
+                        }
+                    }) {
                         Text("←")
                     }
                 },

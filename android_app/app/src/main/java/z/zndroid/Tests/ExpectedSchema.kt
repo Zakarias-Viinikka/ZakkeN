@@ -10,7 +10,7 @@ object ExpectedSchema {
     val tables = mapOf(
         "pages" to PagesTableSchema.allColumns.map { it.name },
         "every_block_in_existence" to EveryBlockInExistenceTableSchema.allColumns.map { it.name },
-        "uncommitted_diffs" to UncommittedDiffsTableSchema.allColumns.map { it.name },
+        "client_love_letter" to ClientLoveLetterTableSchema.allColumns.map { it.name },
         "key_value_storage" to KeyValueStorageTableSchema.allColumns.map { it.name },
         "backlinks" to BacklinksTableSchema.allColumns.map { it.name },
         "incoming_love_letters" to IncomingLoveLettersTableSchema.allColumns.map { it.name },

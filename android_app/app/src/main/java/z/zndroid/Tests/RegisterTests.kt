@@ -11,7 +11,8 @@ object RegisterTests {
         SessionMonotonicityTest(),
         SchemaSyncTest(),
         PageDataSyncTest(),
-        TransactionTest()
+        TransactionTest(),
+        BlockExecutorsTest()
     )
 }
 

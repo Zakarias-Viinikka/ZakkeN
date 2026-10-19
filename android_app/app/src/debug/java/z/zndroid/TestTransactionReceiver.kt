@@ -7,6 +7,11 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import uniffi.protocol.CheckTableIn
+import uniffi.protocol.Col
+import uniffi.protocol.GetDataIn
+import uniffi.protocol.SelectArgument
+import uniffi.protocol.SelectArguments
 
 /**
  * Debug-only. Called by the e2e test runner over `adb shell am broadcast`.
@@ -21,21 +26,44 @@ class TestTransactionReceiver : BroadcastReceiver() {
             try {
                 DbManager.awaitReady()
                 if (action == ACTION_CHECK_SYNC) {
-                    val pageId = intent.getStringExtra("pageId")
-                    if (pageId.isNullOrBlank()) {
+                    val rawPageId = intent.getStringExtra("pageId")
+                    if (rawPageId.isNullOrBlank()) {
                         Log.e(TAG, "SyncCheck pageId missing")
                         return@launch
                     }
-                    z.zndroid.DocEvents.CheckIfTablesInSync.checkPageSync(pageId).fold(
+                    // Resolve pageId: check if exists in pages table; if not, resolve via title block
+                    val pageCheck = DbManager.getData(GetDataIn(
+                        "pages",
+                        SelectArguments.Single(SelectArgument.XEqualY("page_id", rawPageId)),
+                        emptyList()
+                    ))
+                    val resolvedPageId = if (pageCheck.getOrNull()?.rows.isNullOrEmpty()) {
+                        val titleBlocks = DbManager.getData(GetDataIn(
+                            "every_block_in_existence",
+                            SelectArguments.Single(SelectArgument.XEqualY("content", rawPageId)),
+                            emptyList()
+                        )).getOrNull()
+                        val checkOut = DbManager.checkTable(CheckTableIn("every_block_in_existence")).getOrNull()
+                        val isTitleIdx = checkOut?.columns?.indexOfFirst { it.name == "is_title" } ?: 1
+                        val parentIdColIdx = checkOut?.columns?.indexOfFirst { it.name == "id_of_page_i_belong_to" } ?: 5
+                        val matchRow = titleBlocks?.rows?.firstOrNull { row ->
+                            (row.cols.getOrNull(isTitleIdx) as? Col.Text)?.v1 == "true"
+                        }
+                        (matchRow?.cols?.getOrNull(parentIdColIdx) as? Col.Text)?.v1 ?: rawPageId
+                    } else {
+                        rawPageId
+                    }
+
+                    z.zndroid.DocEvents.CheckIfTablesInSync.checkPageSync(resolvedPageId).fold(
                         onSuccess = { comparisons ->
                             val bad = comparisons.filter { !it.isMatch }
-                            Log.i(TAG, "SyncCheck page=$pageId synced=${bad.isEmpty()} total=${comparisons.size} mismatches=${bad.size}")
+                            Log.i(TAG, "SyncCheck page=$rawPageId resolved=$resolvedPageId synced=${bad.isEmpty()} total=${comparisons.size} mismatches=${bad.size}")
                             bad.take(5).forEach { c ->
-                                Log.i(TAG, "SyncCheckMismatch page=$pageId yrs=${c.yrsId} sqlite=${c.sqliteContent} crdt=${c.crdtContent}")
+                                Log.i(TAG, "SyncCheckMismatch page=$rawPageId yrs=${c.yrsId} sqlite=${c.sqliteContent} crdt=${c.crdtContent}")
                             }
                         },
                         onFailure = { e ->
-                            Log.e(TAG, "SyncCheck page=$pageId error=${e.message}")
+                            Log.e(TAG, "SyncCheck page=$rawPageId error=${e.message}")
                         }
                     )
                     return@launch

@@ -21,7 +21,7 @@ class SchemaSyncTest : AppTest {
             mapOf(
                 "pages" to newTablePages(),
                 "every_block_in_existence" to newTableEveryBlockInExistence(),
-                "uncommitted_diffs" to newTableUncommittedDiffs(),
+                "client_love_letter" to newTableClientLoveLetter(),
                 "key_value_storage" to newTableKeyValueStorage(),
                 "backlinks" to newTableBacklinks()
             )

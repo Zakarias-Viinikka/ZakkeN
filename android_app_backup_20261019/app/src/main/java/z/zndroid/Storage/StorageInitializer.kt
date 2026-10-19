@@ -1,0 +1,48 @@
+package z.zndroid.Storage
+
+import rustlib.client_table_blueprints.newTableKeyValueStorage
+import rustlib.client_table_blueprints.newKeyValueItem
+import uniffi.protocol.ColumnValue
+import uniffi.protocol.InsertDataIn
+import z.zndroid.DbManager
+import z.zndroid.protocol.SafeRowMapper
+import java.util.UUID
+
+/**
+ * Handles the initialization of storage-related tables and default data.
+ */
+object StorageInitializer {
+
+    /**
+     * Ensures all necessary storage tables exist and initial values are populated.
+     */
+    suspend fun create_all_these_things_if_they_dont_exist() {
+        DbManager.withTransaction {
+            // Tables are created by MigrationManager.bootstrap before this runs.
+            // Just ensure the default records exist.
+            ensureUserIdExists()
+        }
+    }
+
+    private suspend fun ensureUserIdExists() {
+        when (val res = StorageAccess.rummage_in_storage(StorageKey.USER_ID)) {
+            is RummageResult.StringValue -> {
+                // Already exists, nothing to do
+            }
+            is RummageResult.NotFound, is RummageResult.Error -> {
+                // Generate and store new User ID
+                val newId = UUID.randomUUID().toString()
+                val row = newKeyValueItem("user_id", newId)
+                
+                val values = SafeRowMapper.mapRow(
+                    row = row,
+                    columnDefs = newTableKeyValueStorage(),
+                    expectedNames = listOf("key", "value"),
+                    skipId = true
+                )
+                
+                DbManager.insertData(InsertDataIn("key_value_storage", values))
+            }
+        }
+    }
+}

@@ -57,3 +57,13 @@ All architectural notes and rules are located in the `docs/` folder:
 - [INVENTED_ON_ANDROID.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/INVENTED_ON_ANDROID.md): Designs created on Android without a Rust or web reference yet.
 - [AI_LAB_RULE.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/AI_LAB_RULE.md): Guidelines for the Lab.
 - [UX_INTENT.md](file:///home/zakke/ProgStuff/ZakkeN/android_app/docs/UX_INTENT.md): Philosophy and behavior of the editor UX.
+
+## E2E and persistence — 2026-10-19
+
+The E2E suite (`../e2e_android_tests/`) is two tests: `test_multiple_blocks` and `test_page_lifecycle`. Both check user-visible behavior. Internal sync checks are not tested — web is the reference for internal correctness, Android copies it.
+
+Persistence bugs fixed this session:
+- Buffered edits now flush before split, merge, and back navigation. Previously, cancelling the 500ms debounce for a structural action silently discarded the pending buffer, and back navigation discarded it too. Text typed within 500ms of a split or a back press could vanish on reload.
+- `combineGetdiffResults` returning empty no longer silently skips the whole DB write. Falls back to applying individual diffs.
+
+Migration V2 exists. Android DBs that were bootstrapped to V1 before the `client_love_letter` rename now get the missing table on next launch.

@@ -52,7 +52,7 @@ class MigrationTest : AppTest {
 
             // Verify basic operational state of one of the created tables
             val listTables = testDb.listTables()
-            val expectedTables = listOf("pages", "uncommitted_diffs", "backlinks", "every_block_in_existence", "key_value_storage", "incoming_love_letters", "logs")
+            val expectedTables = listOf("pages", "client_love_letter", "backlinks", "every_block_in_existence", "key_value_storage", "incoming_love_letters", "logs")
             val missingTables = expectedTables.filter { it !in listTables.tableNames }
 
             if (missingTables.isNotEmpty()) {

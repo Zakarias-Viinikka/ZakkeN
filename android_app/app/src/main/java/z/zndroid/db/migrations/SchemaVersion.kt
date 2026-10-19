@@ -17,6 +17,12 @@ enum class SchemaVersion(val version: Int) {
         }
 
         override fun updateOnce(db: LiveForever): SchemaVersion {
+            // Migrate uncommitted_diffs to client_love_letter
+            try {
+                db.copyTable(CopyTableIn("uncommitted_diffs", "client_love_letter"))
+                db.dropTable(DropTableIn("uncommitted_diffs"))
+            } catch (_: Exception) {}
+
             // Migrate every_block_in_existence
             db.addColumn(AddColumnIn("every_block_in_existence", ColumnDef("is_part_of_main_menu_page", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "false", autoincrement = false)))
             db.addColumn(AddColumnIn("every_block_in_existence", ColumnDef("page_is_disabled", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "false", autoincrement = false)))
@@ -52,11 +58,37 @@ enum class SchemaVersion(val version: Int) {
         override fun bootstrap(db: LiveForever) {
             db.createTable(CreateTableIn("key_value_storage", Version1.keyValueStorageColumns()))
             db.createTable(CreateTableIn("pages", Version1.pagesColumns()))
-            db.createTable(CreateTableIn("uncommitted_diffs", Version1.uncommittedDiffsColumns()))
+            db.createTable(CreateTableIn("client_love_letter", Version1.clientLoveLetterColumns()))
             db.createTable(CreateTableIn("logs", Version1.logsColumns()))
             db.createTable(CreateTableIn("incoming_love_letters", Version1.incomingLoveLettersColumns()))
             db.createForeignTable(CreateForeignTableIn("backlinks", Version1.backlinksColumns(), Version1.getForeignDefBacklinks()))
             db.createForeignTable(CreateForeignTableIn("every_block_in_existence", Version1.everyBlockInExistenceColumns(), Version1.getForeignDefEveryBlockInExistence()))
+        }
+
+        override fun updateOnce(db: LiveForever): SchemaVersion {
+            // V1 → V2: repair DBs that were bootstrapped when Version1 still
+            // meant "uncommitted_diffs" and later renamed to "client_love_letter"
+            // in place without bumping the version. Those DBs have the old
+            // table but not the new one.
+            val tables = db.listTables().tableNames
+            if ("client_love_letter" !in tables) {
+                if ("uncommitted_diffs" in tables) {
+                    try {
+                        db.copyTable(CopyTableIn("uncommitted_diffs", "client_love_letter"))
+                        db.dropTable(DropTableIn("uncommitted_diffs"))
+                    } catch (_: Exception) {}
+                } else {
+                    try {
+                        db.createTable(CreateTableIn("client_love_letter", Version1.clientLoveLetterColumns()))
+                    } catch (_: Exception) {}
+                }
+            }
+            return V2
+        }
+    },
+    V2(2) {
+        override fun bootstrap(db: LiveForever) {
+            V1.bootstrap(db)
         }
 
         override fun updateOnce(db: LiveForever): SchemaVersion = this
@@ -66,7 +98,7 @@ enum class SchemaVersion(val version: Int) {
     abstract fun updateOnce(db: LiveForever): SchemaVersion
 
     companion object {
-        val LATEST = V1
+        val LATEST = V2
 
         fun fromInt(version: Int): SchemaVersion {
             return values().find { it.version == version }
@@ -83,9 +115,9 @@ enum class SchemaVersion(val version: Int) {
             val frozenPages = Version1.pagesColumns()
             if (livePages != frozenPages) throw SchemaMismatchException("pages", livePages, frozenPages)
 
-            val liveUncommitted = rustlib.client_table_blueprints.newTableUncommittedDiffs()
-            val frozenUncommitted = Version1.uncommittedDiffsColumns()
-            if (liveUncommitted != frozenUncommitted) throw SchemaMismatchException("uncommitted_diffs", liveUncommitted, frozenUncommitted)
+            val liveClientLove = rustlib.client_table_blueprints.newTableClientLoveLetter()
+            val frozenClientLove = Version1.clientLoveLetterColumns()
+            if (liveClientLove != frozenClientLove) throw SchemaMismatchException("client_love_letter", liveClientLove, frozenClientLove)
 
             val liveBacklinks = rustlib.client_table_blueprints.newTableBacklinks()
             val frozenBacklinks = Version1.backlinksColumns()

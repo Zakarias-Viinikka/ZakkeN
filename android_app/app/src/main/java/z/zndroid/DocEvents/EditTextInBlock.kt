@@ -68,8 +68,8 @@ object EditTextInBlock {
             
             // 7. Persistence to SQLite
             DbManager.withTransaction {
-                // Update sync table 'uncommitted_diffs'
-                val diffRow = newUncommittedDiffRow(
+                // Update sync table 'client_love_letter'
+                val diffRow = newClientLoveLetterRow(
                     snapshotOfEdit = diff,
                     loveLetterSketch = sketchBytes,
                     sessionId = sessionId,
@@ -77,10 +77,10 @@ object EditTextInBlock {
                 )
                 val diffValues = SafeRowMapper.mapRow(
                     row = diffRow,
-                    columnDefs = rustlib.client_table_blueprints.newTableUncommittedDiffs(),
+                    columnDefs = rustlib.client_table_blueprints.newTableClientLoveLetter(),
                     expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
                 )
-                DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
+                DbManager.insertData(InsertDataIn("client_love_letter", diffValues)).getOrThrow()
 
                 // 8. Update queryable block table 'every_block_in_existence'
                 // First, find the internal auto-increment ID
@@ -145,7 +145,7 @@ object EditTextInBlock {
                 var currentBookmark = rustlib.my_yrs_lib.createBookmark(boss)
                 val pageId = boss.pageId()
                 val sessionId = SessionManager.currentSessionId
-                val colDefs = rustlib.client_table_blueprints.newTableUncommittedDiffs()
+                val colDefs = rustlib.client_table_blueprints.newTableClientLoveLetter()
                 val expectedNames = listOf("snapshot_of_edit", "love_letter_sketch", "session_id", "target_id")
 
                 // 4. Apply each squashed edit to in-memory BossOfYrs
@@ -169,7 +169,7 @@ object EditTextInBlock {
                     )
                     val sketchBytes = sketchToBytes(sketch)
                     
-                    val diffRow = newUncommittedDiffRow(
+                    val diffRow = newClientLoveLetterRow(
                         snapshotOfEdit = diffSnapshot,
                         loveLetterSketch = sketchBytes,
                         sessionId = sessionId,
@@ -179,9 +179,9 @@ object EditTextInBlock {
                     // Refresh bookmark for incremental snapshots
                     currentBookmark = rustlib.my_yrs_lib.createBookmark(boss)
 
-                    // 6. DB Write Part 1: uncommitted_diffs
+                    // 6. DB Write Part 1: client_love_letter
                     val diffValues = SafeRowMapper.mapRow(diffRow, colDefs, expectedNames)
-                    DbManager.insertData(InsertDataIn("uncommitted_diffs", diffValues)).getOrThrow()
+                    DbManager.insertData(InsertDataIn("client_love_letter", diffValues)).getOrThrow()
                 }
 
                 // 7. DB Write Part 2: update every_block_in_existence

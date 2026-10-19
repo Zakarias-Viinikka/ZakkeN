@@ -16,7 +16,7 @@ import uniffi.protocol.ForeignKeyDef
 fun SchemaGui(onBack: () -> Unit) {
     val tableSchemas = listOf(
         TableSchema("pages", newTablePages(), emptyList()),
-        TableSchema("uncommitted_diffs", newTableUncommittedDiffs(), emptyList()),
+        TableSchema("client_love_letter", newTableClientLoveLetter(), emptyList()),
         TableSchema("backlinks", newTableBacklinks(), getForeignDefBacklinks()),
         TableSchema("every_block_in_existence", newTableEveryBlockInExistence(), getForeignDefEveryBlockInExistence()),
         TableSchema("key_value_storage", newTableKeyValueStorage(), emptyList())

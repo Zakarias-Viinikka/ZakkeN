@@ -71,6 +71,30 @@ class UiTestRun:
                 out.append(line)
         return out[-40:]
 
+    def _ensure_nav(self):
+        """Between tests, the app may be anywhere. If it isn't on nav,
+        press back until it is. Called once at the start of every test via
+        `before_test()`. Idempotent — no-op if already on nav."""
+        from . import flows, ui
+        for _ in range(3):
+            try:
+                if ui.text_present(self.driver, flows.NEW_PAGE_BUTTON):
+                    return
+            except Exception:
+                pass
+            try:
+                ui.press_back(self.driver)
+            except Exception:
+                return
+            time.sleep(0.4)
+        try:
+            flows.ensure_nav_page(self.driver, timeout=5)
+        except Exception:
+            pass
+
+    def before_test(self):
+        self._ensure_nav()
+
     def step(self, description, expected, action):
         from . import ui
 
@@ -178,7 +202,7 @@ class UiTestRun:
             try:
                 r = _sp.run(
                     ["adb", "-s", self.serial, "logcat", "-d", "-s",
-                     "TestTransactionReceiver:I", "TestTransactionReceiver:E"],
+                     "TestTransactionReceiver:V"],
                     capture_output=True, text=True, timeout=5,
                 )
             except Exception:

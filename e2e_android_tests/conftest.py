@@ -50,7 +50,6 @@ def _begin_tx(serial):
 
 
 def _end_tx_rollback(serial):
-    subprocess.run(["adb", "-s", serial, "logcat", "-c"], check=False, capture_output=True)
     _broadcast(serial, "z.zndroid.debug.END_TEST_TX_ROLLBACK")
     if not _wait_tx_ok(serial, "END_TEST_TX_ROLLBACK"):
         raise RuntimeError(
@@ -149,3 +148,8 @@ def run():
         except Exception as exc:
             recorder.logcat_text = f"(logcat dump failed: {exc})"
         recorder.finalize()
+
+@pytest.fixture(autouse=True)
+def _reset_to_nav_before_test(run):
+    run.before_test()
+    yield

@@ -3,6 +3,7 @@ package z.zndroid.MainPages
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +34,11 @@ fun NavPage(
     var pageToRename by remember { mutableStateOf<NavPageInfo?>(null) }
     var pageToDelete by remember { mutableStateOf<NavPageInfo?>(null) }
     var renameInputText by remember { mutableStateOf("") }
+    // When true, the next time pageInfos updates, scroll to the last item
+    // (the newest page). Set after page creation and rename so the user
+    // sees the row they just created/renamed regardless of list length.
+    var scrollToNewest by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
     fun refreshPages() {
@@ -91,6 +97,13 @@ fun NavPage(
         refreshPages()
     }
 
+    LaunchedEffect(pageInfos.size, scrollToNewest) {
+        if (scrollToNewest && pageInfos.isNotEmpty()) {
+            listState.animateScrollToItem(pageInfos.size - 1)
+            scrollToNewest = false
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -111,6 +124,7 @@ fun NavPage(
                 }
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -198,6 +212,7 @@ fun NavPage(
                     DbManager.awaitReady()
                     DbManager.addPage(name).onSuccess {
                         showNewPagePopup = false
+                        scrollToNewest = true
                         refreshPages()
                     }.onFailure { error ->
                         GlobalPopupManager.showError("Error: ${error.message}")
@@ -228,6 +243,7 @@ fun NavPage(
                             coroutineScope.launch {
                                 DbManager.renamePage(currentInfo.pageId, newTitle).onSuccess {
                                     pageToRename = null
+                                    scrollToNewest = true
                                     refreshPages()
                                 }.onFailure { error ->
                                     GlobalPopupManager.showError("Rename failed: ${error.message}")

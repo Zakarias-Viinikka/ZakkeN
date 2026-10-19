@@ -1,0 +1,437 @@
+package z.zndroid
+
+import android.content.Context
+import com.z_db.android_mascot.LiveForever
+import uniffi.protocol.*
+import rustlib.client_table_blueprints.*
+import z.zndroid.Storage.StorageInitializer
+import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import z.zndroid.protocol.SafeRowMapper
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
+
+object DbManager {
+    // Hidden database instance
+    private var db: LiveForever? = null
+    private val readyDeferred = CompletableDeferred<Unit>()
+    
+    // Serializes all database access to prevent race conditions.
+    // This mirrors the 'askQueue' logic from the WASM worker implementation.
+    private val dbMutex = Mutex()
+
+    internal val activeTransactionThreadLocal = ThreadLocal<DbTransactionElement?>()
+
+    /**
+     * Element to store the active database instance in the coroutine context during a transaction.
+     */
+    internal class DbTransactionElement(val db: LiveForever) : CoroutineContext.Element {
+        companion object Key : CoroutineContext.Key<DbTransactionElement>
+        override val key: CoroutineContext.Key<*> get() = Key
+
+        val logBuffer = mutableListOf<z.zndroid.log.LogEntry>()
+
+        fun onCommit() {
+            logBuffer.clear()
+        }
+
+        fun onRollback(db: LiveForever) {
+            val items = logBuffer.toList()
+            logBuffer.clear()
+            items.forEach { entry ->
+                try {
+                    val row = newLogRow(
+                        timestamp = entry.timestamp,
+                        level = entry.level,
+                        category = entry.category,
+                        source = entry.source,
+                        sessionId = entry.sessionId,
+                        message = entry.message
+                    )
+                    val values = SafeRowMapper.mapRow(
+                        row = row,
+                        columnDefs = newTableLogs(),
+                        expectedNames = listOf("timestamp", "level", "category", "source", "session_id", "message")
+                    )
+                    db.insertData(InsertDataIn("logs", values))
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    /**
+     * Suspends until the database is initialized and tables are created.
+     */
+    suspend fun awaitReady() = readyDeferred.await()
+
+    /**
+     * Writes a single LogEntry to the logs table in SQLite.
+     */
+    suspend fun writeLogEntry(entry: z.zndroid.log.LogEntry): Result<Unit> {
+        return executeNative { db ->
+            val row = newLogRow(
+                timestamp = entry.timestamp,
+                level = entry.level,
+                category = entry.category,
+                source = entry.source,
+                sessionId = entry.sessionId,
+                message = entry.message
+            )
+            val values = SafeRowMapper.mapRow(
+                row = row,
+                columnDefs = newTableLogs(),
+                expectedNames = listOf("timestamp", "level", "category", "source", "session_id", "message")
+            )
+            db.insertData(InsertDataIn("logs", values))
+        }
+    }
+
+    /**
+     * Internal helper to execute database calls with safety checks and serialization.
+     * Acquisition of dbMutex ensures that only one DB operation runs at a time.
+     * If a transaction is active in the current coroutine context, it bypasses the mutex.
+     */
+    internal suspend inline fun <T> executeNative(crossinline block: (LiveForever) -> T): Result<T> {
+        val transactionElement = coroutineContext[DbTransactionElement]
+        if (transactionElement != null) {
+            return try {
+                Result.success(block(transactionElement.db))
+            } catch (e: Exception) {
+                val errorMessage = e.message ?: e.toString()
+                Result.failure(LocalDbError.QueryFailed(errorMessage))
+            }
+        }
+
+        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
+        return dbMutex.withLock {
+            try {
+                Result.success(block(currentDb))
+            } catch (e: Exception) {
+                // Use e.toString() if message is null to ensure we don't return "null" to the UI
+                val errorMessage = e.message ?: e.toString()
+                Result.failure(LocalDbError.QueryFailed(errorMessage))
+            }
+        }
+    }
+
+    /**
+     * Executes a block of database operations within a single transaction.
+     * If a transaction is already active in the current coroutine context, the block
+     * is executed directly within that transaction (re-entrant).
+     */
+    suspend fun <T> withTransaction(block: suspend () -> T): Result<T> {
+        val transactionElement = coroutineContext[DbTransactionElement]
+        if (transactionElement != null) {
+            return try {
+                Result.success(block())
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
+        return dbMutex.withLock {
+            // Test-tool hook: TestTransactionReceiver may be holding an external
+            // transaction open across the whole test run. In that case, run the
+            // block inside it without beginning/committing a nested transaction.
+            if (externalTransactionActive) {
+                val routingElement = DbTransactionElement(currentDb)
+                return@withLock try {
+                    val result = kotlinx.coroutines.withContext(routingElement) {
+                        block()
+                    }
+                    Result.success(result)
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+
+            val txElement = DbTransactionElement(currentDb)
+            activeTransactionThreadLocal.set(txElement)
+            try {
+                currentDb.beginAllOrNothing()
+                val result = kotlinx.coroutines.withContext(txElement) {
+                    block()
+                }
+                currentDb.everythingWentPerfectly()
+                txElement.onCommit()
+                Result.success(result)
+            } catch (e: Exception) {
+                try {
+                    currentDb.regretEverything()
+                } catch (_: Exception) {
+                }
+                txElement.onRollback(currentDb)
+                Result.failure(e)
+            } finally {
+                activeTransactionThreadLocal.remove()
+            }
+        }
+    }
+
+    @Volatile
+    private var externalTransactionActive: Boolean = false
+
+    /**
+     * Called by TestTransactionReceiver (debug only). Opens a transaction that
+     * stays open until endExternalTransaction is called. The mutex is held only
+     * for the duration of this call, not for the whole transaction.
+     */
+    suspend fun beginExternalTransaction(): Result<Unit> {
+        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
+        return dbMutex.withLock {
+            if (externalTransactionActive) {
+                return@withLock Result.failure(Exception("external transaction already active"))
+            }
+            try {
+                currentDb.beginAllOrNothing()
+                externalTransactionActive = true
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Called by TestTransactionReceiver (debug only). Ends the external
+     * transaction opened by beginExternalTransaction.
+     */
+    suspend fun endExternalTransaction(commit: Boolean): Result<Unit> {
+        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
+        return dbMutex.withLock {
+            if (!externalTransactionActive) {
+                return@withLock Result.failure(Exception("no external transaction active"))
+            }
+            try {
+                if (commit) currentDb.everythingWentPerfectly() else currentDb.regretEverything()
+                externalTransactionActive = false
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    // Call this once from MainApplication (runs on background thread)
+    suspend fun init(context: Context) {
+        if (db == null) {
+            val dbPath = context.getDatabasePath("my_database.db").absolutePath
+            val newDb = LiveForever(dbPath)
+            
+            db = newDb
+
+            // Execute migrations or bootstrap via MigrationManager
+            z.zndroid.db.migrations.MigrationManager.migrate(newDb)
+
+            // Ensure storage initial default records exist (e.g. user_id)
+            // StorageInitializer will now just populate records since tables are created by MigrationManager
+            StorageInitializer.create_all_these_things_if_they_dont_exist()
+            
+            readyDeferred.complete(Unit)
+        }
+    }
+
+    // --- API Methods ---
+
+    suspend fun listTables(): Result<ListTablesOut> = executeNative { it.listTables() }
+
+    suspend fun checkTable(input: CheckTableIn): Result<CheckTableOut> = executeNative { it.checkTable(input) }
+
+    suspend fun getData(input: GetDataIn): Result<GetDataOut> = executeNative { it.getData(input) }
+
+    suspend fun insertData(input: InsertDataIn): Result<Unit> = executeNative { it.insertData(input) }
+
+    suspend fun deleteRow(input: DeleteRowIn): Result<Unit> = executeNative { it.deleteRow(input) }
+
+    suspend fun editColInRow(input: EditColInRowIn): Result<Unit> = executeNative { it.editColInRow(input) }
+
+    suspend fun editColInRowWhere(input: EditColInRowWhereIn): Result<Unit> =
+        executeNative { it.editColInRowWhere(input) }
+
+    suspend fun insertDataAndGetCol(input: InsertDataAndGetColIn): Result<InsertDataAndGetColOut> =
+        executeNative { it.insertDataAndGetCol(input) }
+
+    suspend fun deleteRowWhere(input: DeleteRowWhereIn): Result<Unit> =
+        executeNative { it.deleteRowWhere(input) }
+
+    /**
+     * Specific helper to fetch all pages.
+     */
+    suspend fun getPages(): Result<List<Row>> = executeNative {
+        it.getData(GetDataIn("pages", SelectArguments.Single(SelectArgument.All), emptyList())).rows
+    }
+
+    /**
+     * Specific helper to fetch a single page.
+     */
+    suspend fun getPage(pageId: String): Result<Row> = executeNative { db ->
+        val result = db.getData(GetDataIn(
+            "pages",
+            SelectArguments.Single(SelectArgument.XEqualY("page_id", pageId)),
+            emptyList()
+        ))
+        result.rows.firstOrNull() ?: throw Exception("Page not found: $pageId")
+    }
+
+    /**
+     * Update the binary snapshot for a page.
+     */
+    suspend fun updatePageSnapshot(pageId: String, snapshot: ByteArray): Result<Unit> = executeNative { db ->
+        // We first need the internal 'id' to use editColInRow
+        val pageRow = getPageSync(db, pageId)
+        val internalId = when (val idCol = pageRow.cols.firstOrNull()) {
+            is Col.Integer -> idCol.v1.toString()
+            is Col.Text -> idCol.v1
+            else -> throw Exception("Could not determine internal ID for page $pageId")
+        }
+        
+        db.editColInRow(EditColInRowIn(
+            tableName = "pages",
+            rowId = internalId,
+            column = "blobbed_page",
+            newValue = Col.Blob(snapshot)
+        ))
+    }
+
+    /**
+     * Internal sync helper to avoid nested executeNative calls which would deadlock the Mutex.
+     */
+    private fun getPageSync(db: LiveForever, pageId: String): Row {
+        val result = db.getData(GetDataIn(
+            "pages",
+            SelectArguments.Single(SelectArgument.XEqualY("page_id", pageId)),
+            emptyList()
+        ))
+        return result.rows.firstOrNull() ?: throw Exception("Page not found: $pageId")
+    }
+
+    /**
+     * Proper way to add a new page using Yrs initial snapshots from blueprints.
+     * Creates the title block with [title] content and persists the initial page snapshot to SQLite.
+     */
+    suspend fun addPage(title: String, isMainMenu: Boolean = false): Result<Unit> {
+        return try {
+            val userId = z.zndroid.Storage.StorageAccess.getUserId()
+            val boss = rustlib.my_yrs_lib.BossOfYrs(userId, System.currentTimeMillis().toString())
+            val pageId = boss.pageId()
+
+            try {
+                withTransaction {
+                    // 1. Persist initial page row to pages table first so foreign key constraints pass
+                    val initialBlob = boss.snapshot()
+                    val version = ByteArray(0)
+                    val row = newPageRow(pageId, isMainMenu, initialBlob, version)
+                    val values = SafeRowMapper.mapRow(
+                        row = row,
+                        columnDefs = newTablePages(),
+                        expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
+                    )
+                    insertData(InsertDataIn("pages", values)).getOrThrow()
+
+                    // 2. Create the title block with title content (which also updates pages.blobbed_page)
+                    z.zndroid.DocEvents.AddBlock.execute(
+                        z.zndroid.DocEvents.AddBlockCtx(
+                            boss = boss,
+                            content = title,
+                            isTitle = true,
+                            isMainMenu = isMainMenu
+                        )
+                    ).getOrThrow()
+
+                    // Web's create_page makes two blocks — a title and an
+                    // empty body. Match that so the initial page opens with
+                    // a textarea ready to type into.
+                    z.zndroid.DocEvents.AddBlock.execute(
+                        z.zndroid.DocEvents.AddBlockCtx(
+                            boss = boss,
+                            content = "",
+                            isTitle = false,
+                            isMainMenu = isMainMenu
+                        )
+                    ).getOrThrow()
+                }.getOrThrow()
+
+                Result.success(Unit)
+            } finally {
+                boss.destroy()
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Renames a page title: edits the title block's content using the builder/executor path.
+     * Note: page_id remains unchanged as the stable identity.
+     */
+    suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
+        return withTransaction {
+            val pageRow = getPage(pageId).getOrThrow()
+            val userId = z.zndroid.Storage.StorageAccess.getUserId()
+            val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
+                ?: throw Exception("Snapshot blob not found for page $pageId")
+
+            val boss = rustlib.my_yrs_lib.docFromSnapshot(
+                blob, userId, pageId, System.currentTimeMillis().toString()
+            )
+
+            try {
+                val blocks = boss.getEntirePage()
+                val titleBlock = blocks.firstOrNull()
+
+                if (titleBlock != null) {
+                    z.zndroid.DocEvents.EditTextInBlock.execute(
+                        z.zndroid.DocEvents.EditTextInBlockCtx(
+                            boss = boss,
+                            blockId = titleBlock.idInYrs,
+                            oldText = titleBlock.text,
+                            newText = newTitle
+                        )
+                    ).getOrThrow()
+                } else {
+                    // Fallback: page has no title block, add one.
+                    // isMainMenu is read from the pages row we already have.
+                    val isMainMenu = (pageRow.cols.getOrNull(5) as? Col.Text)?.v1 == "true"
+                    z.zndroid.DocEvents.AddBlock.execute(
+                        z.zndroid.DocEvents.AddBlockCtx(
+                            boss = boss,
+                            content = newTitle,
+                            isTitle = true,
+                            isMainMenu = isMainMenu
+                        )
+                    ).getOrThrow()
+                }
+                val updatedSnapshot = boss.snapshot()
+                updatePageSnapshot(pageId, updatedSnapshot).getOrThrow()
+            } finally {
+                boss.destroy()
+            }
+        }
+    }
+
+    /**
+     * Deletes a page and all associated rows (blocks, backlinks).
+     * Runs as a single transaction.
+     */
+    suspend fun deletePage(pageId: String): Result<Unit> = withTransaction {
+        deleteRowsByColumn("every_block_in_existence", "id_of_page_i_belong_to", pageId)
+        deleteRowsByColumn("backlinks", "page_that_holds_link_id", pageId)
+        deleteRowsByColumn("backlinks", "page_being_linked_to_id", pageId)
+        deleteRowsByColumn("pages", "page_id", pageId)
+    }
+
+    private suspend fun deleteRowsByColumn(table: String, column: String, value: String) {
+        val rows = DbManager.getData(GetDataIn(
+            table,
+            SelectArguments.Single(SelectArgument.XEqualY(column, value)),
+            listOf("id")
+        )).getOrThrow().rows
+        for (row in rows) {
+            val id = (row.cols.firstOrNull() as? Col.Integer)?.v1?.toString() ?: continue
+            DbManager.deleteRow(DeleteRowIn(table, id)).getOrThrow()
+        }
+    }
+}

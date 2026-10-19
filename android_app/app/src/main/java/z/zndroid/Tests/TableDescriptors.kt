@@ -46,7 +46,7 @@ object BacklinksTableSchema {
     val allColumns = listOf(id, pageThatHoldsLinkId, pageBeingLinkedToId, disabled, version)
 }
 
-object UncommittedDiffsTableSchema {
+object ClientLoveLetterTableSchema {
     val id = ColumnDescriptor("id", "INTEGER") { (it as Col.Integer).v1 }
     val snapshotOfEdit = ColumnDescriptor("snapshot_of_edit", "BLOB") { (it as Col.Blob).v1 }
     val loveLetterSketch = ColumnDescriptor("love_letter_sketch", "BLOB") { (it as Col.Blob).v1 }

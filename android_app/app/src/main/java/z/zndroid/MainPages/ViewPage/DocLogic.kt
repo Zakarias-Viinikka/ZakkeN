@@ -148,8 +148,7 @@ suspend fun mergeWithPreviousBlock(
         RemoveBlock.execute(
             RemoveBlockCtx(
                 boss = boss,
-                blockId = currBlock.idInYrs,
-                position = currentIndex.toUInt()
+                blockId = currBlock.idInYrs
             )
         ).getOrThrow()
 

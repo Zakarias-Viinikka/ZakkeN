@@ -166,9 +166,10 @@ moving the snackbar to a top-level `Popup`/`Dialog`, but not urgent.
 
 ## E2E tests — how you run them
 
-You run the tests yourself. One command:
+You run the tests yourself. One command, full path:
 
-    ~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh
+    /home/zakke/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh
+    (equivalently: ~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh)
 
 It handles connecting to the phone, starting Appium if needed, and running
 the suite against the already-installed app. It does not build or install
@@ -220,3 +221,19 @@ z.zndroid`) before exiting. The human is told their phone is free. On
 success, the app is left on the nav page instead. A force-stopped app
 loses its in-memory Yrs state, which is fine — the DB on disk is
 authoritative and the next launch reloads from it.
+
+## E2E suite — what changed 2026-10-19
+
+Two tests now, both user-visible behavior:
+
+- `test_multiple_blocks.py` — create a page, add three body blocks, verify all four blocks (title + three) appear in order
+- `test_page_lifecycle.py` — create a page, add a body block, reopen the page, verify the body persisted
+
+Run with `~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`. Full-path form: `/home/zakke/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`.
+
+For iteration, run pytest directly with Appium started separately:
+1. `export ANDROID_HOME=/home/zakke/Android/Sdk` in the terminal that starts Appium, then `appium` (leave it running)
+2. In a different terminal: `cd ~/ProgStuff/ZakkeN/e2e_android_tests && .venv/bin/pytest tests/test_page_lifecycle.py -v`
+3. When done, Ctrl+C in the Appium terminal
+
+Test data should avoid doubled letters. `mobile: type` drops characters on some Samsung devices, most often the second of a doubled character. Use "help" instead of "hello", "delta" instead of "gamma". The readback helper in `ui.type_text` retries when a character drops, but avoiding doubles eliminates the most common trigger.

@@ -299,7 +299,8 @@ After making changes, update these where they have drifted:
 ## The e2e test harness (2026-10-17)
 
 An external Python/Appium test suite lives at `../e2e_android_tests/`. It is
-not part of the Android build. It runs against the app already installed on a
+not part of the Android build. The runner is
+`/home/zakke/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`. It runs against the app already installed on a
 physical phone, over adb. It does not build or install the APK — the human
 rebuilds and installs via Android Studio or `android_app/build_and_install.sh`
 before running tests.
@@ -319,6 +320,8 @@ Two things the app must provide for the harness to work:
   because Compose snackbars render behind modal `Dialog` windows and are not
   visible in the a11y tree when a dialog is open. Do not remove these log
   calls.
+
+- **Title vs. Page ID in CHECK_SYNC**: The `CHECK_SYNC` debug hook expects the page ID (the UUID). Tests pass the page title to `run.assert_sync`. `TestTransactionReceiver` resolves titles to page IDs by querying `every_block_in_existence`. If `CHECK_SYNC` fails with "page not found" after a test that just created a page successfully, that is a title-vs-id mismatch.
 
 Details in `AI_READ_THIS.md`, sections "End-to-end testing" and "Popup
 severity".
@@ -411,3 +414,104 @@ Moving a block has no Rust implementation yet — no yrs move method, no love_le
 `new_every_block_in_existence_row` takes `position: Option<f64>`. `None` means "insert a placeholder and update the row after insert" — that is what add_block's executor does. Android's executor should follow the same shape.
 
 The db-side ordering scheme is still unresolved. `position` currently holds the row's own id as a float, which is insertion order, not sort order. A real reorder cannot be expressed with it. Whatever Android does here has to match whatever web lands on.
+
+## Migration V2 and add-page fix — 2026-10-19
+
+Migration V2 exists. `SchemaVersion.LATEST` is now V2, not V1. V1's updateOnce does the V1→V2 repair: if `client_love_letter` is missing (a DB bootstrapped when Version1 still meant `uncommitted_diffs` and later renamed in place without a version bump), it creates the table and copies from `uncommitted_diffs` if that exists. V2's bootstrap delegates to V1's, so fresh installs get the same schema. Nothing else changed shape.
+
+Two bugs fixed on the add-page path, both consequences of page_id being a UUID now:
+
+`AddBlockCtx` has an `isMainMenu: Boolean = false` field. Previously `AddBlock.execute` computed it as `(pageId == "main" || pageId == "main_menu")`, which was always false once page_ids became UUIDs. That meant every block inserted through `AddBlock` had `is_part_of_main_menu_page = "false"`, including blocks on main-menu pages, while the `pages` row had the correct value. Menu queries that filter on `is_part_of_main_menu_page = "true"` would show nothing. `addPage` now passes its own `isMainMenu` through to `AddBlockCtx`, and `renamePage`'s fallback path reads it from `pages.is_main_menu_page`.
+
+`addPage` now creates two blocks, not one. Web's `create_page` makes a title block and an empty body block. Android was making only the title, so a fresh page opened with one textarea. Now it opens with two, matching web. Tests using `add_body_block` were unaffected because they press Enter in the title to create a body block themselves.
+
+The `CHECK_SYNC` receiver still resolves the page title string to a page_id before calling `checkPageSync(pageId)`. That resolution belongs where it is — `TestTransactionReceiver`, not `DbManager.getPage`. `getPage(pageId)` continues to mean "get by page_id" and nothing else.
+
+## New page opens with two blocks, matching web — 2026-10-19
+
+Android's `addPage` now creates two blocks: a title (with the page name as content) and an empty body block. This matches web's `create_page`, which also makes two blocks, so a fresh page opens with a textarea ready to type into.
+
+The change surfaced a bug in the E2E helper `add_body_block`. The helper was written for single-block pages: it clicked the title, pressed Enter to split it, and typed into the new empty block. On a two-block page that produced three blocks instead of two, breaking every test that uses `add_body_block`.
+
+The helper is fixed. `add_body_block` now checks whether the last block is empty (empty string or placeholder text) and:
+- if it is, clicks it and types into it
+- if it isn't, clicks the last block, presses Enter to split it, and types into the new empty block
+
+Both branches are needed: the first call on a fresh page fills the pre-existing body block; subsequent calls split the last block to create a new one. All existing tests continue to work.
+
+Android now matches web on new-page structure.
+
+## E2E test isolation — 2026-10-19
+
+The e2e harness is session-scoped: one Appium session, one external DB transaction, all tests run inside it. That meant tests could only pass if each one started from the nav page, and nothing enforced that. It worked when `test_block_empty_removal` was alphabetically first because that test happens to end on nav. Adding `test_add_block_via_split` broke the assumption: it ran first, ended on page view, and `test_block_empty_removal` couldn't find `+ New Page`.
+
+Fixed with an autouse pytest fixture in `conftest.py` that calls `run.before_test()` before every test. `before_test()` presses back until `+ New Page` is visible, no-op if already on nav. Tests no longer depend on where the previous one left off.
+
+Two new tests (`test_add_block_via_split.py`, `test_delete_block_via_merge.py`) also end with an explicit `go_back_to_nav` step. That's redundant now but documents the intent at the point where it matters.
+
+Rule for future tests: don't assume the app starts on nav. If you need a clean state at a specific screen, navigate there explicitly at the start. The autouse fixture only gets you to nav, not deeper.
+
+## Nav auto-scrolls to new page — 2026-10-19
+
+`NavPage` now scrolls its `LazyColumn` to the last item after a page is created or renamed. Before this, a new page appended to the end of the list; on a full nav the new row was below the fold and looked like the page wasn't created. That's not just a UI problem — it was the cause of an E2E failure where `create_page` couldn't find the new name after the app's dialog had already closed successfully.
+
+The mechanism: a `scrollToNewest: Boolean` flag plus a `LaunchedEffect(pageInfos.size, scrollToNewest)` that calls `listState.animateScrollToItem(pageInfos.size - 1)` when the flag is set and the list is non-empty. The flag is set in the `addPage` and `renamePage` success callbacks. No scroll happens on initial load or on refresh alone.
+
+The E2E `create_page` helper no longer swipes — the app handles scroll. If that helper ever fails with "page not in nav after creation", the cause is either the scroll didn't run (check the flag is being set) or the page really wasn't persisted (check logcat for GlobalPopup).
+
+## E2E typing is flaky on Samsung, handled by readback — 2026-10-19
+
+Appium's `mobile: type` is the standard way to type into a Compose TextField on Android, but it's unreliable on Samsung devices. The call emulates a real on-screen keyboard — the soft keyboard pops up and down during the call, and the focused field loses focus for a frame or two. On some Samsung devices that focus flicker swallows a character. Symptom: `helo` instead of `hello`, `Tester` instead of `TesterTester`, no error reported. Tracked upstream as appium-uiautomator2-driver issue #935, confirmed on Galaxy A51, S23, and Z Fold4.
+
+The E2E `ui.type_text` helper now types, reads the focused field back, and retries if the content doesn't match. Fast path is one type call; retry clears the field and types the whole intended string from scratch, up to three times. If all retries fail, it raises with the before/expected/actual text so the failure names exactly what went wrong.
+
+Do not "fix" this by switching to `adb shell input text`. That works around the focus race but has its own problems: spaces need to be encoded as `%s`, special characters need shell escaping, and unicode/emoji aren't supported. The readback approach handles all three cases.
+
+Do not switch to `element.send_keys()` either, without testing. It uses the accessibility `setText` atom, which bypasses the keyboard entirely, but Compose TextFields are reported to throw `InvalidElementStateException` from element-level actions in some Appium versions. The readback approach works with whichever primitive you use.
+
+Test data should avoid doubled letters. "hello", "gamma", "address", "all" — strings like these are the most common victims of the drop, because the second of a doubled character needs two rapid key events and the focus flicker lands between them. Use "help", "delta", "location", "whole" instead. The dropped character isn't strictly limited to doubles — any character can drop — so the readback helper is still the primary defense. Avoiding doubles just eliminates the most common trigger.
+
+## E2E tests cover regression, not logic — 2026-10-19
+
+The Android e2e suite tests user-visible behavior, not internal correctness. If the sync logic is wrong but the app still shows the user the right thing, that's the web's problem to catch — web is the reference, Android copies it. If it's wrong and the user notices, that becomes a regression test once someone hits it.
+
+Deleted three tests that existed only to verify internal sync: `test_sync_integrity`, `test_add_block_via_split`, `test_delete_block_via_merge`. The first checked yrs-vs-sqlite agreement with no user-visible failure mode. The second two duplicated `test_block_split` and `test_block_merge` for user-visible behavior, and existed mainly to exercise the `add_block` and `delete_block` executors. If those executors have bugs, the bugs show up when a user does the corresponding action, and a regression test gets written then.
+
+Also stripped the trailing `assert_sync` step from `test_block_split`, `test_block_merge`, and `test_block_empty_removal`. Those steps were logic assertions bolted onto otherwise user-visible tests. The behavior assertions remain.
+
+The `assert_sync` runner method and the `CHECK_SYNC` debug broadcast are unchanged and still work. Nothing currently uses them. They're there for when a logic test is actually worth writing.
+
+Rule for future tests: assert what the user sees. Don't assert that the database agrees with the CRDT unless the disagreement is what the user will observe. If a test needs an internal check to pass, that's a signal the test is testing the wrong thing.
+
+## `_row_sibling` helper fixed — 2026-10-19
+
+The e2e `flows._row_sibling` helper finds a button in the same list row as a given element (Delete, Rename). The old version used `following-sibling::*[@text="..."]` and `following::*[@text="..."][1]` from the title element. Both xpaths silently failed on `test_multiple_pages` once the nav list grew long enough that rows were being recycled. Symptom: `Could not find 'Delete' button in this row`.
+
+Root cause: Compose's a11y tree nests the title text under a Button, so the title Text's siblings are not the row's other buttons. The old helper's `following-sibling` could never have worked; `following::` worked by luck of document order but broke down as the tree grew.
+
+New version walks up to the nearest ancestor containing `Admin`/`Rename`/`Delete` (that ancestor is the row), then finds the target inside it. Retries on a short timer because LazyColumn recycles rows during scroll animations.
+
+Uses only relative XPath from the passed element. Should be more stable across list lengths and scroll positions than the sibling-based approach.
+
+## Flush-before-structural-change and flush-on-back — 2026-10-19
+
+Two real persistence bugs fixed. Both were user-facing: typed text could be lost on reload without the user knowing why.
+
+**Flush-before-structural-change.** `EditableBlock` cancels the 500ms debounce before any structural action (split via Enter, split via soft-keyboard newline, merge via Backspace-at-0). Cancelling alone loses whatever was in the buffer for the current block. Now the code calls `EditTextInBlock.flushBuffer` before every structural action, so the yrs doc sees the pre-split text and the buffer is empty when the split happens. Affects three call sites in `EditableBlock.kt`: soft-Enter in `onValueChange`, hardware-Enter in `onPreviewKeyEvent`, backspace-merge in `onPreviewKeyEvent`.
+
+**Flush-on-back.** `ViewPage`'s back button navigated without flushing pending buffers. If the user typed something and hit back inside the 500ms debounce window, that edit was destroyed when `DisposableEffect` called `boss.destroy()`. Now the back button flushes every block's buffer before calling `onBack()`. If a flush fails, `reloadToken` bumps and the page rebuilds from DB, same recovery as any other flush failure.
+
+**`combineGetdiffResults` empty-result fallback.** `EditTextInBlock.flushBuffer` was calling `combineGetdiffResults(itemsToFlush)`, then `return@withTransaction` if the result was empty — after clearing the buffer. Silent loss. Now, if the combine returns empty but the buffer was non-empty, the code falls back to applying each diff individually rather than skipping the whole transaction.
+
+## E2E suite reduced to regression coverage — 2026-10-19
+
+The Android e2e suite is now two tests: `test_multiple_blocks.py` and `test_page_lifecycle.py`. Both are user-visible behavior tests.
+
+Removed:
+- `test_sync_integrity` — internal yrs-vs-sqlite agreement, no user-visible symptom
+- `test_block_split`, `test_block_merge`, `test_block_empty_removal`, `test_title_backspace_noop`, `test_title_editing`, `test_empty_title` — covered by the two remaining tests at the user-visible level
+- `test_page_isolation`, `test_persistence_across_kill`, `test_unicode_text`, `test_multiple_pages`, `test_slash_popup` — either internal or duplicated the remaining coverage
+
+The `assert_sync` runner method and `CHECK_SYNC` debug broadcast still exist and work. Nothing uses them right now. Keep them for when a specific logic test is worth writing.
+
+Rationale: the suite's job is to catch regressions in what a user would notice. If internal sync breaks but the UI still shows the right thing, that's web's problem to catch (web is the reference). If it breaks and the user notices, that becomes a new regression test at that moment.

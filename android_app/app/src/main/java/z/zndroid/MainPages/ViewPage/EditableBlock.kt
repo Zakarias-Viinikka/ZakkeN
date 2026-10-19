@@ -46,6 +46,19 @@ fun EditableBlock(
     var showSlashPopup by remember { mutableStateOf(false) }
     var showLongPressMenu by remember { mutableStateOf(false) }
 
+    // Fresh page: focus the first empty body block so the soft keyboard
+    // appears and the user can type immediately. Before the two-block
+    // page change, this was handled by ViewPage after
+    // initializePageContent created the body block and returned its id.
+    // Now the block already exists, so the focus has to happen here
+    // where the FocusRequester is attached to the composed BasicTextField.
+    LaunchedEffect(Unit) {
+        if (index == 1 && state.text.isEmpty()) {
+            delay(150)
+            state.focusRequester.requestFocus()
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -71,6 +84,11 @@ fun EditableBlock(
                         val cursor = newValue.selection.start.coerceAtMost(sanitized.length)
                         debounceJob.value?.cancel()
                         scope.launch {
+                            // Flush pending buffered edits before splitting.
+                            // Otherwise the yrs doc splits without the text
+                            // that hadn't been persisted yet, and the text
+                            // is lost on reload.
+                            EditTextInBlock.flushBuffer(boss, state, onHardReload)
                             splitBlock(boss, state, cursor, index + 1, onHardReload) { newBlockId ->
                                 onRefreshWithFocus(newBlockId, 0)
                             }
@@ -105,9 +123,11 @@ fun EditableBlock(
                                 Key.Enter -> {
                                     if (!keyEvent.isShiftPressed) {
                                         val cursor = state.textFieldValue.selection.start
-                                        // Cancel pending flush before structural change
                                         debounceJob.value?.cancel()
                                         scope.launch {
+                                            // Flush pending buffered edits before
+                                            // splitting. See soft-Enter path above.
+                                            EditTextInBlock.flushBuffer(boss, state, onHardReload)
                                             splitBlock(boss, state, cursor, index + 1, onHardReload) { newBlockId ->
                                                 onRefreshWithFocus(newBlockId, 0)
                                             }
@@ -120,9 +140,11 @@ fun EditableBlock(
                                     // Merge if cursor is at the very beginning of the block
                                     // Do not merge if this is the title block (index 0)
                                     if (cursor == 0 && index > 0) {
-                                        // Cancel pending flush before structural change
                                         debounceJob.value?.cancel()
                                         scope.launch {
+                                            // Flush pending buffered edits before
+                                            // merging. Same reason as split.
+                                            EditTextInBlock.flushBuffer(boss, state, onHardReload)
                                             mergeWithPreviousBlock(boss, state, index, onHardReload) { targetId, cursorAt ->
                                                 onRefreshWithFocus(targetId, cursorAt)
                                             }

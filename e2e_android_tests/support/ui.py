@@ -5,6 +5,8 @@ in support/flows.py.
 """
 from __future__ import annotations
 
+import time
+
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -75,8 +77,76 @@ def press_delete(driver):
     driver.press_keycode(67)
 
 
-def type_text(driver, text):
+def _focused_element(driver):
+    """The EditText that currently has input focus, or None."""
+    try:
+        return driver.find_element(
+            AppiumBy.XPATH, '//android.widget.EditText[@focused="true"]'
+        )
+    except Exception:
+        return None
+
+
+def _focused_text(driver):
+    el = _focused_element(driver)
+    return (el.text if el else "") or ""
+
+
+def _type_raw(driver, text):
     driver.execute_script('mobile: type', {'text': text})
+
+
+def _clear_focused(driver):
+    """Empty the focused field by backspacing one char at a time.
+
+    element.clear() is reported to throw InvalidElementStateException on
+    Compose TextFields, and mobile: clear doesn't exist. Key events are
+    the reliable path.
+    """
+    el = _focused_element(driver)
+    if not el:
+        return
+    current = el.text or ""
+    press_move_end(driver)
+    for _ in range(len(current)):
+        press_delete(driver)
+    time.sleep(0.15)
+
+
+def type_text(driver, text):
+    """Type into whatever field has focus, with readback verification.
+
+    Appium's `mobile: type` drops characters on some Samsung devices
+    (appium-uiautomator2-driver issue #935): the soft keyboard appears and
+    disappears during the call, the field loses focus for a frame or two,
+    and a character is swallowed. Symptom is text like 'helo' where you
+    sent 'hello', with no error.
+
+    This version types, reads the field back, and retries if the result
+    doesn't match what was asked for. The fast path is a single type call;
+    the retry path only runs when the bug actually fires.
+    """
+    if not text:
+        return
+
+    before = _focused_text(driver)
+    expected = before + text
+
+    _type_raw(driver, text)
+    if _focused_text(driver) == expected:
+        return
+
+    for _ in range(3):
+        _clear_focused(driver)
+        _type_raw(driver, expected)
+        if _focused_text(driver) == expected:
+            return
+        time.sleep(0.15)
+
+    raise AssertionError(
+        f"typing {text!r} into focused field failed after retries. "
+        f"field was {before!r}, expected {expected!r}, got {_focused_text(driver)!r}"
+    )
 
 
 POPUP_ACTION_LABEL = "Dismiss"

@@ -47,14 +47,14 @@ class SchemaCanaryTest : AppTest {
             assertCol("backlinks", col.name, col.typeName, expected)
         }
 
-        UncommittedDiffsTableSchema.allColumns.forEach { col ->
+        ClientLoveLetterTableSchema.allColumns.forEach { col ->
             val expected = when (col.name) {
                 "id" -> "INTEGER"
                 "session_id", "target_id" -> "TEXT"
                 "snapshot_of_edit", "love_letter_sketch" -> "BLOB"
                 else -> "UNKNOWN"
             }
-            assertCol("uncommitted_diffs", col.name, col.typeName, expected)
+            assertCol("client_love_letter", col.name, col.typeName, expected)
         }
 
         KeyValueStorageTableSchema.allColumns.forEach { col ->

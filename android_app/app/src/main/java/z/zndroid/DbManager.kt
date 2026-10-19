@@ -251,6 +251,12 @@ object DbManager {
     suspend fun editColInRowWhere(input: EditColInRowWhereIn): Result<Unit> =
         executeNative { it.editColInRowWhere(input) }
 
+    suspend fun insertDataAndGetCol(input: InsertDataAndGetColIn): Result<InsertDataAndGetColOut> =
+        executeNative { it.insertDataAndGetCol(input) }
+
+    suspend fun deleteRowWhere(input: DeleteRowWhereIn): Result<Unit> =
+        executeNative { it.deleteRowWhere(input) }
+
     /**
      * Specific helper to fetch all pages.
      */
@@ -330,7 +336,20 @@ object DbManager {
                         z.zndroid.DocEvents.AddBlockCtx(
                             boss = boss,
                             content = title,
-                            isTitle = true
+                            isTitle = true,
+                            isMainMenu = isMainMenu
+                        )
+                    ).getOrThrow()
+
+                    // Web's create_page makes two blocks — a title and an
+                    // empty body. Match that so the initial page opens with
+                    // a textarea ready to type into.
+                    z.zndroid.DocEvents.AddBlock.execute(
+                        z.zndroid.DocEvents.AddBlockCtx(
+                            boss = boss,
+                            content = "",
+                            isTitle = false,
+                            isMainMenu = isMainMenu
                         )
                     ).getOrThrow()
                 }.getOrThrow()
@@ -373,11 +392,15 @@ object DbManager {
                         )
                     ).getOrThrow()
                 } else {
+                    // Fallback: page has no title block, add one.
+                    // isMainMenu is read from the pages row we already have.
+                    val isMainMenu = (pageRow.cols.getOrNull(5) as? Col.Text)?.v1 == "true"
                     z.zndroid.DocEvents.AddBlock.execute(
                         z.zndroid.DocEvents.AddBlockCtx(
                             boss = boss,
                             content = newTitle,
-                            isTitle = true
+                            isTitle = true,
+                            isMainMenu = isMainMenu
                         )
                     ).getOrThrow()
                 }
