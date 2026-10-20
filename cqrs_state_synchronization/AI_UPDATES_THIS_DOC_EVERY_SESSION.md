@@ -1,39 +1,31 @@
-Tuesday, 20 October 2026
-=======================
+Tuesday, 20 October 2026 (later)
+================================
 
-Move within a page works end to end.
+Cross-page move, plus real session id / user id / time.
 
-The position field on every_block_in_existence was a Real holding the
-row's id. Replaced with frac_position: Text, a hex string from a new
-smart_frac_index crate at the root of ZakkeN (built around the
-fracindex crate). Two blocks compare by this string; ties break by
-block id. The string never runs out of room between two neighbours, so
-nothing ever has to renumber.
+Session id comes from key_value_storage and increments on each reload.
+User id comes from key_value_storage; /setup and UserGate in main.rs
+force first-run username setup. get_time() in lib.rs replaces FAKE_TIME.
+The three FAKE_* constants are gone. cached_ids.rs holds the two pub
+statics; init::init_all fills them;
+db/key_value_storage_db_actions.rs does the read/write.
 
-yrs: every block now has a frac_position field. get_entire_page sorts
-by (frac_position, block_id) and refuses a block without one.
-move_block writes a new position, it does not delete and re-insert.
-insert_new_block_with_preexisting_id added for the eventual cross-page
-path. get_frac_position_of_block exposes the current value.
+Cross-page move: add_block gained
+insert_with_existing_block_id: Option<String>. When Some, it calls
+insert_new_block_with_preexisting_id and builds a CreateNewBlockWithId
+letter. move_block_to_another_page runs delete_block on the old boss and
+add_block(Some, ...) on the new boss, both executors in one transaction.
+on_move in MainContent resolves both bosses via get_boss_from_page_id.
 
-love_letter: MoveBlock { block_id, target_page_id, new_frac_position }
-on both enums. The letter carries the exact value, not "between A and
-B", so every device writes the same position.
+PositionToInsert is now AtEnd or Between { block_id_of_above,
+block_id_of_below }. SpecificPosition is gone.
 
-builder/executor: move_block and move_block_requires_three_db_actions
-(update pages blob, update this block's frac_position, insert letter).
-add_block_requires_four_db_actions renamed to
-add_block_requires_three_db_actions because set_block_position_to_id is
-gone.
+Two letters, not one: RemoveBlock deletes the every_block row on the
+old page; CreateNewBlockWithId recreates it under the same block id.
+At-least-once delivery means re-sent letters converge.
 
-web_interface: ui_actions::move_block wraps the builder and executor.
-on_move in MainContent calls it for same-page drops; cross-page drops
-log and do nothing. get_all_blocks_for_page uses get_data_ordered with
-the frac position as the order key.
-
-Open: moving a block does not re-order the page until reload. Also
-open: cross-page move needs a letter shape that can hold two edits, one
-per page, which is not decided.
+Errors at init, load, edit, and move surface as popups via
+small_components::popup::create_popup instead of being swallowed.
 
 Tuesday, 20 October 2026
 =======================
@@ -97,9 +89,9 @@ new context learned this session:
 
 the column for this already exists. It's page_is_disabled, a Text column, in new_table_every_block_in_existence and in new_every_block_in_existence_row (defaults to "false"). Added in the most recent commit. No migration needed. Value when disabling is Col::Text("true".to_string()).
 
-EverythingForDisablePage has no every_block ctx on purpose. Nothing about this operation is per-block — the executor derives which rows to touch from page_id alone. EveryBlockInExistenceUpdateCtx only exists for edit_block because that operation names one specific block.
+EverythingForDisablePage has no every_block ctx on purpose. Nothing about this operation is per-block - the executor derives which rows to touch from page_id alone. EveryBlockInExistenceUpdateCtx only exists for edit_block because that operation names one specific block.
 
-PagesUpdateCtx.new_blobbed_page now means two different things. For edit_block it's the page's own yrs snapshot. For disable_page it's the active_pages blob going into PAGE_STATUS. Same field, two meanings. Needs resolving — rename to something neutral, or split the struct.
+PagesUpdateCtx.new_blobbed_page now means two different things. For edit_block it's the page's own yrs snapshot. For disable_page it's the active_pages blob going into PAGE_STATUS. Same field, two meanings. Needs resolving - rename to something neutral, or split the struct.
 
 the page counter is going away. page_ctr, LocalPages, and the db rows are three copies of the same list, and they disagree whenever one of them is wrong. Instead: read the page list from db on load, selection becomes Option<usize> so None can mean "nothing selected", and the move buttons are bounds checks instead of arithmetic on a counter. Titles come from every_block_in_existence (is_title + is_part_of_main_menu_page), which get_title_and_id_of_all_menu_pages already queries.
 
@@ -164,7 +156,7 @@ changes since last write:
 
 new context learned this session:
 
-a db command touches four files by hand. macro_core.rs in db_wrapper defines the method. worker.js maps the command string to it. And two db_helper.rs files declare the async fn: web_internal_db/src/db_helper.rs (this is what compiles into cqrs via the git dep) and db_wrapper/src/web_output/db_helper.rs (this is what the copy script grabs). Nothing enforces that the four agree. When a new command is added, all four have to be updated by hand. wasm-pack does not regenerate db_helper.rs or worker.js — only db_wrapper.js and db_wrapper_bg.wasm.
+a db command touches four files by hand. macro_core.rs in db_wrapper defines the method. worker.js maps the command string to it. And two db_helper.rs files declare the async fn: web_internal_db/src/db_helper.rs (this is what compiles into cqrs via the git dep) and db_wrapper/src/web_output/db_helper.rs (this is what the copy script grabs). Nothing enforces that the four agree. When a new command is added, all four have to be updated by hand. wasm-pack does not regenerate db_helper.rs or worker.js - only db_wrapper.js and db_wrapper_bg.wasm.
 
 tell_worker_to_do now checks for the error path. The worker posts ['error', err.toString()] when a JS exception escapes a handler (wasm panic, thrown error). Slot 1 in that case is a string, not a Uint8Array. tell_worker_to_do checks slot 0 for the string "error" via response_is_error, and if so returns extract_error. That surfaces the worker's message instead of the misleading "response[1] was not a Uint8Array".
 
@@ -176,7 +168,7 @@ checkbox callbacks are async. run_all_seeds is a sync fn and spawns each callbac
 
 still true from before (no change):
 
-the yrs crate is compiled for wasm, and wasm has no threads and no SystemTime::now(). That's why BossOfYrs::new takes a unix_time string — it can't ask the clock itself. Ids are built from that string plus an AtomicU64 counter plus a random part, so a boss only needs the time once at construction and every id after that derives from what it already holds.
+the yrs crate is compiled for wasm, and wasm has no threads and no SystemTime::now(). That's why BossOfYrs::new takes a unix_time string - it can't ask the clock itself. Ids are built from that string plus an AtomicU64 counter plus a random part, so a boss only needs the time once at construction and every id after that derives from what it already holds.
 
 anti_deadlock.rs has DEBUG_MODE = false. That's a global const, so it turns off deadlock detection on every target, not just wasm. Android would have wanted it. This was a quick fix to stop the wasm build from panicking on thread::spawn. The clean version is a cfg(target_arch = "wasm32") split, false on wasm and true elsewhere.
 

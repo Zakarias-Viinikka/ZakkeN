@@ -75,10 +75,10 @@ Leptos is a full-stack, isomorphic Rust web framework leveraging fine-grained re
 ## What does that mean?
 
 - **Full-stack**: Leptos can be used to build apps that run in the browser (client-side rendering), on the server (server-side rendering), or by rendering HTML on the server and then adding interactivity in the browser (server-side rendering with hydration). This includes support for HTTP streaming of both data ([`Resource`s](https://docs.rs/leptos/latest/leptos/prelude/struct.Resource.html)) and HTML (out-of-order or in-order streaming of [`<Suspense/>`](https://docs.rs/leptos/latest/leptos/suspense/fn.Suspense.html) components.)
-- **Isomorphic**: Leptos provides primitives to write isomorphic [server functions](https://docs.rs/server_fn/latest/server_fn/), i.e., functions that can be called with the “same shape” on the client or server, but only run on the server. This means you can write your server-only logic (database requests, authentication etc.) alongside the client-side components that will consume it, and call server functions as if they were running in the browser, without needing to create and maintain a separate REST or other API.
+- **Isomorphic**: Leptos provides primitives to write isomorphic [server functions](https://docs.rs/server_fn/latest/server_fn/), i.e., functions that can be called with the "same shape" on the client or server, but only run on the server. This means you can write your server-only logic (database requests, authentication etc.) alongside the client-side components that will consume it, and call server functions as if they were running in the browser, without needing to create and maintain a separate REST or other API.
 - **Web**: Leptos is built on the Web platform and Web standards. The [router](https://docs.rs/leptos_router/latest/leptos_router/) is designed to use Web fundamentals (like links and forms) and build on top of them rather than trying to replace them.
 - **Framework**: Leptos provides most of what you need to build a modern web app: a reactive system, templating library, and a router that works on both the server and client side.
-- **Fine-grained reactivity**: The entire framework is built from reactive primitives. This allows for extremely performant code with minimal overhead: when a reactive signal’s value changes, it can update a single text node, toggle a single class, or remove an element from the DOM without any other code running. (So, no virtual DOM overhead!)
+- **Fine-grained reactivity**: The entire framework is built from reactive primitives. This allows for extremely performant code with minimal overhead: when a reactive signal's value changes, it can update a single text node, toggle a single class, or remove an element from the DOM without any other code running. (So, no virtual DOM overhead!)
 - **Declarative**: Tell Leptos how you want the page to look, and let the framework tell the browser how to do it.
 
 ## Learn more
@@ -92,9 +92,9 @@ Here are some resources for learning more about Leptos:
 
 ### Random numbers on wasm (`rand` / `getrandom`)
 
-When you compile a Leptos app to `wasm32-unknown-unknown`, `rand` and `getrandom` need a JavaScript-backed source of randomness. If that backend isn’t enabled, your build can fail or randomness just won’t work in the browser.
+When you compile a Leptos app to `wasm32-unknown-unknown`, `rand` and `getrandom` need a JavaScript-backed source of randomness. If that backend isn't enabled, your build can fail or randomness just won't work in the browser.
 
-Leptos itself takes care of this for its own code, but that does **not** automatically configure your app’s own `rand` / `getrandom` dependencies. If you use them directly, you need to turn on the JS backend yourself.
+Leptos itself takes care of this for its own code, but that does **not** automatically configure your app's own `rand` / `getrandom` dependencies. If you use them directly, you need to turn on the JS backend yourself.
 
 A simple setup in your `Cargo.toml` might look like this:
 
@@ -105,7 +105,7 @@ getrandom = { version = "0.2", features = ["js"] }
 rand      = { version = "0.8", features = ["small_rng"] }
 ```
 
-Some of the examples in this repo (for example `js-framework-benchmark` and `hackernews_js_fetch`) already do this, so you can use them as a reference if you’re unsure.
+Some of the examples in this repo (for example `js-framework-benchmark` and `hackernews_js_fetch`) already do this, so you can use them as a reference if you're unsure.
 
 ## `cargo-leptos`
 
@@ -122,9 +122,9 @@ Open browser to [http://localhost:3000/](http://localhost:3000/).
 
 ## FAQs
 
-### What’s up with the name?
+### What's up with the name?
 
-_Leptos_ (λεπτός) is an ancient Greek word meaning “thin, light, refined, fine-grained.” To me, a classicist and not a dog owner, it evokes the lightweight reactive system that powers the framework. I've since learned the same word is at the root of the medical term “leptospirosis,” a blood infection that affects humans and animals... My bad. No dogs were harmed in the creation of this framework.
+_Leptos_ (λεπτός) is an ancient Greek word meaning "thin, light, refined, fine-grained." To me, a classicist and not a dog owner, it evokes the lightweight reactive system that powers the framework. I've since learned the same word is at the root of the medical term "leptospirosis," a blood infection that affects humans and animals... My bad. No dogs were harmed in the creation of this framework.
 
 ### Is it production ready?
 
@@ -132,15 +132,15 @@ People usually mean one of three things by this question.
 
 1. **Are the APIs stable?** i.e., will I have to rewrite my whole app from Leptos 0.1 to 0.2 to 0.3 to 0.4, or can I write it now and benefit from new features and updates as new versions come?
 
-The APIs are basically settled. We’re adding new features, but we’re very happy with where the type system and patterns have landed. I would not expect major breaking changes to your code to adapt to future releases, in terms of architecture.
+The APIs are basically settled. We're adding new features, but we're very happy with where the type system and patterns have landed. I would not expect major breaking changes to your code to adapt to future releases, in terms of architecture.
 
 2. **Are there bugs?**
 
-Yes, I’m sure there are. You can see from the state of our issue tracker over time that there aren’t that _many_ bugs and they’re usually resolved pretty quickly. But for sure, there may be moments where you encounter something that requires a fix at the framework level, which may not be immediately resolved.
+Yes, I'm sure there are. You can see from the state of our issue tracker over time that there aren't that _many_ bugs and they're usually resolved pretty quickly. But for sure, there may be moments where you encounter something that requires a fix at the framework level, which may not be immediately resolved.
 
 3. **Am I a consumer or a contributor?**
 
-This may be the big one: “production ready” implies a certain orientation to a library: that you can basically use it, without any special knowledge of its internals or ability to contribute. Everyone has this at some level in their stack: for example I (@gbj) don’t have the capacity or knowledge to contribute to something like `wasm-bindgen` at this point: I simply rely on it to work.
+This may be the big one: "production ready" implies a certain orientation to a library: that you can basically use it, without any special knowledge of its internals or ability to contribute. Everyone has this at some level in their stack: for example I (@gbj) don't have the capacity or knowledge to contribute to something like `wasm-bindgen` at this point: I simply rely on it to work.
 
 There are several people in the community using Leptos right now for many websites at work, who have also become significant contributors. There may be missing features that you need, and you may end up building them! But, if you're willing to contribute a few missing pieces along the way, the framework is most definitely usable for production applications, especially given the ecosystem of libraries that have sprung up around it.
 
@@ -175,5 +175,5 @@ Like Leptos, Dioxus is a framework for building UIs using web technologies. Howe
 Sycamore and Leptos are both heavily influenced by SolidJS. At this point, Leptos has a larger community and ecosystem and is more actively developed. Other differences:
 
 - **Templating DSLs:** Sycamore uses a custom templating language for its views, while Leptos uses a JSX-like template format.
-- **`'static` signals:** One of Leptos’s main innovations was the creation of `Copy + 'static` signals, which have excellent ergonomics. Sycamore is in the process of adopting the same pattern, but this is not yet released.
+- **`'static` signals:** One of Leptos's main innovations was the creation of `Copy + 'static` signals, which have excellent ergonomics. Sycamore is in the process of adopting the same pattern, but this is not yet released.
 - **Perseus vs. server functions:** The Perseus metaframework provides an opinionated way to build Sycamore apps that include server functionality. Leptos instead provides primitives like server functions in the core of the framework.

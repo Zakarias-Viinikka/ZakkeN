@@ -363,6 +363,35 @@ fn get_frac_position_by_id<T: ReadTxn>(
         })
 }
 
+fn compute_new_frac_position_in<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    block_id_of_above: Option<&str>,
+    block_id_of_below: Option<&str>,
+) -> Result<String, YrsError> {
+    match (block_id_of_above, block_id_of_below) {
+        (Some(above), Some(below)) => {
+            let above_frac = get_frac_position_by_id(array, txn, above)?;
+            let below_frac = get_frac_position_by_id(array, txn, below)?;
+            Ok(smart_frac_index::key_between(&above_frac, &below_frac)?)
+        }
+        (Some(above), None) => {
+            let above_frac = get_frac_position_by_id(array, txn, above)?;
+            Ok(smart_frac_index::key_after(&above_frac)?)
+        }
+        (None, Some(below)) => {
+            let below_frac = get_frac_position_by_id(array, txn, below)?;
+            Ok(smart_frac_index::key_before(&below_frac)?)
+        }
+        (None, None) => Err(YrsError::GenericError {
+            info: error_info(
+                "at least one neighbour is required",
+                "compute_new_frac_position_in",
+            ),
+        }),
+    }
+}
+
 fn get_new_frac_position<T: ReadTxn>(
     array: &ArrayRef,
     txn: &T,
@@ -397,25 +426,27 @@ fn insert_block_into_doc(
     let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
     let mut txn = doc.transact_mut();
     let len = array.len(&txn) as u32;
-    let insert_at = match position_to_insert {
-        PositionToInsert::AtEnd => len,
-        PositionToInsert::SpecificPosition(p) => p,
+    let frac_position = match &position_to_insert {
+        PositionToInsert::AtEnd => get_new_frac_position(&array, &txn, len, len)?,
+        PositionToInsert::Between {
+            block_id_of_above,
+            block_id_of_below,
+        } => compute_new_frac_position_in(
+            &array,
+            &txn,
+            block_id_of_above.as_deref(),
+            block_id_of_below.as_deref(),
+        )?,
     };
-    if insert_at > len {
-        return Err(YrsError::GenericError {
-            info: error_info("insert position out of bounds", "insert_block_into_doc"),
-        });
-    }
     let text_as_xml_text_ref = XmlTextPrelim::new(block_content);
-    let order_key = get_new_frac_position(&array, &txn, insert_at, len)?;
     array.insert(
         &mut txn,
-        insert_at,
+        len,
         MapPrelim::from([
             (ID_KEY.to_string(), In::from(block_id)),
             (CONTENT_KEY.to_string(), In::from(text_as_xml_text_ref)),
             (META_KEY.to_string(), In::from(block_meta_data)),
-            (FRAC_POSITION_KEY.to_string(), In::from(order_key)),
+            (FRAC_POSITION_KEY.to_string(), In::from(frac_position)),
         ]),
     );
     Ok(())
@@ -473,7 +504,7 @@ impl BossOfYrs {
         block_id: String,
         block_content: String,
         block_meta_data: String,
-        id_by_normal_counting: PositionToInsert,
+        position_to_insert: PositionToInsert,
     ) -> Result<(), YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
@@ -485,8 +516,8 @@ impl BossOfYrs {
                 let doc = self.doc.read().map_err(|_| YrsError::GenericError {
                     info: error_info("lock poisoned", "insert_new_block_with_preexisting_id"),
                 })?;
-                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                 {
+                    let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                     let txn = doc.transact();
                     if find_block_with_id(&array, &txn, &block_id).is_ok() {
                         return Err(YrsError::GenericError {
@@ -497,7 +528,7 @@ impl BossOfYrs {
                         });
                     }
                 }
-                insert_block_into_doc(&doc, block_id, block_content, block_meta_data, id_by_normal_counting)
+                insert_block_into_doc(&doc, block_id, block_content, block_meta_data, position_to_insert)
             },
         )
     }
@@ -693,6 +724,8 @@ impl BossOfYrs {
         )
     }
 
+
+
     pub fn move_block(
         self: Arc<Self>,
         block_id: String,
@@ -731,29 +764,12 @@ impl BossOfYrs {
 
                 let moving_map = find_block_with_id(&array, &txn, &block_id)?;
 
-                let new_frac = match (block_id_of_above, block_id_of_below) {
-                    (Some(above), Some(below)) => {
-                        let above_frac = get_frac_position_by_id(&array, &txn, &above)?;
-                        let below_frac = get_frac_position_by_id(&array, &txn, &below)?;
-                        smart_frac_index::key_between(&above_frac, &below_frac)?
-                    }
-                    (Some(above), None) => {
-                        let above_frac = get_frac_position_by_id(&array, &txn, &above)?;
-                        smart_frac_index::key_after(&above_frac)?
-                    }
-                    (None, Some(below)) => {
-                        let below_frac = get_frac_position_by_id(&array, &txn, &below)?;
-                        smart_frac_index::key_before(&below_frac)?
-                    }
-                    (None, None) => {
-                        return Err(YrsError::GenericError {
-                            info: error_info(
-                                "move_block: at least one neighbour is required",
-                                "move_block",
-                            ),
-                        });
-                    }
-                };
+                let new_frac = compute_new_frac_position_in(
+                    &array,
+                    &txn,
+                    block_id_of_above.as_deref(),
+                    block_id_of_below.as_deref(),
+                )?;
 
                 moving_map.insert(&mut txn, FRAC_POSITION_KEY.to_string(), In::from(new_frac));
                 Ok(())
@@ -778,6 +794,42 @@ impl BossOfYrs {
                 let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                 let txn = doc.transact();
                 get_frac_position_by_id(&array, &txn, &block_id)
+            },
+        )
+    }
+
+    pub fn read_block_meta(self: Arc<Self>, block_id: String) -> Result<Option<String>, YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "read_block_meta",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "read_block_meta"),
+                })?;
+                let block = get_block_from_id(&doc, &block_id);
+
+                match block {
+                    None => Ok(None),
+                    Some(block_map) => {
+                        let txn = doc.transact();
+                        let meta = block_map
+                            .get(&txn, &META_KEY)
+                            .ok_or_else(|| YrsError::GenericError {
+                                info: error_info("read_block_meta: no meta field", "read_block_meta"),
+                            })?
+                            .cast::<String>()
+                            .map_err(|_| YrsError::GenericError {
+                                info: error_info(
+                                    "read_block_meta: failed to cast meta field to String",
+                                    "read_block_meta",
+                                ),
+                            })?;
+                        Ok(Some(meta))
+                    }
+                }
             },
         )
     }
@@ -918,5 +970,8 @@ fn deserialize_bookmark(bytes: &[u8]) -> Result<StateVector, YrsError> {
 #[derive(uniffi::Enum, Serialize, Deserialize, Clone)]
 pub enum PositionToInsert {
     AtEnd,
-    SpecificPosition(u32),
+    Between {
+        block_id_of_above: Option<String>,
+        block_id_of_below: Option<String>,
+    },
 }

@@ -693,6 +693,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_edit_block(
     ): Int
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_move_block(
+    ): Int
     external fun ffi_data_builder_for_operations_that_need_to_be_correct_uniffi_contract_version(
     ): Int
 
@@ -710,7 +712,7 @@ internal object UniffiLib {
     }
 
     internal fun ensureInitialized() = Unit
-    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_add_block(`yrs`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBufferPositionToInsert.ByValue,`isPartOfMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_add_block(`yrs`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBufferPositionToInsert.ByValue,`isPartOfMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,`insertWithExistingBlockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_create_page(`isMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -719,6 +721,8 @@ internal object UniffiLib {
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_disable_page(`pageId`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,`activePagesSerializedForm`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_edit_block(`yrs`: Long,`blockId`: RustBuffer.ByValue,`diff`: RustBufferDiffResult.ByValue,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_move_block(`yrs`: Long,`blockId`: RustBuffer.ByValue,`blockIdOfAbove`: RustBuffer.ByValue,`blockIdOfBelow`: RustBuffer.ByValue,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_data_builder_for_operations_that_need_to_be_correct_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -839,7 +843,7 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block() and 0xFFFF) != 48808) {
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block() and 0xFFFF) != 3555) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_create_page() and 0xFFFF) != 62539) {
@@ -852,6 +856,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_edit_block() and 0xFFFF) != 27130) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_move_block() and 0xFFFF) != 37733) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -946,29 +953,6 @@ object UniffiWithHandle
  * @suppress
  * */
 object NoHandle
-
-/**
- * @suppress
- */
-public object FfiConverterDouble: FfiConverter<Double, Double> {
-    override fun lift(value: Double): Double {
-        return value
-    }
-
-    override fun read(buf: ByteBuffer): Double {
-        return buf.getDouble()
-    }
-
-    override fun lower(value: Double): Double {
-        return value
-    }
-
-    override fun allocationSize(value: Double) = 8UL
-
-    override fun write(value: Double, buf: ByteBuffer) {
-        buf.putDouble(value)
-    }
-}
 
 /**
  * @suppress
@@ -1165,10 +1149,10 @@ data class EveryBlockInExistenceInsertCtx (
     var `idOfPageIBelongTo`: kotlin.String
     , 
     /**
-     * Supposed to be the new row's db id cast to f64.
-     * The builder always passes None; the executor fills it in after the insert.
+     * The block's fractional index — a hex string. Known before the
+     * row is inserted because yrs computes it when the block is made.
      */
-    var `position`: kotlin.Double?
+    var `fracPosition`: kotlin.String
     , 
     var `isPartOfMainMenuPage`: kotlin.Boolean
     
@@ -1190,7 +1174,7 @@ public object FfiConverterTypeEveryBlockInExistenceInsertCtx: FfiConverterRustBu
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
-            FfiConverterOptionalDouble.read(buf),
+            FfiConverterString.read(buf),
             FfiConverterBoolean.read(buf),
         )
     }
@@ -1199,7 +1183,7 @@ public object FfiConverterTypeEveryBlockInExistenceInsertCtx: FfiConverterRustBu
             FfiConverterString.allocationSize(value.`myIdAsGivenByYrs`) +
             FfiConverterString.allocationSize(value.`content`) +
             FfiConverterString.allocationSize(value.`idOfPageIBelongTo`) +
-            FfiConverterOptionalDouble.allocationSize(value.`position`) +
+            FfiConverterString.allocationSize(value.`fracPosition`) +
             FfiConverterBoolean.allocationSize(value.`isPartOfMainMenuPage`)
     )
 
@@ -1207,7 +1191,7 @@ public object FfiConverterTypeEveryBlockInExistenceInsertCtx: FfiConverterRustBu
             FfiConverterString.write(value.`myIdAsGivenByYrs`, buf)
             FfiConverterString.write(value.`content`, buf)
             FfiConverterString.write(value.`idOfPageIBelongTo`, buf)
-            FfiConverterOptionalDouble.write(value.`position`, buf)
+            FfiConverterString.write(value.`fracPosition`, buf)
             FfiConverterBoolean.write(value.`isPartOfMainMenuPage`, buf)
     }
 }
@@ -1419,6 +1403,54 @@ public object FfiConverterTypeEverythingForEditBlock: FfiConverterRustBuffer<Eve
 
 
 
+data class EverythingForMoveBlock (
+    var `pagesUpdate`: PagesUpdateCtx
+    , 
+    var `blockId`: kotlin.String
+    , 
+    var `newFracPosition`: kotlin.String
+    , 
+    var `clientLoveLetter`: ClientLoveLetterInsertCtx
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEverythingForMoveBlock: FfiConverterRustBuffer<EverythingForMoveBlock> {
+    override fun read(buf: ByteBuffer): EverythingForMoveBlock {
+        return EverythingForMoveBlock(
+            FfiConverterTypePagesUpdateCtx.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeClientLoveLetterInsertCtx.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EverythingForMoveBlock) = (
+            FfiConverterTypePagesUpdateCtx.allocationSize(value.`pagesUpdate`) +
+            FfiConverterString.allocationSize(value.`blockId`) +
+            FfiConverterString.allocationSize(value.`newFracPosition`) +
+            FfiConverterTypeClientLoveLetterInsertCtx.allocationSize(value.`clientLoveLetter`)
+    )
+
+    override fun write(value: EverythingForMoveBlock, buf: ByteBuffer) {
+            FfiConverterTypePagesUpdateCtx.write(value.`pagesUpdate`, buf)
+            FfiConverterString.write(value.`blockId`, buf)
+            FfiConverterString.write(value.`newFracPosition`, buf)
+            FfiConverterTypeClientLoveLetterInsertCtx.write(value.`clientLoveLetter`, buf)
+    }
+}
+
+
+
 data class EverythingToInsertForNewPage (
     var `pageToInsert`: PagesInsertCtx
     , 
@@ -1469,7 +1501,7 @@ data class NormalBlock (
     , 
     var `idOfPageIBelongTo`: kotlin.String
     , 
-    var `position`: kotlin.Double
+    var `fracPosition`: kotlin.String
     , 
     var `isPartOfMainMenuPage`: kotlin.Boolean
     
@@ -1491,7 +1523,7 @@ public object FfiConverterTypeNormalBlock: FfiConverterRustBuffer<NormalBlock> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
-            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
             FfiConverterBoolean.read(buf),
         )
     }
@@ -1500,7 +1532,7 @@ public object FfiConverterTypeNormalBlock: FfiConverterRustBuffer<NormalBlock> {
             FfiConverterString.allocationSize(value.`myIdAsGivenByYrs`) +
             FfiConverterString.allocationSize(value.`content`) +
             FfiConverterString.allocationSize(value.`idOfPageIBelongTo`) +
-            FfiConverterDouble.allocationSize(value.`position`) +
+            FfiConverterString.allocationSize(value.`fracPosition`) +
             FfiConverterBoolean.allocationSize(value.`isPartOfMainMenuPage`)
     )
 
@@ -1508,7 +1540,7 @@ public object FfiConverterTypeNormalBlock: FfiConverterRustBuffer<NormalBlock> {
             FfiConverterString.write(value.`myIdAsGivenByYrs`, buf)
             FfiConverterString.write(value.`content`, buf)
             FfiConverterString.write(value.`idOfPageIBelongTo`, buf)
-            FfiConverterDouble.write(value.`position`, buf)
+            FfiConverterString.write(value.`fracPosition`, buf)
             FfiConverterBoolean.write(value.`isPartOfMainMenuPage`, buf)
     }
 }
@@ -1608,7 +1640,7 @@ data class TitleBlock (
     , 
     var `idOfPageIBelongTo`: kotlin.String
     , 
-    var `position`: kotlin.Double
+    var `fracPosition`: kotlin.String
     , 
     var `isPartOfMainMenuPage`: kotlin.Boolean
     
@@ -1630,7 +1662,7 @@ public object FfiConverterTypeTitleBlock: FfiConverterRustBuffer<TitleBlock> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
-            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
             FfiConverterBoolean.read(buf),
         )
     }
@@ -1639,7 +1671,7 @@ public object FfiConverterTypeTitleBlock: FfiConverterRustBuffer<TitleBlock> {
             FfiConverterString.allocationSize(value.`myIdAsGivenByYrs`) +
             FfiConverterString.allocationSize(value.`content`) +
             FfiConverterString.allocationSize(value.`idOfPageIBelongTo`) +
-            FfiConverterDouble.allocationSize(value.`position`) +
+            FfiConverterString.allocationSize(value.`fracPosition`) +
             FfiConverterBoolean.allocationSize(value.`isPartOfMainMenuPage`)
     )
 
@@ -1647,7 +1679,7 @@ public object FfiConverterTypeTitleBlock: FfiConverterRustBuffer<TitleBlock> {
             FfiConverterString.write(value.`myIdAsGivenByYrs`, buf)
             FfiConverterString.write(value.`content`, buf)
             FfiConverterString.write(value.`idOfPageIBelongTo`, buf)
-            FfiConverterDouble.write(value.`position`, buf)
+            FfiConverterString.write(value.`fracPosition`, buf)
             FfiConverterBoolean.write(value.`isPartOfMainMenuPage`, buf)
     }
 }
@@ -1724,28 +1756,28 @@ public object FfiConverterTypeBuilderErr : FfiConverterRustBuffer<BuilderErr> {
 /**
  * @suppress
  */
-public object FfiConverterOptionalDouble: FfiConverterRustBuffer<kotlin.Double?> {
-    override fun read(buf: ByteBuffer): kotlin.Double? {
+public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
+    override fun read(buf: ByteBuffer): kotlin.String? {
         if (buf.get().toInt() == 0) {
             return null
         }
-        return FfiConverterDouble.read(buf)
+        return FfiConverterString.read(buf)
     }
 
-    override fun allocationSize(value: kotlin.Double?): ULong {
+    override fun allocationSize(value: kotlin.String?): ULong {
         if (value == null) {
             return 1UL
         } else {
-            return 1UL + FfiConverterDouble.allocationSize(value)
+            return 1UL + FfiConverterString.allocationSize(value)
         }
     }
 
-    override fun write(value: kotlin.Double?, buf: ByteBuffer) {
+    override fun write(value: kotlin.String?, buf: ByteBuffer) {
         if (value == null) {
             buf.put(0)
         } else {
             buf.put(1)
-            FfiConverterDouble.write(value, buf)
+            FfiConverterString.write(value, buf)
         }
     }
 }
@@ -1787,7 +1819,7 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
 
 
 
-    @Throws(BuilderErr::class) fun `addBlock`(`yrs`: BossOfYrs, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert, `isPartOfMainMenuPage`: kotlin.Boolean, `sessionId`: kotlin.String): EverythingForAddBlock {
+    @Throws(BuilderErr::class) fun `addBlock`(`yrs`: BossOfYrs, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert, `isPartOfMainMenuPage`: kotlin.Boolean, `sessionId`: kotlin.String, `insertWithExistingBlockId`: kotlin.String?): EverythingForAddBlock {
             return FfiConverterTypeEverythingForAddBlock.lift(
     uniffiRustCallWithError(BuilderErr) { _status ->
     UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_add_block(
@@ -1798,7 +1830,8 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
         FfiConverterString.lower(`blockMetaData`),
         FfiConverterTypePositionToInsert.lower(`position`),
         FfiConverterBoolean.lower(`isPartOfMainMenuPage`),
-        FfiConverterString.lower(`sessionId`),_status)
+        FfiConverterString.lower(`sessionId`),
+        FfiConverterOptionalString.lower(`insertWithExistingBlockId`),_status)
 }
     )
     }
@@ -1854,6 +1887,22 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
         FfiConverterTypeBossOfYrs.lower(`yrs`),
         FfiConverterString.lower(`blockId`),
         FfiConverterTypeDiffResult.lower(`diff`),
+        FfiConverterString.lower(`sessionId`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BuilderErr::class) fun `moveBlock`(`yrs`: BossOfYrs, `blockId`: kotlin.String, `blockIdOfAbove`: kotlin.String?, `blockIdOfBelow`: kotlin.String?, `sessionId`: kotlin.String): EverythingForMoveBlock {
+            return FfiConverterTypeEverythingForMoveBlock.lift(
+    uniffiRustCallWithError(BuilderErr) { _status ->
+    UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_move_block(
+    
+        
+        FfiConverterTypeBossOfYrs.lower(`yrs`),
+        FfiConverterString.lower(`blockId`),
+        FfiConverterOptionalString.lower(`blockIdOfAbove`),
+        FfiConverterOptionalString.lower(`blockIdOfBelow`),
         FfiConverterString.lower(`sessionId`),_status)
 }
     )

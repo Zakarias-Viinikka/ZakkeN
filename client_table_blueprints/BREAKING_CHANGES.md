@@ -12,3 +12,15 @@ which comes first, with block id as the tie-break.
 
 Rows created before this change have no frac_position. The project is
 pre-data and gets wiped, so no migration was written.
+
+## 2026-10-20: PositionToInsert.SpecificPosition removed
+
+yrs's PositionToInsert is now AtEnd or Between { block_id_of_above:
+Option<String>, block_id_of_below: Option<String> }. SpecificPosition
+held a numeric slot in the underlying array, which stopped meaning
+anything once order came from frac position.
+
+Same signature change applies to every builder that took a
+PositionToInsert (add_block). Callers that want "put it after the last
+thing" pass AtEnd; callers that want "put it between these two blocks"
+pass Between with the neighbour block ids.

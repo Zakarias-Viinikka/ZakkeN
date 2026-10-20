@@ -40,6 +40,11 @@ pub enum LoveLetterSketch {
         position_to_insert: PositionToInsert,
         target_page_id: String,
     },
+    CreateNewBlockWithId {
+        block_id: String,
+        position_to_insert: PositionToInsert,
+        target_page_id: String,
+    },
     RemoveBlock {
         block_id: String,
         target_page_id: String,
@@ -68,6 +73,12 @@ pub enum LoveLetter {
         snapshot_of_edit: Vec<u8>,
     },
     CreateNewBlock {
+        position_to_insert: PositionToInsert,
+        target_page_id: String,
+        snapshot_of_edit: Vec<u8>,
+    },
+    CreateNewBlockWithId {
+        block_id: String,
         position_to_insert: PositionToInsert,
         target_page_id: String,
         snapshot_of_edit: Vec<u8>,
@@ -125,6 +136,16 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
             position_to_insert,
             target_page_id,
         } => LoveLetter::CreateNewBlock {
+            position_to_insert,
+            target_page_id,
+            snapshot_of_edit,
+        },
+        LoveLetterSketch::CreateNewBlockWithId {
+            block_id,
+            position_to_insert,
+            target_page_id,
+        } => LoveLetter::CreateNewBlockWithId {
+            block_id,
             position_to_insert,
             target_page_id,
             snapshot_of_edit,

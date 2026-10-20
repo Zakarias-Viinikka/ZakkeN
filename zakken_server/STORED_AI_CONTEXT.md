@@ -1,4 +1,4 @@
-# zakken_server — AI stored context
+# zakken_server - AI stored context
 
 Written by AI for AI. Read this before touching the server. Update the
 relevant section when its content changes and bump that section's date. If
@@ -8,44 +8,44 @@ corrected.
 The project-wide picture lives one level up, in
 ZakkeN/STORED_AI_CONTEXT.md. This file is about the server only.
 
-## What this is — 2026-10-15
+## What this is - 2026-10-15
 
 The axum websocket server for ZakkeN. Clients describe edits as "love
-letters" — a serialized intent. The server applies each letter to its own
+letters" - a serialized intent. The server applies each letter to its own
 copy of the pages, stores the letter, and pushes it to the other
 registered clients. It's the only place that knows which clients are
 online and which clients still need which letters.
 
-## Workspace layout — 2026-10-15
+## Workspace layout - 2026-10-15
 
 A cargo workspace in three folders. The split mirrors
 rust_practice/server_template_3.
 
 shared/ holds what more than one side needs:
-- error_stuff — ServErr, ErrorDetails (err_msg/file/method/probable_cause),
+- error_stuff - ServErr, ErrorDetails (err_msg/file/method/probable_cause),
   and the log types LogCategory, LogLevel, ServerLogEntry.
-- server_protocol — the server's own Message/Response/Request and payload
+- server_protocol - the server's own Message/Response/Request and payload
   structs. Not z_db's protocol; that one belongs to the browser.
 
 server_side/ holds the server's own crates:
-- db (package name db_core) — schemas and db operations, nothing else.
-- server_core — the server binary, the request handlers, and the queue
+- db (package name db_core) - schemas and db operations, nothing else.
+- server_core - the server binary, the request handlers, and the queue
   executor.
-- love_letter_parser — letter bytes -> target_page_id.
-- queue — Job, JobReply, Priority, QueueManager. No database knowledge.
-- connected_clients — owns the user_name -> push-sender map, behind one
+- love_letter_parser - letter bytes -> target_page_id.
+- queue - Job, JobReply, Priority, QueueManager. No database knowledge.
+- connected_clients - owns the user_name -> push-sender map, behind one
   task. No database knowledge, so it can never take the db lock.
 
 mock_client/ holds the mock client, at the top level:
-- mock_client_core — mock client logic, no printing.
-- cli_gui — the mock client's REPL.
+- mock_client_core - mock client logic, no printing.
+- cli_gui - the mock client's REPL.
 
-## db_core — 2026-10-15
+## db_core - 2026-10-15
 
 Schemas in db/src/db/schema/, one file per table, tbl_ prefix:
 tbl_registered_users, tbl_love_letters_from_clients,
 tbl_unsent_love_letters, tbl_socket_testing_table. There is no tbl_pages
-here — db_core depends on client_table_blueprints and uses its tbl_pages,
+here - db_core depends on client_table_blueprints and uses its tbl_pages,
 so the client and server share one definition of that table. The logs and
 key_value_storage tables also come from client_table_blueprints.
 
@@ -55,22 +55,22 @@ the schema is frozen and won't be the first time a column changes.
 
 Operations live beside schema:
 
-- user_registration.rs — create_table_if_not_exist, user_exists,
+- user_registration.rs - create_table_if_not_exist, user_exists,
   create_user. create_user errors if the name is already taken.
-- operations_love_letters.rs — the two letter tables.
+- operations_love_letters.rs - the two letter tables.
   create_tables_if_not_exist, insert_letter, get_letter,
   get_all_registered_user_names, get_unsent_letter_ids_for_user,
   user_has_unsent_row, queue_unsent_for_user, delete_unsent_row.
-- operations_pages.rs — the pages table. create_table_if_not_exist,
+- operations_pages.rs - the pages table. create_table_if_not_exist,
   page_exists, get_page, get_all_pages, insert_page, update_page_blob,
   update_page_status.
-- operations_logs.rs — create_table_if_not_exist, insert_log. Writes rows
+- operations_logs.rs - create_table_if_not_exist, insert_log. Writes rows
   to the logs table.
-- operations_key_value.rs — create_table_if_not_exist, get_value,
+- operations_key_value.rs - create_table_if_not_exist, get_value,
   bump_session_id. bump_session_id reads the current id, increments it,
   writes it back, and returns the new one, so every server run has its own
   id.
-- apply_letter.rs — the server's executor. Takes a LoveLetter, writes the
+- apply_letter.rs - the server's executor. Takes a LoveLetter, writes the
   pages table.
 
 apply_letter.rs is small because the server's job is small. The client
@@ -83,24 +83,24 @@ builds its own doc, edit_block wants a DiffResult the server never has, so
 neither is reachable for the incoming-letter path. The builder is
 reference, not a dependency.
 
-## server_protocol — 2026-10-15
+## server_protocol - 2026-10-15
 
 The server's own Message, Response, Request and payload structs. Its
 lib.rs is pure re-exports; message.rs, request.rs and builders.rs hold the
 definitions.
 
 Request variants: Register, Login, SendLoveLetter, GetAllYrsPages, Ack.
-Ack carries an AckPayload { letter_id: i64 } — the client saying it has
+Ack carries an AckPayload { letter_id: i64 } - the client saying it has
 applied that letter, so the server can delete that user's unsent row.
 
 Every response payload is a bincode-encoded Result<T, DbError>. This
 matters. An earlier version returned a bare ok_serialized() on success and
 a serialized DbError on failure, and the client told them apart by
-checking whether the payload was empty — which was wrong, because both are
+checking whether the payload was empty - which was wrong, because both are
 non-empty. If you add a request, its handler must return
 Result<ItsPayloadType, DbError>.
 
-## server_core — 2026-10-15
+## server_core - 2026-10-15
 
 ServerState holds only the db connection (LiveForever), behind
 Arc<std::sync::Mutex<ServerState>>. ConnectedClients no longer lives here;
@@ -146,7 +146,7 @@ the name doesn't exist. Only Login makes a socket receive pushes. After
 Login, the executor returns the receiver half of that user's channel in
 HandlerOutcome.incoming_letters, and the socket keeps it.
 
-## connected_clients — 2026-10-15
+## connected_clients - 2026-10-15
 
 Owns the user_name -> UnboundedSender<i64> map. The i64 is a letter id.
 The map is private to the crate; every method goes through a Command sent
@@ -167,13 +167,13 @@ something outside its own state: it sends a ServerLogEntry down a log
 channel it was given at construction. That channel is how it reports
 without depending on db_core.
 
-## Delivery — 2026-10-15
+## Delivery - 2026-10-15
 
 Event-driven, no polling, at-least-once.
 
 On a new letter: deserialize, apply_letter to update the pages table,
 insert the letter (this assigns the letter id), read the registered user
-list, then for every registered user except the sender — queue an unsent
+list, then for every registered user except the sender - queue an unsent
 row for that user, online or not. Then fan_out the letter id to every
 connected user except the sender. Users the fan-out reached get the letter
 pushed immediately; users who were offline, or whose channel turned out to
@@ -197,7 +197,7 @@ The push wire format is a Response with message_id 0, request
 SendLoveLetter, and payload = bincode of LoveLetterResponse { love_letter,
 letter_id }.
 
-## Gotchas — 2026-10-15
+## Gotchas - 2026-10-15
 
 Cargo needs the package name on the left of a dependency line, not the lib
 name. yrs's package name is "yrs" but its lib name is "my_yrs_lib", so
@@ -222,19 +222,19 @@ zakken_server from the zakken_server root, cli_gui from mock_client.
 yrs's anti_deadlock prints "DEBUG_MODE is OFF (direct call, no timeout)" on
 every method call. That's from the yrs crate, not from the server.
 
-## What's left — 2026-10-15
+## What's left - 2026-10-15
 
 Cross-client delivery has never been exercised. Only one mock client
 exists, and it deliberately ignores pushes, so it never acks. The ack path
-— the client applying the letter and sending Ack back, the server deleting
-the unsent row — has never run end to end. Two mock clients with different
+- the client applying the letter and sending Ack back, the server deleting
+the unsent row - has never run end to end. Two mock clients with different
 user names, one of them listening for pushes and sending acks, is the test.
 
 The mock client always creates pages with is_main_menu_page = false. The
 letter field exists and is threaded correctly; the mock client just doesn't
 have a rule for which page should be the menu.
 
-Retention — deleting a letter once every registered user has acked it — is
+Retention - deleting a letter once every registered user has acked it - is
 deferred. A letter with no unsent rows is harmless in the table. Note that
 "no unsent rows" now means "everyone has acked", which is different from
 the old meaning.

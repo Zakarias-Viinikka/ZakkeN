@@ -35,18 +35,18 @@ much before it corrupts the state it's testing against. It should
 become a way to edit documents from the terminal deliberately instead.
 Future work, not started.
 
-## E2E android testing — done, ongoing
+## E2E android testing - done, ongoing
 
 Built. See `e2e_android_tests/` and the section in `STORED_AI_CONTEXT.md`
-(section "E2E Android testing — 2026-10-17"). Android AI runs the suite
+(section "E2E Android testing - 2026-10-17"). Android AI runs the suite
 itself, reads the terminal output, and fixes the app. Tests that fail
-because the test is wrong get reported to the human — the AI doesn't
+because the test is wrong get reported to the human - the AI doesn't
 edit the test tree.
 
 Two things still open in the harness:
 - Screenshot/XML artifacts were removed for speed. If diagnosing a
   visual-only regression becomes hard, the artifact-writing code is
-  still present in `support/runner.py` — just re-add the calls.
+  still present in `support/runner.py` - just re-add the calls.
 - The `CHECK_SYNC` backend assertion only fires in tests that call it.
   Consider adding it to more behavioral tests as they're written.
 

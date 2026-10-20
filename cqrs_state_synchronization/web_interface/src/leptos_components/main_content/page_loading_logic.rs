@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::complicated_signal_flow::{Page, PageLoadState};
 use crate::db::db_helpers_for_web_client;
+use crate::leptos_components::small_components::popup::create_popup;
 
 /// Step 1. Ask for preloaded blocks.
 ///
@@ -29,14 +30,15 @@ pub async fn load_offline(page: Page) {
 
     let boss = match db_helpers_for_web_client::get_yrs_unblobbed(
         pid.clone(),
-        crate::FAKE_USER_ID.to_string(),
-        crate::FAKE_TIME.to_string(),
+        crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
+        crate::get_time(),
     )
     .await
     {
         Ok(b) => b,
         Err(e) => {
             leptos::logging::error!("load boss failed: {:?}", e);
+            create_popup(format!("load page failed: {e:?}"));
             page.page_state.set(PageLoadState::LoadFailed);
             return;
         }
@@ -50,6 +52,7 @@ pub async fn load_offline(page: Page) {
         }
         Err(e) => {
             leptos::logging::error!("load blocks failed: {:?}", e);
+            create_popup(format!("load blocks failed: {e:?}"));
             page.page_state.set(PageLoadState::LoadFailed);
         }
     }

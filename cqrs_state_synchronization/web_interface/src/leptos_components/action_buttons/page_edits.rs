@@ -23,7 +23,7 @@ fn disable_page(
     };
 
     spawn_local(async move {
-        match ui_actions::disable_page(page_id, crate::FAKE_SESSION_ID.to_string()).await {
+        match ui_actions::disable_page(page_id, crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR)).await {
             Err(e) => create_popup(format!("Error: {:?}", e)),
             Ok(()) => {
                 local_pages_set.update(|pages| {

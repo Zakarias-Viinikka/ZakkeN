@@ -27,6 +27,31 @@ pub struct EveryBlockInExistenceInsertCtx {
     pub is_part_of_main_menu_page: bool,
 }
 
+fn insert_into_yrs(
+    yrs: Arc<BossOfYrs>,
+    block_content: String,
+    block_meta_data: String,
+    position: PositionToInsert,
+    insert_with_existing_block_id: Option<String>,
+) -> Result<(String, String), CqrsErr> {
+    let block_id = match insert_with_existing_block_id {
+        Some(existing_id) => {
+            yrs.clone().insert_new_block_with_preexisting_id(
+                existing_id.clone(),
+                block_content,
+                block_meta_data,
+                position,
+            )?;
+            existing_id
+        }
+        None => yrs
+            .clone()
+            .insert_new_block(block_content, block_meta_data, position)?,
+    };
+    let frac = yrs.clone().get_frac_position_of_block(block_id.clone())?;
+    Ok((block_id, frac))
+}
+
 pub fn add_block(
     yrs: Arc<BossOfYrs>,
     block_content: String,
@@ -34,12 +59,20 @@ pub fn add_block(
     position: PositionToInsert,
     is_part_of_main_menu_page: bool,
     session_id: String,
+    insert_with_existing_block_id: Option<String>,
 ) -> Result<EverythingForAddBlock, CqrsErr> {
     let bookmark_before_edit = yrs_wrapper::create_bookmark(yrs.clone())?;
     let position_for_love_letter = position.clone();
-    let block_id = yrs
-        .clone()
-        .insert_new_block(block_content, block_meta_data, position)?;
+    let is_create_with_id = insert_with_existing_block_id.is_some();
+
+    let (block_id, new_frac_position) = insert_into_yrs(
+        yrs.clone(),
+        block_content,
+        block_meta_data,
+        position,
+        insert_with_existing_block_id,
+    )?;
+
     let snapshot_of_edit = yrs_wrapper::generate_diff_snapshot(yrs.clone(), bookmark_before_edit)?;
 
     let new_content = yrs.clone().read_block(block_id.clone())?.ok_or_else(|| {
@@ -52,14 +85,20 @@ pub fn add_block(
         })
     })?;
 
-    let new_frac_position = yrs.clone().get_frac_position_of_block(block_id.clone())?;
-
     let yrs_blob = yrs.clone().snapshot()?;
     let page_id = yrs.clone().page_id();
 
-    let love_letter_sketch = LoveLetterSketch::CreateNewBlock {
-        position_to_insert: position_for_love_letter,
-        target_page_id: page_id.clone(),
+    let love_letter_sketch = if is_create_with_id {
+        LoveLetterSketch::CreateNewBlockWithId {
+            block_id: block_id.clone(),
+            position_to_insert: position_for_love_letter,
+            target_page_id: page_id.clone(),
+        }
+    } else {
+        LoveLetterSketch::CreateNewBlock {
+            position_to_insert: position_for_love_letter,
+            target_page_id: page_id.clone(),
+        }
     };
     let love_letter_sketch_bytes = sketch_to_bytes(&love_letter_sketch)?;
 

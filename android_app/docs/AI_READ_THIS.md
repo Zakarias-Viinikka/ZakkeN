@@ -1,11 +1,11 @@
-ZakkeN Project – Library Guide for AI
+ZakkeN Project - Library Guide for AI
 This project uses Rust libraries exposed to Android via UniFFI. The main ones:
 
 z_db: SQLite database wrapper (db_wrapper)
 protocol: data types (records, enums) and serialization
 client_table_blueprints: table schemas and row creation helpers
 yrs: Yrs CRDT wrappers for page content and sync
-love_letter: edit contract types and serialization for client–server communication
+love_letter: edit contract types and serialization for client-server communication
 text_diff: character-level diffing and "squashing" logic for text editing
 
 Kotlin generated bindings:
@@ -51,7 +51,7 @@ newLogRow(timestamp, level, category, source, sessionId, message)
 newIncomingLoveLetterRow(loveLetter, targetPageId)
 
 LoveLetter library:
-LoveLetterSketch – describes the user’s intent. Variants:
+LoveLetterSketch - describes the user's intent. Variants:
 EditBlock { text_edit, edit_target, target_page_id, block_id }
 CreateNewBlock { position_to_insert, target_page_id }
 RemoveBlock { block_id, target_page_id }
@@ -114,12 +114,12 @@ project tree, and is not part of the Android build.
 
 Two things the app provides to the harness:
 
-**`TestTransactionReceiver`** (in `src/debug/java/z/zndroid/`) — debug-only
+**`TestTransactionReceiver`** (in `src/debug/java/z/zndroid/`) - debug-only
 broadcast receiver. Three actions:
 
-    z.zndroid.debug.BEGIN_TEST_TX         — DbManager.beginExternalTransaction()
-    z.zndroid.debug.END_TEST_TX_ROLLBACK  — DbManager.endExternalTransaction(commit = false)
-    z.zndroid.debug.END_TEST_TX_COMMIT    — DbManager.endExternalTransaction(commit = true)
+    z.zndroid.debug.BEGIN_TEST_TX         - DbManager.beginExternalTransaction()
+    z.zndroid.debug.END_TEST_TX_ROLLBACK  - DbManager.endExternalTransaction(commit = false)
+    z.zndroid.debug.END_TEST_TX_COMMIT    - DbManager.endExternalTransaction(commit = true)
 
 The harness broadcasts BEGIN before a run and ROLLBACK at teardown. Every DB
 write the app makes during the run happens inside that transaction; rollback
@@ -137,8 +137,8 @@ must stay. Removing it breaks every UI action that wraps writes in
 
 `GlobalPopupManager` has two entry points:
 
-    show(msg)      — informational popup. Harness records, does not fail.
-    showError(msg) — error popup. Harness fails the step that produced it.
+    show(msg)      - informational popup. Harness records, does not fail.
+    showError(msg) - error popup. Harness fails the step that produced it.
                      Rendered with an "ERROR: " prefix in the snackbar text.
 
 Both are logged to logcat under tag `GlobalPopup` (`Log.i` for info, `Log.e`
@@ -161,10 +161,10 @@ If it is telling them something informational happened, use `show`.
 **Popup renders behind dialogs.** `GlobalPopup`'s `Snackbar` lives in the
 activity's `Box`; `NewPagePopup` is a Compose `Dialog`, a separate window.
 When both are visible the snackbar is behind the dialog's scrim. Visual only
-— the harness reads popups from logcat so it is not blocked. Fixable by
+- the harness reads popups from logcat so it is not blocked. Fixable by
 moving the snackbar to a top-level `Popup`/`Dialog`, but not urgent.
 
-## E2E tests — how you run them
+## E2E tests - how you run them
 
 You run the tests yourself. One command, full path:
 
@@ -173,7 +173,7 @@ You run the tests yourself. One command, full path:
 
 It handles connecting to the phone, starting Appium if needed, and running
 the suite against the already-installed app. It does not build or install
-the APK — do that first if you changed app code:
+the APK - do that first if you changed app code:
 
     cd ~/ProgStuff/ZakkeN/android_app && ./build_and_install.sh
 
@@ -183,23 +183,23 @@ what it reports, rebuild, rerun.
 
 The terminal output tells you everything you need: which step failed, the
 exception, any app `logcat:` lines with `GlobalPopup:` messages, and any
-ERROR popups. Do not go into `../e2e_android_tests/artifacts/` — that is
+ERROR popups. Do not go into `../e2e_android_tests/artifacts/` - that is
 diagnostic detail for the test system itself, not for fixing the app.
 
 Do not edit anything under `../e2e_android_tests/`. If a test is failing
 because the test itself is wrong (not the app), report that to the human
-and stop — do not try to fix the test.
+and stop - do not try to fix the test.
 
 ## Additional test hooks (2026-10-17)
 
-**`CHECK_SYNC`** — debug broadcast `z.zndroid.debug.CHECK_SYNC`, takes an
+**`CHECK_SYNC`** - debug broadcast `z.zndroid.debug.CHECK_SYNC`, takes an
 `--es pageId <id>` extra. Runs `CheckIfTablesInSync.checkPageSync(pageId)`
 and logs the result to logcat under `TestTransactionReceiver`:
 `SyncCheck page=X synced=true/false total=N mismatches=M`. The harness uses
 this as a backend assertion: after every mutating step in some tests, Yrs
 blob and `every_block_in_existence` must agree.
 
-**`NOTIFY_TEST_DONE`** — debug broadcast `z.zndroid.debug.NOTIFY_TEST_DONE`,
+**`NOTIFY_TEST_DONE`** - debug broadcast `z.zndroid.debug.NOTIFY_TEST_DONE`,
 takes `--es result PASS|FAIL` and `--es summary <text>`. Posts a silent
 notification so the human sees the run finished without checking the
 terminal. No sound, no vibration. `POST_NOTIFICATIONS` is declared in the
@@ -208,7 +208,7 @@ debug manifest; on Android 13+ that needs a runtime grant once.
 ## 2-block minimum (deliberate)
 
 Every page has at least two blocks: the title (index 0) and a body
-placeholder (index 1). `DocLogic.kt` enforces this — backspace-at-pos-0
+placeholder (index 1). `DocLogic.kt` enforces this - backspace-at-pos-0
 on either block is a no-op. Tests that assert "1 EditText remains after
 deleting the last body block" are wrong; 2 is correct. The body
 placeholder's ghost text ("Type '/' for commands...") is the cue that
@@ -219,15 +219,15 @@ there's always an editable block below the title.
 When a test run fails, the harness force-stops the app (`am force-stop
 z.zndroid`) before exiting. The human is told their phone is free. On
 success, the app is left on the nav page instead. A force-stopped app
-loses its in-memory Yrs state, which is fine — the DB on disk is
+loses its in-memory Yrs state, which is fine - the DB on disk is
 authoritative and the next launch reloads from it.
 
-## E2E suite — what changed 2026-10-19
+## E2E suite - what changed 2026-10-19
 
 Two tests now, both user-visible behavior:
 
-- `test_multiple_blocks.py` — create a page, add three body blocks, verify all four blocks (title + three) appear in order
-- `test_page_lifecycle.py` — create a page, add a body block, reopen the page, verify the body persisted
+- `test_multiple_blocks.py` - create a page, add three body blocks, verify all four blocks (title + three) appear in order
+- `test_page_lifecycle.py` - create a page, add a body block, reopen the page, verify the body persisted
 
 Run with `~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`. Full-path form: `/home/zakke/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`.
 

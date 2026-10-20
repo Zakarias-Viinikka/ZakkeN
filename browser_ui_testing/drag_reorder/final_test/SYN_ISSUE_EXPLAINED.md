@@ -6,7 +6,7 @@ The dependency is one leptos uses: `server_fn_macro_default`. It was conflicting
 
 So we took a copy of `server_fn_macro_default`, changed its syn line to `3.0`, and told cargo to use our copy instead of the official one.
 
-`server_fn_macro_default` comes in through leptos even though this is a csr app with no server code. The chain: leptos uses `leptos_macro`, and `leptos_macro` imports `server_fn_macro` unconditionally in its own source. That import doesn't go away when the ssr feature is off — cargo features gate what code gets used, not what dependencies exist. So the server-related crates get compiled into a csr app regardless of whether the app ever writes a `#[server]` function.
+`server_fn_macro_default` comes in through leptos even though this is a csr app with no server code. The chain: leptos uses `leptos_macro`, and `leptos_macro` imports `server_fn_macro` unconditionally in its own source. That import doesn't go away when the ssr feature is off - cargo features gate what code gets used, not what dependencies exist. So the server-related crates get compiled into a csr app regardless of whether the app ever writes a `#[server]` function.
 
 The rest of this file is the same story with more detail.
 

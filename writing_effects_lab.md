@@ -6,8 +6,8 @@ same crate.
 
 ## block transition
 
-When the user types and the text transitions into a new block —
-indentation change, new block opens — something visual happens. The
+When the user types and the text transitions into a new block -
+indentation change, new block opens - something visual happens. The
 point of the lab is to figure out what that something is.
 
 ## running into the wall

@@ -6,7 +6,7 @@ Separate from the visual work. Technical feature.
 
 A page loads from three places, in this order: preload, offline, server.
 
-Preload is the first blocks already in memory from predictive loading. Offline is the local db — always read first, regardless of connectivity. Server is asked only after the first two, and only when connected.
+Preload is the first blocks already in memory from predictive loading. Offline is the local db - always read first, regardless of connectivity. Server is asked only after the first two, and only when connected.
 
 ## page states
 

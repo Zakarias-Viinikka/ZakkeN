@@ -6,8 +6,8 @@ order of work.
 
 ## Before you start
 
-Any step that requires the human's approval — running a chain that
-needs review, running a binary, anything gated — must be requested
+Any step that requires the human's approval - running a chain that
+needs review, running a binary, anything gated - must be requested
 BEFORE you start work, all in one batch. The human goes AFK. If you
 request approval in the middle of work, you stall. Get every approval
 you need up front, then do the rest without asking.
@@ -70,7 +70,7 @@ column type changes upstream, the assertion fails; the error message
 and the comment say what else needs to change.
 
 This is the Android substitute for Rust's generic SchemaColumn<T>. It
-is temporary — a real drift-detection tool is planned.
+is temporary - a real drift-detection tool is planned.
 
 Also rebuild ExpectedSchema (or replace it) so it reflects the current
 live schema. It's missing columns on every_block_in_existence and
@@ -109,13 +109,13 @@ Every action that is not a plain text keystroke must flush the buffer
 first, and the flush must complete before the action runs.
 
 Current state:
-  splitBlock — already calls flushBuffer first. But it calls
+  splitBlock - already calls flushBuffer first. But it calls
   debounceJob.cancel() before, and cancelling may not stop an in-flight
   flush. Also splitBlock does the flush and then EditTextInBlock.execute
   as separate operations; if the second fails, the split is
   half-applied. Make the flush and the split one transaction.
 
-  mergeWithPreviousBlock — does state.diffBuffer.clear(), which
+  mergeWithPreviousBlock - does state.diffBuffer.clear(), which
   discards pending edits. Replace with a flush.
 
   The Backspace handler in EditableBlock calls the same merge function,
@@ -157,11 +157,11 @@ The shape:
 
 Every call site passes source explicitly (file/class/function). Per-
 feature helpers (ViewPageLogs and future ones) fill it in. Do not use
-stack-trace introspection — R8 obfuscation breaks it.
+stack-trace introspection - R8 obfuscation breaks it.
 
 ### 10. DbManager.renamePage
 
-Rename it and reimplement. What it does today — changing page_id — is
+Rename it and reimplement. What it does today - changing page_id - is
 wrong. It should call the builder to edit the title block's content.
 
 ### 11. Update references to renamed things
@@ -178,14 +178,14 @@ production to accommodate the Lab.
 ### 13. Docs
 
 Update:
-  docs/AI_READ_THIS.md — reflect the current state of the library guide
-  docs/SHARED_MEMORY.md — reflect the current architecture
-  docs/INVENTED_ON_ANDROID.md — create it if it doesn't exist, list every
+  docs/AI_READ_THIS.md - reflect the current state of the library guide
+  docs/SHARED_MEMORY.md - reflect the current architecture
+  docs/INVENTED_ON_ANDROID.md - create it if it doesn't exist, list every
     decision you made that has no Rust or web counterpart
 
 INVENTED_ON_ANDROID.md is important. Anything you designed without a
-reference — structural ops, the shape of the canary tests, anything
-in the logging buffer — goes in there. Each entry says what Android
+reference - structural ops, the shape of the canary tests, anything
+in the logging buffer - goes in there. Each entry says what Android
 does and where in web/Rust the equivalent should eventually live so it
 can be verified when the web side catches up.
 
@@ -219,5 +219,5 @@ Do not redesign the architecture. This is a repair job, not a rewrite.
 The bugs are known; the plan is known. Follow it.
 
 If you find something that's broken but not mentioned here, log it in
-INVENTED_ON_ANDROID.md and move on. Do not fix it — the plan is the
+INVENTED_ON_ANDROID.md and move on. Do not fix it - the plan is the
 plan.

@@ -131,9 +131,29 @@ macro_rules! style_for_slide_effect {
     };
 }
 
+const SIDEBAR_OPEN_KEY: &str = "dev_sidebar_open";
+
+fn read_sidebar_open_from_local_storage() -> bool {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(SIDEBAR_OPEN_KEY).ok().flatten())
+        .map(|v| v == "true")
+        .unwrap_or(false)
+}
+
+fn write_sidebar_open_to_local_storage(open: bool) {
+    if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = storage.set_item(SIDEBAR_OPEN_KEY, if open { "true" } else { "false" });
+    }
+}
+
 #[component]
 pub fn SidebarContainer() -> impl IntoView {
-    let is_sidebar_active = RwSignal::new(false);
+    let is_sidebar_active = RwSignal::new(read_sidebar_open_from_local_storage());
+
+    Effect::new(move |_| {
+        write_sidebar_open_to_local_storage(is_sidebar_active.get());
+    });
 
     let sidestyle = style_for_sidebar!();
     let close_open_button = style_for_close_open_button!();

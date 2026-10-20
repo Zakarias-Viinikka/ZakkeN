@@ -1,6 +1,6 @@
-# STORED_AI_CONTEXT — final_test
+# STORED_AI_CONTEXT - final_test
 
-Durable knowledge for a fresh AI working on this crate. Assumes the workflow file is separate and already known. Assumes the workspace-root `STORED_AI_CONTEXT.md` is available and does not repeat it — this one specializes it.
+Durable knowledge for a fresh AI working on this crate. Assumes the workflow file is separate and already known. Assumes the workspace-root `STORED_AI_CONTEXT.md` is available and does not repeat it - this one specializes it.
 
 The crate is the demo that packages the two-page drag-reorder UI behind one reusable component, `PageStack`, so it can be dropped into a real project later. The component knows nothing about databases; the demo app owns the database and feeds the component plain data.
 
@@ -16,7 +16,7 @@ The crate is the demo that packages the two-page drag-reorder UI behind one reus
 
 ## The internal model
 
-Every block gets a stable internal `usize` id from a counter that only goes up. The caller's `block_id` string lives on `Block.block_id: Arc<str>` and is mapped to and from the internal id at the boundary only — one `HashMap<String, usize>` inside the component, plus the reverse lookup by scanning `boxes`.
+Every block gets a stable internal `usize` id from a counter that only goes up. The caller's `block_id` string lives on `Block.block_id: Arc<str>` and is mapped to and from the internal id at the boundary only - one `HashMap<String, usize>` inside the component, plus the reverse lookup by scanning `boxes`.
 
 `Block.content` is an `ArcRwSignal<String>`, not a plain `RwSignal`. The reason is that blocks are created inside an effect, and a plain arena signal created inside an effect gets disposed when the effect reruns. The `Arc` version is owned by the value, not the arena, so it survives.
 
@@ -28,13 +28,13 @@ Page membership is never stored on a block. The world says which page holds a bl
 
 ## The ghost model
 
-The vacuum does not remove a block from the layout. It sets `ghost = true` on the block and records its internal id in `stored: RwSignal<Option<usize>>`. The block stays in its page order with the same height, so nothing else moves when a block is vacuumed — the ghost is exactly where the real block was.
+The vacuum does not remove a block from the layout. It sets `ghost = true` on the block and records its internal id in `stored: RwSignal<Option<usize>>`. The block stays in its page order with the same height, so nothing else moves when a block is vacuumed - the ghost is exactly where the real block was.
 
 Rendering a ghost reuses the same DOM box: `ps-ghost` on the wrapper draws a dashed border and transparent fill, hides the children with `visibility: hidden`, disables the textarea and removes the handle. Because the element is not swapped out, its measured height cannot change when a block becomes a ghost or is restored.
 
-Dragging a block into the vacuum zone (pointer `x <= VACUUM_W + VACUUM_PROXIMITY`): if `stored` already holds a block, clear that block's ghost flag first — it reappears in its own slot, which is the whole "pushed back out" behaviour. Then set `ghost = true` on the dragged block, set `stored` to it. No commit, no world rebuild, no `on_move`. Only the newly ghosted and the newly restored block get confirmation rects.
+Dragging a block into the vacuum zone (pointer `x <= VACUUM_W + VACUUM_PROXIMITY`): if `stored` already holds a block, clear that block's ghost flag first - it reappears in its own slot, which is the whole "pushed back out" behaviour. Then set `ghost = true` on the dragged block, set `stored` to it. No commit, no world rebuild, no `on_move`. Only the newly ghosted and the newly restored block get confirmation rects.
 
-Dragging the small rect out and dropping it on a page runs `apply_move` on the same internal id with `is_restore = true` and `stored` cleared. The ghost is that block, so nothing needs deleting — the ghost flag is simply cleared. `locate_drop` excludes the moved id, because the ghost is still in the world and would otherwise be returned as its own neighbour. Restore logs "vacuumed" to the console and fires `on_move` normally: from the perspective of the caller, the restore is the move of a block that was sitting in the page its ghost occupied. `from_page_id` is that page.
+Dragging the small rect out and dropping it on a page runs `apply_move` on the same internal id with `is_restore = true` and `stored` cleared. The ghost is that block, so nothing needs deleting - the ghost flag is simply cleared. `locate_drop` excludes the moved id, because the ghost is still in the world and would otherwise be returned as its own neighbour. Restore logs "vacuumed" to the console and fires `on_move` normally: from the perspective of the caller, the restore is the move of a block that was sitting in the page its ghost occupied. `from_page_id` is that page.
 
 ## The height model
 
@@ -46,7 +46,7 @@ The observer callback collects `(id, offsetHeight)` pairs, drops heights under 1
 
 Unmeasured blocks use `UNMEASURED_HEIGHT` (56 px) and stay `visibility: hidden` via the `ps-unmeasured` class until their first report. This is what keeps load flicker-free.
 
-The textarea is uncontrolled. Its initial value is set once from the block's `content` signal, and `on:input` writes the text into the signal and re-auto-sizes. Later input changes to the props never overwrite what the user typed — content is initial-value only. Content write-back is a later feature and not in scope here.
+The textarea is uncontrolled. Its initial value is set once from the block's `content` signal, and `on:input` writes the text into the signal and re-auto-sizes. Later input changes to the props never overwrite what the user typed - content is initial-value only. Content write-back is a later feature and not in scope here.
 
 ## The sync rule
 
@@ -62,7 +62,7 @@ Blocks whose `page_id` does not match any page in the incoming list are skipped 
 
 `RapierWorld` holds an `Rc`, so it is not `Send`. Leptos 0.8 requires `Send` closures in reactive view positions, in `For` children, and in `Effect::new` bodies. This is the single constraint that most shapes the code here.
 
-The consequence: the world and every `web_sys` handle are touched only in positions that do not require `Send` — event handlers, `Effect::new` bodies, the interval callback and the observer callback. Everything reachable from a reactive view closure is a plain signal read.
+The consequence: the world and every `web_sys` handle are touched only in positions that do not require `Send` - event handlers, `Effect::new` bodies, the interval callback and the observer callback. Everything reachable from a reactive view closure is a plain signal read.
 
 When a `Send` closure must reach a non-`Send` handle, store the handle with `StoredValue::new_local` and capture that `Copy` handle instead. The `ResizeObserver` in this crate is the case in point: the per-block mount effect needs the observer, but the effect runs in a `Send` position, so the observer lives in a `StoredValue::new_local` and the effect captures the `Copy` handle and calls `with_value`.
 

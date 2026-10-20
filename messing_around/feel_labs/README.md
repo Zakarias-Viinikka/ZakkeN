@@ -8,7 +8,7 @@ no backend, no state carried between reloads.
 to cargo, so `./local_cargo.sh check` is a plain cargo check.
 
 The picker at the top mounts one lab at a time. Switching away and back
-resets the lab — a lab that is not selected is unmounted, not hidden.
+resets the lab - a lab that is not selected is unmounted, not hidden.
 
 ## Block transition
 

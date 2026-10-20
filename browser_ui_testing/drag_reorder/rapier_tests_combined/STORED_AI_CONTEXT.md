@@ -1,6 +1,6 @@
-# STORED_AI_CONTEXT — rapier_tests_combined
+# STORED_AI_CONTEXT - rapier_tests_combined
 
-Durable knowledge for a fresh AI working on this crate. Assumes the workflow file is separate and already known. Assumes the workspace-root `STORED_AI_CONTEXT.md` is available and does not repeat it — this one specializes it.
+Durable knowledge for a fresh AI working on this crate. Assumes the workflow file is separate and already known. Assumes the workspace-root `STORED_AI_CONTEXT.md` is available and does not repeat it - this one specializes it.
 
 This file was written before the crate was built. Treat the "should" tense as intent, not observed state. If the code and this file disagree, the code wins and this file should be corrected.
 
@@ -10,7 +10,7 @@ This file was written before the crate was built. Treat the "should" tense as in
 
 From `rapier_test_2`: the drag-reorder UI, the global vacuum, the visual confirmation system, the rapier query wrapper.
 
-From `rapier_collision_test`: the cascade motion — velocity ramp, propagation from the drop point down, target derived from the block ahead rather than from own position.
+From `rapier_collision_test`: the cascade motion - velocity ramp, propagation from the drop point down, target derived from the block ahead rather than from own position.
 
 It does **not** carry over from `rapier_collision_test`: the arrow-based click input, the three-region box layout, the refusal mode, the seniority value, the boundary logic, or the click queue. All of those were prototype-specific to the collision demo and are irrelevant here. Only the motion math survives.
 
@@ -20,7 +20,7 @@ The crate renders two page panels side by side, both visible at once. Both pages
 
 Blocks do not store which page they belong to. Page membership is derived from x position, and the rapier world holds the truth. Do not duplicate this as state.
 
-This is the entire reason the crate exists — the shared physics world is what lets the system say "a block moved from this document to that one, to this location, and used to be here."
+This is the entire reason the crate exists - the shared physics world is what lets the system say "a block moved from this document to that one, to this location, and used to be here."
 
 ## Rapier is never stepped
 
@@ -52,7 +52,7 @@ Copy of `rapier_test_2`'s. `FourLines` renderer, `Confirmation::One` / `Many`, f
 
 ## The stale capture trap
 
-`<For>` reuses child views when the key matches. Anything captured at render time goes stale forever after that item's data changes. Style closures and event handlers must read live values out of the signal, not the captured ones. See the workspace-root `STORED_AI_CONTEXT.md` for the exact shape of the bug — it bit twice in `rapier_test_2`.
+`<For>` reuses child views when the key matches. Anything captured at render time goes stale forever after that item's data changes. Style closures and event handlers must read live values out of the signal, not the captured ones. See the workspace-root `STORED_AI_CONTEXT.md` for the exact shape of the bug - it bit twice in `rapier_test_2`.
 
 ## Environment gotchas
 
@@ -64,9 +64,9 @@ Root `local_cargo.sh` decides what `c r` from the workspace root serves. It `cd`
 
 ## Source material
 
-`rapier_test_2/` — the working reorder / vacuum / confirmation crate. Copy `rapier_world.rs` and `visual_confirmation.rs` as-is; extend `rapier_world.rs` only for the drop-point query (given `(x, y)` and an exclusion set, return the page and the nearest block index).
+`rapier_test_2/` - the working reorder / vacuum / confirmation crate. Copy `rapier_world.rs` and `visual_confirmation.rs` as-is; extend `rapier_world.rs` only for the drop-point query (given `(x, y)` and an exclusion set, return the page and the nearest block index).
 
-`rapier_collision_test/` — the working cascade motion. Port `propagate` and the `tick` velocity ramp. Strip everything else.
+`rapier_collision_test/` - the working cascade motion. Port `propagate` and the `tick` velocity ramp. Strip everything else.
 
 ## Open decisions
 
@@ -75,4 +75,4 @@ These were left to the building AI to pick and state rather than ask about. If t
 - Page widths, gap between pages, vacuum position and size at a 1600-wide viewport.
 - How many blocks per page at startup. Default was a handful, so the cascade is visible on first load.
 - Whether the dragged block floats above everything with `z-index` or sits inside the stage. Default was floating, since the drag is transient.
-- Page membership as derived state vs stored state. Derived from x is the correct answer — do not add a `page` field to the block struct.
+- Page membership as derived state vs stored state. Derived from x is the correct answer - do not add a `page` field to the block struct.

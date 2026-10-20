@@ -1214,9 +1214,33 @@ sealed class LoveLetter {
         companion object
     }
     
+    data class CreateNewBlockWithId(
+        val `blockId`: kotlin.String, 
+        val `positionToInsert`: rustlib.my_yrs_lib.PositionToInsert, 
+        val `targetPageId`: kotlin.String, 
+        val `snapshotOfEdit`: kotlin.ByteArray) : LoveLetter()
+        
+    {
+        
+
+        companion object
+    }
+    
     data class RemoveBlock(
         val `blockId`: kotlin.String, 
         val `targetPageId`: kotlin.String, 
+        val `snapshotOfEdit`: kotlin.ByteArray) : LoveLetter()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class MoveBlock(
+        val `blockId`: kotlin.String, 
+        val `targetPageId`: kotlin.String, 
+        val `newFracPosition`: kotlin.String, 
         val `snapshotOfEdit`: kotlin.ByteArray) : LoveLetter()
         
     {
@@ -1274,16 +1298,28 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 FfiConverterString.read(buf),
                 FfiConverterByteArray.read(buf),
                 )
-            3 -> LoveLetter.RemoveBlock(
+            3 -> LoveLetter.CreateNewBlockWithId(
+                FfiConverterString.read(buf),
+                FfiConverterTypePositionToInsert.read(buf),
+                FfiConverterString.read(buf),
+                FfiConverterByteArray.read(buf),
+                )
+            4 -> LoveLetter.RemoveBlock(
                 FfiConverterString.read(buf),
                 FfiConverterString.read(buf),
                 FfiConverterByteArray.read(buf),
                 )
-            4 -> LoveLetter.DisablePage(
+            5 -> LoveLetter.MoveBlock(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
                 FfiConverterString.read(buf),
                 FfiConverterByteArray.read(buf),
                 )
-            5 -> LoveLetter.CreateNewPage(
+            6 -> LoveLetter.DisablePage(
+                FfiConverterString.read(buf),
+                FfiConverterByteArray.read(buf),
+                )
+            7 -> LoveLetter.CreateNewPage(
                 FfiConverterString.read(buf),
                 FfiConverterBoolean.read(buf),
                 FfiConverterByteArray.read(buf),
@@ -1313,12 +1349,32 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
             )
         }
+        is LoveLetter.CreateNewBlockWithId -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterTypePositionToInsert.allocationSize(value.`positionToInsert`)
+                + FfiConverterString.allocationSize(value.`targetPageId`)
+                + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
+            )
+        }
         is LoveLetter.RemoveBlock -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
                 + FfiConverterString.allocationSize(value.`blockId`)
                 + FfiConverterString.allocationSize(value.`targetPageId`)
+                + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
+            )
+        }
+        is LoveLetter.MoveBlock -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterString.allocationSize(value.`targetPageId`)
+                + FfiConverterString.allocationSize(value.`newFracPosition`)
                 + FfiConverterByteArray.allocationSize(value.`snapshotOfEdit`)
             )
         }
@@ -1359,21 +1415,37 @@ public object FfiConverterTypeLoveLetter : FfiConverterRustBuffer<LoveLetter>{
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
                 Unit
             }
-            is LoveLetter.RemoveBlock -> {
+            is LoveLetter.CreateNewBlockWithId -> {
                 buf.putInt(3)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterTypePositionToInsert.write(value.`positionToInsert`, buf)
+                FfiConverterString.write(value.`targetPageId`, buf)
+                FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
+                Unit
+            }
+            is LoveLetter.RemoveBlock -> {
+                buf.putInt(4)
                 FfiConverterString.write(value.`blockId`, buf)
                 FfiConverterString.write(value.`targetPageId`, buf)
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
                 Unit
             }
+            is LoveLetter.MoveBlock -> {
+                buf.putInt(5)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterString.write(value.`targetPageId`, buf)
+                FfiConverterString.write(value.`newFracPosition`, buf)
+                FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
+                Unit
+            }
             is LoveLetter.DisablePage -> {
-                buf.putInt(4)
+                buf.putInt(6)
                 FfiConverterString.write(value.`pageId`, buf)
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
                 Unit
             }
             is LoveLetter.CreateNewPage -> {
-                buf.putInt(5)
+                buf.putInt(7)
                 FfiConverterString.write(value.`pageId`, buf)
                 FfiConverterBoolean.write(value.`isMainMenuPage`, buf)
                 FfiConverterByteArray.write(value.`snapshotOfEdit`, buf)
@@ -1411,9 +1483,31 @@ sealed class LoveLetterSketch {
         companion object
     }
     
+    data class CreateNewBlockWithId(
+        val `blockId`: kotlin.String, 
+        val `positionToInsert`: rustlib.my_yrs_lib.PositionToInsert, 
+        val `targetPageId`: kotlin.String) : LoveLetterSketch()
+        
+    {
+        
+
+        companion object
+    }
+    
     data class RemoveBlock(
         val `blockId`: kotlin.String, 
         val `targetPageId`: kotlin.String) : LoveLetterSketch()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class MoveBlock(
+        val `blockId`: kotlin.String, 
+        val `targetPageId`: kotlin.String, 
+        val `newFracPosition`: kotlin.String) : LoveLetterSketch()
         
     {
         
@@ -1466,14 +1560,24 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 FfiConverterTypePositionToInsert.read(buf),
                 FfiConverterString.read(buf),
                 )
-            3 -> LoveLetterSketch.RemoveBlock(
+            3 -> LoveLetterSketch.CreateNewBlockWithId(
+                FfiConverterString.read(buf),
+                FfiConverterTypePositionToInsert.read(buf),
+                FfiConverterString.read(buf),
+                )
+            4 -> LoveLetterSketch.RemoveBlock(
                 FfiConverterString.read(buf),
                 FfiConverterString.read(buf),
                 )
-            4 -> LoveLetterSketch.DisablePage(
+            5 -> LoveLetterSketch.MoveBlock(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
                 FfiConverterString.read(buf),
                 )
-            5 -> LoveLetterSketch.CreateNewPage(
+            6 -> LoveLetterSketch.DisablePage(
+                FfiConverterString.read(buf),
+                )
+            7 -> LoveLetterSketch.CreateNewPage(
                 FfiConverterString.read(buf),
                 FfiConverterBoolean.read(buf),
                 )
@@ -1500,12 +1604,30 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 + FfiConverterString.allocationSize(value.`targetPageId`)
             )
         }
+        is LoveLetterSketch.CreateNewBlockWithId -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterTypePositionToInsert.allocationSize(value.`positionToInsert`)
+                + FfiConverterString.allocationSize(value.`targetPageId`)
+            )
+        }
         is LoveLetterSketch.RemoveBlock -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
                 + FfiConverterString.allocationSize(value.`blockId`)
                 + FfiConverterString.allocationSize(value.`targetPageId`)
+            )
+        }
+        is LoveLetterSketch.MoveBlock -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterString.allocationSize(value.`targetPageId`)
+                + FfiConverterString.allocationSize(value.`newFracPosition`)
             )
         }
         is LoveLetterSketch.DisablePage -> {
@@ -1541,19 +1663,33 @@ public object FfiConverterTypeLoveLetterSketch : FfiConverterRustBuffer<LoveLett
                 FfiConverterString.write(value.`targetPageId`, buf)
                 Unit
             }
-            is LoveLetterSketch.RemoveBlock -> {
+            is LoveLetterSketch.CreateNewBlockWithId -> {
                 buf.putInt(3)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterTypePositionToInsert.write(value.`positionToInsert`, buf)
+                FfiConverterString.write(value.`targetPageId`, buf)
+                Unit
+            }
+            is LoveLetterSketch.RemoveBlock -> {
+                buf.putInt(4)
                 FfiConverterString.write(value.`blockId`, buf)
                 FfiConverterString.write(value.`targetPageId`, buf)
                 Unit
             }
+            is LoveLetterSketch.MoveBlock -> {
+                buf.putInt(5)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterString.write(value.`targetPageId`, buf)
+                FfiConverterString.write(value.`newFracPosition`, buf)
+                Unit
+            }
             is LoveLetterSketch.DisablePage -> {
-                buf.putInt(4)
+                buf.putInt(6)
                 FfiConverterString.write(value.`pageId`, buf)
                 Unit
             }
             is LoveLetterSketch.CreateNewPage -> {
-                buf.putInt(5)
+                buf.putInt(7)
                 FfiConverterString.write(value.`pageId`, buf)
                 FfiConverterBoolean.write(value.`isMainMenuPage`, buf)
                 Unit

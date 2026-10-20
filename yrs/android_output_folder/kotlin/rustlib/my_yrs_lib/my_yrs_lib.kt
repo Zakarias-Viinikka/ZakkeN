@@ -731,6 +731,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block(
     ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block_meta(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot(
@@ -823,7 +825,7 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block_with_preexisting_id(`ptr`: Long,`blockId`: RustBuffer.ByValue,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`idByNormalCounting`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block_with_preexisting_id(`ptr`: Long,`blockId`: RustBuffer.ByValue,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`positionToInsert`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -834,6 +836,8 @@ internal object UniffiLib {
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_read_block_meta(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -1034,7 +1038,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 18942) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block_with_preexisting_id() != 6834) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block_with_preexisting_id() != 32293) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with() != 23671) {
@@ -1050,6 +1054,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block() != 8607) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block_meta() != 56184) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info() != 64425) {
@@ -1466,7 +1473,7 @@ public interface BossOfYrsInterface {
     /**
      * returns a list of blocks ordered by frac_index
      */
-    fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `idByNormalCounting`: PositionToInsert)
+    fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `positionToInsert`: PositionToInsert)
     
     fun `mergeWith`(`other`: BossOfYrs)
     
@@ -1477,6 +1484,8 @@ public interface BossOfYrsInterface {
     fun `pageId`(): kotlin.String
     
     fun `readBlock`(`blockId`: kotlin.String): kotlin.String?
+    
+    fun `readBlockMeta`(`blockId`: kotlin.String): kotlin.String?
     
     fun `showDocInfo`()
     
@@ -1678,7 +1687,7 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     /**
      * returns a list of blocks ordered by frac_index
      */
-    @Throws(YrsException::class)override fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `idByNormalCounting`: PositionToInsert)
+    @Throws(YrsException::class)override fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `positionToInsert`: PositionToInsert)
         = 
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
@@ -1688,7 +1697,7 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
         FfiConverterString.lower(`blockId`),
         FfiConverterString.lower(`blockContent`),
         FfiConverterString.lower(`blockMetaData`),
-        FfiConverterTypePositionToInsert.lower(`idByNormalCounting`),_status)
+        FfiConverterTypePositionToInsert.lower(`positionToInsert`),_status)
 }
     }
     
@@ -1757,6 +1766,21 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     callWithHandle {
     uniffiRustCallWithError(YrsException) { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_read_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `readBlockMeta`(`blockId`: kotlin.String): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_read_block_meta(
         it,
         
         FfiConverterString.lower(`blockId`),_status)
@@ -2771,8 +2795,9 @@ sealed class PositionToInsert {
     object AtEnd : PositionToInsert()
     
     
-    data class SpecificPosition(
-        val v1: kotlin.UInt) : PositionToInsert()
+    data class Between(
+        val `blockIdOfAbove`: kotlin.String?, 
+        val `blockIdOfBelow`: kotlin.String?) : PositionToInsert()
         
     {
         
@@ -2797,8 +2822,9 @@ public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<Position
     override fun read(buf: ByteBuffer): PositionToInsert {
         return when(buf.getInt()) {
             1 -> PositionToInsert.AtEnd
-            2 -> PositionToInsert.SpecificPosition(
-                FfiConverterUInt.read(buf),
+            2 -> PositionToInsert.Between(
+                FfiConverterOptionalString.read(buf),
+                FfiConverterOptionalString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -2811,11 +2837,12 @@ public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<Position
                 4UL
             )
         }
-        is PositionToInsert.SpecificPosition -> {
+        is PositionToInsert.Between -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterUInt.allocationSize(value.v1)
+                + FfiConverterOptionalString.allocationSize(value.`blockIdOfAbove`)
+                + FfiConverterOptionalString.allocationSize(value.`blockIdOfBelow`)
             )
         }
     }
@@ -2826,9 +2853,10 @@ public object FfiConverterTypePositionToInsert : FfiConverterRustBuffer<Position
                 buf.putInt(1)
                 Unit
             }
-            is PositionToInsert.SpecificPosition -> {
+            is PositionToInsert.Between -> {
                 buf.putInt(2)
-                FfiConverterUInt.write(value.v1, buf)
+                FfiConverterOptionalString.write(value.`blockIdOfAbove`, buf)
+                FfiConverterOptionalString.write(value.`blockIdOfBelow`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

@@ -1,17 +1,24 @@
 use client_table_blueprints::{tbl_client_love_letter, tbl_every_block_in_existence, tbl_pages};
 use data_builder_for_operations_that_need_to_be_correct::{
-    create_page, disable_page as build_disable_page, move_block as build_move_block,
+    create_page, disable_page as build_disable_page,
 };
 use error_stuff::CqrsErr;
+use leptos::prelude::*;
+use leptos::prelude::{GetUntracked, Set};
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
-    move_block_requires_three_db_actions,
 };
 use protocol::payload::*;
 use web_internal_db::db_helper;
 
 use crate::db::db_helpers_for_web_client;
 use crate::db::ui_actions_helper::{get_active_pages_blob, get_page_is_disabled};
+
+pub async fn set_user_id(name: String) -> Result<(), CqrsErr> {
+    crate::db::key_value_storage_db_actions::write_key_value_to_db("user_id", &name).await?;
+    crate::db::cached_ids::USER_ID.set(Some(name));
+    Ok(())
+}
 
 async fn write_title_to_block(
     page_id: String,
@@ -21,8 +28,8 @@ async fn write_title_to_block(
 ) -> Result<(), CqrsErr> {
     let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
         page_id,
-        crate::FAKE_USER_ID.to_string(),
-        crate::FAKE_TIME.to_string(),
+        crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
+        crate::get_time(),
     )
     .await?;
 
@@ -32,7 +39,7 @@ async fn write_title_to_block(
 }
 
 pub async fn create_new_page() -> Result<(), CqrsErr> {
-    let session_id = crate::FAKE_SESSION_ID.to_string();
+    let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
     let everything = create_page(true, session_id.clone())?;
 
     let title_block_id = everything
@@ -49,32 +56,7 @@ pub async fn create_new_page() -> Result<(), CqrsErr> {
     Ok(())
 }
 
-pub async fn move_block(
-    page_id: String,
-    block_id: String,
-    block_id_of_above: Option<String>,
-    block_id_of_below: Option<String>,
-    session_id: String,
-) -> Result<(), CqrsErr> {
-    let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
-        page_id,
-        crate::FAKE_USER_ID.to_string(),
-        crate::FAKE_TIME.to_string(),
-    )
-    .await?;
-
-    let everything = build_move_block(
-        yrs,
-        block_id,
-        block_id_of_above,
-        block_id_of_below,
-        session_id,
-    )?;
-
-    move_block_requires_three_db_actions(everything).await?;
-
-    Ok(())
-}
+pub use crate::db::ui_actions_move_block_operations::{move_block, move_block_to_another_page};
 
 pub async fn disable_page(page_id: String, session_id: String) -> Result<(), CqrsErr> {
     if get_page_is_disabled(page_id.clone()).await? {

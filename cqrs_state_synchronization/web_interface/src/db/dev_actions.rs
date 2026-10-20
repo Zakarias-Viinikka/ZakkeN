@@ -1,4 +1,7 @@
+use leptos::prelude::*;
+
 use data_builder_for_operations_that_need_to_be_correct::{add_block, create_page};
+use leptos::prelude::GetUntracked;
 use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::{
     end_transaction_if_i_own_the_transaction, start_transaction_if_not_in_one,
@@ -38,7 +41,7 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
 
     for (title, body) in seeds {
         let result: Result<(), CqrsErr> = async {
-            let session_id = crate::FAKE_SESSION_ID.to_string();
+            let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
 
             let everything = create_page(true, session_id.clone())?;
             let title_block_id = everything
@@ -56,8 +59,8 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
 
             let boss = db_helpers_for_web_client::get_yrs_unblobbed(
                 page_id,
-                crate::FAKE_USER_ID.to_string(),
-                crate::FAKE_TIME.to_string(),
+                crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
+                crate::get_time(),
             )
             .await?;
 
@@ -87,6 +90,7 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
                     PositionToInsert::AtEnd,
                     true,
                     session_id.clone(),
+                    None,
                 )?;
                 add_block_requires_three_db_actions(ctx).await?;
             }

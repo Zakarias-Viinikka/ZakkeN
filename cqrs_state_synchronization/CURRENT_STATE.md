@@ -20,7 +20,7 @@
 
 - main.rs creates 3 tables if they don't exist.
 
-## Update — 2026-10-19
+## Update - 2026-10-19
 
 Routes: `/`, `/Menu`, `/DbGui`, and `/MainContent/:page_id` (reads the page id from the URL).
 
@@ -28,9 +28,9 @@ Routes: `/`, `/Menu`, `/DbGui`, and `/MainContent/:page_id` (reads the page id f
 
 New crate modules in web_interface:
 
-- `complicated_signal_flow.rs` — `Page` (one page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response), `PageLoadState` (Loading / PreloadLoaded(usize) / Loaded / Online / Offline / LoadFailed), `BlockRow` (the one block type), `LocalPages`.
-- `leptos_components/main_content/` — MainContent, ConnectionIndicator, BackgroundActivityIndicator (placeholder), page_loading_logic.
-- `drag_reorder_container/` — DragReorderContainer (wrapper), my_block_content (block UI, human-edited), drag_reorder_black_box (rapier + drag + reorder + vacuum, untouched).
+- `complicated_signal_flow.rs` - `Page` (one page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response), `PageLoadState` (Loading / PreloadLoaded(usize) / Loaded / Online / Offline / LoadFailed), `BlockRow` (the one block type), `LocalPages`.
+- `leptos_components/main_content/` - MainContent, ConnectionIndicator, BackgroundActivityIndicator (placeholder), page_loading_logic.
+- `drag_reorder_container/` - DragReorderContainer (wrapper), my_block_content (block UI, human-edited), drag_reorder_black_box (rapier + drag + reorder + vacuum, untouched).
 
 Loading is two effects per page: one matches on page_state and advances one step (preload_pages, load_offline, load_from_server), one watches preload_response and applies blocks. load_from_server is a no-op until the server path exists; preload_pages seeds an empty response because no preloader exists yet.
 
@@ -64,31 +64,30 @@ Moving a block will not re-order the page until reload. The drag
 component already moved it visually; the block signal is re-read from db
 on load.
 
-## Update 2026-10-20
+## Update 2026-10-20 (later)
 
-Order now comes from a fractional position on every block, in both yrs
-and the db mirror. Reads sort by (frac_position, block_id). The
-fracindex crate generates the strings, wrapped by a new
-ZakkeN/smart_frac_index crate so the same logic is available outside
-yrs. every_block_in_existence.position became frac_position, Text, and
-get_all_blocks_for_page uses get_data_ordered with
-ORDER BY frac_position ASC, my_id_as_given_by_yrs ASC.
+Cross-page move works on web. `ui_actions_move_block_operations::
+move_block_to_another_page` runs `delete_block` on the old page's boss
+and `add_block(Some(block_id), ...)` on the new page's boss, both
+executors in one transaction. `on_move` calls it for cross-page drops;
+same-page drops go through `ui_actions::move_block`.
 
-yrs gains move_block(block_id, block_id_of_above, block_id_of_below),
-a frac write rather than a delete+insert, and
-insert_new_block_with_preexisting_id for the eventual cross-page path.
+`PositionToInsert` is now `AtEnd` or `Between { block_id_of_above,
+block_id_of_below }`. `SpecificPosition` is gone; numeric array slot
+stopped meaning anything once order came from frac position.
 
-love_letter gains MoveBlock { block_id, target_page_id,
-new_frac_position }. The builder is move_block, the executor
-move_block_requires_three_db_actions. ui_actions::move_block wraps both.
-on_move in MainContent calls it for same-page moves only; cross-page
-drops log and do nothing yet.
+`add_block` gained `insert_with_existing_block_id: Option<String>`.
+`Some` calls `insert_new_block_with_preexisting_id` and builds a
+`CreateNewBlockWithId` letter; `None` is the original path.
 
-add_block_requires_four_db_actions renamed to
-add_block_requires_three_db_actions, because set_block_position_to_id
-is gone now that the frac position is known before the row is inserted.
-
-Moving a block won't re-order the page until reload. The drag component
-already moved it visually; the block signal is re-read from db on load.
+Session id, user id, and time are real. `lib.rs` has `get_time()`.
+`db/cached_ids.rs` holds `SESSION_ID` and `USER_ID`, both
+`Option<String>` signals. `init::init_all` fills them from
+`key_value_storage`; session id increments each reload.
+`db/key_value_storage_db_actions.rs` has
+`read_key_value_from_db` and `write_key_value_to_db`. Route `/setup`
+and a `UserGate` in `main.rs` force first-run username setup. Errors
+at init, load, edit, and move surface as popups via
+`small_components::popup::create_popup`.
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.

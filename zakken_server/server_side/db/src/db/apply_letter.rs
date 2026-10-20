@@ -30,6 +30,18 @@ pub fn apply_letter(liver: &LiveForever, letter: LoveLetter) -> Result<(), DbErr
             ..
         } => merge_into_page_blob(liver, target_page_id, snapshot_of_edit),
 
+        LoveLetter::CreateNewBlockWithId {
+            target_page_id,
+            snapshot_of_edit,
+            ..
+        } => merge_into_page_blob(liver, target_page_id, snapshot_of_edit),
+
+        LoveLetter::MoveBlock {
+            target_page_id,
+            snapshot_of_edit,
+            ..
+        } => merge_into_page_blob(liver, target_page_id, snapshot_of_edit),
+
         LoveLetter::RemoveBlock {
             target_page_id,
             snapshot_of_edit,

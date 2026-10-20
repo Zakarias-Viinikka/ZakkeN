@@ -75,7 +75,7 @@ Reference location: none. This is testing infrastructure, not a domain
 feature. If the web or Rust side ever gains an equivalent harness, it should
 live in a similarly isolated test-only module.
 
-To verify: N/A — this is a testing-apparatus choice, not a domain design.
+To verify: N/A - this is a testing-apparatus choice, not a domain design.
 
 ---
 
@@ -90,9 +90,9 @@ from "the operation failed", and it reads popups from logcat rather than the
 a11y tree.
 
 Reference location: if the web client has an equivalent of "popup severity"
-(it likely does — snackbar vs toast vs alert), this convention should match.
+(it likely does - snackbar vs toast vs alert), this convention should match.
 Check `cqrs_state_synchronization/web_interface` UI components.
 
 To verify: confirm the web client distinguishes error notifications from
-informational ones with the same semantic split (error → user knows something
-broke; info → user is informed of an expected outcome).
+informational ones with the same semantic split (error -> user knows something
+broke; info -> user is informed of an expected outcome).

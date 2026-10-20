@@ -33,6 +33,29 @@ pub async fn get_page_is_disabled(page_id: String) -> Result<bool, CqrsErr> {
     Ok(is_disabled == "true")
 }
 
+pub async fn is_main_menu_page(page_id: String) -> Result<bool, CqrsErr> {
+    let out = db_helper::get_single_col(GetSingleColIn {
+        table_name: tbl_pages::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_pages::PAGE_ID.name.to_string(),
+            y: page_id,
+        }),
+        column_to_read: tbl_pages::IS_MAIN_MENU_PAGE.name.to_string(),
+    })
+    .await?;
+
+    let s = tbl_pages::IS_MAIN_MENU_PAGE
+        .try_destruct_db_col(out.value)
+        .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
+        .ok_or_else(|| {
+            CqrsErr::DbErrorContainer(DbError::IllegalInput(
+                "is_main_menu_page was null".to_string(),
+            ))
+        })?;
+
+    Ok(s == "true")
+}
+
 pub async fn get_active_pages_blob(page_id: String) -> Result<Vec<u8>, CqrsErr> {
     let out = db_helper::get_single_col(GetSingleColIn {
         table_name: tbl_pages::TABLE_NAME.into(),
@@ -56,3 +79,4 @@ pub async fn get_active_pages_blob(page_id: String) -> Result<Vec<u8>, CqrsErr> 
 
     Ok(blob)
 }
+

@@ -1,8 +1,13 @@
+use std::sync::Arc;
+
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use my_yrs_lib::BossOfYrs;
+
 use crate::complicated_signal_flow::{BlockRow, Page, PageLoadState};
 use crate::db::db_helpers_for_web_client;
+use crate::leptos_components::small_components::popup::create_popup;
 use crate::drag_reorder_container::{DragReorderContainer, MoveEvent, PageInput};
 
 use super::background_activity_indicator::BackgroundActivityIndicator;
@@ -98,19 +103,45 @@ pub fn MainContent(page_id_1: String, page_id_2: Option<String>) -> impl IntoVie
     });
 
     let on_move = Callback::new(move |ev: MoveEvent| {
-        if ev.from_page_id != ev.to_page_id {
-            leptos::logging::log!(
-                "on_move: cross-page move not implemented yet ({} -> {})",
-                ev.from_page_id,
-                ev.to_page_id,
-            );
+        let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
+
+        if ev.from_page_id == ev.to_page_id {
+            spawn_local(async move {
+                if let Err(e) = crate::db::ui_actions::move_block(
+                    ev.to_page_id,
+                    ev.moved_block_id,
+                    ev.above,
+                    ev.below,
+                    session_id,
+                )
+                .await
+                {
+                    leptos::logging::error!("move block failed: {:?}", e);
+                    create_popup(format!("move block failed: {e:?}"));
+                }
+            });
             return;
         }
 
-        let session_id = crate::FAKE_SESSION_ID.to_string();
-        spawn_local(async move {
-            if let Err(e) = crate::db::ui_actions::move_block(
+        let old_boss = get_boss_from_page_id(page1, page2, &ev.from_page_id);
+        let new_boss = get_boss_from_page_id(page1, page2, &ev.to_page_id);
+        let (Some(old_boss), Some(new_boss)) = (old_boss, new_boss) else {
+            leptos::logging::error!(
+                "on_move: could not resolve bosses for cross-page move ({} -> {})",
+                ev.from_page_id,
                 ev.to_page_id,
+            );
+            create_popup(format!(
+                "cross-page move failed: no open page with id {} or {}",
+                ev.from_page_id, ev.to_page_id
+            ));
+            return;
+        };
+
+        spawn_local(async move {
+            if let Err(e) = crate::db::ui_actions::move_block_to_another_page(
+                old_boss,
+                new_boss,
                 ev.moved_block_id,
                 ev.above,
                 ev.below,
@@ -118,7 +149,8 @@ pub fn MainContent(page_id_1: String, page_id_2: Option<String>) -> impl IntoVie
             )
             .await
             {
-                leptos::logging::error!("move block failed: {:?}", e);
+                leptos::logging::error!("move block to another page failed: {:?}", e);
+                create_popup(format!("move block to another page failed: {e:?}"));
             }
         });
     });
@@ -152,10 +184,11 @@ pub fn MainContent(page_id_1: String, page_id_2: Option<String>) -> impl IntoVie
 
         let Some(boss) = boss_opt else {
             leptos::logging::error!("on_block_input: no boss found for block_id {}", block_id);
+            create_popup(format!("edit failed: no open page has block {block_id}"));
             return;
         };
 
-        let session_id = crate::FAKE_SESSION_ID.to_string();
+        let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
         spawn_local(async move {
             if let Err(e) = db_helpers_for_web_client::edit_title_for_page(
                 boss,
@@ -166,6 +199,7 @@ pub fn MainContent(page_id_1: String, page_id_2: Option<String>) -> impl IntoVie
             .await
             {
                 leptos::logging::error!("edit block failed: {:?}", e);
+                create_popup(format!("edit block failed: {e:?}"));
             }
         });
     });
@@ -183,4 +217,22 @@ pub fn MainContent(page_id_1: String, page_id_2: Option<String>) -> impl IntoVie
             on_block_input=on_block_input
         />
     }
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+/// Gives back the yrs doc for whichever of the two visible pages
+/// has that id. None if neither does.
+fn get_boss_from_page_id(page1: Page, page2: Option<Page>, page_id: &str) -> Option<Arc<BossOfYrs>> {
+    if page1.page_id.get_untracked() == page_id {
+        return page1.boss_of_yrs.get_untracked();
+    }
+    if let Some(p2) = page2 {
+        if p2.page_id.get_untracked() == page_id {
+            return p2.boss_of_yrs.get_untracked();
+        }
+    }
+    None
 }

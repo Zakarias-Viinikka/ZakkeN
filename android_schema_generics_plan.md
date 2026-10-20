@@ -12,8 +12,8 @@ side that's fine. Across the uniffi boundary it isn't, so Android
 can't use the generic helpers.
 
 Today, Android has hand-written methods that unwrap a `Col` to a
-specific type. If the schema drifts — a column changes from Text to
-Blob, say — the schema const changes but Android's hand-written
+specific type. If the schema drifts - a column changes from Text to
+Blob, say - the schema const changes but Android's hand-written
 methods silently keep expecting the old type. The mismatch shows up
 at runtime, not compile time.
 
@@ -34,8 +34,8 @@ argument. The android build just relies on it.
   `SchemaColumn<T>`.
 - Extracts, per column: the column name (the `name:` field) and the
   type (either the `T` in `SchemaColumn<T>`, or the `TypeOfCol`
-  variant, or both — see open questions).
-- Takes an input — a JSON or similar — that says what Android
+  variant, or both - see open questions).
+- Takes an input - a JSON or similar - that says what Android
   expects. Something like "page_id is Text", "blobbed_page is Blob".
 - Compares. Reports whether the schema is what was expected. "The
   schema is what you expected the schema to be", or it isn't and
@@ -60,7 +60,7 @@ drifts, the expected type is now wrong.
 The tool is part of the android build script. When the schema drifts,
 the build reports it. Android then updates its methods to match. That
 should also break any methods that consume the unwrapped type,
-because the type they were consuming has changed — which is exactly
+because the type they were consuming has changed - which is exactly
 what you want, because it tells you everything that needs updating.
 
 Android can also write methods that check the unwrap expected type
@@ -105,16 +105,16 @@ the schema, compare against expectation, report drift.
 
 ## Related but separate
 
-- /home/zakke/ProgStuff/z_db/add_new_method_to_wrapper — a different
+- /home/zakke/ProgStuff/z_db/add_new_method_to_wrapper - a different
   tool with a similar shape (a script that touches code that would
   otherwise be written by hand). Not the same problem, worth knowing
   about.
-- /home/zakke/ProgStuff/z_db/db_wrapper_macro_explained — explains the
+- /home/zakke/ProgStuff/z_db/db_wrapper_macro_explained - explains the
   macro core / per-target mascot system, which is the Rust-side
   version of this same "one definition, many targets" problem.
-- /home/zakke/ProgStuff/z_db/db_wrapper — has per-target mascots
+- /home/zakke/ProgStuff/z_db/db_wrapper - has per-target mascots
   (android_mascot, web_mascot, testing_mascot). The same fundamental
-  problem — one definition, per-target implementations — is solved
+  problem - one definition, per-target implementations - is solved
   there with macros. Android can't use macros because uniffi is
   involved, which is why the schema-drift tool is needed at all.
 

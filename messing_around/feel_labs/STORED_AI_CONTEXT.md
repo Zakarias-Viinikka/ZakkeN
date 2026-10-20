@@ -1,11 +1,11 @@
-# feel_labs — AI stored context
+# feel_labs - AI stored context
 
 Written by AI for AI. Meant to be the first file a fresh AI reads when
 starting work on this project. Update a section when its content
 changes and bump that section's date. If code and this file disagree,
 the code wins and this file should be corrected.
 
-## What this is — 2026-10-16
+## What this is - 2026-10-16
 
 A Leptos CSR playground for deciding how typing and editing effects
 should feel. Disposable experiment, not a product. No persistence, no
@@ -15,7 +15,7 @@ screen and says whether an effect feels right.
 Under messing_around, which is UI style explorations and small Leptos
 playgrounds, not part of the ZakkeN build.
 
-## Layout — 2026-10-16
+## Layout - 2026-10-16
 
 Stack: Leptos 0.8.22 with the csr feature, leptos_router 0.8.17,
 stylist 0.15.1, wasm-bindgen, web-sys, console_error_panic_hook,
@@ -41,40 +41,40 @@ the labs that need literal class names (see gotchas).
 
 README.md describes each lab in plain terms.
 
-## The labs — 2026-10-16
+## The labs - 2026-10-16
 
-Block transition — a textarea plus an "Add block" button. The button
+Block transition - a textarea plus an "Add block" button. The button
 appends a line; both preview panes animate that one new line. "Soft
 rise" lifts and fades; "Indent settle" slides in from the right with
 overshoot. Only the new line animates.
 
-Running into the wall — a pane that types text on a timer. When a word
+Running into the wall - a pane that types text on a timer. When a word
 causes a wrap to a new row, a bar slides in from the right, settles
 under the row that just filled, drifts left, fades. One bar per wrap.
 Row count is measured from client_height divided by a known line
 height, after a short timeout so layout has settled.
 
-Deleting a block — a list of blocks with delete buttons. Delete marks
+Deleting a block - a list of blocks with delete buttons. Delete marks
 the block red, holds, then fades and pops it. The block stays in the
 signal-backed list through both phases and is removed only after the
 exit timeout. Reset repopulates.
 
-Idle page — after two seconds with no pointer movement, clicks, keys,
+Idle page - after two seconds with no pointer movement, clicks, keys,
 or scrolling, the page surface slides left 55px and reveals a stack of
 sheets underneath, which sway. Any activity slides it back. Only the
 background layer moves; content is a separate sibling above it.
 
-New page popup — opens already showing a mock workspace with the dialog
+New page popup - opens already showing a mock workspace with the dialog
 over it. Live title preview above a focused input, Enter/Escape, click
 on the overlay cancels. Each letter is its own keyed span so only newly
 inserted letters shake.
 
-Organic split — a rounded block that splits into two. Both rects
+Organic split - a rounded block that splits into two. Both rects
 animate their corner radius to a full circle, the top lifts and the
 bottom descends, an SVG metaball filter (blur + alpha color matrix)
 thins and breaks the connection, and both settle back to squares.
 
-## Gotchas — 2026-10-16
+## Gotchas - 2026-10-16
 
 stylist gives one generated class name per style block, and that class
 goes on the root element only. Child selectors written inside the block

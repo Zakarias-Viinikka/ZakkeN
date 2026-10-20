@@ -75,6 +75,7 @@ pub fn add_block(
     position: PositionToInsert,
     is_part_of_main_menu_page: bool,
     session_id: String,
+    insert_with_existing_block_id: Option<String>,
 ) -> Result<EverythingForAddBlock, BuilderErr> {
     real_add_block(
         yrs,
@@ -83,6 +84,7 @@ pub fn add_block(
         position,
         is_part_of_main_menu_page,
         session_id,
+        insert_with_existing_block_id,
     )
     .map_err(Into::into)
 }

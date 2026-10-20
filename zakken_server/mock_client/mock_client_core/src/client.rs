@@ -331,11 +331,11 @@ impl MockClient {
         let block_id = victim.block_id.clone();
         let text = victim.text.clone();
 
-        BossOfYrs::delete_block(Arc::clone(&boss), block_id)
+        BossOfYrs::delete_block(Arc::clone(&boss), block_id.clone())
             .map_err(|e| format!("delete_block: {e}"))?;
 
         let sketch = LoveLetterSketch::RemoveBlock {
-            position,
+            block_id,
             target_page_id: page_id.clone(),
         };
         let bytes = self.build_letter(sketch, &boss)?;

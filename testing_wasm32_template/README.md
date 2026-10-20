@@ -8,8 +8,8 @@
 //   - wasm-bindgen-test (dev-dependencies)
 //
 // Tests live in `tests/`:
-//   - native.rs → normal #[test], block_on for async
-//   - web.rs    → #![cfg(target_arch = "wasm32")] at top,
+//   - native.rs -> normal #[test], block_on for async
+//   - web.rs    -> #![cfg(target_arch = "wasm32")] at top,
 //                 #[wasm_bindgen_test], run_in_node
 //
 // Run all: ./run_all_tests.sh

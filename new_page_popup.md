@@ -2,7 +2,7 @@
 
 Idea for what happens when you create a new page.
 
-A popup appears. The background dims slightly — a semi-transparent
+A popup appears. The background dims slightly - a semi-transparent
 dark layer that hides the background a little.
 
 In the middle of the screen, a box with the title, auto-selected.

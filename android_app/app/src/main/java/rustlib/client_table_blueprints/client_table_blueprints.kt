@@ -743,7 +743,7 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_get_foreign_def_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`isTitle`: Byte,`isPartOfMainMenuPage`: Byte,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(`isTitle`: Byte,`isPartOfMainMenuPage`: Byte,`content`: RustBuffer.ByValue,`myIdAsGivenByYrs`: RustBuffer.ByValue,`idOfPageIBelongTo`: RustBuffer.ByValue,`fracPosition`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_every_block_in_existence(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -900,7 +900,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence() and 0xFFFF) != 65402) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 18828) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 33752) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_every_block_in_existence() and 0xFFFF) != 19192) {
@@ -1049,29 +1049,6 @@ public object FfiConverterLong: FfiConverter<Long, Long> {
 /**
  * @suppress
  */
-public object FfiConverterDouble: FfiConverter<Double, Double> {
-    override fun lift(value: Double): Double {
-        return value
-    }
-
-    override fun read(buf: ByteBuffer): Double {
-        return buf.getDouble()
-    }
-
-    override fun lower(value: Double): Double {
-        return value
-    }
-
-    override fun allocationSize(value: Double) = 8UL
-
-    override fun write(value: Double, buf: ByteBuffer) {
-        buf.putDouble(value)
-    }
-}
-
-/**
- * @suppress
- */
 public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
     override fun lift(value: Byte): Boolean {
         return value.toInt() != 0
@@ -1165,38 +1142,6 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
     override fun write(value: ByteArray, buf: ByteBuffer) {
         buf.putInt(value.size)
         buf.put(value)
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterOptionalDouble: FfiConverterRustBuffer<kotlin.Double?> {
-    override fun read(buf: ByteBuffer): kotlin.Double? {
-        if (buf.get().toInt() == 0) {
-            return null
-        }
-        return FfiConverterDouble.read(buf)
-    }
-
-    override fun allocationSize(value: kotlin.Double?): ULong {
-        if (value == null) {
-            return 1UL
-        } else {
-            return 1UL + FfiConverterDouble.allocationSize(value)
-        }
-    }
-
-    override fun write(value: kotlin.Double?, buf: ByteBuffer) {
-        if (value == null) {
-            buf.put(0)
-        } else {
-            buf.put(1)
-            FfiConverterDouble.write(value, buf)
-        }
     }
 }
 
@@ -1370,7 +1315,7 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
     }
     
 
-    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`isTitle`: kotlin.Boolean, `isPartOfMainMenuPage`: kotlin.Boolean, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String, `position`: kotlin.Double?): List<ColumnValue> {
+    @Throws(YrsException::class) fun `newEveryBlockInExistenceRow`(`isTitle`: kotlin.Boolean, `isPartOfMainMenuPage`: kotlin.Boolean, `content`: kotlin.String, `myIdAsGivenByYrs`: kotlin.String, `idOfPageIBelongTo`: kotlin.String, `fracPosition`: kotlin.String): List<ColumnValue> {
             return FfiConverterSequenceTypeColumnValue.lift(
     uniffiRustCallWithError(YrsExceptionExternalErrorHandler) { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_every_block_in_existence_row(
@@ -1381,7 +1326,7 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
         FfiConverterString.lower(`content`),
         FfiConverterString.lower(`myIdAsGivenByYrs`),
         FfiConverterString.lower(`idOfPageIBelongTo`),
-        FfiConverterOptionalDouble.lower(`position`),_status)
+        FfiConverterString.lower(`fracPosition`),_status)
 }
     )
     }

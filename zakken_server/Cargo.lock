@@ -638,6 +638,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fracindex"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c99752c09ac7ea07d49db61bfe85e35ff5415c679b38bc6aeef8d5252ad0954c"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "fs-err"
 version = "3.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1704,6 +1713,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
+name = "smart_frac_index"
+version = "0.1.0"
+dependencies = [
+ "fracindex",
+ "thiserror 2.0.20",
+ "uniffi",
+]
+
+[[package]]
 name = "smawk"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2438,6 +2456,7 @@ dependencies = [
  "rand 0.10.3",
  "serde",
  "serde_json",
+ "smart_frac_index",
  "uniffi",
  "yrs 0.27.4",
 ]
