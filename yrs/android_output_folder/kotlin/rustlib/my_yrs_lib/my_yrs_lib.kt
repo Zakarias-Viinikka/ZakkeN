@@ -715,11 +715,15 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page(
     ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_get_frac_position_of_block(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_move_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id(
     ): Int
@@ -813,11 +817,15 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_get_frac_position_of_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_move_block(`ptr`: Long,`blockId`: RustBuffer.ByValue,`blockIdOfAbove`: RustBuffer.ByValue,`blockIdOfBelow`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_page_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1013,7 +1021,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block() != 42943) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 48765) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 59569) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_frac_position_of_block() != 29180) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 18942) {
@@ -1023,6 +1034,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot() != 57849) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_move_block() != 25578) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id() != 29118) {
@@ -1436,13 +1450,20 @@ public interface BossOfYrsInterface {
     
     fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
     
+    /**
+     * returns a list of blocks ordered by frac_index
+     */
     fun `getEntirePage`(): List<Block>
+    
+    fun `getFracPositionOfBlock`(`blockId`: kotlin.String): kotlin.String
     
     fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
     
     fun `mergeWith`(`other`: BossOfYrs)
     
     fun `mergeWithSnapshot`(`snapshot`: kotlin.ByteArray)
+    
+    fun `moveBlock`(`blockId`: kotlin.String, `blockIdOfAbove`: kotlin.String?, `blockIdOfBelow`: kotlin.String?)
     
     fun `pageId`(): kotlin.String
     
@@ -1599,6 +1620,9 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     
 
     
+    /**
+     * returns a list of blocks ordered by frac_index
+     */
     @Throws(YrsException::class)override fun `getEntirePage`(): List<Block> {
             return FfiConverterSequenceTypeBlock.lift(
     callWithHandle {
@@ -1606,6 +1630,21 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_get_entire_page(
         it,
         _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(YrsException::class)override fun `getFracPositionOfBlock`(`blockId`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_get_frac_position_of_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),_status)
 }
     }
     )
@@ -1652,6 +1691,22 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
         it,
         
         FfiConverterByteArray.lower(`snapshot`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(YrsException::class)override fun `moveBlock`(`blockId`: kotlin.String, `blockIdOfAbove`: kotlin.String?, `blockIdOfBelow`: kotlin.String?)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_move_block(
+        it,
+        
+        FfiConverterString.lower(`blockId`),
+        FfiConverterOptionalString.lower(`blockIdOfAbove`),
+        FfiConverterOptionalString.lower(`blockIdOfBelow`),_status)
 }
     }
     

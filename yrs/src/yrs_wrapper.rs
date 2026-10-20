@@ -18,6 +18,7 @@ use yrs::{
 use yrs::{StateVector, Transaction};
 
 use crate::anti_deadlock::{DeadlockCtx, DurationSettings, prevent_deadlock};
+use crate::smart_frac_index;
 use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
 
 fn error_info(error_msg: impl Into<String>, method: &str) -> ErrorInfo {
@@ -189,12 +190,12 @@ fn apply_edit_to_string(old_meta: String, edit: TextEdit) -> Result<String, YrsE
 fn get_block_index_from_id(doc: &Doc, block_id: &str) -> Option<u32> {
     let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
     let txn = doc.transact();
-    for (idx, block) in array.iter(&txn).enumerate() {
+    for (position_by_regular_counting, block) in array.iter(&txn).enumerate() {
         if let Ok(block_map) = block.cast::<MapRef>() {
             if let Some(id_val) = block_map.get(&txn, ID_KEY) {
                 if let Ok(id_str) = id_val.cast::<String>() {
                     if id_str == block_id {
-                        return Some(idx as u32);
+                        return Some(position_by_regular_counting as u32);
                     }
                 }
             }
@@ -218,6 +219,170 @@ fn get_block_from_id(doc: &Doc, block_id: &str) -> Option<MapRef> {
         }
     }
     None
+}
+
+const ORDER_KEY: &str = "order_key";
+
+fn get_frac_position_of_block_at<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    position_by_regular_counting: usize,
+) -> Result<String, YrsError> {
+    let block_map = get_block_map_at(array, txn, position_by_regular_counting)?;
+    block_map
+        .get(txn, ORDER_KEY)
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!("block at position {position_by_regular_counting} missing {ORDER_KEY}"),
+                "get_frac_position_of_block_at",
+            ),
+        })?
+        .cast::<String>()
+        .map_err(|_| YrsError::GenericError {
+            info: error_info(
+                format!(
+                    "block at position {position_by_regular_counting} {ORDER_KEY} is not a string"
+                ),
+                "get_frac_position_of_block_at",
+            ),
+        })
+}
+
+fn get_block_map_at<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    position_by_regular_counting: usize,
+) -> Result<MapRef, YrsError> {
+    let block = array
+        .iter(txn)
+        .nth(position_by_regular_counting)
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!("no block at position {position_by_regular_counting}"),
+                "get_block_map_at",
+            ),
+        })?;
+    block.cast::<MapRef>().map_err(|_| YrsError::GenericError {
+        info: error_info(
+            format!("block at position {position_by_regular_counting} is not a map"),
+            "get_block_map_at",
+        ),
+    })
+}
+
+fn read_block_at<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    position_by_regular_counting: usize,
+) -> Result<(String, Block), YrsError> {
+    let block_map = get_block_map_at(array, txn, position_by_regular_counting)?;
+    let text = block_map
+        .get(txn, CONTENT_KEY)
+        .and_then(|v| v.cast::<XmlTextRef>().ok())
+        .map(|t| t.get_string(txn))
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!(
+                    "block at position {position_by_regular_counting} content is not XmlTextRef"
+                ),
+                "read_block_at",
+            ),
+        })?;
+    let metadata = block_map
+        .get(txn, META_KEY)
+        .and_then(|v| v.cast::<String>().ok())
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!("block at position {position_by_regular_counting} meta is not a string"),
+                "read_block_at",
+            ),
+        })?;
+    let id_in_yrs = block_map
+        .get(txn, ID_KEY)
+        .and_then(|v| v.cast::<String>().ok())
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!("block at position {position_by_regular_counting} id is not a string"),
+                "read_block_at",
+            ),
+        })?;
+    let frac_position = block_map
+        .get(txn, ORDER_KEY)
+        .and_then(|v| v.cast::<String>().ok())
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!("block at position {position_by_regular_counting} missing {ORDER_KEY}"),
+                "read_block_at",
+            ),
+        })?;
+    Ok((
+        frac_position,
+        Block {
+            text,
+            metadata,
+            id_in_yrs,
+        },
+    ))
+}
+
+fn find_block_with_id<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    block_id: &str,
+) -> Result<MapRef, YrsError> {
+    for block in array.iter(txn) {
+        if let Ok(block_map) = block.cast::<MapRef>() {
+            if let Some(id_val) = block_map.get(txn, ID_KEY) {
+                if let Ok(id_str) = id_val.cast::<String>() {
+                    if id_str == block_id {
+                        return Ok(block_map);
+                    }
+                }
+            }
+        }
+    }
+    Err(YrsError::GenericError {
+        info: error_info(format!("no block with id {block_id}"), "find_block_with_id"),
+    })
+}
+
+fn get_frac_position_by_id<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    block_id: &str,
+) -> Result<String, YrsError> {
+    let block_map = find_block_with_id(array, txn, block_id)?;
+    block_map
+        .get(txn, ORDER_KEY)
+        .and_then(|v| v.cast::<String>().ok())
+        .ok_or_else(|| YrsError::GenericError {
+            info: error_info(
+                format!("block {block_id} missing {ORDER_KEY}"),
+                "get_frac_position_by_id",
+            ),
+        })
+}
+
+fn get_new_frac_position<T: ReadTxn>(
+    array: &ArrayRef,
+    txn: &T,
+    insert_at: u32,
+    len: u32,
+) -> Result<String, YrsError> {
+    if len == 0 {
+        return Ok(smart_frac_index::key_at_start());
+    }
+    if insert_at == 0 {
+        let first = get_frac_position_of_block_at(array, txn, 0)?;
+        return smart_frac_index::key_before(&first);
+    }
+    if insert_at == len {
+        let last = get_frac_position_of_block_at(array, txn, (len - 1) as usize)?;
+        return smart_frac_index::key_after(&last);
+    }
+    let prev = get_frac_position_of_block_at(array, txn, (insert_at - 1) as usize)?;
+    let next = get_frac_position_of_block_at(array, txn, insert_at as usize)?;
+    smart_frac_index::key_between(&prev, &next)
 }
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -267,16 +432,19 @@ impl BossOfYrs {
                 let yrs_array_ref = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                 let mut txn = doc.transact_mut();
 
+                let len = yrs_array_ref.len(&txn) as u32;
                 let insert_at = match position {
-                    PositionToInsert::AtEnd => yrs_array_ref.len(&txn) as u32,
+                    PositionToInsert::AtEnd => len,
                     PositionToInsert::SpecificPosition(pos) => pos,
                 };
 
-                if insert_at > yrs_array_ref.len(&txn) as u32 {
+                if insert_at > len {
                     return Err(YrsError::GenericError {
                         info: error_info("insert position out of bounds", "insert_new_block"),
                     });
                 }
+
+                let order_key = get_new_frac_position(&yrs_array_ref, &txn, insert_at, len)?;
 
                 yrs_array_ref.insert(
                     &mut txn,
@@ -285,6 +453,7 @@ impl BossOfYrs {
                         (ID_KEY.to_string(), In::from(block_id.clone())),
                         (CONTENT_KEY.to_string(), In::from(text_as_xml_text_ref)),
                         (META_KEY.to_string(), In::from(block_meta_data)),
+                        (ORDER_KEY.to_string(), In::from(order_key)),
                     ]),
                 );
 
@@ -293,6 +462,7 @@ impl BossOfYrs {
         )
     }
 
+    ///returns a list of blocks ordered by frac_index
     pub fn get_entire_page(self: Arc<Self>) -> Result<Vec<Block>, YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
@@ -307,50 +477,16 @@ impl BossOfYrs {
                 let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                 let txn = doc.transact();
 
-                if array.len(&txn) == 0 {
-                    return Ok(Vec::new());
+                let len = array.len(&txn) as usize;
+                let mut with_keys: Vec<(String, Block)> = Vec::with_capacity(len);
+                for position_by_regular_counting in 0..len {
+                    with_keys.push(read_block_at(&array, &txn, position_by_regular_counting)?);
                 }
-
-                let mut result = Vec::new();
-                for block in array.iter(&txn) {
-                    if let Ok(block_map) = block.cast::<MapRef>() {
-                        let text = block_map
-                            .get(&txn, &CONTENT_KEY)
-                            .and_then(|v| v.cast::<XmlTextRef>().ok())
-                            .map(|t| t.get_string(&txn))
-                            .ok_or_else(|| YrsError::GenericError {
-                                info: error_info(
-                                    "read_page: failed to cast content field to XmlTextRef",
-                                    "get_entire_page",
-                                ),
-                            })?;
-                        let meta = block_map
-                            .get(&txn, &META_KEY)
-                            .and_then(|v| v.cast::<String>().ok())
-                            .ok_or_else(|| YrsError::GenericError {
-                                info: error_info(
-                                    "read_page: failed to cast meta field to String",
-                                    "get_entire_page",
-                                ),
-                            })?;
-                        let id_in_yrs = block_map
-                            .get(&txn, &ID_KEY)
-                            .and_then(|v| v.cast::<String>().ok())
-                            .ok_or_else(|| YrsError::GenericError {
-                                info: error_info(
-                                    "read_page: failed to cast id field to String",
-                                    "get_entire_page",
-                                ),
-                            })?;
-
-                        result.push(Block {
-                            text,
-                            metadata: meta,
-                            id_in_yrs,
-                        });
-                    }
-                }
-                Ok(result)
+                with_keys.sort_by(|a, b| {
+                    a.0.cmp(&b.0)
+                        .then_with(|| a.1.id_in_yrs.cmp(&b.1.id_in_yrs))
+                });
+                Ok(with_keys.into_iter().map(|(_, b)| b).collect())
             },
         )
     }
@@ -411,8 +547,8 @@ impl BossOfYrs {
             let doc = self.doc.write().map_err(|_| YrsError::GenericError {
                 info: error_info("lock poisoned", "delete_block"),
             })?;
-            let idx =
-                get_block_index_from_id(&doc, &block_id).ok_or_else(|| YrsError::GenericError {
+            let position_by_regular_counting = get_block_index_from_id(&doc, &block_id)
+                .ok_or_else(|| YrsError::GenericError {
                     info: error_info(
                         format!("found no block with id: {block_id}"),
                         "delete_block",
@@ -420,7 +556,7 @@ impl BossOfYrs {
                 })?;
             let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
             let mut txn = doc.transact_mut();
-            array.remove(&mut txn, idx);
+            array.remove(&mut txn, position_by_regular_counting);
             Ok(())
         };
 
@@ -514,6 +650,95 @@ impl BossOfYrs {
                     )
                 })?;
                 Ok(())
+            },
+        )
+    }
+
+    pub fn move_block(
+        self: Arc<Self>,
+        block_id: String,
+        block_id_of_above: Option<String>,
+        block_id_of_below: Option<String>,
+    ) -> Result<(), YrsError> {
+        if block_id_of_above.as_deref() == Some(block_id.as_str()) {
+            return Err(YrsError::GenericError {
+                info: error_info(
+                    "move_block: block_id_of_above equals block_id",
+                    "move_block",
+                ),
+            });
+        }
+        if block_id_of_below.as_deref() == Some(block_id.as_str()) {
+            return Err(YrsError::GenericError {
+                info: error_info(
+                    "move_block: block_id_of_below equals block_id",
+                    "move_block",
+                ),
+            });
+        }
+
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "move_block",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.write().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "move_block"),
+                })?;
+                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+                let mut txn = doc.transact_mut();
+
+                let moving_map = find_block_with_id(&array, &txn, &block_id)?;
+
+                let new_frac = match (block_id_of_above, block_id_of_below) {
+                    (Some(above), Some(below)) => {
+                        let above_frac = get_frac_position_by_id(&array, &txn, &above)?;
+                        let below_frac = get_frac_position_by_id(&array, &txn, &below)?;
+                        smart_frac_index::key_between(&above_frac, &below_frac)?
+                    }
+                    (Some(above), None) => {
+                        let above_frac = get_frac_position_by_id(&array, &txn, &above)?;
+                        smart_frac_index::key_after(&above_frac)?
+                    }
+                    (None, Some(below)) => {
+                        let below_frac = get_frac_position_by_id(&array, &txn, &below)?;
+                        smart_frac_index::key_before(&below_frac)?
+                    }
+                    (None, None) => {
+                        return Err(YrsError::GenericError {
+                            info: error_info(
+                                "move_block: at least one neighbour is required",
+                                "move_block",
+                            ),
+                        });
+                    }
+                };
+
+                moving_map.insert(&mut txn, ORDER_KEY.to_string(), In::from(new_frac));
+                Ok(())
+            },
+        )
+    }
+
+    pub fn get_frac_position_of_block(
+        self: Arc<Self>,
+        block_id: String,
+    ) -> Result<String, YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "get_frac_position_of_block",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "get_frac_position_of_block"),
+                })?;
+                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+                let txn = doc.transact();
+                get_frac_position_by_id(&array, &txn, &block_id)
             },
         )
     }
