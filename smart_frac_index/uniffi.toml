@@ -1,0 +1,6 @@
+[crate-roots]
+smart_frac_index = "."
+
+[crates.smart_frac_index.bindings.kotlin]
+package_name = "rustlib.smart_frac_index"
+android = true

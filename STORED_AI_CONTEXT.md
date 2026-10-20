@@ -25,7 +25,12 @@ zakken_server section below.
 
 ## Crate map — 2026-10-14
 
-yrs (ZakkeN/yrs) — CRDT wrappers. BossOfYrs owns one page's doc,
+yrs (ZakkeN/yrs) - CRDT wrappers. BossOfYrs owns one page doc,
+YrsActivePages owns the which-pages-are-disabled doc, YrsBacklinks owns
+backlinks. Every block carries a frac_position (hex string from
+smart_frac_index) that decides order; reads sort by (frac_position,
+block_id). move_block(block_id, above, below) writes a new position, it
+does not delete+insert.
 YrsActivePages owns the "which pages are disabled" doc, YrsBacklinks
 owns backlinks. Wasm has no threads and no clock, so BossOfYrs::new
 takes a unix_time string; IDs are built from that string, an atomic
@@ -126,7 +131,7 @@ The drag-reorder UI now lives inside `web_interface`, in `drag_reorder_container
 
 `leptos_components/main_content/` holds the page view. `complicated_signal_flow.rs` at the crate root holds `Page` (one page's whole live state — id, yrs doc, blocks, load state, preload request/response), `PageLoadState`, `BlockRow` and `LocalPages`. The load sequence is two effects per page: one matching on load state and advancing one step, one watching the preload response.
 
-Moving a block is parked — it needs a yrs move method, a love_letter variant, builder, executor, and a real db ordering scheme. Back button doesn't re-render without refresh; cause not diagnosed.
+Moving a block within a page works end to end on web. Cross-page move is not built. Back button does not re-render without refresh; cause not diagnosed.
 
 ## zakken_server — 2026-10-15
 

@@ -44,6 +44,11 @@ pub enum LoveLetterSketch {
         block_id: String,
         target_page_id: String,
     },
+    MoveBlock {
+        block_id: String,
+        target_page_id: String,
+        new_frac_position: String,
+    },
     DisablePage {
         page_id: String,
     },
@@ -70,6 +75,12 @@ pub enum LoveLetter {
     RemoveBlock {
         block_id: String,
         target_page_id: String,
+        snapshot_of_edit: Vec<u8>,
+    },
+    MoveBlock {
+        block_id: String,
+        target_page_id: String,
+        new_frac_position: String,
         snapshot_of_edit: Vec<u8>,
     },
     DisablePage {
@@ -124,6 +135,16 @@ pub fn build_a_love_letter(love_letter: LoveLetterSketch, snapshot_of_edit: Vec<
         } => LoveLetter::RemoveBlock {
             block_id,
             target_page_id,
+            snapshot_of_edit,
+        },
+        LoveLetterSketch::MoveBlock {
+            block_id,
+            target_page_id,
+            new_frac_position,
+        } => LoveLetter::MoveBlock {
+            block_id,
+            target_page_id,
+            new_frac_position,
             snapshot_of_edit,
         },
         LoveLetterSketch::DisablePage { page_id } => LoveLetter::DisablePage {

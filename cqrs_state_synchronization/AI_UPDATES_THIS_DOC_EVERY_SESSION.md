@@ -1,3 +1,77 @@
+Tuesday, 20 October 2026
+=======================
+
+Move within a page works end to end.
+
+The position field on every_block_in_existence was a Real holding the
+row's id. Replaced with frac_position: Text, a hex string from a new
+smart_frac_index crate at the root of ZakkeN (built around the
+fracindex crate). Two blocks compare by this string; ties break by
+block id. The string never runs out of room between two neighbours, so
+nothing ever has to renumber.
+
+yrs: every block now has a frac_position field. get_entire_page sorts
+by (frac_position, block_id) and refuses a block without one.
+move_block writes a new position, it does not delete and re-insert.
+insert_new_block_with_preexisting_id added for the eventual cross-page
+path. get_frac_position_of_block exposes the current value.
+
+love_letter: MoveBlock { block_id, target_page_id, new_frac_position }
+on both enums. The letter carries the exact value, not "between A and
+B", so every device writes the same position.
+
+builder/executor: move_block and move_block_requires_three_db_actions
+(update pages blob, update this block's frac_position, insert letter).
+add_block_requires_four_db_actions renamed to
+add_block_requires_three_db_actions because set_block_position_to_id is
+gone.
+
+web_interface: ui_actions::move_block wraps the builder and executor.
+on_move in MainContent calls it for same-page drops; cross-page drops
+log and do nothing. get_all_blocks_for_page uses get_data_ordered with
+the frac position as the order key.
+
+Open: moving a block does not re-order the page until reload. Also
+open: cross-page move needs a letter shape that can hold two edits, one
+per page, which is not decided.
+
+Tuesday, 20 October 2026
+=======================
+
+Move within a page works end to end.
+
+The position field on every_block_in_existence was a Real holding the
+row's id. Replaced with frac_position: Text, a hex string from a new
+smart_frac_index crate at the root of ZakkeN (built around the
+fracindex crate). Two blocks compare by this string; ties break by
+block id. The string never runs out of room between two neighbours, so
+nothing ever has to renumber.
+
+yrs: every block now has a frac_position field. get_entire_page sorts
+by (frac_position, block_id) and refuses a block without one.
+move_block writes a new position, it does not delete and re-insert.
+insert_new_block_with_preexisting_id added for the eventual cross-page
+path. get_frac_position_of_block exposes the current value.
+
+love_letter: MoveBlock { block_id, target_page_id, new_frac_position }
+on both enums. The letter carries the exact value, not "between A and
+B", so every device writes the same position.
+
+builder/executor: move_block and move_block_requires_three_db_actions
+(update pages blob, update this block's frac_position, insert letter).
+add_block_requires_four_db_actions renamed to
+add_block_requires_three_db_actions because set_block_position_to_id is
+gone.
+
+web_interface: ui_actions::move_block wraps the builder and executor.
+on_move in MainContent calls it for same-page drops; cross-page drops
+log and do nothing. get_all_blocks_for_page uses get_data_ordered with
+the frac position as the order key.
+
+Open: moving a block does not re-order the page until reload. Also
+open: cross-page move needs a letter shape that can hold two edits, one
+per page, which is not decided.
+
 finished fixing issues and old logic since repurposing began, good to move forward from here and build out project
 
 LocalPages rewritten. Don't need to say more, look at the struct for details. Comments explain the fields.

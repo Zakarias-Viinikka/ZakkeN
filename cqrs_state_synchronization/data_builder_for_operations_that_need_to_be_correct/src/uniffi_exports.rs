@@ -31,6 +31,9 @@ use crate::disable_page::{
 use crate::edit_block::{
     EverythingForEditBlock, edit_block as real_edit_block,
 };
+use crate::move_block::{
+    EverythingForMoveBlock, move_block as real_move_block,
+};
 
 /// Error type Android sees. One string, no inner types. Rust code never
 /// matches on this — it's constructed at the uniffi boundary.
@@ -91,6 +94,24 @@ pub fn delete_block(
     session_id: String,
 ) -> Result<EverythingForDeleteBlock, BuilderErr> {
     real_delete_block(yrs, block_id, session_id).map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn move_block(
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    block_id_of_above: Option<String>,
+    block_id_of_below: Option<String>,
+    session_id: String,
+) -> Result<EverythingForMoveBlock, BuilderErr> {
+    real_move_block(
+        yrs,
+        block_id,
+        block_id_of_above,
+        block_id_of_below,
+        session_id,
+    )
+    .map_err(Into::into)
 }
 
 #[uniffi::export]

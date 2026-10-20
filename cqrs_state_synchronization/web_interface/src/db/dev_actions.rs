@@ -4,7 +4,7 @@ use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db
     end_transaction_if_i_own_the_transaction, start_transaction_if_not_in_one,
 };
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
-    add_block_requires_four_db_actions, insert_page_requires_three_db_inserts,
+    add_block_requires_three_db_actions, insert_page_requires_three_db_inserts,
 };
 use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use web_internal_db::db_helper;
@@ -88,7 +88,7 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
                     true,
                     session_id.clone(),
                 )?;
-                add_block_requires_four_db_actions(ctx).await?;
+                add_block_requires_three_db_actions(ctx).await?;
             }
 
             Ok(())

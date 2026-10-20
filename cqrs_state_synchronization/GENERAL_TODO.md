@@ -54,7 +54,9 @@ add_block and delete_block are built in the builder and executor, plus uniffi ex
 
 pure_web_ui_components crate exists at cqrs_state_synchronization/pure_web_ui_components. Exports PagesUiThatOnlyOwnsDragReorder with PageInput / BlockInput / MoveEvent. Came from the drag_reorder final_test lab, split into modules (drag_state, rebuild, heights, sync, apply_move, mouse, plus the untouched cascade / layout / rapier_world). Visual confirmation stripped — that was testing-only. Stage background removed, parent owns it. Nothing in web_interface calls it yet; the real page UI hasn't been designed.
 
-Moving a block is parked. It needs: a move method on yrs_wrapper (doesn't exist — the wrapper has insert, delete, edit-text only), a MoveBlock variant in love_letter, a builder, an executor, and a web interface call. Also needs a real db ordering scheme — position is currently the row's own id, which is insertion order, not sort order. None of it is started. on_move in main_content currently only logs.
+Moving a block within a page works end to end on web (yrs method, love letter variant, builder, executor, ui_action, on_move wired). After a drag the page does not re-order until reload, because the block signal is re-read from db only on load.
+
+Moving a block to another page is not built. It needs a builder, an executor, a MoveBlockToAnotherPage variant in love_letter, and a decision about how a two-doc edit (delete from old page, insert into new) fits into a letter that today carries a single snapshot_of_edit. Two fields, two page ids, or a different letter shape: not decided.
 
 Back button: navigating back to a previous route doesn't re-render without a manual refresh. Cause not yet diagnosed.
 

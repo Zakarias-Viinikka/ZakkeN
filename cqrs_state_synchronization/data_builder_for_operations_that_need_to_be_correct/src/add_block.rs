@@ -21,9 +21,9 @@ pub struct EveryBlockInExistenceInsertCtx {
     pub my_id_as_given_by_yrs: String,
     pub content: String,
     pub id_of_page_i_belong_to: String,
-    /// Supposed to be the new row's db id cast to f64.
-    /// The builder always passes None; the executor fills it in after the insert.
-    pub position: Option<f64>,
+    /// The block's fractional index — a hex string. Known before the
+    /// row is inserted because yrs computes it when the block is made.
+    pub frac_position: String,
     pub is_part_of_main_menu_page: bool,
 }
 
@@ -52,6 +52,8 @@ pub fn add_block(
         })
     })?;
 
+    let new_frac_position = yrs.clone().get_frac_position_of_block(block_id.clone())?;
+
     let yrs_blob = yrs.clone().snapshot()?;
     let page_id = yrs.clone().page_id();
 
@@ -70,7 +72,7 @@ pub fn add_block(
             my_id_as_given_by_yrs: block_id,
             content: new_content,
             id_of_page_i_belong_to: page_id.clone(),
-            position: None,
+            frac_position: new_frac_position,
             is_part_of_main_menu_page,
         },
         client_love_letter: ClientLoveLetterInsertCtx {

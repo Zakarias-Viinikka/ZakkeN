@@ -23,7 +23,7 @@ pub fn new_table_every_block_in_existence() -> Vec<ColumnDef> {
         not_null_col(ColumnType::Text, "content"),
         not_null_col(ColumnType::Text, "my_id_as_given_by_yrs"),
         not_null_col(ColumnType::Text, "id_of_page_i_belong_to"),
-        not_null_col(ColumnType::Real, "position"),
+        not_null_col(ColumnType::Text, "frac_position"),
         not_null_col(ColumnType::Text, "page_is_disabled"),
     ]
 }
@@ -65,9 +65,9 @@ pub const ID_OF_PAGE_I_BELONG_TO: SchemaColumn<String> = SchemaColumn::<String> 
     _marker: PhantomData,
 };
 
-pub const POSITION: SchemaColumn<f64> = SchemaColumn::<f64> {
-    name: "position",
-    type_of_col: &TypeOfCol::Real,
+pub const FRAC_POSITION: SchemaColumn<String> = SchemaColumn::<String> {
+    name: "frac_position",
+    type_of_col: &TypeOfCol::Text,
     can_be_null: false,
     _marker: PhantomData,
 };
@@ -94,8 +94,8 @@ pub fn get_foreign_def_every_block_in_existence() -> Vec<ForeignKeyDef> {
 */
 // ---
 
-// position: `None` means the caller doesn't know the position yet — insert a
-// placeholder and update the row after the insert.
+// frac_position is the block's fractional index — a hex string the
+// caller already knows before the row is inserted.
 #[uniffi::export]
 pub fn new_every_block_in_existence_row(
     is_title: bool,
@@ -103,12 +103,8 @@ pub fn new_every_block_in_existence_row(
     content: String,
     my_id_as_given_by_yrs: String,  //block id
     id_of_page_i_belong_to: String, //page id
-    position: Option<f64>,
+    frac_position: String,
 ) -> Result<Vec<ColumnValue>, YrsError> {
-    let position_value = match position {
-        Some(p) => p,
-        None => 0.0, // placeholder, caller will update after insert
-    };
     Ok(vec![
         ColumnValue {
             column_name: IS_TITLE.name.to_string(),
@@ -131,8 +127,8 @@ pub fn new_every_block_in_existence_row(
             value: Col::Text(id_of_page_i_belong_to),
         },
         ColumnValue {
-            column_name: POSITION.name.to_string(),
-            value: Col::Real(position_value),
+            column_name: FRAC_POSITION.name.to_string(),
+            value: Col::Text(frac_position),
         },
         ColumnValue {
             column_name: PAGE_IS_DISABLED.name.to_string(),

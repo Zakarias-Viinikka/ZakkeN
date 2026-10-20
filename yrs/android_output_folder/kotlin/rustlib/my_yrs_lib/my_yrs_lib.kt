@@ -719,6 +719,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block(
     ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block_with_preexisting_id(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot(
@@ -821,6 +823,8 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block(`ptr`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block_with_preexisting_id(`ptr`: Long,`blockId`: RustBuffer.ByValue,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`idByNormalCounting`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with(`ptr`: Long,`other`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_merge_with_snapshot(`ptr`: Long,`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1021,13 +1025,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block() != 42943) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 59569) {
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() != 48765) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_frac_position_of_block() != 29180) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() != 18942) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block_with_preexisting_id() != 6834) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with() != 23671) {
@@ -1450,14 +1457,16 @@ public interface BossOfYrsInterface {
     
     fun `editTextBlock`(`blockId`: kotlin.String, `textEdit`: TextEdit, `editTarget`: EditTarget)
     
-    /**
-     * returns a list of blocks ordered by frac_index
-     */
     fun `getEntirePage`(): List<Block>
     
     fun `getFracPositionOfBlock`(`blockId`: kotlin.String): kotlin.String
     
     fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
+    
+    /**
+     * returns a list of blocks ordered by frac_index
+     */
+    fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `idByNormalCounting`: PositionToInsert)
     
     fun `mergeWith`(`other`: BossOfYrs)
     
@@ -1620,9 +1629,6 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     
 
     
-    /**
-     * returns a list of blocks ordered by frac_index
-     */
     @Throws(YrsException::class)override fun `getEntirePage`(): List<Block> {
             return FfiConverterSequenceTypeBlock.lift(
     callWithHandle {
@@ -1666,6 +1672,26 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     }
     )
     }
+    
+
+    
+    /**
+     * returns a list of blocks ordered by frac_index
+     */
+    @Throws(YrsException::class)override fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `idByNormalCounting`: PositionToInsert)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_insert_new_block_with_preexisting_id(
+        it,
+        
+        FfiConverterString.lower(`blockId`),
+        FfiConverterString.lower(`blockContent`),
+        FfiConverterString.lower(`blockMetaData`),
+        FfiConverterTypePositionToInsert.lower(`idByNormalCounting`),_status)
+}
+    }
+    
     
 
     

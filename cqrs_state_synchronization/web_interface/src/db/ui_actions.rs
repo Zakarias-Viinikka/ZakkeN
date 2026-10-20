@@ -1,10 +1,11 @@
 use client_table_blueprints::{tbl_client_love_letter, tbl_every_block_in_existence, tbl_pages};
 use data_builder_for_operations_that_need_to_be_correct::{
-    create_page, disable_page as build_disable_page,
+    create_page, disable_page as build_disable_page, move_block as build_move_block,
 };
 use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
+    move_block_requires_three_db_actions,
 };
 use protocol::payload::*;
 use web_internal_db::db_helper;
@@ -44,6 +45,33 @@ pub async fn create_new_page() -> Result<(), CqrsErr> {
     insert_page_requires_three_db_inserts(everything).await?;
 
     write_title_to_block(page_id, title_block_id, "title".to_string(), session_id).await?;
+
+    Ok(())
+}
+
+pub async fn move_block(
+    page_id: String,
+    block_id: String,
+    block_id_of_above: Option<String>,
+    block_id_of_below: Option<String>,
+    session_id: String,
+) -> Result<(), CqrsErr> {
+    let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
+        page_id,
+        crate::FAKE_USER_ID.to_string(),
+        crate::FAKE_TIME.to_string(),
+    )
+    .await?;
+
+    let everything = build_move_block(
+        yrs,
+        block_id,
+        block_id_of_above,
+        block_id_of_below,
+        session_id,
+    )?;
+
+    move_block_requires_three_db_actions(everything).await?;
 
     Ok(())
 }

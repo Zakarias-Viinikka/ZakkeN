@@ -1,7 +1,6 @@
 uniffi::setup_scaffolding!();
 
 pub mod anti_deadlock;
-pub mod smart_frac_index;
 pub mod yrs_active_pages;
 pub mod yrs_backlinks;
 pub mod yrs_error;

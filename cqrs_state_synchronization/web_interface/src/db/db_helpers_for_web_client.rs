@@ -104,7 +104,13 @@ pub async fn get_yrs_unblobbed(
 }
 
 pub async fn get_all_blocks_for_page(page_id: String) -> Result<Vec<BlockRow>, DbError> {
-    let out = db_helper::get_data(GetDataIn {
+    let order_by = format!(
+        "{} ASC, {} ASC",
+        tbl_every_block_in_existence::FRAC_POSITION.name,
+        tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS.name,
+    );
+
+    let out = db_helper::get_data_ordered(GetDataOrderedIn {
         table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         arguments: SelectArguments::Single(SelectArgument::XEqualY {
             x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
@@ -122,10 +128,11 @@ pub async fn get_all_blocks_for_page(page_id: String) -> Result<Vec<BlockRow>, D
             tbl_every_block_in_existence::CONTENT.name.to_string(),
             tbl_every_block_in_existence::IS_TITLE.name.to_string(),
         ],
+        order_by,
     })
     .await?;
 
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(out.rows.len());
     for row in out.rows {
         let mut cols = row.cols.into_iter();
         let block_id = MY_ID_AS_GIVEN_BY_YRS

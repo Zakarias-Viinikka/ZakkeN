@@ -128,7 +128,7 @@ pub async fn disabled_page_requires_three_db_actions(
     Ok(())
 }
 
-pub async fn add_block_requires_four_db_actions(
+pub async fn add_block_requires_three_db_actions(
     add_block_ctx: EverythingForAddBlock,
 ) -> Result<(), CqrsErr> {
     let do_i_own_the_transaction = start_transaction_if_not_in_one!();
@@ -137,20 +137,38 @@ pub async fn add_block_requires_four_db_actions(
         update_pages_blob(add_block_ctx.pages_update).await,
         do_i_own_the_transaction
     );
-    let block_id = add_block_ctx
-        .every_block_in_existence_insert
-        .my_id_as_given_by_yrs
-        .clone();
-    let new_row_id = unwrap_or_bail_and_regret!(
+    unwrap_or_bail_and_regret!(
         insert_single_every_block_row(add_block_ctx.every_block_in_existence_insert).await,
         do_i_own_the_transaction
     );
     unwrap_or_bail_and_regret!(
-        set_block_position_to_id(block_id, new_row_id).await,
+        insert_into_client_love_letter(add_block_ctx.client_love_letter).await,
+        do_i_own_the_transaction
+    );
+
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
+    Ok(())
+}
+
+pub async fn move_block_requires_three_db_actions(
+    move_block_ctx: EverythingForMoveBlock,
+) -> Result<(), CqrsErr> {
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
+
+    let block_id = move_block_ctx.block_id.clone();
+    let new_frac_position = move_block_ctx.new_frac_position.clone();
+
+    unwrap_or_bail_and_regret!(
+        update_pages_blob(move_block_ctx.pages_update).await,
         do_i_own_the_transaction
     );
     unwrap_or_bail_and_regret!(
-        insert_into_client_love_letter(add_block_ctx.client_love_letter).await,
+        update_block_frac_position(block_id, new_frac_position).await,
+        do_i_own_the_transaction
+    );
+    unwrap_or_bail_and_regret!(
+        insert_into_client_love_letter(move_block_ctx.client_love_letter).await,
         do_i_own_the_transaction
     );
 
@@ -198,47 +216,25 @@ async fn delete_every_block_row(block_id: String) -> Result<(), CqrsErr> {
 
 async fn insert_single_every_block_row(
     insert_ctx: EveryBlockInExistenceInsertCtx,
-) -> Result<i64, CqrsErr> {
-    // position is None in the ctx on purpose; the executor sets it after the insert.
+) -> Result<(), CqrsErr> {
     let values = new_every_block_in_existence_row(
         false,
         insert_ctx.is_part_of_main_menu_page,
         insert_ctx.content,
         insert_ctx.my_id_as_given_by_yrs,
         insert_ctx.id_of_page_i_belong_to,
-        insert_ctx.position,
+        insert_ctx.frac_position,
     )?;
 
-    let out = db_helper::insert_data_and_get_col(InsertDataAndGetColIn {
+    db_helper::insert_data(InsertDataIn {
         table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
         values,
-        column_to_return: "id".to_string(),
     })
     .await?;
 
-    match out.value {
-        Col::Integer(i) => Ok(i),
-        _ => Err(CqrsErr::DbErrorContainer(DbError::ColDestructFail(
-            "block row id was not an integer".into(),
-        ))),
-    }
-}
-
-async fn set_block_position_to_id(block_id: String, row_id: i64) -> Result<(), CqrsErr> {
-    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
-        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
-        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
-            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
-                .name
-                .to_string(),
-            y: block_id,
-        }),
-        column: tbl_every_block_in_existence::POSITION.name.to_string(),
-        new_value: Col::Real(row_id as f64),
-    })
-    .await?;
     Ok(())
 }
+
 
 async fn update_pages_status(
     page_id: String,
@@ -290,6 +286,28 @@ async fn update_pages_blob(update_ctx: PagesUpdateCtx) -> Result<(), CqrsErr> {
     Ok(())
 }
 
+async fn update_block_frac_position(
+    block_id: String,
+    new_frac_position: String,
+) -> Result<(), CqrsErr> {
+    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                .name
+                .to_string(),
+            y: block_id,
+        }),
+        column: tbl_every_block_in_existence::FRAC_POSITION
+            .name
+            .to_string(),
+        new_value: Col::Text(new_frac_position),
+    })
+    .await?;
+
+    Ok(())
+}
+
 async fn update_every_block_content(
     update_ctx: EveryBlockInExistenceUpdateCtx,
 ) -> Result<(), CqrsErr> {
@@ -335,7 +353,7 @@ async fn insert_into_every_block_in_existence(
         insert_ctx.title_block.content,
         insert_ctx.title_block.my_id_as_given_by_yrs,
         insert_ctx.title_block.id_of_page_i_belong_to,
-        Some(insert_ctx.title_block.position),
+        insert_ctx.title_block.frac_position,
     )?;
 
     let title_out = db_helper::insert_data_and_get_col(InsertDataAndGetColIn {
@@ -360,7 +378,7 @@ async fn insert_into_every_block_in_existence(
         insert_ctx.normal_block.content,
         insert_ctx.normal_block.my_id_as_given_by_yrs,
         insert_ctx.normal_block.id_of_page_i_belong_to,
-        Some(insert_ctx.normal_block.position),
+        insert_ctx.normal_block.frac_position,
     )?;
 
     db_helper::insert_data(InsertDataIn {

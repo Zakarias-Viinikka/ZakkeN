@@ -98,14 +98,29 @@ pub fn MainContent(page_id_1: String, page_id_2: Option<String>) -> impl IntoVie
     });
 
     let on_move = Callback::new(move |ev: MoveEvent| {
-        leptos::logging::log!(
-            "on_move: moved {} from {} to {}; above={:?} below={:?}",
-            ev.moved_block_id,
-            ev.from_page_id,
-            ev.to_page_id,
-            ev.above,
-            ev.below,
-        );
+        if ev.from_page_id != ev.to_page_id {
+            leptos::logging::log!(
+                "on_move: cross-page move not implemented yet ({} -> {})",
+                ev.from_page_id,
+                ev.to_page_id,
+            );
+            return;
+        }
+
+        let session_id = crate::FAKE_SESSION_ID.to_string();
+        spawn_local(async move {
+            if let Err(e) = crate::db::ui_actions::move_block(
+                ev.to_page_id,
+                ev.moved_block_id,
+                ev.above,
+                ev.below,
+                session_id,
+            )
+            .await
+            {
+                leptos::logging::error!("move block failed: {:?}", e);
+            }
+        });
     });
 
     let page1_for_input = page1;

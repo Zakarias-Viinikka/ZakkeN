@@ -18,7 +18,7 @@ use yrs::{
 use yrs::{StateVector, Transaction};
 
 use crate::anti_deadlock::{DeadlockCtx, DurationSettings, prevent_deadlock};
-use crate::smart_frac_index;
+use smart_frac_index::frac_core as smart_frac_index;
 use crate::yrs_error::{DeadlockPrediction, ErrorInfo, YrsError};
 
 fn error_info(error_msg: impl Into<String>, method: &str) -> ErrorInfo {
@@ -221,7 +221,7 @@ fn get_block_from_id(doc: &Doc, block_id: &str) -> Option<MapRef> {
     None
 }
 
-const ORDER_KEY: &str = "order_key";
+const FRAC_POSITION_KEY: &str = "frac_position";
 
 fn get_frac_position_of_block_at<T: ReadTxn>(
     array: &ArrayRef,
@@ -230,10 +230,10 @@ fn get_frac_position_of_block_at<T: ReadTxn>(
 ) -> Result<String, YrsError> {
     let block_map = get_block_map_at(array, txn, position_by_regular_counting)?;
     block_map
-        .get(txn, ORDER_KEY)
+        .get(txn, FRAC_POSITION_KEY)
         .ok_or_else(|| YrsError::GenericError {
             info: error_info(
-                format!("block at position {position_by_regular_counting} missing {ORDER_KEY}"),
+                format!("block at position {position_by_regular_counting} missing {FRAC_POSITION_KEY}"),
                 "get_frac_position_of_block_at",
             ),
         })?
@@ -241,7 +241,7 @@ fn get_frac_position_of_block_at<T: ReadTxn>(
         .map_err(|_| YrsError::GenericError {
             info: error_info(
                 format!(
-                    "block at position {position_by_regular_counting} {ORDER_KEY} is not a string"
+                    "block at position {position_by_regular_counting} {FRAC_POSITION_KEY} is not a string"
                 ),
                 "get_frac_position_of_block_at",
             ),
@@ -307,11 +307,11 @@ fn read_block_at<T: ReadTxn>(
             ),
         })?;
     let frac_position = block_map
-        .get(txn, ORDER_KEY)
+        .get(txn, FRAC_POSITION_KEY)
         .and_then(|v| v.cast::<String>().ok())
         .ok_or_else(|| YrsError::GenericError {
             info: error_info(
-                format!("block at position {position_by_regular_counting} missing {ORDER_KEY}"),
+                format!("block at position {position_by_regular_counting} missing {FRAC_POSITION_KEY}"),
                 "read_block_at",
             ),
         })?;
@@ -353,11 +353,11 @@ fn get_frac_position_by_id<T: ReadTxn>(
 ) -> Result<String, YrsError> {
     let block_map = find_block_with_id(array, txn, block_id)?;
     block_map
-        .get(txn, ORDER_KEY)
+        .get(txn, FRAC_POSITION_KEY)
         .and_then(|v| v.cast::<String>().ok())
         .ok_or_else(|| YrsError::GenericError {
             info: error_info(
-                format!("block {block_id} missing {ORDER_KEY}"),
+                format!("block {block_id} missing {FRAC_POSITION_KEY}"),
                 "get_frac_position_by_id",
             ),
         })
@@ -374,18 +374,52 @@ fn get_new_frac_position<T: ReadTxn>(
     }
     if insert_at == 0 {
         let first = get_frac_position_of_block_at(array, txn, 0)?;
-        return smart_frac_index::key_before(&first);
+        return Ok(smart_frac_index::key_before(&first)?);
     }
     if insert_at == len {
         let last = get_frac_position_of_block_at(array, txn, (len - 1) as usize)?;
-        return smart_frac_index::key_after(&last);
+        return Ok(smart_frac_index::key_after(&last)?);
     }
     let prev = get_frac_position_of_block_at(array, txn, (insert_at - 1) as usize)?;
     let next = get_frac_position_of_block_at(array, txn, insert_at as usize)?;
-    smart_frac_index::key_between(&prev, &next)
+    Ok(smart_frac_index::key_between(&prev, &next)?)
 }
 
 use std::sync::atomic::{AtomicU64, Ordering};
+
+fn insert_block_into_doc(
+    doc: &Doc,
+    block_id: String,
+    block_content: String,
+    block_meta_data: String,
+    position_to_insert: PositionToInsert,
+) -> Result<(), YrsError> {
+    let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+    let mut txn = doc.transact_mut();
+    let len = array.len(&txn) as u32;
+    let insert_at = match position_to_insert {
+        PositionToInsert::AtEnd => len,
+        PositionToInsert::SpecificPosition(p) => p,
+    };
+    if insert_at > len {
+        return Err(YrsError::GenericError {
+            info: error_info("insert position out of bounds", "insert_block_into_doc"),
+        });
+    }
+    let text_as_xml_text_ref = XmlTextPrelim::new(block_content);
+    let order_key = get_new_frac_position(&array, &txn, insert_at, len)?;
+    array.insert(
+        &mut txn,
+        insert_at,
+        MapPrelim::from([
+            (ID_KEY.to_string(), In::from(block_id)),
+            (CONTENT_KEY.to_string(), In::from(text_as_xml_text_ref)),
+            (META_KEY.to_string(), In::from(block_meta_data)),
+            (FRAC_POSITION_KEY.to_string(), In::from(order_key)),
+        ]),
+    );
+    Ok(())
+}
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -427,42 +461,47 @@ impl BossOfYrs {
                     info: error_info("lock poisoned", "insert_new_block"),
                 })?;
                 let block_id = generate_unique_key(&self.user_id, &self.time);
-
-                let text_as_xml_text_ref = XmlTextPrelim::new(block_content);
-                let yrs_array_ref = doc.get_or_insert_array(BLOCKS_KEY.to_string());
-                let mut txn = doc.transact_mut();
-
-                let len = yrs_array_ref.len(&txn) as u32;
-                let insert_at = match position {
-                    PositionToInsert::AtEnd => len,
-                    PositionToInsert::SpecificPosition(pos) => pos,
-                };
-
-                if insert_at > len {
-                    return Err(YrsError::GenericError {
-                        info: error_info("insert position out of bounds", "insert_new_block"),
-                    });
-                }
-
-                let order_key = get_new_frac_position(&yrs_array_ref, &txn, insert_at, len)?;
-
-                yrs_array_ref.insert(
-                    &mut txn,
-                    insert_at,
-                    MapPrelim::from([
-                        (ID_KEY.to_string(), In::from(block_id.clone())),
-                        (CONTENT_KEY.to_string(), In::from(text_as_xml_text_ref)),
-                        (META_KEY.to_string(), In::from(block_meta_data)),
-                        (ORDER_KEY.to_string(), In::from(order_key)),
-                    ]),
-                );
-
+                insert_block_into_doc(&doc, block_id.clone(), block_content, block_meta_data, position)?;
                 Ok(block_id)
             },
         )
     }
 
     ///returns a list of blocks ordered by frac_index
+    pub fn insert_new_block_with_preexisting_id(
+        self: Arc<Self>,
+        block_id: String,
+        block_content: String,
+        block_meta_data: String,
+        id_by_normal_counting: PositionToInsert,
+    ) -> Result<(), YrsError> {
+        prevent_deadlock(
+            DeadlockCtx::new(
+                "insert_new_block_with_preexisting_id",
+                file!(),
+                DeadlockPrediction::ProbablyJustADeadlock,
+            ),
+            move || {
+                let doc = self.doc.read().map_err(|_| YrsError::GenericError {
+                    info: error_info("lock poisoned", "insert_new_block_with_preexisting_id"),
+                })?;
+                let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+                {
+                    let txn = doc.transact();
+                    if find_block_with_id(&array, &txn, &block_id).is_ok() {
+                        return Err(YrsError::GenericError {
+                            info: error_info(
+                                format!("block id {block_id} already exists in this page"),
+                                "insert_new_block_with_preexisting_id",
+                            ),
+                        });
+                    }
+                }
+                insert_block_into_doc(&doc, block_id, block_content, block_meta_data, id_by_normal_counting)
+            },
+        )
+    }
+
     pub fn get_entire_page(self: Arc<Self>) -> Result<Vec<Block>, YrsError> {
         prevent_deadlock(
             DeadlockCtx::new(
@@ -716,7 +755,7 @@ impl BossOfYrs {
                     }
                 };
 
-                moving_map.insert(&mut txn, ORDER_KEY.to_string(), In::from(new_frac));
+                moving_map.insert(&mut txn, FRAC_POSITION_KEY.to_string(), In::from(new_frac));
                 Ok(())
             },
         )

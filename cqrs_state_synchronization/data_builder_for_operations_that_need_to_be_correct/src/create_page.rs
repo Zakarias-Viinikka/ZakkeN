@@ -27,7 +27,7 @@ pub struct TitleBlock {
     pub my_id_as_given_by_yrs: String,
     pub content: String,
     pub id_of_page_i_belong_to: String,
-    pub position: f64,
+    pub frac_position: String,
     pub is_part_of_main_menu_page: bool,
 }
 
@@ -36,7 +36,7 @@ pub struct NormalBlock {
     pub my_id_as_given_by_yrs: String,
     pub content: String,
     pub id_of_page_i_belong_to: String,
-    pub position: f64,
+    pub frac_position: String,
     pub is_part_of_main_menu_page: bool,
 }
 
@@ -62,6 +62,11 @@ pub fn create_page(
     let yrs_representation_of_version_status =
         yrs_wrapper::create_bookmark(Arc::clone(&boss_of_yrs))?;
 
+    let title_frac_position =
+        boss_of_yrs.clone().get_frac_position_of_block(two_ids.title_block_id.clone())?;
+    let normal_frac_position =
+        boss_of_yrs.clone().get_frac_position_of_block(two_ids.first_normal_block_id.clone())?;
+
     let page_id = boss_of_yrs.page_id();
     let insert_page_ctx = PagesInsertCtx {
         page_id: page_id.clone(),
@@ -79,7 +84,7 @@ pub fn create_page(
         my_id_as_given_by_yrs: two_ids.title_block_id,
         content: "".to_string(),
         id_of_page_i_belong_to: page_id.clone(),
-        position: 0.0,
+        frac_position: title_frac_position,
         is_part_of_main_menu_page,
     };
 
@@ -87,7 +92,7 @@ pub fn create_page(
         my_id_as_given_by_yrs: two_ids.first_normal_block_id,
         content: "".to_string(),
         id_of_page_i_belong_to: page_id.clone(),
-        position: 1.0,
+        frac_position: normal_frac_position,
         is_part_of_main_menu_page,
     };
 

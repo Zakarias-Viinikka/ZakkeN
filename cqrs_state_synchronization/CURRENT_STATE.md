@@ -34,6 +34,61 @@ New crate modules in web_interface:
 
 Loading is two effects per page: one matches on page_state and advances one step (preload_pages, load_offline, load_from_server), one watches preload_response and applies blocks. load_from_server is a no-op until the server path exists; preload_pages seeds an empty response because no preloader exists yet.
 
-on_move logs only — no yrs move method, no db ordering scheme. on_block_input goes through edit_title_for_page into the executor and persists.
+on_block_input goes through edit_title_for_page into the executor and persists.
+
+## Update 2026-10-20
+
+Order now comes from a fractional position on every block, in both yrs
+and the db mirror. Reads sort by (frac_position, block_id). The
+fracindex crate generates the strings, wrapped by a new
+ZakkeN/smart_frac_index crate so the same logic is available outside
+yrs. every_block_in_existence.position became frac_position, Text, and
+get_all_blocks_for_page uses get_data_ordered with
+ORDER BY frac_position ASC, my_id_as_given_by_yrs ASC.
+
+yrs gains move_block(block_id, block_id_of_above, block_id_of_below),
+a frac write rather than a delete+insert, and
+insert_new_block_with_preexisting_id for the eventual cross-page path.
+
+love_letter gains MoveBlock { block_id, target_page_id,
+new_frac_position }. The builder is move_block, the executor
+move_block_requires_three_db_actions. ui_actions::move_block wraps both.
+on_move in MainContent calls it for same-page moves only; cross-page
+drops log and do nothing yet.
+
+add_block_requires_four_db_actions renamed to
+add_block_requires_three_db_actions, because set_block_position_to_id
+is gone now that the frac position is known before the row is inserted.
+
+Moving a block will not re-order the page until reload. The drag
+component already moved it visually; the block signal is re-read from db
+on load.
+
+## Update 2026-10-20
+
+Order now comes from a fractional position on every block, in both yrs
+and the db mirror. Reads sort by (frac_position, block_id). The
+fracindex crate generates the strings, wrapped by a new
+ZakkeN/smart_frac_index crate so the same logic is available outside
+yrs. every_block_in_existence.position became frac_position, Text, and
+get_all_blocks_for_page uses get_data_ordered with
+ORDER BY frac_position ASC, my_id_as_given_by_yrs ASC.
+
+yrs gains move_block(block_id, block_id_of_above, block_id_of_below),
+a frac write rather than a delete+insert, and
+insert_new_block_with_preexisting_id for the eventual cross-page path.
+
+love_letter gains MoveBlock { block_id, target_page_id,
+new_frac_position }. The builder is move_block, the executor
+move_block_requires_three_db_actions. ui_actions::move_block wraps both.
+on_move in MainContent calls it for same-page moves only; cross-page
+drops log and do nothing yet.
+
+add_block_requires_four_db_actions renamed to
+add_block_requires_three_db_actions, because set_block_position_to_id
+is gone now that the frac position is known before the row is inserted.
+
+Moving a block won't re-order the page until reload. The drag component
+already moved it visually; the block signal is re-read from db on load.
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.

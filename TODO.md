@@ -2,6 +2,20 @@
 
 ## audit code and refactor
 
+## server: edits that arrive for a block that's already deleted
+
+If a client sends a love letter for a block the server has already seen
+deleted, the edit currently gets dropped. Instead: hold it, and later
+surface it to the user as "we synced this edit but its block was gone,
+want to look?". Way down the line. Not started.
+
+## server: edits that arrive for a block that's already deleted
+
+If a client sends a love letter for a block the server has already seen
+deleted, the edit currently gets dropped. Instead: hold it, and later
+surface it to the user as "we synced this edit but its block was gone,
+want to look?". Way down the line. Not started.
+
 ## planned
 
 Visual effect labs: see writing_effects_lab.md and new_page_popup.md.

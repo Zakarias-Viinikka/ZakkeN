@@ -14,4 +14,4 @@ serde_json = "*"
 serde = { version = "1.0", features = ["derive"] }
 rand = "0.10.1"
 uniffi = { version = "0.32", features = ["cli"] }
-fracindex = "0.4.1"
+smart_frac_index.path = "/home/zakke/ProgStuff/ZakkeN/smart_frac_index"

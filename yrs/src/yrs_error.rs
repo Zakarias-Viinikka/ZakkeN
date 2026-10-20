@@ -49,6 +49,22 @@ impl fmt::Display for YrsError {
     }
 }
 
+impl From<smart_frac_index::frac_core_internals::errors::FracIndexError> for YrsError {
+    fn from(e: smart_frac_index::frac_core_internals::errors::FracIndexError) -> Self {
+        match e {
+            smart_frac_index::frac_core_internals::errors::FracIndexError::GenericError { info } => {
+                YrsError::GenericError {
+                    info: ErrorInfo {
+                        error_msg: info.error_msg,
+                        file: info.file,
+                        method: info.method,
+                    },
+                }
+            }
+        }
+    }
+}
+
 impl std::error::Error for YrsError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None

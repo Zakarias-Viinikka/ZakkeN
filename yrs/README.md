@@ -25,6 +25,40 @@ DELETE A BLOCK
     boss.delete_block(block_id)?;
 
 
+MOVE A BLOCK
+    boss.move_block(block_id, block_id_of_above, block_id_of_below)?;
+    Both neighbours are Option<String>. None means there is no block on
+    that side, so (id, None, Some(x)) moves it to the front and
+    (id, Some(y), None) moves it to the end. It does not delete and
+    re-insert: it writes a new fractional position onto the block.
+    Concurrent moves of the same block resolve to one winner; the block
+    never appears twice.
+
+
+GET A BLOCK'S FRACTIONAL POSITION
+    let frac = boss.get_frac_position_of_block(block_id)?;
+    The hex string the read sorts by. Useful right after a move so the
+    letter can carry the exact value.
+
+
+INSERT A BLOCK WITH A KNOWN ID
+    boss.insert_new_block_with_preexisting_id(
+        block_id, content, meta_data, position,
+    )?;
+    Same as insert_new_block except the caller supplies the id. Errors
+    if a block with that id is already in this page. Used by cross-page
+    move, so a block keeps its id when it lands in another page.
+
+
+HOW ORDER WORKS
+    Every block carries a frac_position field: a hex string from the
+    fracindex crate, wrapped by smart_frac_index. Two blocks compare by
+    this string; on a tie, block id decides. Every read sorts by
+    (frac_position, block_id). The string grows as blocks are inserted
+    between the same two neighbours; it never runs out of room and it
+    never needs renumbering.
+
+
 SNAPSHOT THE WHOLE DOC
     let snapshot = boss.snapshot()?;
 
