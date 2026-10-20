@@ -12,7 +12,7 @@ choice.
 
 ### Parallel Column Schema Descriptors & Type Canary Tests
 
-Android: Defined parallel `ColumnDescriptor<T>` Kotlin objects per table (`PagesTableSchema`, `EveryBlockInExistenceTableSchema`, `BacklinksTableSchema`, `UncommittedDiffsTableSchema`, `KeyValueStorageTableSchema`, `IncomingLoveLettersTableSchema`, `LogsTableSchema`) holding column name, type name, and unwrap lambda `(Col) -> T`. Created `SchemaCanaryTest` asserting hardcoded type expectations for each column descriptor as a compile/test time substitute for Rust's generic `SchemaColumn<T>`.
+Android: Defined parallel `ColumnDescriptor<T>` Kotlin objects per table (`PagesTableSchema`, `EveryBlockInExistenceTableSchema`, `BacklinksTableSchema`, `ClientLoveLetterTableSchema`, `KeyValueStorageTableSchema`, `IncomingLoveLettersTableSchema`, `LogsTableSchema`) holding column name, type name, and unwrap lambda `(Col) -> T`. Created `SchemaCanaryTest` asserting hardcoded type expectations for each column descriptor as a compile/test time substitute for Rust's generic `SchemaColumn<T>`.
 
 Reference location: `client_table_blueprints` or `schema` crate in Rust.
 
@@ -96,3 +96,20 @@ Check `cqrs_state_synchronization/web_interface` UI components.
 To verify: confirm the web client distinguishes error notifications from
 informational ones with the same semantic split (error -> user knows something
 broke; info -> user is informed of an expected outcome).
+
+---
+
+### V3 migration drops and recreates every_block_in_existence
+
+Android: `SchemaVersion.V2.updateOnce` performs the V2 to V3 migration
+by dropping `every_block_in_existence` and recreating it. The `position`
+REAL column became `frac_position` TEXT; no attempt is made to migrate
+existing rows, so any block rows already on the device are lost on first
+launch after the V3 install.
+
+Reference location: none - this is a one-time project-state choice, not
+a domain design. The web side accepted the same data loss (project is
+pre-data and gets wiped).
+
+To verify: N/A once the project has real data. Until then, this is
+accepted data loss, not a design to keep.

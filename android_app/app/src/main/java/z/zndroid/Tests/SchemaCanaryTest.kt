@@ -30,8 +30,7 @@ class SchemaCanaryTest : AppTest {
         EveryBlockInExistenceTableSchema.allColumns.forEach { col ->
             val expected = when (col.name) {
                 "id" -> "INTEGER"
-                "is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "page_is_disabled" -> "TEXT"
-                "position" -> "REAL"
+                "is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "frac_position", "page_is_disabled" -> "TEXT"
                 else -> "UNKNOWN"
             }
             assertCol("every_block_in_existence", col.name, col.typeName, expected)

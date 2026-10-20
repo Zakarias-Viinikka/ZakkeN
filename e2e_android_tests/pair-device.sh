@@ -16,18 +16,22 @@ write_env() {
   printf 'PHONE_IP=%s\nPHONE_PORT=%s\n' "$1" "$2" > "$ENV_FILE"
 }
 
+# Load saved IP early so the pairing prompts can reuse it.
+SAVED_IP=""
+if [ -f "$ENV_FILE" ]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  SAVED_IP="${PHONE_IP:-}"
+fi
+
 if ready; then
   log "already connected: $(serial)"
   exit 0
 fi
 
-if [ -f "$ENV_FILE" ]; then
-  # shellcheck disable=SC1090
-  source "$ENV_FILE"
-  if [ -n "${PHONE_IP:-}" ] && [ -n "${PHONE_PORT:-}" ] && try_connect "$PHONE_IP:$PHONE_PORT"; then
-    log "connected via saved address: $(serial)"
-    exit 0
-  fi
+if [ -n "$SAVED_IP" ] && [ -n "${PHONE_PORT:-}" ] && try_connect "$SAVED_IP:$PHONE_PORT"; then
+  log "connected via saved address: $(serial)"
+  exit 0
 fi
 
 for _ in 1 2 3; do
@@ -42,40 +46,71 @@ done
 
 cat >&2 <<'EOF'
 
-No saved address worked and mDNS found nothing. This usually means the
-pairing is gone (phone rebooted, Wireless Debugging toggled off/on).
+Couldn't connect. This usually means the pairing is gone (phone rebooted,
+Wireless Debugging toggled off/on).
 
 On the phone:
   Settings > Developer Options > Wireless Debugging
   Tap "Pair device with pairing code"
-  Copy both values:
+
+That opens a dialog with two values:
+  - an IP address and a PORT (this port is unique to pairing)
+  - a 6-digit pairing code
+
+You'll enter those next.
 
 EOF
-read -r -p "Pairing IP:port: " pair_addr
-read -r -p "Pairing code:   " pair_code
-[ -z "${pair_addr:-}" ] && { log "no address"; exit 4; }
-[ -z "${pair_code:-}" ] && { log "no code"; exit 4; }
-[[ "$pair_addr" != *:* ]] && { log "must be host:port"; exit 4; }
 
-log "pairing..."
+if [ -n "$SAVED_IP" ]; then
+  log "using saved IP from $ENV_FILE: $SAVED_IP"
+  read -r -p "Pairing port (the number after ':' in the dialog): " pair_port
+  [ -z "${pair_port:-}" ] && { log "no port given"; exit 4; }
+  pair_addr="$SAVED_IP:$pair_port"
+else
+  log "no saved IP in $ENV_FILE"
+  read -r -p "Pairing IP:port (e.g. 192.168.1.42:41881): " pair_addr
+  [ -z "${pair_addr:-}" ] && { log "no address given"; exit 4; }
+  if [[ "$pair_addr" != *:* ]]; then
+    log "expected ip:port (with a colon), got '$pair_addr'. Use the full value from the pairing dialog, not just the port."
+    exit 4
+  fi
+fi
+
+read -r -p "Pairing code (6 digits from the same dialog): " pair_code
+[ -z "${pair_code:-}" ] && { log "no code given"; exit 4; }
+
+log "pairing with $pair_addr..."
 paired=0
 for attempt in 1 2 3 4; do
   adb pair "$pair_addr" "$pair_code" && { paired=1; break; }
-  log "attempt $attempt failed; adb kill-server and retry..."
+  log "attempt $attempt failed; restarting adb and retrying..."
   adb kill-server 2>/dev/null || true
   sleep 2
 done
-[ "$paired" -eq 1 ] || { log "pairing failed; open a fresh dialog and re-run"; exit 5; }
+[ "$paired" -eq 1 ] || { log "pairing failed; open a fresh pairing dialog and re-run"; exit 5; }
 
 cat >&2 <<'EOF'
 
-Paired. Now close the pair dialog. On the main Wireless Debugging screen,
-under the toggle, copy "IP address & Port".
+Paired. Now close the pair dialog and look at the main Wireless Debugging
+screen. Under the toggle there's an "IP address & Port" line.
+
+That port is DIFFERENT from the pairing port. Use the one shown here.
 
 EOF
-read -r -p "Connect IP:port: " connect_addr
-[ -z "${connect_addr:-}" ] && { log "no address"; exit 6; }
-[[ "$connect_addr" != *:* ]] && { log "must be host:port"; exit 6; }
+
+if [ -n "$SAVED_IP" ]; then
+  log "using saved IP from $ENV_FILE: $SAVED_IP"
+  read -r -p "Connect port (the number after ':' on the main screen): " connect_port
+  [ -z "${connect_port:-}" ] && { log "no port given"; exit 6; }
+  connect_addr="$SAVED_IP:$connect_port"
+else
+  read -r -p "Connect IP:port (e.g. 192.168.1.42:5555): " connect_addr
+  [ -z "${connect_addr:-}" ] && { log "no address given"; exit 6; }
+  if [[ "$connect_addr" != *:* ]]; then
+    log "expected ip:port (with a colon), got '$connect_addr'. Use the full value from the main screen, not just the port."
+    exit 6
+  fi
+fi
 
 write_env "${connect_addr%:*}" "${connect_addr##*:}"
 log "saved $ENV_FILE"

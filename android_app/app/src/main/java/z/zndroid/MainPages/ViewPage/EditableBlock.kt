@@ -89,7 +89,7 @@ fun EditableBlock(
                             // that hadn't been persisted yet, and the text
                             // is lost on reload.
                             EditTextInBlock.flushBuffer(boss, state, onHardReload)
-                            splitBlock(boss, state, cursor, index + 1, onHardReload) { newBlockId ->
+                            splitBlock(boss, state, cursor, index, onHardReload) { newBlockId ->
                                 onRefreshWithFocus(newBlockId, 0)
                             }
                         }
@@ -128,7 +128,7 @@ fun EditableBlock(
                                             // Flush pending buffered edits before
                                             // splitting. See soft-Enter path above.
                                             EditTextInBlock.flushBuffer(boss, state, onHardReload)
-                                            splitBlock(boss, state, cursor, index + 1, onHardReload) { newBlockId ->
+                                            splitBlock(boss, state, cursor, index, onHardReload) { newBlockId ->
                                                 onRefreshWithFocus(newBlockId, 0)
                                             }
                                         }

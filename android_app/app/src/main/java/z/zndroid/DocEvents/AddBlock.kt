@@ -45,7 +45,8 @@ object AddBlock {
                 blockMetaData = ctx.metadata,
                 position = ctx.position,
                 isPartOfMainMenuPage = isMainMenu,
-                sessionId = sessionId
+                sessionId = sessionId,
+                insertWithExistingBlockId = null
             )
 
             // 2. Persistence to SQLite inside a single transaction
@@ -67,7 +68,7 @@ object AddBlock {
                     newValue = Col.Blob(pagesUpdate.yrsBlob)
                 )).getOrThrow()
 
-                // Action 2: Insert into every_block_in_existence with position = null, returning id
+                // Action 2: Insert into every_block_in_existence with the frac position
                 val insertCtx = everything.everyBlockInExistenceInsert
                 val blockRow = newEveryBlockInExistenceRow(
                     isTitle = ctx.isTitle,
@@ -75,38 +76,14 @@ object AddBlock {
                     content = insertCtx.content,
                     myIdAsGivenByYrs = insertCtx.myIdAsGivenByYrs,
                     idOfPageIBelongTo = insertCtx.idOfPageIBelongTo,
-                    position = null
+                    fracPosition = insertCtx.fracPosition
                 )
                 val blockValues = SafeRowMapper.mapRow(
                     row = blockRow,
                     columnDefs = newTableEveryBlockInExistence(),
-                    expectedNames = listOf("is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "position", "page_is_disabled")
+                    expectedNames = listOf("is_title", "is_part_of_main_menu_page", "content", "my_id_as_given_by_yrs", "id_of_page_i_belong_to", "frac_position", "page_is_disabled")
                 )
-                val insertAndGetRes = DbManager.insertDataAndGetCol(InsertDataAndGetColIn(
-                    tableName = "every_block_in_existence",
-                    values = blockValues,
-                    columnToReturn = "id"
-                )).getOrThrow()
-
-                val newIdString = when (val colVal = insertAndGetRes.value) {
-                    is Col.Integer -> colVal.v1.toString()
-                    is Col.Real -> colVal.v1.toLong().toString()
-                    is Col.Text -> colVal.v1
-                    else -> throw Exception("Expected id, got ${insertAndGetRes.value}")
-                }
-                val newIdDouble = when (val colVal = insertAndGetRes.value) {
-                    is Col.Integer -> colVal.v1.toDouble()
-                    is Col.Real -> colVal.v1
-                    else -> newIdString.toDouble()
-                }
-
-                // Action 3: Set position column to the row id as float (REAL)
-                DbManager.editColInRow(EditColInRowIn(
-                    tableName = "every_block_in_existence",
-                    rowId = newIdString,
-                    column = "position",
-                    newValue = Col.Real(newIdDouble)
-                )).getOrThrow()
+                DbManager.insertData(InsertDataIn("every_block_in_existence", blockValues)).getOrThrow()
 
                 // Action 4: Insert into client_love_letter
                 val llCtx = everything.clientLoveLetter

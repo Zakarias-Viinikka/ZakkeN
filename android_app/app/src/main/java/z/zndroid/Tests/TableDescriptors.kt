@@ -30,10 +30,10 @@ object EveryBlockInExistenceTableSchema {
     val content = ColumnDescriptor("content", "TEXT") { (it as Col.Text).v1 }
     val myIdAsGivenByYrs = ColumnDescriptor("my_id_as_given_by_yrs", "TEXT") { (it as Col.Text).v1 }
     val idOfPageIBelongTo = ColumnDescriptor("id_of_page_i_belong_to", "TEXT") { (it as Col.Text).v1 }
-    val position = ColumnDescriptor("position", "REAL") { (it as Col.Real).v1 }
+    val fracPosition = ColumnDescriptor("frac_position", "TEXT") { (it as Col.Text).v1 }
     val pageIsDisabled = ColumnDescriptor("page_is_disabled", "TEXT") { (it as Col.Text).v1 }
 
-    val allColumns = listOf(id, isTitle, isPartOfMainMenuPage, content, myIdAsGivenByYrs, idOfPageIBelongTo, position, pageIsDisabled)
+    val allColumns = listOf(id, isTitle, isPartOfMainMenuPage, content, myIdAsGivenByYrs, idOfPageIBelongTo, fracPosition, pageIsDisabled)
 }
 
 object BacklinksTableSchema {

@@ -140,13 +140,7 @@ fun ViewPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    // Show the title block's content, not the page_id.
-                    // page_id is a long UUID now; title block is what the
-                    // user actually named the page.
-                    val titleText = uiStates.firstOrNull()?.text?.takeIf { it.isNotBlank() } ?: "Untitled"
-                    Text(titleText)
-                },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = {
                         // Flush any pending buffered edits before leaving

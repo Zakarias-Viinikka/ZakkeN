@@ -22,12 +22,12 @@ Methods: create_table, create_foreign_table, list_tables, get_data, get_data_ord
 Use `awaitReady()` before calling DB methods in UI components.
 
 Database Lifecycle & Schema Migrations:
-All table schemas are managed via `z.zndroid.db.migrations.MigrationManager`. It executes a transactional walk-loop on initialization inside `DbManager.init(context)`. Version states are tracked inside the `SchemaVersion` enum (LATEST is V1) and persisted under the `schema_version` key in `key_value_storage`.
+All table schemas are managed via `z.zndroid.db.migrations.MigrationManager`. It executes a transactional walk-loop on initialization inside `DbManager.init(context)`. Version states are tracked inside the `SchemaVersion` enum (LATEST is V3) and persisted under the `schema_version` key in `key_value_storage`.
 
 Table blueprints (client_table_blueprints - Note: Historic snapshots are frozen inside `z.zndroid.db.migrations.schemas` package):
 pages: id, page_id, blobbed_page, page_status, version, is_main_menu_page
 backlinks: id, page_that_holds_link_id, page_being_linked_to_id, disabled, version
-every_block_in_existence: id, is_title, is_part_of_main_menu_page, content, my_id_as_given_by_yrs, id_of_page_i_belong_to, position, page_is_disabled
+every_block_in_existence: id, is_title, is_part_of_main_menu_page, content, my_id_as_given_by_yrs, id_of_page_i_belong_to, frac_position, page_is_disabled
 client_love_letter: id, snapshot_of_edit, love_letter_sketch, session_id, target_id
 key_value_storage: id, key, value
 incoming_love_letters: id, love_letter, target_page_id
@@ -46,7 +46,7 @@ Row creation helpers:
 newPageRow(pageId, isMainMenuPage, blobbedPage, version)
 newBacklinkRow(pageThatHoldsLinkId, pageBeingLinkedToId, disabled, version)
 newKeyValueItem(key, value)
-newEveryBlockInExistenceRow(isTitle, isPartOfMainMenuPage, content, myIdAsGivenByYrs, idOfPageIBelongTo, position)
+newEveryBlockInExistenceRow(isTitle, isPartOfMainMenuPage, content, myIdAsGivenByYrs, idOfPageIBelongTo, fracPosition)
 newLogRow(timestamp, level, category, source, sessionId, message)
 newIncomingLoveLetterRow(loveLetter, targetPageId)
 
@@ -54,12 +54,15 @@ LoveLetter library:
 LoveLetterSketch - describes the user's intent. Variants:
 EditBlock { text_edit, edit_target, target_page_id, block_id }
 CreateNewBlock { position_to_insert, target_page_id }
+CreateNewBlockWithId { block_id, position_to_insert, target_page_id }
 RemoveBlock { block_id, target_page_id }
+MoveBlock { block_id, target_page_id, new_frac_position }
 
 Document Events (z.zndroid.DocEvents):
 AddBlock: insert new block (persists to data + sync tables). Returns blockId.
-  Position rule: SQLite `position` is an f64 sort key, gap-based (avg of above/below when inserting in the middle, max+1 at end, min-1 at top). New rows get position computed in `AddBlock.computeDbPosition`; there is no reindexing of neighbors on insert.
-  Yrs array order is authoritative for content; SQLite `position` only orders the queryable table.
+  Order rule: SQLite `frac_position` is a TEXT fractional-index hex string produced by the `smart_frac_index` crate. Two blocks compare by it; ties break on block id. The builder fills it in from the live yrs doc before the row is inserted; there is no placeholder-then-update step any more.
+  PositionToInsert is `AtEnd` or `Between(blockIdOfAbove, blockIdOfBelow)`. The old `SpecificPosition(n)` numeric-slot variant is gone.
+  A read of a page sorts by `(frac_position, block_id)`. There is no renumbering.
 EditTextInBlock: updates text using text_diff. Generates Yrs TextEdit.
 RemoveBlock: deletes block from CRDT and SQLite.
 CheckIfTablesInSync: compares SQLite row content vs CRDT blob content.

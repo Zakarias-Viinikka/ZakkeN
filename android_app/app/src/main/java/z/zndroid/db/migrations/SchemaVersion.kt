@@ -4,6 +4,7 @@ import com.z_db.android_mascot.LiveForever
 import uniffi.protocol.*
 import z.zndroid.db.migrations.schemas.Version0
 import z.zndroid.db.migrations.schemas.Version1
+import z.zndroid.db.migrations.schemas.Version2
 import z.zndroid.protocol.SafeRowMapper
 
 enum class SchemaVersion(val version: Int) {
@@ -88,7 +89,29 @@ enum class SchemaVersion(val version: Int) {
     },
     V2(2) {
         override fun bootstrap(db: LiveForever) {
-            V1.bootstrap(db)
+            db.createTable(CreateTableIn("key_value_storage", Version1.keyValueStorageColumns()))
+            db.createTable(CreateTableIn("pages", Version1.pagesColumns()))
+            db.createTable(CreateTableIn("client_love_letter", Version1.clientLoveLetterColumns()))
+            db.createTable(CreateTableIn("logs", Version1.logsColumns()))
+            db.createTable(CreateTableIn("incoming_love_letters", Version1.incomingLoveLettersColumns()))
+            db.createForeignTable(CreateForeignTableIn("backlinks", Version1.backlinksColumns(), Version1.getForeignDefBacklinks()))
+            db.createForeignTable(CreateForeignTableIn("every_block_in_existence", Version2.everyBlockInExistenceColumns(), Version2.getForeignDefEveryBlockInExistence()))
+        }
+
+        override fun updateOnce(db: LiveForever): SchemaVersion {
+            // V2 -> V3: every_block_in_existence.position (REAL) became
+            // frac_position (TEXT). The project is pre-data; drop and
+            // recreate rather than migrating rows.
+            try {
+                db.dropTable(DropTableIn("every_block_in_existence"))
+            } catch (_: Exception) {}
+            db.createForeignTable(CreateForeignTableIn("every_block_in_existence", Version2.everyBlockInExistenceColumns(), Version2.getForeignDefEveryBlockInExistence()))
+            return V3
+        }
+    },
+    V3(3) {
+        override fun bootstrap(db: LiveForever) {
+            V2.bootstrap(db)
         }
 
         override fun updateOnce(db: LiveForever): SchemaVersion = this
@@ -98,7 +121,7 @@ enum class SchemaVersion(val version: Int) {
     abstract fun updateOnce(db: LiveForever): SchemaVersion
 
     companion object {
-        val LATEST = V2
+        val LATEST = V3
 
         fun fromInt(version: Int): SchemaVersion {
             return values().find { it.version == version }
@@ -124,7 +147,7 @@ enum class SchemaVersion(val version: Int) {
             if (liveBacklinks != frozenBacklinks) throw SchemaMismatchException("backlinks", liveBacklinks, frozenBacklinks)
 
             val liveEveryBlock = rustlib.client_table_blueprints.newTableEveryBlockInExistence()
-            val frozenEveryBlock = Version1.everyBlockInExistenceColumns()
+            val frozenEveryBlock = Version2.everyBlockInExistenceColumns()
             if (liveEveryBlock != frozenEveryBlock) throw SchemaMismatchException("every_block_in_existence", liveEveryBlock, frozenEveryBlock)
 
             val liveKV = rustlib.client_table_blueprints.newTableKeyValueStorage()
@@ -144,7 +167,7 @@ enum class SchemaVersion(val version: Int) {
             if (liveFKBacklinks != frozenFKBacklinks) throw SchemaMismatchException("FK backlinks", liveFKBacklinks, frozenFKBacklinks)
 
             val liveFKEveryBlock = rustlib.client_table_blueprints.getForeignDefEveryBlockInExistence()
-            val frozenFKEveryBlock = Version1.getForeignDefEveryBlockInExistence()
+            val frozenFKEveryBlock = Version2.getForeignDefEveryBlockInExistence()
             if (liveFKEveryBlock != frozenFKEveryBlock) throw SchemaMismatchException("FK every_block", liveFKEveryBlock, frozenFKEveryBlock)
         }
     }

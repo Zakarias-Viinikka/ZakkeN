@@ -1,5 +1,12 @@
 # Implementation Plan
 
+COMPLETED as of 2026-10-20. Steps 1 through 13 have been executed against
+the current Android tree, with the schema version bumped all the way to
+V3 (frac_position replaced position). This file is kept as a record of
+the order work was done in. Do not read its "current state" claims as
+current - a later 2026-10-20 round changed every_block_in_existence again.
+See docs/OUTSIDE_ANDROID_APP.md, section "What changed again - 2026-10-20".
+
 Read docs/OUTSIDE_ANDROID_APP.md first. It explains why each of these
 is needed and what the outside world looks like. This file is only the
 order of work.

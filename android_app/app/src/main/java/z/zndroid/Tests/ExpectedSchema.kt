@@ -5,7 +5,7 @@ package z.zndroid.Tests
  * Reflects the current live schema blueprints.
  */
 object ExpectedSchema {
-    val schemaVersion = 1
+    val schemaVersion = 3
 
     val tables = mapOf(
         "pages" to PagesTableSchema.allColumns.map { it.name },

@@ -93,7 +93,7 @@ every_block_in_existence - gained two columns:
   is_part_of_main_menu_page (Text) - inserted after is_title
   page_is_disabled (Text) - at the end
 Full list: id, is_title, is_part_of_main_menu_page, content,
-my_id_as_given_by_yrs, id_of_page_i_belong_to, position,
+my_id_as_given_by_yrs, id_of_page_i_belong_to, frac_position,
 page_is_disabled.
 
 backlinks - unchanged. id, page_that_holds_link_id,
@@ -121,7 +121,7 @@ new_page_row(page_id, is_main_menu_page, blobbed_page, version) - four
 arguments now. The old call passed three.
 
 new_every_block_in_existence_row(is_title, is_part_of_main_menu_page,
-content, my_id_as_given_by_yrs, id_of_page_i_belong_to, position) - six
+content, my_id_as_given_by_yrs, id_of_page_i_belong_to, frac_position: String) - six
 arguments.
 
 new_log_row(timestamp, level, category, source, session_id, message,
@@ -234,9 +234,11 @@ frozen version against the live Rust blueprints and throws if they
 disagree.
 
 Since the Rust schema has changed, this test fails. The correct fix is:
-freeze a new version (V1) that matches the current live Rust blueprints,
-add a migration step from V0 to V1 that alters the tables as needed, and
-bump LATEST to V1. V0 stays as it is - it is history.
+freeze a new version (whatever the next one is - as of 2026-10-20 that is
+Version2.kt / V3) that matches the current live Rust blueprints, add a
+migration step from the previous version that alters the tables as
+needed, and bump LATEST to the new version. Frozen versions stay as they
+are - they are history.
 
 This is also the drift-detection mechanism for schema shape, as opposed
 to column types (which the canary test covers).
@@ -349,7 +351,7 @@ In the builder crate, `UncommitedDiffsInsertCtx` became
 `EverythingForEditBlock`, `EverythingForDisablePage` and the new
 `EverythingForAddBlock` / `EverythingForDeleteBlock`.
 
-### newEveryBlockInExistenceRow takes an optional position
+### newEveryBlockInExistenceRow takes an optional position (superseded 2026-10-20: it now takes `fracPosition: String`)
 
 The `position` argument changed from `f64` to `Option<f64>`.
 `None` means "I don't know the position yet - insert a placeholder and
@@ -376,7 +378,8 @@ Both are exported through uniffi and return `BuilderErr` on failure, the
 same as create_page / edit_block / disable_page.
 
   add_block(yrs, block_content, block_meta_data, position,
-            is_part_of_main_menu_page, session_id)
+            is_part_of_main_menu_page, session_id,
+            insert_with_existing_block_id: Option<String>)
     -> EverythingForAddBlock { pages_update,
                                every_block_in_existence_insert,
                                client_love_letter }
@@ -386,13 +389,14 @@ same as create_page / edit_block / disable_page.
                                   client_love_letter }
 
 The Rust executors for them live in the executor crate as
-`add_block_requires_four_db_actions` and
+`add_block_requires_three_db_actions` and
 `delete_block_requires_three_db_actions`. Those are wasm-only; Android
 writes its own executor in Kotlin, mirroring the behaviour.
 
-add_block's executor does four things in one transaction: update
-pages.blobbed_page, insert the block row, set that row's position to its
-own id as a float, insert the client_love_letter row.
+add_block's executor does three things in one transaction (superseded
+2026-10-20): update pages.blobbed_page, insert the block row (with
+frac_position already set), insert the client_love_letter row. The
+set-position-to-row-id step is gone.
 
 delete_block's executor does three: update pages.blobbed_page, delete
 the every_block_in_existence row matching `my_id_as_given_by_yrs`,
@@ -411,9 +415,9 @@ after the skip; there is no cap. Nothing existing changed.
 
 Moving a block has no Rust implementation yet - no yrs move method, no love_letter variant, no builder, no executor. Android should not build one either, because there is no reference to mirror yet.
 
-`new_every_block_in_existence_row` takes `position: Option<f64>`. `None` means "insert a placeholder and update the row after insert" - that is what add_block's executor does. Android's executor should follow the same shape.
+`new_every_block_in_existence_row` takes `frac_position: String`. The placeholder-then-update dance is gone.
 
-The db-side ordering scheme is still unresolved. `position` currently holds the row's own id as a float, which is insertion order, not sort order. A real reorder cannot be expressed with it. Whatever Android does here has to match whatever web lands on.
+The db-side ordering scheme is resolved. See the 2026-10-20 section below.
 
 ## Migration V2 and add-page fix - 2026-10-19
 
@@ -515,3 +519,105 @@ Removed:
 The `assert_sync` runner method and `CHECK_SYNC` debug broadcast still exist and work. Nothing uses them right now. Keep them for when a specific logic test is worth writing.
 
 Rationale: the suite's job is to catch regressions in what a user would notice. If internal sync breaks but the UI still shows the right thing, that's web's problem to catch (web is the reference). If it breaks and the user notices, that becomes a new regression test at that moment.
+
+## What changed again - 2026-10-20
+
+### every_block_in_existence.position became frac_position
+
+`position` was a REAL that held the row's own id as a float. It could
+not express a reorder. It is now `frac_position`: TEXT, a hex
+fractional-index string produced by the root crate `smart_frac_index`
+(which wraps the `fracindex` crate). Two blocks compare by this string;
+on a tie, block id decides. Reads sort by `(frac_position, block_id)`.
+Nothing renumbers.
+
+### PositionToInsert.SpecificPosition removed
+
+`PositionToInsert` is now `AtEnd` or `Between(blockIdOfAbove,
+blockIdOfBelow)`, matching the shape `move_block` already takes. The
+numeric-slot variant `SpecificPosition(n)` is gone; array slot stopped
+meaning anything once order came from frac position.
+
+This affects every builder that took a `PositionToInsert`. On the Kotlin
+side, `Between` is a data class with two nullable String fields:
+`blockIdOfAbove`, `blockIdOfBelow`.
+
+### add_block gained a seventh parameter
+
+    addBlock(yrs, blockContent, blockMetaData, position,
+             isPartOfMainMenuPage, sessionId,
+             insertWithExistingBlockId: String?)
+        -> EverythingForAddBlock
+
+Pass `null` for the normal path (generated id). Pass `Some(block_id)`
+for the "insert under existing id" path, used by cross-page move.
+
+`EverythingForAddBlock.everyBlockInExistenceInsert` gained
+`fracPosition: String`, and its old `position: Double?` field is gone.
+The builder fills it in from the live yrs doc; there is no
+placeholder-then-update.
+
+### add_block executor is three actions, not four
+
+    add_block_requires_three_db_actions
+
+Update pages.blobbed_page, insert the block row (with frac_position
+already set), insert the client_love_letter row. The
+`set_block_position_to_id` step is gone.
+
+### yrs gained methods for cross-page move
+
+On BossOfYrs:
+
+    insertNewBlockWithPreexistingId(blockId, blockContent, blockMetaData,
+                                    positionToInsert) -> Unit
+
+Same as `insertNewBlock` but the caller supplies the block id. Errors
+if that id already exists in this page.
+
+    getFracPositionOfBlock(blockId) -> String
+
+The block's current frac position. Useful right after a move so the
+letter carries the exact value.
+
+    moveBlock(blockId, blockIdOfAbove, blockIdOfBelow) -> Unit
+
+Writes a new frac position onto the block. Same-page move. Not a
+delete-and-reinsert, so concurrent moves converge to one winner.
+
+    computeNewFracPosition(blockIdOfAbove, blockIdOfBelow) -> String
+
+The frac position a new block would get at that slot.
+
+### love_letter gained CreateNewBlockWithId and MoveBlock
+
+LoveLetterSketch / LoveLetter both have:
+
+    CreateNewBlockWithId { block_id, position_to_insert, target_page_id }
+    MoveBlock { block_id, target_page_id, new_frac_position }
+
+Cross-page move is done as two separate letters - RemoveBlock on the
+old page, CreateNewBlockWithId on the new - so the two-page edit stays
+out of a single letter.
+
+### Cross-page move exists on the web side
+
+`ui_actions_move_block_operations::move_block_to_another_page` opens one
+transaction, calls `delete_block` on the old page's boss and
+`add_block(Some(block_id), ...)` on the new page's boss, runs both
+executors inside it. Android has no UI for this yet; when it gets one,
+it mirrors this pattern.
+
+### Migration V3
+
+`SchemaVersion.LATEST` is now V3. V2's `updateOnce` performs the V2 to
+V3 migration by dropping and recreating `every_block_in_existence`:
+`position` REAL became `frac_position` TEXT, and no attempt is made to
+migrate existing rows. Any block rows already on the device are lost
+on first launch after V3 installs. The project is pre-data, so this is
+accepted.
+
+V3's bootstrap delegates to V2's. `assertLatestMatchesBlueprints` now
+compares `every_block_in_existence` (and its foreign keys) against
+`Version2.kt`, not `Version1.kt`. Everything else still compares
+against `Version1.kt`.

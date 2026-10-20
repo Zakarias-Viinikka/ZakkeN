@@ -65,20 +65,18 @@ suspend fun splitBlock(
     boss: BossOfYrs,
     state: BlockUiState,
     cursorPosition: Int,
-    nextPosition: Int,
+    currentIndex: Int,
     onHardReload: () -> Unit,
     onUpdate: (String?) -> Unit
 ) {
     var newBlockId: String? = null
     z.zndroid.DbManager.withTransaction {
-        // 1. Flush any pending buffered edits first within the transaction
         EditTextInBlock.flushBuffer(boss, state, onHardReload).getOrThrow()
 
         val fullText = state.text
         val head = fullText.substring(0, cursorPosition.coerceAtMost(fullText.length))
         val tail = fullText.substring(cursorPosition.coerceAtMost(fullText.length))
 
-        // 2. Truncate current block to the 'head'
         EditTextInBlock.execute(
             EditTextInBlockCtx(
                 boss = boss,
@@ -88,12 +86,19 @@ suspend fun splitBlock(
             )
         ).getOrThrow()
 
-        // 3. Create the new block with the 'tail' text
+        // The new block goes right after this one. Above = this block.
+        // Below = whatever came next, or null if this was last.
+        val blocks = boss.getEntirePage()
+        val blockIdOfBelow = blocks.getOrNull(currentIndex + 1)?.idInYrs
+
         newBlockId = AddBlock.execute(
             AddBlockCtx(
                 boss = boss,
                 content = tail,
-                position = PositionToInsert.SpecificPosition(nextPosition.toUInt())
+                position = PositionToInsert.Between(
+                    blockIdOfAbove = state.blockId,
+                    blockIdOfBelow = blockIdOfBelow
+                )
             )
         ).getOrThrow()
     }.getOrThrow()
