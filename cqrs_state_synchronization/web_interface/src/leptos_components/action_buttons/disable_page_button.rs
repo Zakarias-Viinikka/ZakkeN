@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 
 use crate::{
-    complicated_signal_flow::LocalPages, db::ui_actions::disable_page,
+    complicated_signal_flow::{BatcherHandle, LocalPages}, db::ui_actions::disable_page,
     leptos_components::small_components::popup::create_popup,
 };
 
@@ -13,14 +13,16 @@ pub fn DisablePageButton(
     page_id: String,
     local_pages_set: WriteSignal<Vec<LocalPages>>,
 ) -> impl IntoView {
+    let batcher_handle = expect_context::<BatcherHandle>();
     view! {
         <button
             class="peek_button"
             inner_html=EYE_IMG
             on:click=move |_| {
                 let page_id = page_id.clone();
+                let batcher_handle = batcher_handle.clone();
                 spawn_local(async move {
-                    match disable_page(page_id.clone(), crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR)).await {
+                    match disable_page(batcher_handle, page_id.clone(), crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR)).await {
                         Err(e) => create_popup(format!("Error: {:?}", e)),
                         Ok(()) => {
                             local_pages_set.update(|pages| {

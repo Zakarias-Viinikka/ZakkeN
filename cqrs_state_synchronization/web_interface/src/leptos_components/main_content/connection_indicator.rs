@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::complicated_signal_flow::PageLoadState;
+use crate::page_state::PageLoadState;
 
 #[component]
 pub fn ConnectionIndicator(

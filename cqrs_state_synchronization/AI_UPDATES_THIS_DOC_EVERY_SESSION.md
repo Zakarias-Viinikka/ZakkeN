@@ -1,3 +1,44 @@
+Tuesday, 20 October 2026 (end of session)
+==========================================
+
+Batcher, text-input event, block creation, block deletion.
+
+Batcher lives in complicated_signal_flow.rs. BatcherHandle is cloneable
+and has push_edit(boss, block_id, diff) and flush_now(). Batcher::run
+drains the channel; a poke starts a 500ms gloo-timers debounce that
+drains on either timeout or an explicit Flush message. Pending edits
+are grouped by block, squashed with combine_getdiff_results, and applied
+through ui_actions::edit_block inside one transaction. On failure: whole
+batch rolls back, APP_LOCKED flips true, popup tells the user to copy
+and refresh. MainContent reads APP_LOCKED and changes the background.
+
+Every ui_actions write entry point now takes a BatcherHandle and flushes
+first: add_block, create_new_page, disable_page, move_block,
+move_block_to_another_page. edit_block is flush-free (it's the target).
+load_offline flushes before replacing the boss.
+
+Text input goes through BlockInputEvent (block_id, old_text, new_text,
+was_enter, cursor_pos), from MyBlockContent up to on_block_input. The
+Enter-split rule: Enter was pressed, block was non-empty, new text ends
+with two newlines, cursor was at the end. On that path the \n\n is
+pushed to the batcher first, then add_block runs, then the new block is
+appended to page.blocks locally (no reload). Focus via FOCUS_BLOCK_ID.
+
+Backspace or Delete in an empty non-title block asks MainContent to
+delete, refused if there's only one normal block left.
+
+Page and PageLoadState moved to page_state.rs. OpenPages (page1 plus
+RwSignal<Option<Page>> page2) is created in main.rs, put in context, and
+MainContentRoute resets page1's fields when the URL page_id changes
+using leptos batch().
+
+text_diff::get_diff had an underflow when the shared suffix overlapped
+the shared prefix (old "a\n\n" -> new "a\n\n\n"). Capped the last
+deviation position before subtracting.
+
+MyBlockContent: no body placeholder, subtler border, auto-size retried
+across a few frames on mount.
+
 Tuesday, 20 October 2026 (later)
 ================================
 

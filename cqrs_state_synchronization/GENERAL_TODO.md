@@ -69,3 +69,19 @@ Batcher notification has no home right now. When the batcher exists it needs a s
 BlockRow is the one block type. It lives in complicated_signal_flow.rs. There is no BlockInput anymore.
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.
+
+## On delete, animate the blocks like on move
+
+When a block is deleted, `sync_from_props` in the drag black box does a
+full rebuild, so every remaining block snaps into place. Instead: on a
+pure delete (one block gone, nothing else changed), remove the block
+from the internal list and let the remaining blocks run the same cascade
+animation they get on a move. Skips the rebuild flicker and reads better.
+
+## On delete, put the cursor at the end of the block above
+
+When a block is deleted (Backspace/Delete in an empty non-title block),
+focus should land at the end of the previous block's text, not disappear.
+Uses the same `FOCUS_BLOCK_ID` signal that split uses; the delete handler
+sets it with the previous block's id, and `MyBlockContent` focuses and
+parks the cursor at the end.

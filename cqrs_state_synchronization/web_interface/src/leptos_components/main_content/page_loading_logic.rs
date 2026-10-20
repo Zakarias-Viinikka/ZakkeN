@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::complicated_signal_flow::{Page, PageLoadState};
+use crate::page_state::{Page, PageLoadState};
 use crate::db::db_helpers_for_web_client;
 use crate::leptos_components::small_components::popup::create_popup;
 
@@ -25,7 +25,14 @@ pub fn preload_pages(page: Page) {
 /// Step 2. Read the yrs blob from db, build the BossOfYrs, read every
 /// block row for this page, seed the live block signal. Set Loaded on
 /// success, LoadFailed on error.
-pub async fn load_offline(page: Page) {
+pub async fn load_offline(page: Page, batcher: crate::complicated_signal_flow::BatcherHandle) {
+    // Flush pending edits before the boss is replaced. Without this,
+    // the last batch of typing against the old boss is dropped when
+    // the new one loads.
+    if let Err(e) = batcher.flush_now().await {
+        leptos::logging::error!("flush before load_offline failed: {:?}", e);
+    }
+
     let pid = page.page_id.get_untracked();
 
     let boss = match db_helpers_for_web_client::get_yrs_unblobbed(

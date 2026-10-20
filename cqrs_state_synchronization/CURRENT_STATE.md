@@ -91,3 +91,49 @@ at init, load, edit, and move surface as popups via
 `small_components::popup::create_popup`.
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.
+
+## Update 2026-10-20 (end of session)
+
+Batcher is live. `BatcherHandle` in `complicated_signal_flow.rs`:
+`push_edit(boss, block_id, diff)` appends and pokes, `flush_now()` sends
+a message and awaits a oneshot reply. `Batcher::run` drains the
+receiver; a poke starts a 500ms gloo-timers debounce, and either the
+timer expiring or a `Flush` message drains. Each block's pending diffs
+go through `combine_getdiff_results`, then `ui_actions::edit_block`,
+all inside one transaction. On failure the whole batch is rolled back,
+`APP_LOCKED` flips to true, and a popup tells the user to copy what
+they need and refresh. `MainContent` reads `APP_LOCKED` and changes the
+background. Only set once per session.
+
+Every ui_actions entry point that writes now takes a `BatcherHandle` and
+calls `flush_now()` first: `add_block`, `create_new_page`,
+`disable_page`, `move_block`, `move_block_to_another_page`.
+`edit_block` stays flush-free, since it's the flush target.
+`page_loading_logic::load_offline` also flushes before replacing the
+boss.
+
+Text input goes through `BlockInputEvent` (block_id, old_text, new_text,
+was_enter, cursor_pos) from `MyBlockContent` up to `on_block_input`.
+`check_if_should_make_new_block` fires only when Enter was pressed, the
+block was non-empty, the new text ends with two newlines, and the
+cursor was at the end. On that path the `\n\n` is pushed to the batcher
+first, then `add_block` runs and the new block is appended to
+`page.blocks` locally (no full reload). Focus is requested via
+`FOCUS_BLOCK_ID`.
+
+Backspace or Delete in an empty non-title block asks MainContent to
+delete the block. Refused when there's only one normal block left.
+
+`Page` and `PageLoadState` moved to `page_state.rs`. `OpenPages` (page1
+plus an RwSignal<Option<Page>> page2) is created in `main.rs` and put in
+context. `MainContentRoute` resets page1's fields when the URL's
+page_id changes, using leptos's `batch()` to avoid firing the load
+effect mid-reset.
+
+`text_diff::get_diff` had an underflow when the strings' shared suffix
+overlapped the shared prefix (e.g. old "a\n\n" -> new "a\n\n\n"). The
+last-deviation position is now capped before subtracting.
+
+`MyBlockContent` no longer shows a body placeholder, has a subtler
+border, and auto-sizes on mount by retrying the height measure across a
+few frames.

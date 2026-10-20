@@ -20,16 +20,19 @@ use my_yrs_lib::{BossOfYrs, YrsError, yrs_error::ErrorInfo, yrs_wrapper::Positio
 use std::sync::Arc;
 use web_internal_db::db_helper;
 
+use crate::complicated_signal_flow::BatcherHandle;
 use crate::db::db_helpers_for_web_client;
 use crate::db::ui_actions_helper::is_main_menu_page;
 
 pub async fn move_block(
+    batcher: BatcherHandle,
     page_id: String,
     block_id: String,
     block_id_of_above: Option<String>,
     block_id_of_below: Option<String>,
     session_id: String,
 ) -> Result<(), CqrsErr> {
+    batcher.flush_now().await?;
     let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
         page_id,
         crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
@@ -51,6 +54,7 @@ pub async fn move_block(
 }
 
 pub async fn move_block_to_another_page(
+    batcher: BatcherHandle,
     old_boss: Arc<BossOfYrs>,
     new_boss: Arc<BossOfYrs>,
     block_id: String,
@@ -58,6 +62,7 @@ pub async fn move_block_to_another_page(
     new_block_below_id: Option<String>,
     session_id: String,
 ) -> Result<(), CqrsErr> {
+    batcher.flush_now().await?;
     let content = old_boss
         .clone()
         .read_block(block_id.clone())?

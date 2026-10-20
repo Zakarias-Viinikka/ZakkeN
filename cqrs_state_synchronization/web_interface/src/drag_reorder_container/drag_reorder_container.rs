@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use crate::complicated_signal_flow::BlockRow;
+use crate::complicated_signal_flow::{BlockInputEvent, BlockRow};
 use super::drag_reorder_black_box::{BlockRenderInput, DragReorderBlackBox, MoveEvent, PageInput};
 
 use super::my_block_content::MyBlockContent;
@@ -14,15 +14,18 @@ pub fn DragReorderContainer(
     #[prop(into)] pages: Signal<Vec<PageInput>>,
     #[prop(into)] blocks: Signal<Vec<BlockRow>>,
     on_move: Callback<MoveEvent>,
-    on_block_input: Callback<(String, String)>,
+    on_block_input: Callback<BlockInputEvent>,
+    on_delete_request: Callback<String>,
 ) -> impl IntoView {
     let render_block = Callback::new(move |block: BlockRenderInput| {
-        let block_id = block.block_id.clone();
-        let on_input = Callback::new(move |v: String| {
-            on_block_input.run((block_id.clone(), v));
+        let on_input = Callback::new(move |evt: BlockInputEvent| {
+            on_block_input.run(evt);
+        });
+        let on_del = Callback::new(move |bid: String| {
+            on_delete_request.run(bid);
         });
         view! {
-            <MyBlockContent block=block on_input=on_input />
+            <MyBlockContent block=block on_input=on_input on_delete_request=on_del />
         }
         .into_any()
     });

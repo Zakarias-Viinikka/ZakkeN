@@ -1,18 +1,82 @@
 use client_table_blueprints::{tbl_client_love_letter, tbl_every_block_in_existence, tbl_pages};
 use data_builder_for_operations_that_need_to_be_correct::{
-    create_page, disable_page as build_disable_page,
+    add_block as build_add_block, create_page, delete_block as build_delete_block,
+    disable_page as build_disable_page, edit_block as build_edit_block,
 };
 use error_stuff::CqrsErr;
 use leptos::prelude::*;
 use leptos::prelude::{GetUntracked, Set};
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
-    disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
+    add_block_requires_three_db_actions, delete_block_requires_three_db_actions,
+    disabled_page_requires_three_db_actions, edit_block_requires_three_db_inserts,
+    insert_page_requires_three_db_inserts,
 };
+use my_yrs_lib::yrs_wrapper::PositionToInsert;
+use my_yrs_lib::BossOfYrs;
 use protocol::payload::*;
+use std::sync::Arc;
+use text_diff::diff_logic::DiffResult;
 use web_internal_db::db_helper;
 
+use crate::complicated_signal_flow::BatcherHandle;
 use crate::db::db_helpers_for_web_client;
 use crate::db::ui_actions_helper::{get_active_pages_blob, get_page_is_disabled};
+
+/// Add one block to a page. The caller already has the boss; it does
+/// not need to be fetched here.
+pub async fn add_block(
+    batcher: BatcherHandle,
+    yrs: Arc<BossOfYrs>,
+    block_content: String,
+    block_meta_data: String,
+    position: PositionToInsert,
+    is_part_of_main_menu_page: bool,
+    session_id: String,
+) -> Result<String, CqrsErr> {
+    batcher.flush_now().await?;
+    let ctx = build_add_block(
+        yrs,
+        block_content,
+        block_meta_data,
+        position,
+        is_part_of_main_menu_page,
+        session_id,
+        None,
+    )?;
+    let block_id = ctx.every_block_in_existence_insert.my_id_as_given_by_yrs.clone();
+    add_block_requires_three_db_actions(ctx).await?;
+    Ok(block_id)
+}
+
+/// Write one block edit to db. Unlike `edit_title_for_page`, this takes
+/// the diff directly - the caller has already computed and squashed it.
+/// The batcher uses this so pending text buffers are flushed with one
+/// builder+executor call per block.
+pub async fn edit_block(
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    diff: DiffResult,
+    session_id: String,
+) -> Result<(), CqrsErr> {
+    let ctx = match build_edit_block(yrs, block_id, diff, session_id)? {
+        Some(ctx) => ctx,
+        None => return Ok(()),
+    };
+    edit_block_requires_three_db_inserts(ctx).await?;
+    Ok(())
+}
+
+pub async fn delete_block(
+    batcher: BatcherHandle,
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    session_id: String,
+) -> Result<(), CqrsErr> {
+    batcher.flush_now().await?;
+    let ctx = build_delete_block(yrs, block_id, session_id)?;
+    delete_block_requires_three_db_actions(ctx).await?;
+    Ok(())
+}
 
 pub async fn set_user_id(name: String) -> Result<(), CqrsErr> {
     crate::db::key_value_storage_db_actions::write_key_value_to_db("user_id", &name).await?;
@@ -38,7 +102,8 @@ async fn write_title_to_block(
     Ok(())
 }
 
-pub async fn create_new_page() -> Result<(), CqrsErr> {
+pub async fn create_new_page(batcher: BatcherHandle) -> Result<(), CqrsErr> {
+    batcher.flush_now().await?;
     let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
     let everything = create_page(true, session_id.clone())?;
 
@@ -58,7 +123,12 @@ pub async fn create_new_page() -> Result<(), CqrsErr> {
 
 pub use crate::db::ui_actions_move_block_operations::{move_block, move_block_to_another_page};
 
-pub async fn disable_page(page_id: String, session_id: String) -> Result<(), CqrsErr> {
+pub async fn disable_page(
+    batcher: BatcherHandle,
+    page_id: String,
+    session_id: String,
+) -> Result<(), CqrsErr> {
+    batcher.flush_now().await?;
     if get_page_is_disabled(page_id.clone()).await? {
         return Ok(());
     }

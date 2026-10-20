@@ -19,7 +19,16 @@ pub fn get_diff(old_text: &str, new_text: &str) -> DiffResult {
         return DiffResult::NoDiff;
     }
 
-    let diff_amount = last_deviation.position - first_deviation.position;
+    // When the shared suffix overlaps the shared prefix (e.g. old "a\n\n"
+    // -> new "a\n\n\n"), last_deviation.position can land before
+    // first_deviation.position. The unchanged suffix is shorter than the
+    // reverse walk implies, not negative, so cap the last deviation.
+    let max_len = get_longest_str_len(old_text, new_text);
+    let min_len = old_text.chars().count().min(new_text.chars().count());
+    let capped_last = last_deviation
+        .position
+        .max(max_len - min_len + first_deviation.position);
+    let diff_amount = capped_last - first_deviation.position;
 
     if old_text.chars().count() == new_text.chars().count() {
         let old_middle = string_from_diff_result(old_text, first_deviation.position, diff_amount);
