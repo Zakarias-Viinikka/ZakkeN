@@ -106,30 +106,50 @@ love_letter/android_output_folder, text_diff/android_output_folder -
 build artifacts the Android app downloads via update.sh. Regenerated
 by each crate's build script; committed to the repo.
 
-## cqrs next work - 2026-10-19
+## cqrs work status - 2026-10-21
 
-Nothing in this section is built yet. It says where the cqrs work is
-going so a fresh AI doesn't mistake the current shape for the final one.
+Most of the earlier near-term list is built now. `add_block`,
+`edit_block`, `delete_block`, `move_block`, and
+`move_block_to_another_page` all have a builder, an executor, and a
+`ui_actions` entry point. `text_diff` is a dependency. The batcher is
+live in `complicated_signal_flow/core.rs`, owned by `main.rs` and put
+in context as `BatcherHandle`. Every write entry point flushes first.
+Page-inside-page and the special menu (z+space opens, esc or space
+again closes, down arrow selects) are designed but not started. The
+loading system - preload, then offline, then server - is described in
+ZakkeN/cache_and_preload.md.
 
-Near-term: addblock / editblock / deleteblock across the builder, the
-executor and the web interface; text_diff as a dependency; a batcher
-owned by main.rs and passed around, with its timer and with an rx/tx
-message every page-affecting executor sends first ("batch immediately
-if still unfinished"). Page-inside-page and the special menu (z+space
-opens, esc or space again closes, down arrow selects) are designed but
-not started; the typed-trigger's planned details are written down
-somewhere and not yet located. The loading system - preload, then
-offline, then server - is designed in ZakkeN/cache_and_preload.md.
+Still open: focus-on-split (see GENERAL_TODO.md).
 
-GENERAL_TODO.md in the cqrs folder carries the full list.
+The drag-reorder UI lives inside `web_interface`, in
+`drag_reorder_container/`. The folder has three layers:
+`drag_reorder_container.rs` is the wrapper the app calls,
+`my_block_content.rs` is the block UI the human owns and edits, and
+`drag_reorder_black_box/` is the drag machinery with a
+renderer-for-blocks prop so the human never touches it. There is no
+separate `pure_web_ui_components` crate; that was tried and folded
+back in.
 
-Since that section was written, `add_block` and `delete_block` landed in the builder, the executor and the uniffi exports - but not in the web interface.
+`leptos_components/main_content/` holds the page view.
+`complicated_signal_flow/` at the crate root (a folder; the bulk is
+`core.rs`) holds `Page` (one page's whole live state - id, yrs doc,
+blocks, load state, preload request/response), `PageLoadState`,
+`BlockRow`, `LocalPages`, `Batcher`, `BatcherHandle`, `OpenPages`,
+`BlockInputEvent`, `APP_LOCKED`, `FOCUS_BLOCK_ID`, and
+`FOCUS_BLOCK_AT_START`. The load sequence is two effects per page: one
+matching on load state and advancing one step, one watching the
+preload response.
 
-The drag-reorder UI now lives inside `web_interface`, in `drag_reorder_container/`. The folder has three layers: `drag_reorder_container.rs` is the wrapper the app calls, `my_block_content.rs` is the block UI the human owns and edits, and `drag_reorder_black_box/` is the drag machinery with a renderer-for-blocks prop so the human never touches it. There is no separate `pure_web_ui_components` crate; that was tried and folded back in.
+Moving a block within a page works end to end on web, including after
+the frac rework. Cross-page move works on web. Back button still does
+not re-render without a manual refresh; cause not diagnosed.
 
-`leptos_components/main_content/` holds the page view. `complicated_signal_flow.rs` at the crate root holds `Page` (one page's whole live state - id, yrs doc, blocks, load state, preload request/response), `PageLoadState`, `BlockRow` and `LocalPages`. The load sequence is two effects per page: one matching on load state and advancing one step, one watching the preload response.
-
-Moving a block within a page works end to end on web. Cross-page move is not built. Back button does not re-render without refresh; cause not diagnosed.
+Known bug: focus-on-split. After a split, the focus effect runs and
+the new block's textarea is `document.activeElement`, but typing goes
+into the old block. `ZakkeN/tmp_focus_test` is a minimal Leptos
+project that replicates the mechanic and works, so the cause is
+structural in the real project. Being handed off to another AI to
+isolate by incrementally adding real-project mechanics.
 
 ## zakken_server - 2026-10-15
 

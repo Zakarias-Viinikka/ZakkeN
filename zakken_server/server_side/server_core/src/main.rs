@@ -28,17 +28,19 @@ async fn ws_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(app): State<AppState>,
 ) -> HttpResponse {
-    ws.on_upgrade(move |socket| socket::handle_socket(socket, app.state, app.clients, app.queue, addr))
+    ws.on_upgrade(move |socket| {
+        socket::handle_socket(socket, app.state, app.clients, app.queue, addr)
+    })
 }
 
 #[tokio::main]
 async fn main() {
-    let Some(state) = setup::open_and_prepare() else {
+    //state just holds the db handle as of writing this comment
+    let Some(state) = setup::setup_db() else {
         return;
     };
 
-    let (log_tx, log_rx) = mpsc::unbounded_channel();
-    server_core::logging::install_log_channel(log_tx.clone());
+    let (log_tx, log_rx) = server_core::logging::setup_logging();
 
     let clients = ConnectedClients::new(log_tx);
 

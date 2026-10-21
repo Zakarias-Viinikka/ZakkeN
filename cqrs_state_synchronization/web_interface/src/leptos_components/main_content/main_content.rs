@@ -5,9 +5,10 @@ use leptos::task::spawn_local;
 
 use my_yrs_lib::BossOfYrs;
 
-use crate::complicated_signal_flow::{BatcherHandle, BlockInputEvent, OpenPages};
+use crate::complicated_signal_flow::{BatcherHandle, BlockInputEvent, BlockRow, OpenPages};
 use crate::page_state::{Page, PageLoadState};
 use crate::db::db_helpers_for_web_client;
+
 use crate::drag_reorder_container::{DragReorderContainer, MoveEvent, PageInput};
 use crate::leptos_components::small_components::popup::create_popup;
 
@@ -135,6 +136,7 @@ pub fn MainContent() -> impl IntoView {
     });
 
     let batcher_handle_for_delete = batcher_handle.clone();
+    let batcher_handle_for_merge = batcher_handle.clone();
 
     let on_block_input = Callback::new(move |evt: BlockInputEvent| {
         let block_id = evt.block_id.clone();
@@ -148,34 +150,50 @@ pub fn MainContent() -> impl IntoView {
         let diff = text_diff::diff_logic::get_diff(&evt.old_text, &evt.new_text);
 
         if check_if_should_make_new_block(&evt) {
-            // Push the \n\n that triggered the split to the batcher before
-            // the block is created, so yrs sees the text the user typed.
-            // add_block flushes first, so yrs has the new content before
-            // the new block is inserted.
-            batcher_handle.push_edit(boss.clone(), block_id.clone(), diff);
+            let cursor = evt.cursor_pos;
+            let utf16: Vec<u16> = evt.new_text.encode_utf16().collect();
+            let before = String::from_utf16_lossy(&utf16[..cursor - 3]);
+            let after = String::from_utf16_lossy(&utf16[cursor..]);
+
+            // The three \n are the gesture, not content. yrs sees the
+            // block as `before`, the new block gets `after`.
+            let split_diff = text_diff::diff_logic::get_diff(&evt.old_text, &before);
+            batcher_handle.push_edit(boss.clone(), block_id.clone(), split_diff);
+
+            let before_for_update = before;
+            let block_id_for_update = block_id.clone();
+            page.blocks.update(|rows| {
+                if let Some(b) = rows.iter_mut().find(|b| b.block_id == block_id_for_update) {
+                    b.content = before_for_update;
+                }
+            });
+
             let session_id = crate::db::cached_ids::SESSION_ID
                 .get_untracked()
                 .expect(crate::db::cached_ids::INIT_ERR);
             spawn_local(async move {
-                split_block_at_end(page, boss, block_id, batcher_handle, session_id).await;
+                split_block_at_cursor(page, boss, block_id, after, batcher_handle, session_id).await;
             });
             return;
         }
 
-        batcher_handle.push_edit(boss, block_id, diff);
+        let new_text = evt.new_text.clone();
+        batcher_handle.push_edit(boss, block_id.clone(), diff);
+        page.blocks.update(|rows| {
+            if let Some(b) = rows.iter_mut().find(|b| b.block_id == block_id) {
+                b.content = new_text;
+            }
+        });
     });
 
     let on_delete_request = Callback::new(move |block_id: String| {
         let page = page1;
-        let normal_count = page
-            .blocks
-            .get_untracked()
-            .iter()
-            .filter(|b| !b.is_title)
-            .count();
+        let blocks = page.blocks.get_untracked();
+        let normal_count = blocks.iter().filter(|b| !b.is_title).count();
         if normal_count <= 1 {
             return;
         }
+        let above_id = get_block_above(&blocks, &block_id).map(|b| b.block_id.clone());
         let Some(boss) = page.boss_of_yrs.get_untracked() else {
             leptos::logging::error!("on_delete_request: no boss for block {}", block_id);
             return;
@@ -196,6 +214,80 @@ pub fn MainContent() -> impl IntoView {
             page.blocks.update(|rows| {
                 rows.retain(|b| b.block_id != block_id);
             });
+            if let Some(aid) = above_id {
+                crate::complicated_signal_flow::FOCUS_BLOCK_ID.set(Some(aid));
+            }
+        });
+    });
+
+    let on_merge_with_above = Callback::new(move |(block_id, current_text): (String, String)| {
+        let page = page1;
+        let blocks = page.blocks.get_untracked();
+        let Some(above) = get_block_above(&blocks, &block_id) else {
+            return;
+        };
+        if above.is_title {
+            return;
+        }
+        let above_id = above.block_id.clone();
+        let above_content = above.content.clone();
+        let Some(boss) = page.boss_of_yrs.get_untracked() else {
+            leptos::logging::error!("on_merge_with_above: no boss for block {}", block_id);
+            return;
+        };
+        let batcher_handle = batcher_handle_for_merge.clone();
+        let session_id = crate::db::cached_ids::SESSION_ID
+            .get_untracked()
+            .expect(crate::db::cached_ids::INIT_ERR);
+
+        spawn_local(async move {
+            if above_content.is_empty() {
+                // Above is empty; just delete it. Current block stays
+                // focused at position 0 (unchanged).
+                if let Err(e) = crate::db::ui_actions::delete_block(
+                    batcher_handle,
+                    boss,
+                    above_id.clone(),
+                    session_id,
+                )
+                .await
+                {
+                    leptos::logging::error!("merge: delete empty above failed: {:?}", e);
+                    create_popup(format!("merge: delete empty above failed: {e:?}"));
+                    return;
+                }
+                page.blocks.update(|rows| {
+                    rows.retain(|b| b.block_id != above_id);
+                });
+                return;
+            }
+
+            // Append current_text to above, delete this block.
+            let new_above = format!("{}{}", above_content, current_text);
+            let diff = text_diff::diff_logic::get_diff(&above_content, &new_above);
+            batcher_handle.push_edit(boss.clone(), above_id.clone(), diff);
+
+            if let Err(e) = crate::db::ui_actions::delete_block(
+                batcher_handle,
+                boss,
+                block_id.clone(),
+                session_id,
+            )
+            .await
+            {
+                leptos::logging::error!("merge: delete current failed: {:?}", e);
+                create_popup(format!("merge: delete current failed: {e:?}"));
+                return;
+            }
+
+            page.blocks.update(|rows| {
+                rows.retain(|b| b.block_id != block_id);
+                if let Some(b) = rows.iter_mut().find(|b| b.block_id == above_id) {
+                    b.content = new_above.clone();
+                }
+            });
+
+            crate::complicated_signal_flow::FOCUS_BLOCK_ID.set(Some(above_id));
         });
     });
 
@@ -218,6 +310,7 @@ pub fn MainContent() -> impl IntoView {
                 on_move=on_move
                 on_block_input=on_block_input
                 on_delete_request=on_delete_request
+                on_merge_with_above=on_merge_with_above
             />
         </div>
     }
@@ -279,20 +372,33 @@ fn find_page_and_boss(
     Some((boss, page))
 }
 
+fn get_block_above<'a>(blocks: &'a [BlockRow], block_id: &str) -> Option<&'a BlockRow> {
+    let idx = blocks.iter().position(|b| b.block_id == block_id)?;
+    idx.checked_sub(1).and_then(|i| blocks.get(i))
+}
+
 fn check_if_should_make_new_block(evt: &BlockInputEvent) -> bool {
     if !evt.was_enter || evt.old_text.is_empty() {
         return false;
     }
-    if !evt.new_text.ends_with("\n\n") {
+    let cursor = evt.cursor_pos;
+    if cursor < 3 {
         return false;
     }
-    evt.cursor_pos == evt.new_text.encode_utf16().count()
+    let utf16: Vec<u16> = evt.new_text.encode_utf16().collect();
+    if cursor > utf16.len() {
+        return false;
+    }
+    utf16[cursor - 1] == b'\n' as u16
+        && utf16[cursor - 2] == b'\n' as u16
+        && utf16[cursor - 3] == b'\n' as u16
 }
 
-async fn split_block_at_end(
+async fn split_block_at_cursor(
     page: Page,
     boss: Arc<BossOfYrs>,
     block_id: String,
+    new_content: String,
     batcher_handle: BatcherHandle,
     session_id: String,
 ) {
@@ -302,16 +408,17 @@ async fn split_block_at_end(
         .position(|b| b.block_id == block_id)
         .and_then(|i| blocks.get(i + 1))
         .map(|b| b.block_id.clone());
+    let page_id = page.page_id.get_untracked();
 
     let position = my_yrs_lib::yrs_wrapper::PositionToInsert::Between {
-        block_id_of_above: Some(block_id),
+        block_id_of_above: Some(block_id.clone()),
         block_id_of_below,
     };
 
     match crate::db::ui_actions::add_block(
         batcher_handle,
         boss,
-        String::new(),
+        new_content,
         String::new(),
         position,
         false,
@@ -320,12 +427,10 @@ async fn split_block_at_end(
     .await
     {
         Ok(new_block_id) => {
-            leptos::logging::log!("new block created: {}", new_block_id);
-            let page_id = page.page_id.get_untracked();
             if let Ok(rows) = db_helpers_for_web_client::get_all_blocks_for_page(page_id).await {
                 page.blocks.set(rows);
             }
-            crate::complicated_signal_flow::FOCUS_BLOCK_ID.set(Some(new_block_id));
+            crate::complicated_signal_flow::FOCUS_BLOCK_AT_START.set(Some(new_block_id));
         }
         Err(e) => {
             leptos::logging::error!("add block failed: {:?}", e);

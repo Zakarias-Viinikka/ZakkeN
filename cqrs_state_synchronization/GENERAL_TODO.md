@@ -60,28 +60,32 @@ Moving a block to another page works on web. ui_actions_move_block_operations::m
 
 Back button: navigating back to a previous route doesn't re-render without a manual refresh. Cause not yet diagnosed.
 
-Preload flow lives in complicated_signal_flow.rs. Page is the one struct for a page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response. PageLoadState is the enum, with PreloadLoaded(usize) carrying the count. Page::new builds one; MainContent builds one per page and Copy hands it into that page's effects.
+Preload flow lives in complicated_signal_flow/core.rs. Page is the one struct for a page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response. PageLoadState is the enum, with PreloadLoaded(usize) carrying the count. Page::new builds one; MainContent builds one per page and Copy hands it into that page's effects.
 
 The loading sequence is two effects per page. The state effect matches on page_state, calls preload_pages / load_offline / load_from_server for that step, and the resulting state change fires it again for the next step. The response effect watches preload_response; when it flips to Some it sets the blocks and moves to PreloadLoaded(count). preload_pages writes preload_request, and - because no preloader exists yet - also seeds preload_response with an empty Vec. That fallback goes away when the preloader exists.
 
 Batcher notification has no home right now. When the batcher exists it needs a signal for "this page is about to change", and the executor crate has to reach it, which isn't solved.
 
-BlockRow is the one block type. It lives in complicated_signal_flow.rs. There is no BlockInput anymore.
+BlockRow is the one block type. It lives in complicated_signal_flow/core.rs. There is no BlockInput anymore.
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.
 
-## On delete, animate the blocks like on move
+## Focus the new block when split creates one
 
-When a block is deleted, `sync_from_props` in the drag black box does a
-full rebuild, so every remaining block snaps into place. Instead: on a
-pure delete (one block gone, nothing else changed), remove the block
-from the internal list and let the remaining blocks run the same cascade
-animation they get on a move. Skips the rebuild flicker and reads better.
+When three newlines in a row split a block, focus should land at the
+start of the new block. Currently the focus effect runs and the new
+textarea is `document.activeElement`, but typing still goes into the
+old block. `tmp_focus_test` at `ZakkeN/tmp_focus_test` reproduces the
+split-and-focus mechanic correctly, so the cause is structural in the
+real project. Suspects: the async gap between the input handler and
+the DB-backed block insert, and the two-signal layer
+(`page.blocks` -> `boxes` -> `For`) keyed by `internal_id`.
 
-## On delete, put the cursor at the end of the block above
+## tmp_focus_test is a reproduction harness
 
-When a block is deleted (Backspace/Delete in an empty non-title block),
-focus should land at the end of the previous block's text, not disappear.
-Uses the same `FOCUS_BLOCK_ID` signal that split uses; the delete handler
-sets it with the previous block's id, and `MyBlockContent` focuses and
-parks the cursor at the end.
+`ZakkeN/tmp_focus_test` is a minimal Leptos project that replicates
+the split-and-focus mechanic. Currently green. Use it to isolate the
+focus-on-split bug by incrementally adding real-project mechanics
+(async split, two-signal layer, global focus static, DB reload before
+focus). Delete when the bug is fixed and the fix is verified in the
+real project.

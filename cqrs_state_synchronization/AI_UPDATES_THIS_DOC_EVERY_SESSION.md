@@ -1,3 +1,57 @@
+Wednesday, 21 October 2026
+==========================
+
+Delete flicker and delete focus are closed. Merge into block above,
+split by three newlines, and focus-on-split are open.
+
+Delete flicker: sync_from_props in sync.rs gained a pure-delete fast
+path (fast_delete) and a pure-add fast path (fast_add). Both detect
+the trivial change (exactly one block gained or lost, order otherwise
+unchanged), skip the full rebuild, mutate the existing boxes, and let
+commit + release_pass animate the remaining blocks. Anything else
+still falls back to the full rebuild.
+
+Cursor after delete: on_delete_request reads the block above before
+deleting and sets FOCUS_BLOCK_ID to it. MyBlockContent focuses it and
+parks the cursor at the end.
+
+Merge into block above: Backspace at position 0 of a non-empty
+non-title block fires on_merge_with_above. Handler reads the above
+block's current content from page.blocks (kept in sync by
+on_block_input via a content-field update). If above is empty, delete
+above; otherwise append the current block's text to above, then delete
+the current block. Cursor lands at the join point.
+
+Split rule: three newlines in a row (was two). An 8-row minimum was
+added then removed. The split path reloads page.blocks from DB after
+add_block rather than inserting locally, because local inserts could
+drift from yrs frac order and produce "no room between" errors on
+the next split.
+
+FOCUS_BLOCK_AT_START added alongside FOCUS_BLOCK_ID, so split can
+park the cursor at the start of the new block rather than the end.
+Both are ArcRwSignal<Option<String>> statics in
+complicated_signal_flow/core.rs.
+
+complicated_signal_flow.rs became a folder: complicated_signal_flow/,
+with core.rs holding the old contents and mod.rs re-exporting.
+External use paths unchanged.
+
+Black box identity bug fixed: id_map is now written back in
+sync_from_props, and fast_add / fast_delete keep it synchronised.
+Before the fix, every rebuild reminted internal_ids, destroyed every
+textarea, and threw away measurements and cascade state.
+
+Focus-on-split is still broken: after a split, focus stays in the old
+block and typing goes there too. Logs show the focus effect fires for
+the new block and document.activeElement is that textarea, but the
+browser does not route keystrokes to it. tmp_focus_test at
+ZakkeN/tmp_focus_test replicates the split-and-focus mechanic and
+works, so the cause is structural in the real project. The bug is
+being handed off to another AI to isolate by incrementally adding
+real-project mechanics (async split, two-signal layer, global focus
+static, DB reload before focus) to the test.
+
 Tuesday, 20 October 2026 (end of session)
 ==========================================
 

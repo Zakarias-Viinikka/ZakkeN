@@ -1,7 +1,7 @@
 use error_stuff::{ErrorDetails, LogCategory, LogLevel, ServerLogEntry};
 use server_protocol::Request;
 use std::sync::OnceLock;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 /// The id of this server run. Set once at startup, read by every log
 /// entry so rows from different runs can be told apart.
@@ -16,8 +16,17 @@ pub fn install_session_id(id: String) {
     let _ = SESSION_ID.set(id);
 }
 
-pub fn install_log_channel(tx: UnboundedSender<ServerLogEntry>) {
-    let _ = LOG_TX.set(tx);
+/// Create the log channel, put the sender in the global so any code can
+/// log, and return both halves. The receiver goes to the executor, which
+/// owns the db and writes the row; the sender also goes to anything that
+/// needs it (ConnectedClients takes one).
+pub fn setup_logging() -> (
+    UnboundedSender<ServerLogEntry>,
+    UnboundedReceiver<ServerLogEntry>,
+) {
+    let (tx, rx) = mpsc::unbounded_channel();
+    let _ = LOG_TX.set(tx.clone());
+    (tx, rx)
 }
 
 pub fn timestamp() -> String {

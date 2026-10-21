@@ -1,12 +1,18 @@
 use crate::logging::log;
 use crate::server_state::ServerState;
-use db_core::personal_db_wrapper;
+use db_core::{
+    db::{
+        operations_key_value, operations_logs, operations_love_letters, operations_pages,
+        user_registration,
+    },
+    personal_db_wrapper,
+};
 use std::sync::{Arc, Mutex};
 
 /// Open the db and create every table the server needs, if missing.
 /// Returns None (after logging) if the db can't be opened, which is the
 /// only failure the caller should refuse to start on.
-pub fn open_and_prepare() -> Option<Arc<Mutex<ServerState>>> {
+pub fn setup_db() -> Option<Arc<Mutex<ServerState>>> {
     let liver = match personal_db_wrapper::new_liver() {
         Ok(l) => l,
         Err(e) => {
@@ -15,25 +21,40 @@ pub fn open_and_prepare() -> Option<Arc<Mutex<ServerState>>> {
         }
     };
     if let Err(e) = personal_db_wrapper::create_table_if_not_exist(&liver) {
-        log("server", format!("failed to create socket_testing_table: {e:?}"));
+        log(
+            "server",
+            format!("failed to create socket_testing_table: {e:?}"),
+        );
     }
     if let Err(e) = personal_db_wrapper::create_data_if_not_exist(&liver) {
-        log("server", format!("failed to create socket_testing_table data: {e:?}"));
+        log(
+            "server",
+            format!("failed to create socket_testing_table data: {e:?}"),
+        );
     }
-    if let Err(e) = db_core::db::user_registration::create_table_if_not_exist(&liver) {
-        log("server", format!("failed to create registered_users: {e:?}"));
+    if let Err(e) = user_registration::create_table_if_not_exist(&liver) {
+        log(
+            "server",
+            format!("failed to create registered_users: {e:?}"),
+        );
     }
-    if let Err(e) = db_core::db::operations_love_letters::create_tables_if_not_exist(&liver) {
-        log("server", format!("failed to create love letter tables: {e:?}"));
+    if let Err(e) = operations_love_letters::create_tables_if_not_exist(&liver) {
+        log(
+            "server",
+            format!("failed to create love letter tables: {e:?}"),
+        );
     }
-    if let Err(e) = db_core::db::operations_pages::create_table_if_not_exist(&liver) {
+    if let Err(e) = operations_pages::create_table_if_not_exist(&liver) {
         log("server", format!("failed to create pages: {e:?}"));
     }
-    if let Err(e) = db_core::db::operations_logs::create_table_if_not_exist(&liver) {
+    if let Err(e) = operations_logs::create_table_if_not_exist(&liver) {
         log("server", format!("failed to create logs: {e:?}"));
     }
-    if let Err(e) = db_core::db::operations_key_value::create_table_if_not_exist(&liver) {
-        log("server", format!("failed to create key_value_storage: {e:?}"));
+    if let Err(e) = operations_key_value::create_table_if_not_exist(&liver) {
+        log(
+            "server",
+            format!("failed to create key_value_storage: {e:?}"),
+        );
     }
 
     // Bump the session id before anything else runs, so every log row

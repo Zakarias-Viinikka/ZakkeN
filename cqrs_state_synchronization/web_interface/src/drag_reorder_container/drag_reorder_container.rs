@@ -16,6 +16,7 @@ pub fn DragReorderContainer(
     on_move: Callback<MoveEvent>,
     on_block_input: Callback<BlockInputEvent>,
     on_delete_request: Callback<String>,
+    on_merge_with_above: Callback<(String, String)>,
 ) -> impl IntoView {
     let render_block = Callback::new(move |block: BlockRenderInput| {
         let on_input = Callback::new(move |evt: BlockInputEvent| {
@@ -24,8 +25,16 @@ pub fn DragReorderContainer(
         let on_del = Callback::new(move |bid: String| {
             on_delete_request.run(bid);
         });
+        let on_merge = Callback::new(move |(bid, text): (String, String)| {
+            on_merge_with_above.run((bid, text));
+        });
         view! {
-            <MyBlockContent block=block on_input=on_input on_delete_request=on_del />
+            <MyBlockContent
+                block=block
+                on_input=on_input
+                on_delete_request=on_del
+                on_merge_with_above=on_merge
+            />
         }
         .into_any()
     });

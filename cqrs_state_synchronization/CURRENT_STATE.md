@@ -137,3 +137,36 @@ last-deviation position is now capped before subtracting.
 `MyBlockContent` no longer shows a body placeholder, has a subtler
 border, and auto-sizes on mount by retrying the height measure across a
 few frames.
+
+## Update 2026-10-21
+
+Two delete bugs closed. `sync_from_props` in `sync.rs` gained a pure-
+delete fast path (`fast_delete`) and a pure-add fast path (`fast_add`).
+Both skip the full rebuild and animate the remaining blocks; anything
+else still falls back to full rebuild.
+
+`FOCUS_BLOCK_ID` is set by delete (block above, cursor at end) and by
+split (new block, cursor at start). `FOCUS_BLOCK_AT_START` was added
+alongside it for the split case. Both live in
+`complicated_signal_flow/core.rs`.
+
+Backspace at position 0 of a non-empty non-title block merges into the
+block above (or deletes it if empty). Cursor lands at the join point.
+
+Split trigger is three newlines in a row. The 8-row minimum was
+removed. After a split, `page.blocks` is reloaded from DB rather than
+inserted locally: the local insert could drift out of yrs frac order
+and produce "no room between" errors on the next split.
+
+`complicated_signal_flow.rs` became a folder (`complicated_signal_flow/`)
+with `core.rs` holding the old contents and `mod.rs` re-exporting.
+External use paths unchanged.
+
+Black box identity bug fixed: `id_map` is written back in
+`sync_from_props`, and `fast_add` / `fast_delete` keep it in sync.
+
+Focus-on-split is the one open bug. The focus effect fires and the new
+textarea is `document.activeElement`, but typing goes into the old
+block. `tmp_focus_test` (at repo root, temporary) reproduces the
+split-and-focus mechanic correctly, so the cause is structural.
+Handed off to another AI to isolate.

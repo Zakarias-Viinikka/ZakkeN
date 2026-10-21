@@ -240,8 +240,15 @@ pub struct OpenPages {
     pub page2: RwSignal<Option<Page>>,
 }
 
-/// Whoever sets this to `Some(block_id)` asks that block's textarea to
-/// grab focus. `MyBlockContent` watches it and clears it after
-/// focusing, so each request fires exactly once.
+/// Whoever sets this to `Some(block_id)` asks that block's textarea
+/// to grab focus, with the cursor at the end. `MyBlockContent`
+/// watches it and clears it after focusing, so each request fires
+/// exactly once.
 pub static FOCUS_BLOCK_ID: LazyLock<ArcRwSignal<Option<String>>> =
+    LazyLock::new(|| ArcRwSignal::new(None));
+
+/// Same as `FOCUS_BLOCK_ID` but parks the cursor at the start of the
+/// block instead of the end. Used after a split, where the block's
+/// content is what used to be after the cursor.
+pub static FOCUS_BLOCK_AT_START: LazyLock<ArcRwSignal<Option<String>>> =
     LazyLock::new(|| ArcRwSignal::new(None));
