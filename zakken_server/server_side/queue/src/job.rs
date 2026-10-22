@@ -18,8 +18,9 @@ pub struct Job {
 pub struct JobReply {
     pub bytes: Vec<u8>,
     pub just_identified: Option<String>,
-    /// Some only for a successful Login: how this socket hears about
-    /// other clients' letters. The server puts a letter id in; the
-    /// socket wakes, loads that letter, and writes it out.
-    pub incoming_letters: Option<UnboundedReceiver<i64>>,
+    /// Some only for a successful Login: how this socket hears that
+    /// something new arrived. The server puts () in; the socket wakes,
+    /// writes a Nudge to the client, and the client asks for its unsent
+    /// letters.
+    pub incoming_letters: Option<UnboundedReceiver<()>>,
 }

@@ -1,25 +1,19 @@
 use axum::{
     Router,
-    extract::{
-        ConnectInfo, State,
-        ws::{WebSocket, WebSocketUpgrade},
-    },
+    extract::{ConnectInfo, State, ws::WebSocketUpgrade},
     response::Response as HttpResponse,
     routing::any,
 };
-use connected_clients::ConnectedClients;
+use connected_clients::Telephone;
 use queue::QueueManager;
 use server_core::logging::log;
-use server_core::server_state::ServerState;
 use server_core::{queue_executor, setup, socket};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
 struct AppState {
-    state: Arc<Mutex<ServerState>>,
-    clients: ConnectedClients,
+    telephone: Telephone,
     queue: QueueManager,
 }
 
@@ -28,9 +22,7 @@ async fn ws_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(app): State<AppState>,
 ) -> HttpResponse {
-    ws.on_upgrade(move |socket| {
-        socket::handle_socket(socket, app.state, app.clients, app.queue, addr)
-    })
+    ws.on_upgrade(move |socket| socket::handle_socket(socket, app.telephone, app.queue, addr))
 }
 
 #[tokio::main]
@@ -40,27 +32,25 @@ async fn main() {
         return;
     };
 
+    //the logs are saved in a table and the queue executor "owns" doing
+    // anything related to db, so log_tx is used for adding to the "logging queue"
+    // which is a separate queue for logs
     let (log_tx, log_rx) = server_core::logging::setup_logging();
 
-    let clients = ConnectedClients::new(log_tx);
+    // telephone is how one client can do what essentially resembles talking to
+    // other clients, which is necessary because one client creating a new love
+    // letter should hand it over to the currently connected ones. it's also how
+    // the server nudges clients to request the love letters they haven't received.
+    let telephone = Telephone::new(log_tx);
 
+    //rxtx for important queue, and normal queue.
     let (important_tx, important_rx) = mpsc::unbounded_channel();
     let (normal_tx, normal_rx) = mpsc::unbounded_channel();
     let queue = QueueManager::new(important_tx, normal_tx);
 
-    queue_executor::start(
-        important_rx,
-        normal_rx,
-        log_rx,
-        state.clone(),
-        clients.clone(),
-    );
+    queue_executor::start(important_rx, normal_rx, log_rx, state, telephone.clone());
 
-    let app_state = AppState {
-        state,
-        clients,
-        queue,
-    };
+    let app_state = AppState { telephone, queue };
 
     let app = Router::new()
         .route("/ws", any(ws_handler))

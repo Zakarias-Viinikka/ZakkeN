@@ -1,22 +1,18 @@
 use crate::logging::{log, log_error, request_name};
 use crate::reply::{craft_response, send_message};
-use crate::server_state::ServerState;
 use axum::extract::ws::{Message, WebSocket};
-use connected_clients::ConnectedClients;
+use connected_clients::Telephone;
 use error_stuff::{ErrorDetails, LogCategory};
-use love_letter::{LoveLetterResponse, deserialize_love_letter, love_letter_response_to_bytes};
 use protocol::error::DbError;
 use protocol::serialization::{Base64Bytes, Convert};
 use queue::{Priority, QueueManager};
 use server_protocol::{Request, Response, json_str_to_message, response_to_json_str};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 pub async fn handle_socket(
     mut socket: WebSocket,
-    state: Arc<Mutex<ServerState>>,
-    clients: ConnectedClients,
+    telephone: Telephone,
     queue: QueueManager,
     addr: SocketAddr,
 ) {
@@ -24,11 +20,11 @@ pub async fn handle_socket(
     let mut user_name: Option<String> = None;
     log(&label, "connected");
 
-    let mut incoming_letters: Option<UnboundedReceiver<i64>> = None;
+    let mut incoming_nudges: Option<UnboundedReceiver<()>> = None;
 
     loop {
         let next_push = async {
-            match incoming_letters.as_mut() {
+            match incoming_nudges.as_mut() {
                 Some(rx) => rx.recv().await,
                 None => std::future::pending().await,
             }
@@ -125,7 +121,7 @@ pub async fn handle_socket(
                     };
 
                     if reply.incoming_letters.is_some() {
-                        incoming_letters = reply.incoming_letters;
+                        incoming_nudges = reply.incoming_letters;
                     }
 
                     if let Some(name) = reply.just_identified {
@@ -141,91 +137,32 @@ pub async fn handle_socket(
                 }
             }
 
-            letter_id = next_push => {
-                let Some(letter_id) = letter_id else {
+            nudge = next_push => {
+                let Some(()) = nudge else {
+                    // The telephone dropped our sender (another socket for
+                    // this user replaced us, or the task ended). Stop
+                    // watching for nudges; the rest of the socket keeps
+                    // working.
+                    incoming_nudges = None;
                     continue;
                 };
 
-                let letter_bytes = {
-                    let state_locked = state.lock().unwrap();
-                    db_core::db::operations_love_letters::get_letter(
-                        &state_locked.liver,
-                        letter_id,
-                    )
-                };
-
-                let letter_bytes = match letter_bytes {
-                    Ok(b) => b,
-                    Err(e) => {
-                        log_error(
-                            &label,
-                            LogCategory::LetterDelivery,
-                            &ErrorDetails {
-                                err_msg: format!("push: load letter {letter_id} failed: {e:?}"),
-                                file: file!().to_string(),
-                                method: "handle_socket (push arm)".to_string(),
-                                probable_cause: "the letter was never inserted or was deleted".to_string(),
-                            },
-                        );
-                        continue;
-                    }
-                };
-
-                log(&label, format!("push letter {letter_id}"));
-
-                let letter = match deserialize_love_letter(letter_bytes) {
-                    Ok(l) => l,
-                    Err(e) => {
-                        log_error(
-                            &label,
-                            LogCategory::LetterDelivery,
-                            &ErrorDetails {
-                                err_msg: format!("push: decode letter {letter_id} failed: {e}"),
-                                file: file!().to_string(),
-                                method: "handle_socket (push arm)".to_string(),
-                                probable_cause: String::new(),
-                            },
-                        );
-                        continue;
-                    }
-                };
-                let wrapped = LoveLetterResponse {
-                    love_letter: letter,
-                    letter_id,
-                };
-                let payload_bytes = match love_letter_response_to_bytes(&wrapped) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        log_error(
-                            &label,
-                            LogCategory::LetterDelivery,
-                            &ErrorDetails {
-                                err_msg: format!("push: wrap letter {letter_id} failed: {e}"),
-                                file: file!().to_string(),
-                                method: "handle_socket (push arm)".to_string(),
-                                probable_cause: String::new(),
-                            },
-                        );
-                        continue;
-                    }
-                };
-
-                let push_response = Response {
+                let nudge_response = Response {
                     message_id: 0,
-                    request: Request::SendLoveLetter,
-                    payload: Base64Bytes(payload_bytes),
+                    request: Request::Nudge,
+                    payload: Base64Bytes(Vec::new()),
                 };
 
-                let json = match response_to_json_str(&push_response) {
+                let json = match response_to_json_str(&nudge_response) {
                     Ok(j) => j,
                     Err(e) => {
                         log_error(
                             &label,
                             LogCategory::LetterDelivery,
                             &ErrorDetails {
-                                err_msg: format!("push: serialize letter {letter_id} failed: {e}"),
+                                err_msg: format!("nudge: serialize failed: {e}"),
                                 file: file!().to_string(),
-                                method: "handle_socket (push arm)".to_string(),
+                                method: "handle_socket (nudge arm)".to_string(),
                                 probable_cause: String::new(),
                             },
                         );
@@ -238,9 +175,9 @@ pub async fn handle_socket(
                         &label,
                         LogCategory::LetterDelivery,
                         &ErrorDetails {
-                            err_msg: format!("push: send letter {letter_id} failed: {e}"),
+                            err_msg: format!("nudge: send failed: {e}"),
                             file: file!().to_string(),
-                            method: "handle_socket (push arm)".to_string(),
+                            method: "handle_socket (nudge arm)".to_string(),
                             probable_cause: "the client's socket closed".to_string(),
                         },
                     );
@@ -252,6 +189,6 @@ pub async fn handle_socket(
 
     log(&label, "disconnected");
     if let Some(name) = user_name {
-        clients.remove_client(name);
+        telephone.remove_client(name);
     }
 }

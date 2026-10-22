@@ -1,4 +1,4 @@
-use crate::handle::FanOutReport;
+use crate::handle::NudgeReport;
 use error_stuff::ServErr;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
@@ -6,14 +6,13 @@ use tokio::sync::oneshot;
 pub enum Command {
     AddClient {
         user_name: String,
-        sender: UnboundedSender<i64>,
+        sender: UnboundedSender<()>,
     },
     RemoveClient {
         user_name: String,
     },
-    SendTo {
+    Nudge {
         user_name: String,
-        letter_id: i64,
         reply: oneshot::Sender<Result<(), ServErr>>,
     },
     IsConnected {
@@ -23,9 +22,8 @@ pub enum Command {
     ConnectedUserNames {
         reply: oneshot::Sender<Vec<String>>,
     },
-    FanOut {
-        letter_id: i64,
+    NudgeAll {
         except: Option<String>,
-        reply: oneshot::Sender<FanOutReport>,
+        reply: oneshot::Sender<NudgeReport>,
     },
 }

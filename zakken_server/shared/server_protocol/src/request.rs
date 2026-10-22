@@ -8,6 +8,11 @@ pub enum Request {
     GetAllYrsPages,
     /// how a client acknowledges it's received a love letter response
     Ack,
+    /// server -> client: something new happened, go request your unsent
+    /// letters with GetMyUnsentLetters.
+    Nudge,
+    /// client -> server: give me every love letter I haven't received yet.
+    GetMyUnsentLetters,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -42,4 +47,15 @@ pub struct GetAllYrsPagesPayload {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct AckPayload {
     pub letter_id: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct UnsentLetter {
+    pub letter_id: i64,
+    pub love_letter: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct GetMyUnsentLettersPayload {
+    pub letters: Vec<UnsentLetter>,
 }

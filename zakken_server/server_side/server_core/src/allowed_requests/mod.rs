@@ -1,11 +1,12 @@
 pub mod ack;
 pub mod get_all_yrs_pages;
+pub mod get_my_unsent_letters;
 pub mod login;
 pub mod register;
 pub mod send_love_letter;
 
 use crate::server_state::ServerState;
-use connected_clients::ConnectedClients;
+use connected_clients::Telephone;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::Request;
@@ -15,7 +16,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 pub struct HandlerOutcome {
     pub bytes: Vec<u8>,
     pub just_identified: Option<String>,
-    pub incoming_letters: Option<UnboundedReceiver<i64>>,
+    pub incoming_letters: Option<UnboundedReceiver<()>>,
 }
 
 pub fn err_outcome(e: DbError) -> HandlerOutcome {
@@ -31,7 +32,7 @@ pub async fn do_request(
     msg_request: &Request,
     msg_content: Vec<u8>,
     state: &Arc<Mutex<ServerState>>,
-    clients: &ConnectedClients,
+    telephone: &Telephone,
     sender: Option<&str>,
 ) -> HandlerOutcome {
     let logged_in = sender.is_some();
@@ -48,9 +49,9 @@ pub async fn do_request(
     }
 
     match msg_request {
-        // Register, GetAllYrsPages and Ack only touch the db, so they lock
-        // briefly, do their work, and let the guard drop at the end of the
-        // arm. No await happens while the lock is held.
+        // Register, GetAllYrsPages, Ack and GetMyUnsentLetters only touch the
+        // db, so they lock briefly, do their work, and let the guard drop at
+        // the end of the arm. No await happens while the lock is held.
         Request::Register => {
             let mut locked = state.lock().unwrap();
             let (bytes, just) = register::handle(msg_content, &mut locked);
@@ -78,11 +79,32 @@ pub async fn do_request(
                 incoming_letters: None,
             }
         }
+        Request::GetMyUnsentLetters => {
+            let mut locked = state.lock().unwrap();
+            let (bytes, just) = get_my_unsent_letters::handle(msg_content, &mut locked, sender);
+            HandlerOutcome {
+                bytes,
+                just_identified: just,
+                incoming_letters: None,
+            }
+        }
+        // Nudge is a server -> client message; it must never be submitted
+        // as a job. If one ever shows up, refuse it loudly.
+        Request::Nudge => {
+            let err: Result<(), DbError> = Err(DbError::IllegalInput(
+                "Nudge is server-only; it can't be submitted as a job".to_string(),
+            ));
+            HandlerOutcome {
+                bytes: err.to_payload(),
+                just_identified: None,
+                incoming_letters: None,
+            }
+        }
         // Login and SendLoveLetter do their own locking, because they need
-        // to await the connections crate in between db calls.
-        Request::Login => login::handle(msg_content, state, clients).await,
+        // to await the telephone in between db calls.
+        Request::Login => login::handle(msg_content, state, telephone).await,
         Request::SendLoveLetter => {
-            send_love_letter::handle(msg_content, state, clients, sender).await
+            send_love_letter::handle(msg_content, state, telephone, sender).await
         }
     }
 }

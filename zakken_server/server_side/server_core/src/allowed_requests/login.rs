@@ -1,8 +1,7 @@
 use crate::allowed_requests::{err_outcome, HandlerOutcome};
-use crate::logging::{log, log_error};
+use crate::logging::log_error;
 use crate::server_state::ServerState;
-use connected_clients::ConnectedClients;
-use db_core::db::operations_love_letters;
+use connected_clients::Telephone;
 use db_core::db::user_registration;
 use error_stuff::{ErrorDetails, LogCategory};
 use protocol::error::DbError;
@@ -13,7 +12,7 @@ use std::sync::{Arc, Mutex};
 pub async fn handle(
     msg_content: Vec<u8>,
     state: &Arc<Mutex<ServerState>>,
-    clients: &ConnectedClients,
+    telephone: &Telephone,
 ) -> HandlerOutcome {
     let payload = match LoginPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
@@ -39,68 +38,27 @@ pub async fn handle(
         )));
     }
 
-    // Register this socket's push channel, then drain the backlog into it.
-    // The executor handles one job at a time, so no new letter can be
-    // fanned out to this user between add_client and the backfill.
-    let incoming_letters = clients.add_client(payload.user_name.clone());
-    backfill_unsent(state, clients, &payload.user_name).await;
+    // Register this socket's nudge channel, then nudge it once so its
+    // socket task writes a Nudge to the client and the client asks for
+    // its unsent letters through GetMyUnsentLetters. The executor handles
+    // one job at a time, so no live fan-out can slip in between the two.
+    let incoming_letters = telephone.add_client(payload.user_name.clone());
+    if let Err(e) = telephone.nudge(payload.user_name.clone()).await {
+        log_error(
+            &payload.user_name,
+            LogCategory::LetterDelivery,
+            &ErrorDetails {
+                err_msg: format!("login nudge failed: {e:?}"),
+                file: file!().to_string(),
+                method: "login::handle".to_string(),
+                probable_cause: "the telephone's task is not running".to_string(),
+            },
+        );
+    }
 
     HandlerOutcome {
         bytes: ok_serialized(),
         just_identified: Some(payload.user_name),
         incoming_letters: Some(incoming_letters),
-    }
-}
-
-/// Push every unsent letter for this user, oldest first. The rows stay
-/// until the client acks, so a failed push just means the row is still
-/// there for next login.
-async fn backfill_unsent(
-    state: &Arc<Mutex<ServerState>>,
-    clients: &ConnectedClients,
-    user_name: &str,
-) {
-    let ids = {
-        let locked = state.lock().unwrap();
-        match operations_love_letters::get_unsent_letter_ids_for_user(&locked.liver, user_name) {
-            Ok(ids) => ids,
-            Err(e) => {
-                log_error(
-                    user_name,
-                    LogCategory::Database,
-                    &ErrorDetails {
-                        err_msg: format!("backfill failed to read unsent ids: {e:?}"),
-                        file: file!().to_string(),
-                        method: "backfill_unsent".to_string(),
-                        probable_cause: String::new(),
-                    },
-                );
-                return;
-            }
-        }
-    };
-
-    if ids.is_empty() {
-        return;
-    }
-
-    log(
-        user_name,
-        format!("backfill: {} unsent letter(s)", ids.len()),
-    );
-
-    for id in ids {
-        if let Err(e) = clients.send_to(user_name.to_string(), id).await {
-            log_error(
-                user_name,
-                LogCategory::LetterDelivery,
-                &ErrorDetails {
-                    err_msg: format!("backfill: push letter {id} failed: {e:?}"),
-                    file: file!().to_string(),
-                    method: "backfill_unsent".to_string(),
-                    probable_cause: "the push channel was closed".to_string(),
-                },
-            );
-        }
     }
 }

@@ -1,6 +1,6 @@
 use crate::allowed_requests::do_request;
 use crate::server_state::ServerState;
-use connected_clients::ConnectedClients;
+use connected_clients::Telephone;
 use error_stuff::ServerLogEntry;
 use queue::{Job, JobReply};
 use std::sync::{Arc, Mutex};
@@ -20,17 +20,17 @@ pub fn start(
     mut normal_rx: UnboundedReceiver<Job>,
     mut log_rx: UnboundedReceiver<ServerLogEntry>,
     state: Arc<Mutex<ServerState>>,
-    clients: ConnectedClients,
+    telephone: Telephone,
 ) {
     tokio::spawn(async move {
         loop {
             tokio::select! {
                 biased;
                 Some(job) = important_rx.recv() => {
-                    run_job(job, &state, &clients).await;
+                    run_job(job, &state, &telephone).await;
                 }
                 Some(job) = normal_rx.recv() => {
-                    run_job(job, &state, &clients).await;
+                    run_job(job, &state, &telephone).await;
                 }
                 Some(entry) = log_rx.recv() => {
                     write_log(entry, &state);
@@ -41,12 +41,12 @@ pub fn start(
     });
 }
 
-async fn run_job(job: Job, state: &Arc<Mutex<ServerState>>, clients: &ConnectedClients) {
+async fn run_job(job: Job, state: &Arc<Mutex<ServerState>>, telephone: &Telephone) {
     let outcome = do_request(
         &job.request,
         job.payload,
         state,
-        clients,
+        telephone,
         job.sender.as_deref(),
     )
     .await;

@@ -1,7 +1,7 @@
 use crate::allowed_requests::{err_outcome, HandlerOutcome};
 use crate::logging::{log, log_error};
 use crate::server_state::ServerState;
-use connected_clients::ConnectedClients;
+use connected_clients::Telephone;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
 use error_stuff::{ErrorDetails, LogCategory};
@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 pub async fn handle(
     msg_content: Vec<u8>,
     state: &Arc<Mutex<ServerState>>,
-    clients: &ConnectedClients,
+    telephone: &Telephone,
     sender: Option<&str>,
 ) -> HandlerOutcome {
     let payload = match SendLoveLetterPayload::un_payloadify(&msg_content) {
@@ -57,7 +57,7 @@ pub async fn handle(
     // Every db write for this letter happens inside one lock: apply it,
     // store it, read the user list, and queue an unsent row for every
     // registered user except the sender. The lock is dropped before the
-    // fan-out, which is a call into the connections crate.
+    // nudge, which is a call into the telephone crate.
     let letter_id = {
         let locked = state.lock().unwrap();
 
@@ -144,8 +144,8 @@ pub async fn handle(
     };
     // lock dropped
 
-    let report = clients
-        .fan_out(letter_id, sender.map(|s| s.to_string()))
+    let report = telephone
+        .nudge_all(sender.map(|s| s.to_string()))
         .await;
 
     for name in &report.dropped {
@@ -153,10 +153,10 @@ pub async fn handle(
             "server",
             LogCategory::Connection,
             &ErrorDetails {
-                err_msg: format!("lost contact with {name} while fanning out letter {letter_id}"),
+                err_msg: format!("lost contact with {name} while nudging for letter {letter_id}"),
                 file: file!().to_string(),
                 method: "send_love_letter::handle".to_string(),
-                probable_cause: "the client disconnected mid-fan-out; their unsent row will reach them".to_string(),
+                probable_cause: "the client disconnected mid-nudge; their unsent row will reach them".to_string(),
             },
         );
     }
@@ -167,7 +167,7 @@ pub async fn handle(
     } else {
         log(
             "server",
-            format!("letter {letter_id}: pushed to {online} now"),
+            format!("letter {letter_id}: nudged {online} client(s)"),
         );
     }
 
