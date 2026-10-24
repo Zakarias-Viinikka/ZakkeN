@@ -61,7 +61,8 @@
 }
 
 .ps-box.ps-unmeasured {
-    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .ps-box.ps-dragging {

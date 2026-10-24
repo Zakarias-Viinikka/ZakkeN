@@ -170,3 +170,22 @@ textarea is `document.activeElement`, but typing goes into the old
 block. `tmp_focus_test` (at repo root, temporary) reproduces the
 split-and-focus mechanic correctly, so the cause is structural.
 Handed off to another AI to isolate.
+
+## Update - 2026-10-24
+
+Focus-on-split is fixed. The bug was `.ps-box.ps-unmeasured` using
+`visibility: hidden` while a freshly inserted block waits to be
+measured by the ResizeObserver. Chrome sets `document.activeElement`
+to a `visibility: hidden` textarea on `.focus()`, but does not route
+keystrokes to it — input keeps going to the previously focused
+element. The `FOCUS_BLOCK_AT_START` effect cleared the signal on the
+first attempt regardless of visibility, so it never retried. Fixed by
+changing the rule to `opacity: 0; pointer-events: none`, which hides
+the block the same way without blocking focus or input routing.
+
+The reproduction harness is `tmp_focus_test`. It only reproduces the
+bug when measurement is delayed past the focus attempt, because the
+focus effect fires once, calls `.focus()`, and clears the signal
+unconditionally. The CSS rule blocks input routing on the hidden
+element; the effect's clear-on-first-attempt is what prevents it from
+ever recovering when the block becomes visible a frame later.

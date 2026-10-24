@@ -8,15 +8,16 @@ corrected.
 The project-wide picture lives one level up, in
 ZakkeN/STORED_AI_CONTEXT.md. This file is about the server only.
 
-## What this is - 2026-10-15
+## What this is - 2026-10-22
 
 The axum websocket server for ZakkeN. Clients describe edits as "love
 letters" - a serialized intent. The server applies each letter to its own
-copy of the pages, stores the letter, and pushes it to the other
-registered clients. It's the only place that knows which clients are
-online and which clients still need which letters.
+copy of the pages, stores the letter, then nudges the other registered
+clients so each one can pull whatever it hasn't received. It's the only
+place that knows which clients are online and which clients still need
+which letters.
 
-## Workspace layout - 2026-10-15
+## Workspace layout - 2026-10-22
 
 A cargo workspace in three folders. The split mirrors
 rust_practice/server_template_3.
@@ -33,8 +34,9 @@ server_side/ holds the server's own crates:
   executor.
 - love_letter_parser - letter bytes -> target_page_id.
 - queue - Job, JobReply, Priority, QueueManager. No database knowledge.
-- connected_clients - owns the user_name -> push-sender map, behind one
-  task. No database knowledge, so it can never take the db lock.
+- connected_clients - exposes the `Telephone` handle. Owns the
+  user_name -> nudge-sender map behind one task. No database knowledge,
+  so it can never take the db lock.
 
 mock_client/ holds the mock client, at the top level:
 - mock_client_core - mock client logic, no printing.
@@ -83,15 +85,21 @@ builds its own doc, edit_block wants a DiffResult the server never has, so
 neither is reachable for the incoming-letter path. The builder is
 reference, not a dependency.
 
-## server_protocol - 2026-10-15
+## server_protocol - 2026-10-22
 
 The server's own Message, Response, Request and payload structs. Its
 lib.rs is pure re-exports; message.rs, request.rs and builders.rs hold the
 definitions.
 
-Request variants: Register, Login, SendLoveLetter, GetAllYrsPages, Ack.
-Ack carries an AckPayload { letter_id: i64 } - the client saying it has
-applied that letter, so the server can delete that user's unsent row.
+Request variants: Register, Login, SendLoveLetter, GetAllYrsPages, Ack,
+GetMyUnsentLetters, Nudge. Ack carries an AckPayload { letter_id: i64 } -
+the client saying it has applied that letter, so the server can delete
+that user's unsent row. GetMyUnsentLetters carries no payload and returns
+a GetMyUnsentLettersPayload { letters: Vec<UnsentLetter> }, where each
+UnsentLetter is { letter_id: i64, love_letter: Vec<u8> }. Nudge is
+server-only: it arrives as a Response with message_id 0, request = Nudge,
+empty payload. The server refuses to run a Nudge if one shows up as a
+job.
 
 Every response payload is a bincode-encoded Result<T, DbError>. This
 matters. An earlier version returned a bare ok_serialized() on success and
@@ -100,13 +108,13 @@ checking whether the payload was empty - which was wrong, because both are
 non-empty. If you add a request, its handler must return
 Result<ItsPayloadType, DbError>.
 
-## server_core - 2026-10-15
+## server_core - 2026-10-22
 
 ServerState holds only the db connection (LiveForever), behind
-Arc<std::sync::Mutex<ServerState>>. ConnectedClients no longer lives here;
-it has its own crate and its own handle. That fixes the lock order for
-good: the db lock may be held while calling ConnectedClients, never the
-reverse, because the connected_clients crate doesn't depend on db_core.
+Arc<std::sync::Mutex<ServerState>>. The Telephone lives in its own crate
+and its own handle. Lock order is fixed for good: the db lock may be held
+while calling Telephone, never the reverse, because the connected_clients
+crate doesn't depend on db_core.
 
 Every client request goes socket -> queue -> executor -> handler -> reply.
 The socket parses the websocket message, submits a Job to the QueueManager,
@@ -114,11 +122,15 @@ and awaits the reply. One executor task, started from main, takes jobs
 (important channel first, then normal, via a biased select), calls
 do_request, and sends the result back through the job's oneshot.
 
-do_request is async. Its signature is (request, payload, state, clients,
+do_request is async. Its signature is (request, payload, state, telephone,
 sender) -> HandlerOutcome. HandlerOutcome { bytes, just_identified,
-incoming_letters }. Register, GetAllYrsPages and Ack lock the db briefly,
-do their work, and drop the guard; Login and SendLoveLetter do their own
-locking because they need to await the connections crate in between.
+incoming_letters }. incoming_letters is Some only for a successful Login:
+it's the receiver half of this socket's nudge channel, and the socket
+task keeps it and reads () values from it. Register, GetAllYrsPages, Ack
+and GetMyUnsentLetters lock the db briefly, do their work, and drop the
+guard; Login and SendLoveLetter do their own locking because they need to
+await the Telephone in between db calls. Nudge is refused as a job because
+it's server-only.
 
 The login gate lives in do_request: a socket that hasn't logged in can
 only call Register or Login, everything else gets an error. The gate works
@@ -129,75 +141,91 @@ The executor also drains a log channel: anything that wants to write a log
 row sends a ServerLogEntry down it, and the executor is the one that
 actually inserts, because it's the only thing that owns the db. log_error
 (in logging.rs) prints and sends an entry. The session id is read at
-startup by setup::open_and_prepare and installed into logging.rs as a
-global, so every row from this run carries it.
+startup by setup::setup_db and installed into logging.rs as a global, so
+every row from this run carries it.
 
 main.rs is wiring only. setup.rs opens the db and creates every table.
 socket.rs holds handle_socket. queue_executor.rs holds the executor loop.
 lib.rs re-exports all three.
 
 The socket loop in socket.rs selects on two things: the websocket and the
-socket's incoming_letters channel. A letter id arriving means another
-client edited a page; the socket loads the letter, wraps it in a
-LoveLetterResponse (which carries the letter id), and writes it. Register
-and Login are different messages on purpose: Register creates the account
-and fails if the name is taken, Login identifies the socket and fails if
-the name doesn't exist. Only Login makes a socket receive pushes. After
-Login, the executor returns the receiver half of that user's channel in
-HandlerOutcome.incoming_letters, and the socket keeps it.
+socket's incoming_letters channel. A () arriving on incoming_letters means
+the server nudged this client - another client edited a page, or this
+client just logged in and its backlog is ready. The socket task writes a
+Nudge down the websocket (a Response with message_id 0, request Nudge,
+empty payload); the client's move is to respond with
+GetMyUnsentLetters, apply each letter, and Ack each. Nudges carry no
+letter id; the fetch is the client's side. If incoming_letters returns
+None (the sender was dropped - another socket for this user took over, or
+the telephone task ended), the socket clears its receiver and keeps
+serving; the rest of the socket is unaffected.
 
-## connected_clients - 2026-10-15
+Register and Login are different messages on purpose: Register creates
+the account and fails if the name is taken, Login identifies the socket
+and fails if the name doesn't exist. Only Login makes a socket receive
+nudges. After Login, the executor returns the receiver half of that
+user's channel in HandlerOutcome.incoming_letters, and the socket keeps
+it.
 
-Owns the user_name -> UnboundedSender<i64> map. The i64 is a letter id.
-The map is private to the crate; every method goes through a Command sent
-to one task that owns the map. The task runs on tokio and drains one
-channel.
+## connected_clients - 2026-10-22
 
-ConnectedClients is Clone. add_client is sync on purpose: login has to
-call it inside the same db-lock critical section that runs the backfill,
-so a new letter can't overtake the backlog. send_to, is_connected,
-connected_user_names and fan_out are async and await a oneshot reply.
-remove_client is fire-and-forget.
+Exposes one struct, `Telephone`. It's a handle to a task that owns
+`HashMap<String, UnboundedSender<()>>` - the user_name -> nudge-sender
+map. The () is a nudge: "you have something to pull". Every method sends
+a `Command` to the task; the task is the only thing that touches the
+map. The task runs on tokio and drains one channel.
 
-fan_out(letter_id, except) -> FanOutReport { reached, dropped } sends the
-letter id to every connected user except `except`, records who was
-reached, drops dead channels from the map, and reports who was dropped.
-The caller then logs the drops. This is the one place the crate touches
-something outside its own state: it sends a ServerLogEntry down a log
-channel it was given at construction. That channel is how it reports
-without depending on db_core.
+Telephone is Clone. add_client is sync on purpose: login has to call it
+and follow with the nudge before the executor processes anything else, so
+no live fan-out slips in between. add_client returns the receiver half of
+the new channel; the socket task keeps it and reads () values.
+remove_client is fire-and-forget. nudge(user_name) nudges one client;
+nudge_all(except) nudges every connected client except `except`.
+is_connected and connected_user_names ask the map without touching it;
+nothing uses them right now except a test.
 
-## Delivery - 2026-10-15
+When a client's channel turns out to be gone (their socket task dropped
+the receiver), nudge / nudge_all drop that client from the map and report
+it in the returned NudgeReport { reached, dropped }. The caller logs the
+drops. This is the one place the crate touches something outside its own
+state: it sends a ServerLogEntry down a log channel it was given at
+construction. That channel is how it reports without depending on
+db_core.
 
-Event-driven, no polling, at-least-once.
+## Delivery - 2026-10-22
+
+Event-driven, no polling, at-least-once. Pull model on the client side:
+the server nudges, the client fetches.
 
 On a new letter: deserialize, apply_letter to update the pages table,
 insert the letter (this assigns the letter id), read the registered user
 list, then for every registered user except the sender - queue an unsent
-row for that user, online or not. Then fan_out the letter id to every
-connected user except the sender. Users the fan-out reached get the letter
-pushed immediately; users who were offline, or whose channel turned out to
-be dead, are reached later by the backfill. Nobody is delivered twice by
-the server: the row is the record that they still owe an ack.
+row for that user, online or not. Then nudge_all(sender). Every connected
+client except the sender gets a Nudge down its socket. Nudged clients
+send GetMyUnsentLetters, receive every letter that's still rowed for them,
+apply each, and Ack each. Offline clients aren't connected, so nudge_all
+doesn't reach them; their unsent rows sit until they log in.
 
-On Ack: the client sends the letter id it applied. The server deletes that
-user's unsent row for that letter. A repeated ack for an already deleted
-row is a no-op.
+On Login: add_client registers the socket's channel, then the login
+handler nudges the just-connected client so its socket writes a Nudge and
+the client pulls its backlog through GetMyUnsentLetters. The rows stay
+until each is acked. The executor handles one job at a time, so a live
+letter can't fan out to this user between add_client and the login nudge.
 
-On Login: add_client registers the socket's channel, then the backfill
-reads that user's unsent rows and pushes them, oldest first. The rows stay
-until the client acks, so if a push fails or the socket dies mid-backfill,
-the row is still there for next login.
+On Ack: the client sends the letter id it applied. The server deletes
+that user's unsent row for that letter. A repeated ack for an already
+deleted row is a no-op.
 
 The client is expected to dedup by letter_id, because a duplicate is
-possible: the server might push a letter, the connection drops before the
-ack, and on reconnect the row is still there and gets pushed again.
+possible: the server nudged, the connection dropped before the ack, and
+on reconnect the row is still there and shows up in the next pull.
 
-The push wire format is a Response with message_id 0, request
-SendLoveLetter, and payload = bincode of LoveLetterResponse { love_letter,
-letter_id }.
+The nudge wire format is a Response with message_id 0, request = Nudge,
+empty payload. The pull wire format is a Message with request =
+GetMyUnsentLetters and no payload; the reply carries a bincode of
+Result<GetMyUnsentLettersPayload, DbError>.
 
-## Gotchas - 2026-10-15
+## Gotchas - 2026-10-22
 
 Cargo needs the package name on the left of a dependency line, not the lib
 name. yrs's package name is "yrs" but its lib name is "my_yrs_lib", so
@@ -214,6 +242,9 @@ Never hold the db lock across an .await. If axum complains that the
 handle_socket future isn't Send, that is the cause. A socket must also
 never hold the db lock while awaiting its queue reply, because the
 executor needs that same lock to produce the reply and it would deadlock.
+(The socket task itself no longer touches the db at all; the rule still
+matters for login and send_love_letter, which lock briefly and drop
+before awaiting.)
 
 local_cargo.sh is a per-directory wrapper around cargo. `c c` checks the
 whole workspace. `c t` runs `cargo test --workspace`. `c r` runs
@@ -222,13 +253,16 @@ zakken_server from the zakken_server root, cli_gui from mock_client.
 yrs's anti_deadlock prints "DEBUG_MODE is OFF (direct call, no timeout)" on
 every method call. That's from the yrs crate, not from the server.
 
-## What's left - 2026-10-15
+## What's left - 2026-10-22
 
-Cross-client delivery has never been exercised. Only one mock client
-exists, and it deliberately ignores pushes, so it never acks. The ack path
-- the client applying the letter and sending Ack back, the server deleting
-the unsent row - has never run end to end. Two mock clients with different
-user names, one of them listening for pushes and sending acks, is the test.
+Cross-client delivery has still never been exercised end to end. The mock
+client now knows how to receive: it handles a Nudge by pulling
+GetMyUnsentLetters, applying each letter to its local boss (or
+page_status), and Acking each. The same path is exposed as the `sync`
+REPL command, so you can force a pull without waiting for a nudge. Two
+mock clients with different user names, one editing while the other
+syncs, is still the test that proves "user A edits, user B receives" -
+it just hasn't been run.
 
 The mock client always creates pages with is_main_menu_page = false. The
 letter field exists and is threaded correctly; the mock client just doesn't

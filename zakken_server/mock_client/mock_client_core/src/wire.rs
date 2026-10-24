@@ -1,13 +1,11 @@
 use error_stuff::{ErrorDetails, ServErr};
 use futures_util::stream::{SplitSink, SplitStream};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::SinkExt;
 use protocol::error::DbError;
 use protocol::serialization::{Base64Bytes, Convert};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use server_protocol::{
-    Message, Request, Response, json_str_to_response, message_to_json_str,
-};
+use server_protocol::{Message, Request, message_to_json_str};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -51,20 +49,6 @@ pub async fn send_request(
         .map_err(|e| client_err(format!("send failed: {e}"), "send_request"))
 }
 
-pub async fn expect_response(ws: &mut WsRead, msg_id: usize) -> Result<Response, ServErr> {
-    while let Some(msg) = ws.next().await {
-        let msg = msg.map_err(|e| client_err(format!("recv failed: {e}"), "expect_response"))?;
-        let WsMessage::Text(text) = msg else {
-            continue;
-        };
-        let response = json_str_to_response(text.as_str())?;
-        if response.message_id == msg_id {
-            return Ok(response);
-        }
-        // else: a push. Ignore it — mock client doesn't receive love letters.
-    }
-    Err(client_err("socket closed before response", "expect_response"))
-}
 
 pub async fn send_get_all_pages(ws: &mut WsWrite, msg_id: usize) -> Result<(), ServErr> {
     send_request(ws, msg_id, Request::GetAllYrsPages, Vec::new()).await

@@ -1,3 +1,31 @@
+Saturday, 24 October 2026 (focus bug closed)
+=============================================
+
+Focus-on-split closed.
+
+Cause: `.ps-box.ps-unmeasured { visibility: hidden }`. Blocks created
+by `fast_add` in `sync.rs` come in with `measured: false` and get that
+class. A `visibility: hidden` textarea still accepts `.focus()` — the
+browser sets `document.activeElement` to it — but does not route
+keyboard input to it, so keystrokes stay on the previously focused
+textarea. The `FOCUS_BLOCK_AT_START` effect cleared the signal on the
+first attempt regardless of visibility, so its retry loop never ran
+after the block became visible a frame later.
+
+Reproduced in `tmp_focus_test`: added the same CSS rule keyed off
+`measured`, plus 2-second delays on both the mount-effect measurement
+and the ResizeObserver `observe()` call. Under that delay the new
+block stayed hidden long enough for the focus effect to fire. Console
+showed `active=<new id>` and `visibility=hidden`, and typing went to
+the old block. That's the production symptom.
+
+Fix: replace the rule with `opacity: 0; pointer-events: none`. Same
+invisible-until-measured visual, but the textarea stays focusable and
+gets keyboard input.
+
+`tmp_focus_test` can be deleted, or kept with the 2-second delays
+reverted as a "focus lands on new block" regression test.
+
 Wednesday, 21 October 2026
 ==========================
 
@@ -42,15 +70,8 @@ sync_from_props, and fast_add / fast_delete keep it synchronised.
 Before the fix, every rebuild reminted internal_ids, destroyed every
 textarea, and threw away measurements and cascade state.
 
-Focus-on-split is still broken: after a split, focus stays in the old
-block and typing goes there too. Logs show the focus effect fires for
-the new block and document.activeElement is that textarea, but the
-browser does not route keystrokes to it. tmp_focus_test at
-ZakkeN/tmp_focus_test replicates the split-and-focus mechanic and
-works, so the cause is structural in the real project. The bug is
-being handed off to another AI to isolate by incrementally adding
-real-project mechanics (async split, two-signal layer, global focus
-static, DB reload before focus) to the test.
+Focus-on-split: still broken at the end of this session. Fixed the
+next session; see the "focus bug closed" entry above.
 
 Tuesday, 20 October 2026 (end of session)
 ==========================================

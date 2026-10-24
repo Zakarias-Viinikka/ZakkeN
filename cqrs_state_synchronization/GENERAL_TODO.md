@@ -70,22 +70,4 @@ BlockRow is the one block type. It lives in complicated_signal_flow/core.rs. The
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.
 
-## Focus the new block when split creates one
 
-When three newlines in a row split a block, focus should land at the
-start of the new block. Currently the focus effect runs and the new
-textarea is `document.activeElement`, but typing still goes into the
-old block. `tmp_focus_test` at `ZakkeN/tmp_focus_test` reproduces the
-split-and-focus mechanic correctly, so the cause is structural in the
-real project. Suspects: the async gap between the input handler and
-the DB-backed block insert, and the two-signal layer
-(`page.blocks` -> `boxes` -> `For`) keyed by `internal_id`.
-
-## tmp_focus_test is a reproduction harness
-
-`ZakkeN/tmp_focus_test` is a minimal Leptos project that replicates
-the split-and-focus mechanic. Currently green. Use it to isolate the
-focus-on-split bug by incrementally adding real-project mechanics
-(async split, two-signal layer, global focus static, DB reload before
-focus). Delete when the bug is fixed and the fix is verified in the
-real project.

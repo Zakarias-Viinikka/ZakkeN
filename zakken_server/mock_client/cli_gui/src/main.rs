@@ -48,6 +48,7 @@ fn print_header(client: &MockClient) {
     println!("    delblock       remove a random block from a random page");
     println!();
     println!("  other");
+    println!("    sync           pull any love letters you haven't received yet");
     println!("    pages          list loaded pages");
     println!("    quit           leave");
     rule();
@@ -172,6 +173,11 @@ async fn run() -> Result<(), String> {
                     ]
                 }
                 Err(e) => vec![format!("couldn't remove a block: {e}")],
+            },
+
+            "sync" => match client.sync().await {
+                Ok(n) => vec![format!("synced {} letter(s)", n)],
+                Err(e) => vec![format!("sync failed: {e}")],
             },
 
             "edit" => do_edit(&mut client, EditKind::Random).await,
