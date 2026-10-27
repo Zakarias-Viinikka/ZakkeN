@@ -1,6 +1,6 @@
 use crate::logging::log_error;
-use crate::server_state::ServerState;
 use crate::telephone::Telephone;
+use db_wrapper::android_mascot::LiveForever;
 use db_core::db::user_registration;
 use error_stuff::{ErrorDetails, LogCategory};
 use protocol::error::DbError;
@@ -12,7 +12,7 @@ use super::err_bytes;
 
 pub async fn handle(
     msg_content: Vec<u8>,
-    state: &Arc<Mutex<ServerState>>,
+    state: &Arc<Mutex<LiveForever>>,
     telephone: &Telephone,
     socket_id: u64,
 ) -> Vec<u8> {
@@ -27,7 +27,7 @@ pub async fn handle(
 
     let exists = {
         let locked = state.lock().unwrap();
-        match user_registration::user_exists(&locked.liver, &payload.user_name) {
+        match user_registration::user_exists(&*locked, &payload.user_name) {
             Ok(b) => b,
             Err(e) => return err_bytes(e),
         }

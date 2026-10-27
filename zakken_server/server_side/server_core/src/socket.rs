@@ -19,7 +19,7 @@ enum NextRequest {
     Closed,
 }
 
-struct SocketSession {
+struct SocketState {
     socket: WebSocket,
     socket_id: u64,
     /// Who this socket is, for log lines. The address until login renames it.
@@ -28,14 +28,14 @@ struct SocketSession {
     incoming_nudges: UnboundedReceiver<()>,
 }
 
-impl SocketSession {
+impl SocketState {
     fn new(
         socket: WebSocket,
         socket_id: u64,
         addr: SocketAddr,
         incoming_nudges: UnboundedReceiver<()>,
     ) -> Self {
-        SocketSession {
+        SocketState {
             socket,
             socket_id,
             label: addr.to_string(),
@@ -148,8 +148,7 @@ impl SocketSession {
                         probable_cause: "the queue executor isn't running".to_string(),
                     },
                 );
-                let err: Result<(), DbError> =
-                    Err(DbError::BadCode(format!("queue closed: {e}")));
+                let err: Result<(), DbError> = Err(DbError::BadCode(format!("queue closed: {e}")));
                 self.send_reply(err.to_payload(), msg_id, request).await;
                 return None;
             }
@@ -240,7 +239,7 @@ pub async fn socket_main(
     let (nudge_tx, nudge_rx) = tokio::sync::mpsc::unbounded_channel();
     telephone.register_socket(socket_id, nudge_tx);
 
-    let mut session = SocketSession::new(socket, socket_id, addr, nudge_rx);
+    let mut session = SocketState::new(socket, socket_id, addr, nudge_rx);
     session.run(&telephone, &queue).await;
 
     telephone.remove_socket(socket_id);

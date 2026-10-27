@@ -1,6 +1,6 @@
 use crate::logging::{log, log_error};
-use crate::server_state::ServerState;
 use crate::telephone::Telephone;
+use db_wrapper::android_mascot::LiveForever;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
 use error_stuff::{ErrorDetails, LogCategory};
@@ -15,7 +15,7 @@ use super::err_bytes;
 
 pub async fn handle(
     msg_content: Vec<u8>,
-    state: &Arc<Mutex<ServerState>>,
+    state: &Arc<Mutex<LiveForever>>,
     telephone: &Telephone,
     sender: Option<&str>,
 ) -> Vec<u8> {
@@ -58,7 +58,7 @@ pub async fn handle(
     let letter_id = {
         let locked = state.lock().unwrap();
 
-        if let Err(e) = apply_letter(&locked.liver, letter) {
+        if let Err(e) = apply_letter(&locked, letter) {
             log_error(
                 "server",
                 LogCategory::LetterDelivery,
@@ -74,7 +74,7 @@ pub async fn handle(
         log("server", format!("updated its copy of page {target_page}"));
 
         let letter_id = match operations_love_letters::insert_letter(
-            &locked.liver,
+            &locked,
             payload.love_letter,
             target_page,
         ) {
@@ -95,7 +95,7 @@ pub async fn handle(
         };
         log("server", format!("saved the letter ({letter_id})"));
 
-        let users = match operations_love_letters::get_all_registered_user_names(&locked.liver) {
+        let users = match operations_love_letters::get_all_registered_user_names(&locked) {
             Ok(u) => u,
             Err(e) => {
                 log_error(
@@ -117,7 +117,7 @@ pub async fn handle(
                 continue;
             }
             if let Err(e) =
-                operations_love_letters::queue_unsent_for_user(&locked.liver, &user_name, letter_id)
+                operations_love_letters::queue_unsent_for_user(&locked, &user_name, letter_id)
             {
                 log_error(
                     "server",

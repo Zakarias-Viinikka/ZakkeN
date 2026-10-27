@@ -1,5 +1,5 @@
-use crate::server_state::ServerState;
 use crate::telephone::Telephone;
+use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::Request;
@@ -15,7 +15,7 @@ pub fn err_bytes(e: DbError) -> Vec<u8> {
 pub async fn do_request(
     msg_request: &Request,
     msg_content: Vec<u8>,
-    state: &Arc<Mutex<ServerState>>,
+    state: &Arc<Mutex<LiveForever>>,
     telephone: &Telephone,
     socket_id: u64,
 ) -> Vec<u8> {
@@ -30,20 +30,20 @@ pub async fn do_request(
 
     match msg_request {
         Request::Register => {
-            let mut locked = state.lock().unwrap();
-            register::handle(msg_content, &mut locked)
+            let locked = state.lock().unwrap();
+            register::handle(msg_content, &locked)
         }
         Request::GetAllYrsPages => {
-            let mut locked = state.lock().unwrap();
-            get_all_yrs_pages::handle(msg_content, &mut locked)
+            let locked = state.lock().unwrap();
+            get_all_yrs_pages::handle(msg_content, &locked)
         }
         Request::Ack => {
-            let mut locked = state.lock().unwrap();
-            ack::handle(msg_content, &mut locked, sender)
+            let locked = state.lock().unwrap();
+            ack::handle(msg_content, &locked, sender)
         }
         Request::GetMyUnsentLetters => {
-            let mut locked = state.lock().unwrap();
-            get_my_unsent_letters::handle(msg_content, &mut locked, sender)
+            let locked = state.lock().unwrap();
+            get_my_unsent_letters::handle(msg_content, &locked, sender)
         }
         Request::Nudge => err_bytes(DbError::IllegalInput(
             "Nudge is server-only; it can't be submitted as a job".to_string(),

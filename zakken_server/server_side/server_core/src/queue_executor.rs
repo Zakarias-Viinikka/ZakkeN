@@ -1,5 +1,5 @@
 use crate::allowed_requests::do_request;
-use crate::server_state::ServerState;
+use db_wrapper::android_mascot::LiveForever;
 use crate::telephone::Telephone;
 use error_stuff::ServerLogEntry;
 use queue::Job;
@@ -10,7 +10,7 @@ pub fn start(
     mut important_rx: UnboundedReceiver<Job>,
     mut normal_rx: UnboundedReceiver<Job>,
     mut log_rx: UnboundedReceiver<ServerLogEntry>,
-    state: Arc<Mutex<ServerState>>,
+    state: Arc<Mutex<LiveForever>>,
     telephone: Telephone,
 ) {
     tokio::spawn(async move {
@@ -32,7 +32,7 @@ pub fn start(
     });
 }
 
-async fn run_job(job: Job, state: &Arc<Mutex<ServerState>>, telephone: &Telephone) {
+async fn run_job(job: Job, state: &Arc<Mutex<LiveForever>>, telephone: &Telephone) {
     let bytes = do_request(
         &job.request,
         job.payload,
@@ -45,10 +45,10 @@ async fn run_job(job: Job, state: &Arc<Mutex<ServerState>>, telephone: &Telephon
     let _ = job.reply.send(bytes);
 }
 
-fn write_log(entry: ServerLogEntry, state: &Arc<Mutex<ServerState>>) {
+fn write_log(entry: ServerLogEntry, state: &Arc<Mutex<LiveForever>>) {
     let locked = state.lock().unwrap();
     if let Err(e) = db_core::db::operations_logs::insert_log(
-        &locked.liver,
+        &locked,
         entry.timestamp,
         entry.level.as_str(),
         entry.category.as_str(),

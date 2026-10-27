@@ -1,5 +1,5 @@
 use crate::logging::log;
-use crate::server_state::ServerState;
+use db_wrapper::android_mascot::LiveForever;
 use db_core::{
     db::{
         operations_key_value, operations_logs, operations_love_letters, operations_pages,
@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 /// Open the db and create every table the server needs, if missing.
 /// Returns None (after logging) if the db can't be opened, which is the
 /// only failure the caller should refuse to start on.
-pub fn setup_db() -> Option<Arc<Mutex<ServerState>>> {
+pub fn setup_db() -> Option<Arc<Mutex<LiveForever>>> {
     let liver = match personal_db_wrapper::new_liver() {
         Ok(l) => l,
         Err(e) => {
@@ -67,5 +67,5 @@ pub fn setup_db() -> Option<Arc<Mutex<ServerState>>> {
         }
     }
 
-    Some(Arc::new(Mutex::new(ServerState::new(liver))))
+    Some(Arc::new(Mutex::new(liver)))
 }

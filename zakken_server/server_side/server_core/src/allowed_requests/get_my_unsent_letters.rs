@@ -1,12 +1,12 @@
-use crate::server_state::ServerState;
 use db_core::db::operations_love_letters;
+use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{GetMyUnsentLettersPayload, UnsentLetter};
 
 pub fn handle(
     _msg_content: Vec<u8>,
-    state: &mut ServerState,
+    state: &LiveForever,
     sender: Option<&str>,
 ) -> Vec<u8> {
     let Some(user_name) = sender else {
@@ -18,7 +18,7 @@ pub fn handle(
     };
 
     let ids =
-        match operations_love_letters::get_unsent_letter_ids_for_user(&state.liver, user_name) {
+        match operations_love_letters::get_unsent_letter_ids_for_user(state, user_name) {
             Ok(ids) => ids,
             Err(e) => {
                 let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
@@ -28,7 +28,7 @@ pub fn handle(
 
     let mut letters = Vec::new();
     for id in ids {
-        match operations_love_letters::get_letter(&state.liver, id) {
+        match operations_love_letters::get_letter(state, id) {
             Ok(bytes) => letters.push(UnsentLetter {
                 letter_id: id,
                 love_letter: bytes,

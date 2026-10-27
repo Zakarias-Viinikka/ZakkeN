@@ -1,12 +1,12 @@
-use crate::server_state::ServerState;
 use db_core::db::operations_love_letters;
+use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::AckPayload;
 
 pub fn handle(
     msg_content: Vec<u8>,
-    state: &mut ServerState,
+    state: &LiveForever,
     sender: Option<&str>,
 ) -> Vec<u8> {
     let payload = match AckPayload::un_payloadify(&msg_content) {
@@ -26,7 +26,7 @@ pub fn handle(
         return wrapped.to_payload();
     };
 
-    match operations_love_letters::delete_unsent_row(&state.liver, user_name, payload.letter_id) {
+    match operations_love_letters::delete_unsent_row(state, user_name, payload.letter_id) {
         Ok(()) => ok_serialized(),
         Err(e) => {
             let wrapped: Result<(), DbError> = Err(e);
