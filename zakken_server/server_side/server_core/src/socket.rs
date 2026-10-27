@@ -1,194 +1,247 @@
 use crate::logging::{log, log_error, request_name};
 use crate::reply::{craft_response, send_message};
+use crate::telephone::Telephone;
 use axum::extract::ws::{Message, WebSocket};
-use connected_clients::Telephone;
-use error_stuff::{ErrorDetails, LogCategory};
+use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use protocol::error::DbError;
 use protocol::serialization::{Base64Bytes, Convert};
 use queue::{Priority, QueueManager};
 use server_protocol::{Request, Response, json_str_to_message, response_to_json_str};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc::UnboundedReceiver;
 
-pub async fn handle_socket(
-    mut socket: WebSocket,
-    telephone: Telephone,
-    queue: QueueManager,
-    addr: SocketAddr,
-) {
-    let mut label = addr.to_string();
-    let mut user_name: Option<String> = None;
-    log(&label, "connected");
+static NEXT_SOCKET_ID: AtomicU64 = AtomicU64::new(1);
 
-    let mut incoming_nudges: Option<UnboundedReceiver<()>> = None;
+enum NextRequest {
+    Got(Request, usize, Vec<u8>),
+    BadProtocol(ServErr),
+    Closed,
+}
 
-    loop {
-        let next_push = async {
-            match incoming_nudges.as_mut() {
-                Some(rx) => rx.recv().await,
-                None => std::future::pending().await,
-            }
-        };
+struct SocketSession {
+    socket: WebSocket,
+    socket_id: u64,
+    /// Who this socket is, for log lines. The address until login renames it.
+    label: String,
+    /// Created at birth, handed to the telephone at birth. Never moves.
+    incoming_nudges: UnboundedReceiver<()>,
+}
 
-        tokio::select! {
-            ws_msg = socket.recv() => {
-                let Some(Ok(msg)) = ws_msg else {
-                    break;
-                };
+impl SocketSession {
+    fn new(
+        socket: WebSocket,
+        socket_id: u64,
+        addr: SocketAddr,
+        incoming_nudges: UnboundedReceiver<()>,
+    ) -> Self {
+        SocketSession {
+            socket,
+            socket_id,
+            label: addr.to_string(),
+            incoming_nudges,
+        }
+    }
 
-                if let Message::Text(text) = msg {
-                    let json_msg = text.as_str();
-                    let parsed = json_str_to_message(json_msg);
-                    let (msg_request, msg_id, msg_content);
-                    match parsed {
-                        Ok(m) => {
-                            msg_request = m.request;
-                            msg_id = m.message_id;
-                            msg_content = m.payload.0;
-                        }
-                        Err(e) => {
-                            log(&label, format!("bad message: {e}"));
-                            if let Err(e2) = socket
-                                .send(Message::Text("Message doesn't use correct protocol".into()))
-                                .await
-                            {
-                                log(&label, format!("send protocol error failed: {e2}"));
-                            }
+    async fn run(&mut self, telephone: &Telephone, queue: &QueueManager) {
+        log(&self.label, "connected");
+
+        loop {
+            tokio::select! {
+                next = Self::next_request(&mut self.socket) => {
+                    let (request, msg_id, payload) = match next {
+                        NextRequest::Got(r, i, p) => (r, i, p),
+                        NextRequest::BadProtocol(e) => {
+                            self.reject_bad_protocol(e).await;
                             continue;
                         }
+                        NextRequest::Closed => break,
                     };
 
-                    let sender = user_name.clone();
+                    log(&self.label, request_name(&request));
 
-                    // Log the request first, so the handler's detail lines read
-                    // as belonging to it.
-                    log(&label, request_name(&msg_request));
+                    let is_login = matches!(request, Request::Login);
 
-                    let request_for_response = msg_request.clone();
+                    let Some(bytes) = self
+                        .run_request(request.clone(), msg_id, payload, queue)
+                        .await
+                    else {
+                        continue;
+                    };
 
-                    let reply_rx = match queue.submit(
-                        msg_id,
-                        msg_request,
-                        msg_content,
-                        sender,
-                        Priority::Normal,
-                    ) {
-                        Ok(rx) => rx,
-                        Err(e) => {
-                            log_error(
-                                &label,
-                                LogCategory::Queue,
-                                &ErrorDetails {
-                                    err_msg: format!("couldn't queue the request: {e}"),
-                                    file: file!().to_string(),
-                                    method: "handle_socket".to_string(),
-                                    probable_cause: "the queue executor isn't running".to_string(),
-                                },
-                            );
-                            let err: Result<(), DbError> =
-                                Err(DbError::BadCode(format!("queue closed: {e}")));
-                            let response = craft_response(err.to_payload(), msg_id, request_for_response);
-                            if let Err(e2) = send_message(&mut socket, response).await {
-                                log(&label, format!("send error failed: {e2}"));
-                                break;
-                            }
-                            continue;
+                    if is_login {
+                        if let Some(name) = telephone.user_of(self.socket_id).await {
+                            self.label = name;
                         }
-                    };
-
-                    let reply = match reply_rx.await {
-                        Ok(r) => r,
-                        Err(_) => {
-                            log_error(
-                                &label,
-                                LogCategory::Queue,
-                                &ErrorDetails {
-                                    err_msg: "the queue dropped the reply".to_string(),
-                                    file: file!().to_string(),
-                                    method: "handle_socket".to_string(),
-                                    probable_cause: "the executor task ended".to_string(),
-                                },
-                            );
-                            let err: Result<(), DbError> =
-                                Err(DbError::BadCode("queue dropped the reply".to_string()));
-                            let response = craft_response(err.to_payload(), msg_id, request_for_response);
-                            if let Err(e2) = send_message(&mut socket, response).await {
-                                log(&label, format!("send error failed: {e2}"));
-                                break;
-                            }
-                            continue;
-                        }
-                    };
-
-                    if reply.incoming_letters.is_some() {
-                        incoming_nudges = reply.incoming_letters;
                     }
 
-                    if let Some(name) = reply.just_identified {
-                        user_name = Some(name.clone());
-                        label = name;
+                    if !self.send_reply(bytes, msg_id, request).await {
+                        break;
                     }
+                }
 
-                    let response = craft_response(reply.bytes, msg_id, request_for_response);
-                    if let Err(e) = send_message(&mut socket, response).await {
-                        log(&label, format!("send response failed: {e}"));
+                nudge = self.incoming_nudges.recv() => {
+                    if nudge.is_none() {
+                        // The telephone's task ended; no more nudges will
+                        // come. Stop this socket too.
+                        break;
+                    }
+                    if !self.send_nudge().await {
                         break;
                     }
                 }
             }
+        }
 
-            nudge = next_push => {
-                let Some(()) = nudge else {
-                    // The telephone dropped our sender (another socket for
-                    // this user replaced us, or the task ended). Stop
-                    // watching for nudges; the rest of the socket keeps
-                    // working.
-                    incoming_nudges = None;
-                    continue;
-                };
+        log(&self.label, "disconnected");
+    }
 
-                let nudge_response = Response {
-                    message_id: 0,
-                    request: Request::Nudge,
-                    payload: Base64Bytes(Vec::new()),
-                };
-
-                let json = match response_to_json_str(&nudge_response) {
-                    Ok(j) => j,
-                    Err(e) => {
-                        log_error(
-                            &label,
-                            LogCategory::LetterDelivery,
-                            &ErrorDetails {
-                                err_msg: format!("nudge: serialize failed: {e}"),
-                                file: file!().to_string(),
-                                method: "handle_socket (nudge arm)".to_string(),
-                                probable_cause: String::new(),
-                            },
-                        );
-                        continue;
-                    }
-                };
-
-                if let Err(e) = socket.send(Message::Text(json.into())).await {
-                    log_error(
-                        &label,
-                        LogCategory::LetterDelivery,
-                        &ErrorDetails {
-                            err_msg: format!("nudge: send failed: {e}"),
-                            file: file!().to_string(),
-                            method: "handle_socket (nudge arm)".to_string(),
-                            probable_cause: "the client's socket closed".to_string(),
-                        },
-                    );
-                    break;
+    async fn next_request(socket: &mut WebSocket) -> NextRequest {
+        loop {
+            match socket.recv().await {
+                Some(Ok(Message::Text(text))) => {
+                    return match json_str_to_message(&text) {
+                        Ok(m) => NextRequest::Got(m.request, m.message_id, m.payload.0),
+                        Err(e) => NextRequest::BadProtocol(e),
+                    };
                 }
+                Some(Ok(_)) => continue,
+                _ => return NextRequest::Closed,
             }
         }
     }
 
-    log(&label, "disconnected");
-    if let Some(name) = user_name {
-        telephone.remove_client(name);
+    async fn reject_bad_protocol(&mut self, e: ServErr) {
+        log(&self.label, format!("bad message: {e}"));
+        if let Err(e2) = self
+            .socket
+            .send(Message::Text("Message doesn't use correct protocol".into()))
+            .await
+        {
+            log(&self.label, format!("send protocol error failed: {e2}"));
+        }
     }
+
+    async fn run_request(
+        &mut self,
+        request: Request,
+        msg_id: usize,
+        payload: Vec<u8>,
+        queue: &QueueManager,
+    ) -> Option<Vec<u8>> {
+        let reply_rx = match queue.submit(
+            msg_id,
+            request.clone(),
+            payload,
+            self.socket_id,
+            Priority::Normal,
+        ) {
+            Ok(rx) => rx,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::Queue,
+                    &ErrorDetails {
+                        err_msg: format!("couldn't queue the request: {e}"),
+                        file: file!().to_string(),
+                        method: "SocketSession::run_request".to_string(),
+                        probable_cause: "the queue executor isn't running".to_string(),
+                    },
+                );
+                let err: Result<(), DbError> =
+                    Err(DbError::BadCode(format!("queue closed: {e}")));
+                self.send_reply(err.to_payload(), msg_id, request).await;
+                return None;
+            }
+        };
+
+        match reply_rx.await {
+            Ok(bytes) => Some(bytes),
+            Err(_) => {
+                log_error(
+                    &self.label,
+                    LogCategory::Queue,
+                    &ErrorDetails {
+                        err_msg: "the queue dropped the reply".to_string(),
+                        file: file!().to_string(),
+                        method: "SocketSession::run_request".to_string(),
+                        probable_cause: "the executor task ended".to_string(),
+                    },
+                );
+                let err: Result<(), DbError> =
+                    Err(DbError::BadCode("queue dropped the reply".to_string()));
+                self.send_reply(err.to_payload(), msg_id, request).await;
+                None
+            }
+        }
+    }
+
+    async fn send_reply(&mut self, bytes: Vec<u8>, msg_id: usize, request: Request) -> bool {
+        let response = craft_response(bytes, msg_id, request);
+        match send_message(&mut self.socket, response).await {
+            Ok(()) => true,
+            Err(e) => {
+                log(&self.label, format!("send response failed: {e}"));
+                false
+            }
+        }
+    }
+
+    async fn send_nudge(&mut self) -> bool {
+        let nudge_response = Response {
+            message_id: 0,
+            request: Request::Nudge,
+            payload: Base64Bytes(Vec::new()),
+        };
+
+        let json = match response_to_json_str(&nudge_response) {
+            Ok(j) => j,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::LetterDelivery,
+                    &ErrorDetails {
+                        err_msg: format!("nudge: serialize failed: {e}"),
+                        file: file!().to_string(),
+                        method: "SocketSession::send_nudge".to_string(),
+                        probable_cause: String::new(),
+                    },
+                );
+                return true;
+            }
+        };
+
+        match self.socket.send(Message::Text(json.into())).await {
+            Ok(()) => true,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::LetterDelivery,
+                    &ErrorDetails {
+                        err_msg: format!("nudge: send failed: {e}"),
+                        file: file!().to_string(),
+                        method: "SocketSession::send_nudge".to_string(),
+                        probable_cause: "the client's socket closed".to_string(),
+                    },
+                );
+                false
+            }
+        }
+    }
+}
+
+pub async fn socket_main(
+    socket: WebSocket,
+    telephone: Telephone,
+    queue: QueueManager,
+    addr: SocketAddr,
+) {
+    let socket_id = NEXT_SOCKET_ID.fetch_add(1, Ordering::Relaxed);
+    let (nudge_tx, nudge_rx) = tokio::sync::mpsc::unbounded_channel();
+    telephone.register_socket(socket_id, nudge_tx);
+
+    let mut session = SocketSession::new(socket, socket_id, addr, nudge_rx);
+    session.run(&telephone, &queue).await;
+
+    telephone.remove_socket(socket_id);
 }

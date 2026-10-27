@@ -17,7 +17,7 @@ clients so each one can pull whatever it hasn't received. It's the only
 place that knows which clients are online and which clients still need
 which letters.
 
-## Workspace layout - 2026-10-22
+## Workspace layout - 2026-10-27
 
 A cargo workspace in three folders. The split mirrors
 rust_practice/server_template_3.
@@ -30,13 +30,10 @@ shared/ holds what more than one side needs:
 
 server_side/ holds the server's own crates:
 - db (package name db_core) - schemas and db operations, nothing else.
-- server_core - the server binary, the request handlers, and the queue
-  executor.
+- server_core - the server binary, the request handlers, the queue
+  executor, and the telephone module.
 - love_letter_parser - letter bytes -> target_page_id.
-- queue - Job, JobReply, Priority, QueueManager. No database knowledge.
-- connected_clients - exposes the `Telephone` handle. Owns the
-  user_name -> nudge-sender map behind one task. No database knowledge,
-  so it can never take the db lock.
+- queue - Job, Priority, QueueManager. No database knowledge.
 
 mock_client/ holds the mock client, at the top level:
 - mock_client_core - mock client logic, no printing.
@@ -108,13 +105,13 @@ checking whether the payload was empty - which was wrong, because both are
 non-empty. If you add a request, its handler must return
 Result<ItsPayloadType, DbError>.
 
-## server_core - 2026-10-22
+## server_core - 2026-10-27
 
 ServerState holds only the db connection (LiveForever), behind
-Arc<std::sync::Mutex<ServerState>>. The Telephone lives in its own crate
-and its own handle. Lock order is fixed for good: the db lock may be held
-while calling Telephone, never the reverse, because the connected_clients
-crate doesn't depend on db_core.
+Arc<std::sync::Mutex<ServerState>>. The Telephone lives in this crate too,
+as the `telephone` module, but behind its own handle. The db lock may be
+held while calling Telephone, never the reverse: the telephone's task
+never touches the db.
 
 Every client request goes socket -> queue -> executor -> handler -> reply.
 The socket parses the websocket message, submits a Job to the QueueManager,
@@ -122,20 +119,23 @@ and awaits the reply. One executor task, started from main, takes jobs
 (important channel first, then normal, via a biased select), calls
 do_request, and sends the result back through the job's oneshot.
 
-do_request is async. Its signature is (request, payload, state, telephone,
-sender) -> HandlerOutcome. HandlerOutcome { bytes, just_identified,
-incoming_letters }. incoming_letters is Some only for a successful Login:
-it's the receiver half of this socket's nudge channel, and the socket
-task keeps it and reads () values from it. Register, GetAllYrsPages, Ack
-and GetMyUnsentLetters lock the db briefly, do their work, and drop the
-guard; Login and SendLoveLetter do their own locking because they need to
-await the Telephone in between db calls. Nudge is refused as a job because
-it's server-only.
+A Job carries the request, the payload, a message id, and a socket id. The
+socket id is a u64 minted from an atomic counter when the socket is born.
+It names a connection before anyone has logged in, which is what lets the
+socket register its nudge channel at birth instead of at login.
 
-The login gate lives in do_request: a socket that hasn't logged in can
-only call Register or Login, everything else gets an error. The gate works
-because a Result<T, DbError>::Err serializes to the same bytes no matter
-what T is, so the gate doesn't need to know each handler's return type.
+do_request is async. Its signature is (request, payload, state, telephone,
+socket_id) -> Vec<u8>. Every handler returns bytes and nothing else. The
+login gate lives here: do_request asks the telephone for the name attached
+to the socket id, and a socket with no name may only call Register or
+Login. Register, GetAllYrsPages, Ack and GetMyUnsentLetters lock the db
+briefly, do their work, and drop the guard; Login and SendLoveLetter do
+their own locking because they need to await the Telephone in between db
+calls. Nudge is refused as a job because it's server-only.
+
+Login does two things beyond checking the user exists: it tells the
+telephone to attach the name to the socket id, then nudges that socket so
+the client pulls its backlog.
 
 The executor also drains a log channel: anything that wants to write a log
 row sends a ServerLogEntry down it, and the executor is the one that
@@ -145,54 +145,60 @@ startup by setup::setup_db and installed into logging.rs as a global, so
 every row from this run carries it.
 
 main.rs is wiring only. setup.rs opens the db and creates every table.
-socket.rs holds handle_socket. queue_executor.rs holds the executor loop.
-lib.rs re-exports all three.
+socket.rs holds socket_main, the per-connection entry point.
+queue_executor.rs holds the executor loop. lib.rs re-exports all three.
 
-The socket loop in socket.rs selects on two things: the websocket and the
-socket's incoming_letters channel. A () arriving on incoming_letters means
-the server nudged this client - another client edited a page, or this
-client just logged in and its backlog is ready. The socket task writes a
-Nudge down the websocket (a Response with message_id 0, request Nudge,
-empty payload); the client's move is to respond with
-GetMyUnsentLetters, apply each letter, and Ack each. Nudges carry no
-letter id; the fetch is the client's side. If incoming_letters returns
-None (the sender was dropped - another socket for this user took over, or
-the telephone task ended), the socket clears its receiver and keeps
-serving; the rest of the socket is unaffected.
+The socket in socket.rs is a `SocketSession`: the websocket, the socket
+id, a log label, and the nudge receiver. Its loop selects on two things:
+the websocket and its nudge channel. The nudge channel is created at birth
+and handed to the telephone at birth, so the socket listens from the
+moment it exists - login changes nothing about the channel, it only gives
+the telephone a name to reach it by. A () arriving on the channel means
+the telephone wants this client to pull; the socket writes a Nudge down
+the websocket (a Response with message_id 0, request Nudge, empty
+payload), and the client's move is to respond with GetMyUnsentLetters,
+apply each letter, and Ack each. Nudges carry no letter id; the fetch is
+the client's side.
 
-Register and Login are different messages on purpose: Register creates
-the account and fails if the name is taken, Login identifies the socket
-and fails if the name doesn't exist. Only Login makes a socket receive
-nudges. After Login, the executor returns the receiver half of that
-user's channel in HandlerOutcome.incoming_letters, and the socket keeps
-it.
+After a Login reply comes back, the socket asks the telephone who it is
+(user_of(socket_id)) and uses that name as its log label. If the login
+failed there is no name and the label stays the address. When the loop
+ends, the socket calls telephone.remove_socket(socket_id).
 
-## connected_clients - 2026-10-22
+## telephone - 2026-10-27
 
-Exposes one struct, `Telephone`. It's a handle to a task that owns
-`HashMap<String, UnboundedSender<()>>` - the user_name -> nudge-sender
-map. The () is a nudge: "you have something to pull". Every method sends
-a `Command` to the task; the task is the only thing that touches the
-map. The task runs on tokio and drains one channel.
+A module inside server_core (src/telephone/), not a crate any more. It
+used to be the connected_clients crate; it moved because the socket id
+design ties the telephone and the socket loop into one story.
 
-Telephone is Clone. add_client is sync on purpose: login has to call it
-and follow with the nudge before the executor processes anything else, so
-no live fan-out slips in between. add_client returns the receiver half of
-the new channel; the socket task keeps it and reads () values.
-remove_client is fire-and-forget. nudge(user_name) nudges one client;
-nudge_all(except) nudges every connected client except `except`.
-is_connected and connected_user_names ask the map without touching it;
-nothing uses them right now except a test.
+Exposes one struct, `Telephone`. It's a handle to a task that owns a
+HashMap<u64, SocketEntry> - socket id -> { nudge sender, user name }. The
+() on the channel is a nudge: "you have something to pull". Every method
+sends a Command to the task; the task is the only thing that touches the
+map, and it runs on tokio, draining one channel.
+
+Telephone is Clone. register_socket and remove_socket are sync and
+fire-and-forget: a socket registers at birth and removes itself at
+disconnect. attach_name(socket_id, name) is async and waits until the task
+has recorded the name, so the executor's login gate can rely on a
+following user_of seeing it. user_of(socket_id) returns the name attached
+to a socket, or None. nudge_socket(socket_id) nudges one connection;
+nudge_all(except) nudges every logged-in connection except `except`.
+is_connected(user_name) and connected_user_names() ask the map without
+touching it; nothing uses them right now except a test.
+
+nudge_all skips entries with no name: an entry that exists but hasn't
+logged in can't have a letter queued for it, so there is nothing for it to
+pull. That, plus the one-job-at-a-time executor, is why a live letter
+can't fan out to a user between attach_name and the login nudge.
 
 When a client's channel turns out to be gone (their socket task dropped
-the receiver), nudge / nudge_all drop that client from the map and report
-it in the returned NudgeReport { reached, dropped }. The caller logs the
-drops. This is the one place the crate touches something outside its own
-state: it sends a ServerLogEntry down a log channel it was given at
-construction. That channel is how it reports without depending on
-db_core.
+the receiver), nudge_all drops that client from the map and reports it in
+the returned NudgeReport { reached, dropped }. The caller logs the drops.
+The task also sends a ServerLogEntry down the log channel it was given at
+construction; that's how this module reports without owning the db.
 
-## Delivery - 2026-10-22
+## Delivery - 2026-10-27
 
 Event-driven, no polling, at-least-once. Pull model on the client side:
 the server nudges, the client fetches.
@@ -206,11 +212,10 @@ send GetMyUnsentLetters, receive every letter that's still rowed for them,
 apply each, and Ack each. Offline clients aren't connected, so nudge_all
 doesn't reach them; their unsent rows sit until they log in.
 
-On Login: add_client registers the socket's channel, then the login
-handler nudges the just-connected client so its socket writes a Nudge and
-the client pulls its backlog through GetMyUnsentLetters. The rows stay
-until each is acked. The executor handles one job at a time, so a live
-letter can't fan out to this user between add_client and the login nudge.
+On Login: the socket registered its channel at birth, so login only
+attaches the name to the socket id and then nudges that socket once. The
+socket writes a Nudge and the client pulls its backlog through
+GetMyUnsentLetters. The rows stay until each is acked.
 
 On Ack: the client sends the letter id it applied. The server deletes
 that user's unsent row for that letter. A repeated ack for an already

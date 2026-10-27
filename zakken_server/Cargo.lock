@@ -373,14 +373,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "connected_clients"
-version = "0.1.0"
-dependencies = [
- "error_stuff",
- "tokio",
-]
-
-[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1635,7 +1627,6 @@ name = "server_core"
 version = "0.1.0"
 dependencies = [
  "axum",
- "connected_clients",
  "db_core",
  "db_wrapper",
  "error_stuff",

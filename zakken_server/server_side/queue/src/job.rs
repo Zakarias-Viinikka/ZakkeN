@@ -1,5 +1,4 @@
 use server_protocol::Request;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
 
 pub enum Priority {
@@ -11,16 +10,6 @@ pub struct Job {
     pub message_id: usize,
     pub request: Request,
     pub payload: Vec<u8>,
-    pub sender: Option<String>,
-    pub reply: oneshot::Sender<JobReply>,
-}
-
-pub struct JobReply {
-    pub bytes: Vec<u8>,
-    pub just_identified: Option<String>,
-    /// Some only for a successful Login: how this socket hears that
-    /// something new arrived. The server puts () in; the socket wakes,
-    /// writes a Nudge to the client, and the client asks for its unsent
-    /// letters.
-    pub incoming_letters: Option<UnboundedReceiver<()>>,
+    pub socket_id: u64,
+    pub reply: oneshot::Sender<Vec<u8>>,
 }

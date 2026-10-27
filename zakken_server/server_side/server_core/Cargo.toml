@@ -20,5 +20,4 @@ server_protocol = { path = "../../shared/server_protocol" }
 error_stuff = { path = "../../shared/error_stuff" }
 love_letter_parser = { path = "../love_letter_parser" }
 queue = { path = "../queue" }
-connected_clients = { path = "../connected_clients" }
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"

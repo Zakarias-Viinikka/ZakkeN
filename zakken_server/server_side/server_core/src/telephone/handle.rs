@@ -1,6 +1,5 @@
-use crate::commands::Command;
+use super::commands::Command;
 use error_stuff::{ErrorDetails, ServerLogEntry, ServErr};
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone)]
@@ -9,21 +8,16 @@ pub struct NudgeReport {
     pub dropped: Vec<String>,
 }
 
-/// A handle to the telephone's task. Cheap to clone. All methods send a
-/// command to the task and, where an answer is needed, await a reply.
 #[derive(Clone)]
 pub struct Telephone {
     alert_telephone_manager_to_nudge_tx: mpsc::UnboundedSender<Command>,
 }
 
 impl Telephone {
-    /// Spawn the task that owns the map and return a handle to it.
-    /// `log_tx` is where the task sends a log entry when it drops a client
-    /// whose channel turned out to be gone.
     pub fn new(log_tx: mpsc::UnboundedSender<ServerLogEntry>) -> Self {
         let (alert_telephone_manager_to_nudge_tx, alert_telephone_manager_to_nudge_rx) =
             mpsc::unbounded_channel();
-        tokio::spawn(crate::task::run(
+        tokio::spawn(super::task::run(
             alert_telephone_manager_to_nudge_rx,
             log_tx,
         ));
@@ -32,87 +26,75 @@ impl Telephone {
         }
     }
 
-    /// Register a new connection for `user_name`, returning the receiver
-    /// half of that user's nudge channel. The caller keeps the receiver
-    /// and reads nudges from it.
-    ///
-    /// If the task is gone, the server is shutting down; a receiver that
-    /// will never fire is the logically correct thing to hand back.
-    pub fn add_client(&self, user_name: String) -> UnboundedReceiver<()> {
-        let (tx, rx) = mpsc::unbounded_channel();
+    /// Register a socket at birth. The sender is stored under the socket id;
+    /// the socket already holds the receiver and starts listening right away.
+    pub fn register_socket(&self, socket_id: u64, sender: mpsc::UnboundedSender<()>) {
         let _ = self
             .alert_telephone_manager_to_nudge_tx
-            .send(Command::AddClient {
-                user_name,
-                sender: tx,
-            });
-        rx
+            .send(Command::RegisterSocket { socket_id, sender });
     }
 
-    /// Forget `user_name`. Fire-and-forget: nothing needs a reply. If the
-    /// task is gone, the server is shutting down and there is nothing to
-    /// forget.
-    pub fn remove_client(&self, user_name: String) {
+    /// Forget a socket at disconnect.
+    pub fn remove_socket(&self, socket_id: u64) {
         let _ = self
             .alert_telephone_manager_to_nudge_tx
-            .send(Command::RemoveClient { user_name });
+            .send(Command::RemoveSocket { socket_id });
     }
 
-    /// Nudge one client to request its unsent letters.
-    pub async fn nudge(&self, user_name: String) -> Result<(), ServErr> {
+    /// Attach a user name to a socket. Waits until the telephone's task
+    /// has recorded it, so a following `user_of` sees it.
+    pub async fn attach_name(&self, socket_id: u64, user_name: String) {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
             .alert_telephone_manager_to_nudge_tx
-            .send(Command::Nudge {
-                user_name: user_name.clone(),
+            .send(Command::AttachName {
+                socket_id,
+                user_name,
                 reply: reply_tx,
             })
             .is_err()
         {
-            return Err(task_gone("nudge"));
+            return;
+        }
+        let _ = reply_rx.await;
+    }
+
+    /// The name attached to this socket, or None if no login has happened.
+    pub async fn user_of(&self, socket_id: u64) -> Option<String> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .alert_telephone_manager_to_nudge_tx
+            .send(Command::UserOf {
+                socket_id,
+                reply: reply_tx,
+            })
+            .is_err()
+        {
+            return None;
+        }
+        reply_rx.await.unwrap_or(None)
+    }
+
+    /// Nudge one specific socket by id.
+    pub async fn nudge_socket(&self, socket_id: u64) -> Result<(), ServErr> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .alert_telephone_manager_to_nudge_tx
+            .send(Command::NudgeSocket {
+                socket_id,
+                reply: reply_tx,
+            })
+            .is_err()
+        {
+            return Err(task_gone("nudge_socket"));
         }
         match reply_rx.await {
             Ok(r) => r,
-            Err(_) => Err(task_gone("nudge")),
+            Err(_) => Err(task_gone("nudge_socket")),
         }
     }
 
-    /// False if the task is gone, which is logically correct: nothing is
-    /// connected if the telephone's task isn't running.
-    pub async fn is_connected(&self, user_name: String) -> bool {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .alert_telephone_manager_to_nudge_tx
-            .send(Command::IsConnected {
-                user_name,
-                reply: reply_tx,
-            })
-            .is_err()
-        {
-            return false;
-        }
-        reply_rx.await.unwrap_or(false)
-    }
-
-    /// Empty if the task is gone, for the same reason as `is_connected`.
-    pub async fn connected_user_names(&self) -> Vec<String> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .alert_telephone_manager_to_nudge_tx
-            .send(Command::ConnectedUserNames { reply: reply_tx })
-            .is_err()
-        {
-            return Vec::new();
-        }
-        reply_rx.await.unwrap_or_default()
-    }
-
-    /// Nudge every connected client except `except`. Dead channels are
-    /// dropped from the map and reported. Reaching nobody is not an
-    /// error — it just means nobody else is online.
-    ///
-    /// An empty report if the task is gone, for the same reason as
-    /// `is_connected`.
+    /// Nudge every logged-in socket except `except`.
     pub async fn nudge_all(&self, except: Option<String>) -> NudgeReport {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -133,6 +115,33 @@ impl Telephone {
             dropped: Vec::new(),
         })
     }
+
+    pub async fn is_connected(&self, user_name: String) -> bool {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .alert_telephone_manager_to_nudge_tx
+            .send(Command::IsConnected {
+                user_name,
+                reply: reply_tx,
+            })
+            .is_err()
+        {
+            return false;
+        }
+        reply_rx.await.unwrap_or(false)
+    }
+
+    pub async fn connected_user_names(&self) -> Vec<String> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .alert_telephone_manager_to_nudge_tx
+            .send(Command::ConnectedUserNames { reply: reply_tx })
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
 }
 
 fn task_gone(method: &str) -> ServErr {
@@ -148,13 +157,20 @@ fn task_gone(method: &str) -> ServErr {
 mod tests {
     use super::*;
 
+    async fn add(telephone: &Telephone, socket_id: u64, name: &str) -> UnboundedReceiver<()> {
+        let (tx, rx) = mpsc::unbounded_channel();
+        telephone.register_socket(socket_id, tx);
+        telephone.attach_name(socket_id, name.to_string()).await;
+        rx
+    }
+
     #[tokio::test]
     async fn nudge_all_reaches_everyone_except_the_sender() {
         let (log_tx, _log_rx) = mpsc::unbounded_channel();
         let telephone = Telephone::new(log_tx);
-        let mut alice = telephone.add_client("alice".to_string());
-        let mut bob = telephone.add_client("bob".to_string());
-        let mut carol = telephone.add_client("carol".to_string());
+        let mut alice = add(&telephone, 1, "alice").await;
+        let mut bob = add(&telephone, 2, "bob").await;
+        let mut carol = add(&telephone, 3, "carol").await;
 
         let report = telephone.nudge_all(Some("alice".to_string())).await;
 
@@ -171,7 +187,7 @@ mod tests {
     async fn nudge_all_drops_a_client_whose_receiver_is_gone() {
         let (log_tx, _log_rx) = mpsc::unbounded_channel();
         let telephone = Telephone::new(log_tx);
-        let bob = telephone.add_client("bob".to_string());
+        let bob = add(&telephone, 2, "bob").await;
         drop(bob);
 
         let report = telephone.nudge_all(None).await;
@@ -185,8 +201,8 @@ mod tests {
     async fn a_removed_client_is_not_nudged() {
         let (log_tx, _log_rx) = mpsc::unbounded_channel();
         let telephone = Telephone::new(log_tx);
-        let mut alice = telephone.add_client("alice".to_string());
-        telephone.remove_client("alice".to_string());
+        let mut alice = add(&telephone, 1, "alice").await;
+        telephone.remove_socket(1);
 
         let report = telephone.nudge_all(None).await;
 

@@ -4,20 +4,17 @@ use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{GetMyUnsentLettersPayload, UnsentLetter};
 
-/// A client was nudged and is asking for every letter it hasn't received
-/// yet. Reads the unsent ids for the sender, loads each letter, and
-/// returns the batch. The client acks each one afterwards.
 pub fn handle(
     _msg_content: Vec<u8>,
     state: &mut ServerState,
     sender: Option<&str>,
-) -> (Vec<u8>, Option<String>) {
+) -> Vec<u8> {
     let Some(user_name) = sender else {
         let wrapped: Result<GetMyUnsentLettersPayload, DbError> =
             Err(DbError::IllegalInput(
                 "GetMyUnsentLetters without a logged-in user".to_string(),
             ));
-        return (wrapped.to_payload(), None);
+        return wrapped.to_payload();
     };
 
     let ids =
@@ -25,7 +22,7 @@ pub fn handle(
             Ok(ids) => ids,
             Err(e) => {
                 let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
-                return (wrapped.to_payload(), None);
+                return wrapped.to_payload();
             }
         };
 
@@ -38,12 +35,12 @@ pub fn handle(
             }),
             Err(e) => {
                 let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
-                return (wrapped.to_payload(), None);
+                return wrapped.to_payload();
             }
         }
     }
 
     let wrapped: Result<GetMyUnsentLettersPayload, DbError> =
         Ok(GetMyUnsentLettersPayload { letters });
-    (wrapped.to_payload(), None)
+    wrapped.to_payload()
 }

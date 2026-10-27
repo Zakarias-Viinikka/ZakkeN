@@ -4,7 +4,7 @@ use axum::{
     response::Response as HttpResponse,
     routing::any,
 };
-use connected_clients::Telephone;
+use server_core::telephone::Telephone;
 use queue::QueueManager;
 use server_core::logging::log;
 use server_core::{queue_executor, setup, socket};
@@ -17,16 +17,20 @@ struct AppState {
     queue: QueueManager,
 }
 
-async fn ws_handler(
+async fn forward_app_state_to_new_socket(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(app): State<AppState>,
 ) -> HttpResponse {
-    ws.on_upgrade(move |socket| socket::handle_socket(socket, app.telephone, app.queue, addr))
+    ws.on_upgrade(move |socket| socket::socket_main(socket, app.telephone, app.queue, addr))
 }
 
 #[tokio::main]
 async fn main() {
+    // figured this should be noted somewhere. when the server sends response
+    // spontaneously, the msg_id is 0, that's an expectation/assumption the
+    // server and the clients are just going to be making
+
     //state just holds the db handle as of writing this comment
     let Some(state) = setup::setup_db() else {
         return;
@@ -53,7 +57,7 @@ async fn main() {
     let app_state = AppState { telephone, queue };
 
     let app = Router::new()
-        .route("/ws", any(ws_handler))
+        .route("/ws", any(forward_app_state_to_new_socket))
         .with_state(app_state)
         .into_make_service_with_connect_info::<SocketAddr>();
 

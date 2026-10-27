@@ -4,12 +4,12 @@ use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{GetAllYrsPagesPayload, PageRow};
 
-pub fn handle(_msg_content: Vec<u8>, state: &mut ServerState) -> (Vec<u8>, Option<String>) {
+pub fn handle(_msg_content: Vec<u8>, state: &mut ServerState) -> Vec<u8> {
     let stored = match operations_pages::get_all_pages(&state.liver) {
         Ok(p) => p,
         Err(e) => {
             let wrapped: Result<GetAllYrsPagesPayload, DbError> = Err(e);
-            return (wrapped.to_payload(), None);
+            return wrapped.to_payload();
         }
     };
 
@@ -26,5 +26,5 @@ pub fn handle(_msg_content: Vec<u8>, state: &mut ServerState) -> (Vec<u8>, Optio
 
     let wrapped: Result<GetAllYrsPagesPayload, DbError> =
         Ok(GetAllYrsPagesPayload { pages });
-    (wrapped.to_payload(), None)
+    wrapped.to_payload()
 }

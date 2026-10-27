@@ -151,13 +151,13 @@ project that replicates the mechanic and works, so the cause is
 structural in the real project. Being handed off to another AI to
 isolate by incrementally adding real-project mechanics.
 
-## zakken_server - 2026-10-15
+## zakken_server - 2026-10-27
 
 A workspace in three folders, shaped like rust_practice/server_template_3:
 
   shared/        error_stuff, server_protocol
   server_side/   db (package db_core), server_core, love_letter_parser,
-                 queue, connected_clients
+                 queue
   mock_client/   mock_client_core, cli_gui
 
 db_core - schemas and db operations, nothing else. Schemas in
@@ -183,29 +183,30 @@ payload structs. Request variants: Register, Login, SendLoveLetter,
 GetAllYrsPages, Ack. Every response payload is bincode
 Result<T, DbError>, so the client can tell success from failure.
 
-queue - Job, JobReply, Priority, QueueManager. No db knowledge. Every
-client request goes through it. The executor (in server_core) drains
-it.
+queue - Job, Priority, QueueManager. No db knowledge. Every client
+request goes through it, carrying the socket id. The executor (in
+server_core) drains it.
 
-connected_clients - owns the user_name -> UnboundedSender<i64> map.
-No db knowledge, so it can never take the db lock; that fixes the
-lock order at db-then-clients forever. Every method talks to one task
-that owns the map.
+telephone - a module inside server_core now, not a crate. Owns the
+socket id -> { nudge sender, user name } map. No db knowledge, so it
+can never take the db lock; that fixes the lock order at
+db-then-telephone forever. Every method talks to one task that owns
+the map.
 
 server_core - the server. ServerState holds only the db connection.
-do_request is async and returns HandlerOutcome { bytes,
-just_identified, incoming_letters }. main.rs is wiring; setup.rs opens
-the db; socket.rs holds handle_socket; queue_executor.rs holds the
-executor loop, which also drains the log channel.
+do_request is async and returns Vec<u8>; the telephone is a module in
+this crate. main.rs is wiring; setup.rs opens the db; socket.rs holds
+socket_main; queue_executor.rs holds the executor loop, which also
+drains the log channel.
 
 Delivery, event-driven, at-least-once. On a new letter: apply to
 pages, store the letter, then for every registered user except the
-sender - queue an unsent row, online or not. Then fan_out the letter
-id to every connected user except the sender. On Ack: delete that
-user's unsent row. On Login: register the socket's channel, then push
-that user's unsent rows, oldest first. The rows stay until acked, so a
-dropped connection gets the letter again on reconnect and the client
-dedups by letter_id.
+sender - queue an unsent row, online or not. Then nudge every connected
+user except the sender. On Ack: delete that user's unsent row. On
+Login: the socket registered its channel at birth, so login attaches
+the name to the socket id and nudges that socket once. The rows stay
+until acked, so a dropped connection gets the letter again on reconnect
+and the client dedups by letter_id.
 
 mock_client/ is a workspace inside a workspace. mock_client_core owns
 the connection and the operations, no printing. cli_gui is the REPL.

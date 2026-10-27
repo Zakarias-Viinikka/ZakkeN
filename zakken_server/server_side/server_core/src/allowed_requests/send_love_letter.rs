@@ -1,7 +1,6 @@
-use crate::allowed_requests::{err_outcome, HandlerOutcome};
 use crate::logging::{log, log_error};
 use crate::server_state::ServerState;
-use connected_clients::Telephone;
+use crate::telephone::Telephone;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
 use error_stuff::{ErrorDetails, LogCategory};
@@ -12,12 +11,14 @@ use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::SendLoveLetterPayload;
 use std::sync::{Arc, Mutex};
 
+use super::err_bytes;
+
 pub async fn handle(
     msg_content: Vec<u8>,
     state: &Arc<Mutex<ServerState>>,
     telephone: &Telephone,
     sender: Option<&str>,
-) -> HandlerOutcome {
+) -> Vec<u8> {
     let payload = match SendLoveLetterPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
         Err(e) => {
@@ -31,7 +32,7 @@ pub async fn handle(
                     probable_cause: String::new(),
                 },
             );
-            return err_outcome(e);
+            return err_bytes(e);
         }
     };
 
@@ -48,16 +49,12 @@ pub async fn handle(
                     probable_cause: String::new(),
                 },
             );
-            return err_outcome(DbError::BadCode(e.to_string()));
+            return err_bytes(DbError::BadCode(e.to_string()));
         }
     };
 
     let target_page = get_target_page_id_from_letter(&letter);
 
-    // Every db write for this letter happens inside one lock: apply it,
-    // store it, read the user list, and queue an unsent row for every
-    // registered user except the sender. The lock is dropped before the
-    // nudge, which is a call into the telephone crate.
     let letter_id = {
         let locked = state.lock().unwrap();
 
@@ -72,7 +69,7 @@ pub async fn handle(
                     probable_cause: "the page the letter targets couldn't be read or written".to_string(),
                 },
             );
-            return err_outcome(e);
+            return err_bytes(e);
         }
         log("server", format!("updated its copy of page {target_page}"));
 
@@ -93,7 +90,7 @@ pub async fn handle(
                         probable_cause: "the love_letters_from_clients table rejected the insert".to_string(),
                     },
                 );
-                return err_outcome(e);
+                return err_bytes(e);
             }
         };
         log("server", format!("saved the letter ({letter_id})"));
@@ -111,7 +108,7 @@ pub async fn handle(
                         probable_cause: String::new(),
                     },
                 );
-                return err_outcome(e);
+                return err_bytes(e);
             }
         };
 
@@ -119,10 +116,6 @@ pub async fn handle(
             if Some(user_name.as_str()) == sender {
                 continue;
             }
-            // every registered user gets a row, online or not. the row is
-            // deleted when that user acks the letter. if their connection
-            // dies before the ack, they get it again on reconnect and dedup
-            // it themselves by letter_id.
             if let Err(e) =
                 operations_love_letters::queue_unsent_for_user(&locked.liver, &user_name, letter_id)
             {
@@ -136,13 +129,12 @@ pub async fn handle(
                         probable_cause: "the unsent_love_letters table rejected the row".to_string(),
                     },
                 );
-                return err_outcome(e);
+                return err_bytes(e);
             }
         }
 
         letter_id
     };
-    // lock dropped
 
     let report = telephone
         .nudge_all(sender.map(|s| s.to_string()))
@@ -171,9 +163,5 @@ pub async fn handle(
         );
     }
 
-    HandlerOutcome {
-        bytes: ok_serialized(),
-        just_identified: None,
-        incoming_letters: None,
-    }
+    ok_serialized()
 }

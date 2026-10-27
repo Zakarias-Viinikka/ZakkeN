@@ -1,7 +1,6 @@
-use crate::allowed_requests::{err_outcome, HandlerOutcome};
 use crate::logging::log_error;
 use crate::server_state::ServerState;
-use connected_clients::Telephone;
+use crate::telephone::Telephone;
 use db_core::db::user_registration;
 use error_stuff::{ErrorDetails, LogCategory};
 use protocol::error::DbError;
@@ -9,15 +8,18 @@ use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::LoginPayload;
 use std::sync::{Arc, Mutex};
 
+use super::err_bytes;
+
 pub async fn handle(
     msg_content: Vec<u8>,
     state: &Arc<Mutex<ServerState>>,
     telephone: &Telephone,
-) -> HandlerOutcome {
+    socket_id: u64,
+) -> Vec<u8> {
     let payload = match LoginPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
         Err(e) => {
-            return err_outcome(DbError::BadCode(format!(
+            return err_bytes(DbError::BadCode(format!(
                 "couldn't read login payload: {e:?}"
             )));
         }
@@ -27,23 +29,24 @@ pub async fn handle(
         let locked = state.lock().unwrap();
         match user_registration::user_exists(&locked.liver, &payload.user_name) {
             Ok(b) => b,
-            Err(e) => return err_outcome(e),
+            Err(e) => return err_bytes(e),
         }
     };
 
     if !exists {
-        return err_outcome(DbError::IllegalInput(format!(
+        return err_bytes(DbError::IllegalInput(format!(
             "no such user: '{}'",
             payload.user_name
         )));
     }
 
-    // Register this socket's nudge channel, then nudge it once so its
-    // socket task writes a Nudge to the client and the client asks for
-    // its unsent letters through GetMyUnsentLetters. The executor handles
-    // one job at a time, so no live fan-out can slip in between the two.
-    let incoming_letters = telephone.add_client(payload.user_name.clone());
-    if let Err(e) = telephone.nudge(payload.user_name.clone()).await {
+    telephone
+        .attach_name(socket_id, payload.user_name.clone())
+        .await;
+
+    // Nudge the just-connected socket so it writes a Nudge to the client
+    // and the client pulls its unsent letters.
+    if let Err(e) = telephone.nudge_socket(socket_id).await {
         log_error(
             &payload.user_name,
             LogCategory::LetterDelivery,
@@ -56,9 +59,5 @@ pub async fn handle(
         );
     }
 
-    HandlerOutcome {
-        bytes: ok_serialized(),
-        just_identified: Some(payload.user_name),
-        incoming_letters: Some(incoming_letters),
-    }
+    ok_serialized()
 }

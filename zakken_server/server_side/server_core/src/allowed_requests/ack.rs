@@ -8,14 +8,14 @@ pub fn handle(
     msg_content: Vec<u8>,
     state: &mut ServerState,
     sender: Option<&str>,
-) -> (Vec<u8>, Option<String>) {
+) -> Vec<u8> {
     let payload = match AckPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
         Err(e) => {
             let wrapped: Result<(), DbError> = Err(DbError::BadCode(format!(
                 "couldn't read ack payload: {e:?}"
             )));
-            return (wrapped.to_payload(), None);
+            return wrapped.to_payload();
         }
     };
 
@@ -23,14 +23,14 @@ pub fn handle(
         let wrapped: Result<(), DbError> = Err(DbError::IllegalInput(
             "ack without a logged-in user".to_string(),
         ));
-        return (wrapped.to_payload(), None);
+        return wrapped.to_payload();
     };
 
     match operations_love_letters::delete_unsent_row(&state.liver, user_name, payload.letter_id) {
-        Ok(()) => (ok_serialized(), None),
+        Ok(()) => ok_serialized(),
         Err(e) => {
             let wrapped: Result<(), DbError> = Err(e);
-            (wrapped.to_payload(), None)
+            wrapped.to_payload()
         }
     }
 }
