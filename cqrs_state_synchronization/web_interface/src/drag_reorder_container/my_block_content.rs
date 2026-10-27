@@ -14,6 +14,8 @@ pub fn MyBlockContent(
     on_input: Callback<BlockInputEvent>,
     on_delete_request: Callback<String>,
     on_merge_with_above: Callback<(String, String)>,
+    on_split: Callback<(String, String, String)>,
+    on_navigate: Callback<(String, bool)>,
 ) -> impl IntoView {
     let initial = block.content.get_untracked();
     let ghost = block.ghost;
@@ -121,7 +123,56 @@ pub fn MyBlockContent(
     let is_title = block.is_title;
     let on_keydown = move |e: ev::KeyboardEvent| {
         let key = e.key();
+        // Up/Down: the browser moves the caret within the text first.
+        // Only when the caret is already at the very end (Down) or the
+        // very start (Up) does the key jump to the neighbouring block.
+        if (key == "ArrowUp" || key == "ArrowDown")
+            && !e.shift_key()
+            && !e.ctrl_key()
+            && !e.alt_key()
+            && !e.meta_key()
+        {
+            if let Some(el) = textarea_ref.get_untracked() {
+                let len = el.value().encode_utf16().count() as u32;
+                let start = el.selection_start().ok().flatten().unwrap_or(0);
+                let end = el.selection_end().ok().flatten().unwrap_or(0);
+                let go_down = key == "ArrowDown";
+                let at_edge = if go_down {
+                    start == len && end == len
+                } else {
+                    start == 0 && end == 0
+                };
+                if at_edge {
+                    e.prevent_default();
+                    on_navigate.run((my_block_id.clone(), go_down));
+                    return;
+                }
+            }
+        }
         if key == "Enter" {
+            if !is_title {
+                if let Some(el) = textarea_ref.get_untracked() {
+                    let value = el.value();
+                    // Whitespace-only counts as empty, so Enter in an
+                    // "empty" block just types a newline, never splits.
+                    if !value.trim().is_empty() {
+                        // Split at the cursor instead of typing a newline.
+                        e.prevent_default();
+                        let utf16: Vec<u16> = value.encode_utf16().collect();
+                        let start = el.selection_start().ok().flatten().unwrap_or(0) as usize;
+                        let end = el.selection_end().ok().flatten().unwrap_or(0) as usize;
+                        let start = start.min(utf16.len());
+                        let end = end.clamp(start, utf16.len());
+                        let before = String::from_utf16_lossy(&utf16[..start]);
+                        let after = String::from_utf16_lossy(&utf16[end..]);
+                        // Drop the caret now so it doesn't sit in the old
+                        // block while the new one is being created.
+                        let _ = el.blur();
+                        on_split.run((my_block_id.clone(), before, after));
+                        return;
+                    }
+                }
+            }
             was_enter.set_value(true);
             return;
         }

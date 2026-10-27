@@ -106,7 +106,7 @@ love_letter/android_output_folder, text_diff/android_output_folder -
 build artifacts the Android app downloads via update.sh. Regenerated
 by each crate's build script; committed to the repo.
 
-## cqrs work status - 2026-10-21
+## cqrs work status - 2026-10-27
 
 Most of the earlier near-term list is built now. `add_block`,
 `edit_block`, `delete_block`, `move_block`, and
@@ -119,7 +119,10 @@ again closes, down arrow selects) are designed but not started. The
 loading system - preload, then offline, then server - is described in
 ZakkeN/cache_and_preload.md.
 
-Still open: focus-on-split (see GENERAL_TODO.md).
+The Enter-split rule is "split at the cursor" now, not three newlines;
+blocks appear in `page.blocks` before the DB has them (the batcher's
+queue is an enum of Edit and AddBlock, run in order), and arrow keys
+navigate between blocks. See the cqrs CURRENT_STATE.md for the shape.
 
 The drag-reorder UI lives inside `web_interface`, in
 `drag_reorder_container/`. The folder has three layers:
@@ -144,12 +147,11 @@ Moving a block within a page works end to end on web, including after
 the frac rework. Cross-page move works on web. Back button still does
 not re-render without a manual refresh; cause not diagnosed.
 
-Known bug: focus-on-split. After a split, the focus effect runs and
-the new block's textarea is `document.activeElement`, but typing goes
-into the old block. `ZakkeN/tmp_focus_test` is a minimal Leptos
-project that replicates the mechanic and works, so the cause is
-structural in the real project. Being handed off to another AI to
-isolate by incrementally adding real-project mechanics.
+Focus-on-split was fixed on 2026-10-24: `.ps-box.ps-unmeasured` used
+`visibility: hidden`, which leaves `document.activeElement` set on the
+new textarea but does not route input to it. Replaced with
+`opacity: 0; pointer-events: none`. `ZakkeN/tmp_focus_test` reproduces
+the mechanic and can be deleted, or kept as a regression test.
 
 ## zakken_server - 2026-10-27
 

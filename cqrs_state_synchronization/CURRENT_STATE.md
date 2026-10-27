@@ -189,3 +189,39 @@ focus effect fires once, calls `.focus()`, and clears the signal
 unconditionally. The CSS rule blocks input routing on the hidden
 element; the effect's clear-on-first-attempt is what prevents it from
 ever recovering when the block becomes visible a frame later.
+
+## Update - 2026-10-27
+
+Enter in a non-empty, non-title block now splits at the cursor, through
+a new `on_split` callback carrying (block_id, text_before_cursor,
+text_after_cursor). Enter in an empty block or the title behaves as
+before. The three-newlines rule and `check_if_should_make_new_block`
+are gone. The textarea blurs on Enter so no caret is left behind during
+the split. Shift+Enter also splits now — no distinct shift path.
+
+Blocks appear before the DB has them. The batcher's queue is now an
+enum of Edit and AddBlock entries, run in order. `flush` writes the
+pending edits first, then the add, all in one transaction; a new
+`write_edit_run` helper does the edit writing. `push_add_block` queues
+an add and returns immediately. `ui_actions::add_block_unflushed` is a
+version of `add_block` that skips `flush_now()` — the batcher's own
+flush needs this or it deadlocks.
+
+`on_split` makes the new block id in the UI (`new_local_block_id`, 32
+random hex characters). It queues the old block's trim and the new
+block's add, updates `page.blocks` in one go with the new row directly
+after the old, then sets focus at the start of the new block.
+`split_block_at_cursor`, the DB reload after a split, and the
+`db_helpers_for_web_client` import in main_content.rs are removed.
+
+Arrow keys: Down at the very end of a block focuses the start of the
+block below. Up at the very start focuses the end of the block above.
+Otherwise the browser handles the arrow key. Holding Shift, Ctrl, Alt
+or Cmd skips this so selection still works. Goes through a new
+`on_navigate` callback and the existing `FOCUS_BLOCK_ID` /
+`FOCUS_BLOCK_AT_START` signals.
+
+Untested this session: whether yrs accepts the 32-hex local block id,
+and whether the queued add works when the executor skips its own begin
+and commit inside an already-open transaction (which CURRENT_STATE
+says it does). Not compiled as far as I know.

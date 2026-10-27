@@ -22,7 +22,7 @@ the builder shouldn't hardcode values that depend on where it runs. create_page 
 
 two tabs with the same page open isn't supported. add a deliberate check that shows a message like "edits aren't working right now, currently does not support two tabs having same page open".
 
-addblock, editblock and deleteblock need to exist in the builder, the executor and the web interface.
+addblock, editblock and deleteblock exist in the builder, the executor and the web interface. Done.
 
 text_diff becomes a dependency of the cqrs crate.
 
@@ -32,7 +32,7 @@ timer logic for the batcher.
 
 the batcher is owned by main.rs (or similar) and passed around, so a page swap is safe and doesn't lose data.
 
-a block auto-creates a new block when it accumulates enough linebreaks, but only when the newline is added to the bottom of the block. Adding a newline above or in the middle does nothing.
+a block auto-creates a new block when Enter is pressed — split at the cursor. Done; see CURRENT_STATE 2026-10-27.
 
 pages inside pages, and the syntax for it. The special menu opens on z+space, deactivates on esc or space again, and always expects the down arrow to select even while the menu is showing. Needs the component that brings up the menu, and the typed-trigger that replaces the text with the menu. The planned details of the typed-trigger are written down somewhere, location unknown - find that first.
 

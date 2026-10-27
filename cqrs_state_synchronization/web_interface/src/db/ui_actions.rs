@@ -48,6 +48,34 @@ pub async fn add_block(
     Ok(block_id)
 }
 
+/// Add a block with a caller-chosen id, without flushing the batcher.
+/// This exists so the ui can make blocks that the user can write to
+/// before the db has made the block.
+/// Only the batcher's own flush may call this. It already owns the
+/// queue and is inside its transaction, and `add_block` above would
+/// wait on the batcher and deadlock.
+pub async fn add_block_unflushed(
+    yrs: Arc<BossOfYrs>,
+    block_id: String,
+    block_content: String,
+    block_meta_data: String,
+    position: PositionToInsert,
+    is_part_of_main_menu_page: bool,
+    session_id: String,
+) -> Result<(), CqrsErr> {
+    let ctx = build_add_block(
+        yrs,
+        block_content,
+        block_meta_data,
+        position,
+        is_part_of_main_menu_page,
+        session_id,
+        Some(block_id),
+    )?;
+    add_block_requires_three_db_actions(ctx).await?;
+    Ok(())
+}
+
 /// Write one block edit to db. Unlike `edit_title_for_page`, this takes
 /// the diff directly - the caller has already computed and squashed it.
 /// The batcher uses this so pending text buffers are flushed with one

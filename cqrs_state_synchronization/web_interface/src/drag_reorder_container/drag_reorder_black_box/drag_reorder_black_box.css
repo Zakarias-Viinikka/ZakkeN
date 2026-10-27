@@ -28,8 +28,8 @@
     position: absolute;
     z-index: 1;
     background: transparent;
-    border: 1px solid rgba(228, 233, 242, 0.08);
-    border-radius: 8px;
+    border: 1px solid rgba(228, 233, 242, 0.04);
+    border-radius: 6px;
     padding: 0 0.6rem;
     display: flex;
     align-items: stretch;
@@ -37,7 +37,7 @@
 }
 
 .ps-box:hover {
-    border-color: rgba(228, 233, 242, 0.16);
+    border-color: rgba(228, 233, 242, 0.09);
 }
 
 .ps-box.ps-box-title {
@@ -117,7 +117,7 @@
     border: none;
     color: rgba(228, 233, 242, 0.74);
     font: inherit;
-    padding: 0.3rem 0;
+    padding: 0.1rem 0;
     resize: none;
     outline: none;
     overflow: hidden;

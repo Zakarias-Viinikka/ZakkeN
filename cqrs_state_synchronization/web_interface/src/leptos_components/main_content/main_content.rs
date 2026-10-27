@@ -7,7 +7,6 @@ use my_yrs_lib::BossOfYrs;
 
 use crate::complicated_signal_flow::{BatcherHandle, BlockInputEvent, BlockRow, OpenPages};
 use crate::page_state::{Page, PageLoadState};
-use crate::db::db_helpers_for_web_client;
 
 use crate::drag_reorder_container::{DragReorderContainer, MoveEvent, PageInput};
 use crate::leptos_components::small_components::popup::create_popup;
@@ -137,6 +136,7 @@ pub fn MainContent() -> impl IntoView {
 
     let batcher_handle_for_delete = batcher_handle.clone();
     let batcher_handle_for_merge = batcher_handle.clone();
+    let batcher_handle_for_split = batcher_handle.clone();
 
     let on_block_input = Callback::new(move |evt: BlockInputEvent| {
         let block_id = evt.block_id.clone();
@@ -149,34 +149,6 @@ pub fn MainContent() -> impl IntoView {
 
         let diff = text_diff::diff_logic::get_diff(&evt.old_text, &evt.new_text);
 
-        if check_if_should_make_new_block(&evt) {
-            let cursor = evt.cursor_pos;
-            let utf16: Vec<u16> = evt.new_text.encode_utf16().collect();
-            let before = String::from_utf16_lossy(&utf16[..cursor - 3]);
-            let after = String::from_utf16_lossy(&utf16[cursor..]);
-
-            // The three \n are the gesture, not content. yrs sees the
-            // block as `before`, the new block gets `after`.
-            let split_diff = text_diff::diff_logic::get_diff(&evt.old_text, &before);
-            batcher_handle.push_edit(boss.clone(), block_id.clone(), split_diff);
-
-            let before_for_update = before;
-            let block_id_for_update = block_id.clone();
-            page.blocks.update(|rows| {
-                if let Some(b) = rows.iter_mut().find(|b| b.block_id == block_id_for_update) {
-                    b.content = before_for_update;
-                }
-            });
-
-            let session_id = crate::db::cached_ids::SESSION_ID
-                .get_untracked()
-                .expect(crate::db::cached_ids::INIT_ERR);
-            spawn_local(async move {
-                split_block_at_cursor(page, boss, block_id, after, batcher_handle, session_id).await;
-            });
-            return;
-        }
-
         let new_text = evt.new_text.clone();
         batcher_handle.push_edit(boss, block_id.clone(), diff);
         page.blocks.update(|rows| {
@@ -184,6 +156,81 @@ pub fn MainContent() -> impl IntoView {
                 b.content = new_text;
             }
         });
+    });
+
+    // Enter in a non-empty block. `before` stays in this block, `after`
+    // becomes the new block. The UI makes the new block right away with
+    // an id it chose itself. The DB writes are queued in the batcher,
+    // in order, and nothing here waits for them.
+    let on_split = Callback::new(move |(block_id, before, after): (String, String, String)| {
+        let Some((boss, page)) = find_page_and_boss(page1, page2, &block_id) else {
+            leptos::logging::error!("on_split: no page/boss for block {}", block_id);
+            create_popup(format!("split failed: no open page has block {block_id}"));
+            return;
+        };
+        let batcher_handle = batcher_handle_for_split.clone();
+        let session_id = crate::db::cached_ids::SESSION_ID
+            .get_untracked()
+            .expect(crate::db::cached_ids::INIT_ERR);
+        let rows = page.blocks.get_untracked();
+        let Some(idx) = rows.iter().position(|b| b.block_id == block_id) else {
+            return;
+        };
+        let old_text = rows[idx].content.clone();
+        let block_id_of_below = rows.get(idx + 1).map(|b| b.block_id.clone());
+        let page_id = page.page_id.get_untracked();
+        let new_block_id = new_local_block_id();
+
+        if old_text != before {
+            let split_diff = text_diff::diff_logic::get_diff(&old_text, &before);
+            batcher_handle.push_edit(boss.clone(), block_id.clone(), split_diff);
+        }
+        batcher_handle.push_add_block(
+            boss,
+            new_block_id.clone(),
+            after.clone(),
+            my_yrs_lib::yrs_wrapper::PositionToInsert::Between {
+                block_id_of_above: Some(block_id.clone()),
+                block_id_of_below,
+            },
+            false,
+            session_id,
+        );
+
+        // One update: the old block is trimmed and the new row sits
+        // directly after it, so the drag component sees a pure add.
+        let new_id_for_row = new_block_id.clone();
+        page.blocks.update(|rows| {
+            if let Some(i) = rows.iter().position(|b| b.block_id == block_id) {
+                rows[i].content = before;
+                rows.insert(
+                    i + 1,
+                    BlockRow {
+                        block_id: new_id_for_row,
+                        page_id,
+                        content: after,
+                        is_title: false,
+                    },
+                );
+            }
+        });
+        crate::complicated_signal_flow::FOCUS_BLOCK_AT_START.set(Some(new_block_id));
+    });
+
+    // Up/Down at the edge of a block. Down lands at the start of the
+    // block below, Up at the end of the block above.
+    let on_navigate = Callback::new(move |(block_id, go_down): (String, bool)| {
+        let blocks = page1.blocks.get_untracked();
+        let Some(idx) = blocks.iter().position(|b| b.block_id == block_id) else {
+            return;
+        };
+        if go_down {
+            if let Some(next) = blocks.get(idx + 1) {
+                crate::complicated_signal_flow::FOCUS_BLOCK_AT_START.set(Some(next.block_id.clone()));
+            }
+        } else if idx > 0 {
+            crate::complicated_signal_flow::FOCUS_BLOCK_ID.set(Some(blocks[idx - 1].block_id.clone()));
+        }
     });
 
     let on_delete_request = Callback::new(move |block_id: String| {
@@ -311,6 +358,8 @@ pub fn MainContent() -> impl IntoView {
                 on_block_input=on_block_input
                 on_delete_request=on_delete_request
                 on_merge_with_above=on_merge_with_above
+                on_split=on_split
+                on_navigate=on_navigate
             />
         </div>
     }
@@ -377,64 +426,13 @@ fn get_block_above<'a>(blocks: &'a [BlockRow], block_id: &str) -> Option<&'a Blo
     idx.checked_sub(1).and_then(|i| blocks.get(i))
 }
 
-fn check_if_should_make_new_block(evt: &BlockInputEvent) -> bool {
-    if !evt.was_enter || evt.old_text.is_empty() {
-        return false;
+/// A fresh block id, made in the UI so the block can exist before the
+/// DB has heard of it. 128 random bits as hex.
+fn new_local_block_id() -> String {
+    let mut s = String::with_capacity(32);
+    for _ in 0..4 {
+        let n = (js_sys::Math::random() * 4294967296.0) as u32;
+        s.push_str(&format!("{:08x}", n));
     }
-    let cursor = evt.cursor_pos;
-    if cursor < 3 {
-        return false;
-    }
-    let utf16: Vec<u16> = evt.new_text.encode_utf16().collect();
-    if cursor > utf16.len() {
-        return false;
-    }
-    utf16[cursor - 1] == b'\n' as u16
-        && utf16[cursor - 2] == b'\n' as u16
-        && utf16[cursor - 3] == b'\n' as u16
-}
-
-async fn split_block_at_cursor(
-    page: Page,
-    boss: Arc<BossOfYrs>,
-    block_id: String,
-    new_content: String,
-    batcher_handle: BatcherHandle,
-    session_id: String,
-) {
-    let blocks = page.blocks.get_untracked();
-    let block_id_of_below = blocks
-        .iter()
-        .position(|b| b.block_id == block_id)
-        .and_then(|i| blocks.get(i + 1))
-        .map(|b| b.block_id.clone());
-    let page_id = page.page_id.get_untracked();
-
-    let position = my_yrs_lib::yrs_wrapper::PositionToInsert::Between {
-        block_id_of_above: Some(block_id.clone()),
-        block_id_of_below,
-    };
-
-    match crate::db::ui_actions::add_block(
-        batcher_handle,
-        boss,
-        new_content,
-        String::new(),
-        position,
-        false,
-        session_id,
-    )
-    .await
-    {
-        Ok(new_block_id) => {
-            if let Ok(rows) = db_helpers_for_web_client::get_all_blocks_for_page(page_id).await {
-                page.blocks.set(rows);
-            }
-            crate::complicated_signal_flow::FOCUS_BLOCK_AT_START.set(Some(new_block_id));
-        }
-        Err(e) => {
-            leptos::logging::error!("add block failed: {:?}", e);
-            create_popup(format!("add block failed: {e:?}"));
-        }
-    }
+    s
 }

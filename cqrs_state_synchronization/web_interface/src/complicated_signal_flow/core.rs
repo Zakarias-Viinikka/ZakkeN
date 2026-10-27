@@ -50,10 +50,22 @@ use crate::db::ui_actions;
 pub static APP_LOCKED: LazyLock<ArcRwSignal<bool>> =
     LazyLock::new(|| ArcRwSignal::new(false));
 
-struct PendingEdit {
-    boss: Arc<BossOfYrs>,
-    block_id: String,
-    diff: DiffResult,
+/// One queued write. The queue is ordered: an `AddBlock` must reach
+/// yrs before any edit to the block it creates.
+enum PendingEdit {
+    Edit {
+        boss: Arc<BossOfYrs>,
+        block_id: String,
+        diff: DiffResult,
+    },
+    AddBlock {
+        boss: Arc<BossOfYrs>,
+        block_id: String,
+        content: String,
+        position: my_yrs_lib::yrs_wrapper::PositionToInsert,
+        is_part_of_main_menu_page: bool,
+        session_id: String,
+    },
 }
 
 enum BatcherMsg {
@@ -73,7 +85,32 @@ pub struct BatcherHandle {
 impl BatcherHandle {
     pub fn push_edit(&self, boss: Arc<BossOfYrs>, block_id: String, diff: DiffResult) {
         self.pending
-            .update(|list| list.push(PendingEdit { boss, block_id, diff }));
+            .update(|list| list.push(PendingEdit::Edit { boss, block_id, diff }));
+        let _ = self.sender.unbounded_send(BatcherMsg::Poke);
+    }
+
+    /// Queue the creation of a block whose id the UI already chose.
+    /// Returns immediately. The add runs at flush time, in order with
+    /// the edits around it.
+    pub fn push_add_block(
+        &self,
+        boss: Arc<BossOfYrs>,
+        block_id: String,
+        content: String,
+        position: my_yrs_lib::yrs_wrapper::PositionToInsert,
+        is_part_of_main_menu_page: bool,
+        session_id: String,
+    ) {
+        self.pending.update(|list| {
+            list.push(PendingEdit::AddBlock {
+                boss,
+                block_id,
+                content,
+                position,
+                is_part_of_main_menu_page,
+                session_id,
+            })
+        });
         let _ = self.sender.unbounded_send(BatcherMsg::Poke);
     }
 
@@ -166,30 +203,54 @@ impl Batcher {
             .get_untracked()
             .expect(crate::db::cached_ids::INIT_ERR);
 
-        let mut by_block: Vec<(String, Arc<BossOfYrs>, Vec<DiffResult>)> = Vec::new();
-        for edit in pending {
-            if let Some(existing) = by_block
-                .iter_mut()
-                .find(|(bid, _, _)| bid == &edit.block_id)
-            {
-                existing.2.push(edit.diff);
-            } else {
-                by_block.push((edit.block_id, edit.boss, vec![edit.diff]));
-            }
-        }
-
         web_internal_db::db_helper::begin_all_or_nothing().await?;
 
+        // Edits are grouped per block until an add shows up. The group
+        // is written first so the add lands after every edit queued
+        // before it, then grouping starts over.
         let mut failure: Option<CqrsErr> = None;
-        'outer: for (block_id, boss, diffs) in by_block {
-            for diff in combine_getdiff_results(diffs) {
-                if let Err(e) =
-                    ui_actions::edit_block(boss.clone(), block_id.clone(), diff, session_id.clone())
-                        .await
-                {
-                    failure = Some(e);
-                    break 'outer;
+        let mut run: Vec<(String, Arc<BossOfYrs>, Vec<DiffResult>)> = Vec::new();
+        for op in pending {
+            match op {
+                PendingEdit::Edit { boss, block_id, diff } => {
+                    if let Some(existing) = run.iter_mut().find(|(bid, _, _)| bid == &block_id) {
+                        existing.2.push(diff);
+                    } else {
+                        run.push((block_id, boss, vec![diff]));
+                    }
                 }
+                PendingEdit::AddBlock {
+                    boss,
+                    block_id,
+                    content,
+                    position,
+                    is_part_of_main_menu_page,
+                    session_id: add_session_id,
+                } => {
+                    if let Err(e) = write_edit_run(std::mem::take(&mut run), &session_id).await {
+                        failure = Some(e);
+                        break;
+                    }
+                    if let Err(e) = ui_actions::add_block_unflushed(
+                        boss,
+                        block_id,
+                        content,
+                        String::new(),
+                        position,
+                        is_part_of_main_menu_page,
+                        add_session_id,
+                    )
+                    .await
+                    {
+                        failure = Some(e);
+                        break;
+                    }
+                }
+            }
+        }
+        if failure.is_none() {
+            if let Err(e) = write_edit_run(run, &session_id).await {
+                failure = Some(e);
             }
         }
 
@@ -211,6 +272,19 @@ impl Batcher {
             }
         }
     }
+}
+
+async fn write_edit_run(
+    run: Vec<(String, Arc<BossOfYrs>, Vec<DiffResult>)>,
+    session_id: &str,
+) -> Result<(), CqrsErr> {
+    for (block_id, boss, diffs) in run {
+        for diff in combine_getdiff_results(diffs) {
+            ui_actions::edit_block(boss.clone(), block_id.clone(), diff, session_id.to_string())
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 /// One keystroke's worth of information.
