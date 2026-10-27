@@ -1,0 +1,12 @@
+[package]
+name = "shared_internals_for_server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+futures = "0.3"
+server_protocol = { path = "../../shared/server_protocol" }
+error_stuff = { path = "../../shared/error_stuff" }
+
+[dev-dependencies]
+protocol.path = "/home/zakke/ProgStuff/z_db/protocol"

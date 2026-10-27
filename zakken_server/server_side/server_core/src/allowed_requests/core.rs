@@ -1,8 +1,9 @@
 use crate::telephone::Telephone;
+use db_core::db::{operations_love_letters, operations_pages};
 use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
-use server_protocol::Request;
+use server_protocol::{Request, UnsentLetter};
 use std::sync::{Arc, Mutex};
 
 use super::{ack, get_all_yrs_pages, get_my_unsent_letters, login, register, send_love_letter};
@@ -10,6 +11,25 @@ use super::{ack, get_all_yrs_pages, get_my_unsent_letters, login, register, send
 pub fn err_bytes(e: DbError) -> Vec<u8> {
     let wrapped: Result<(), DbError> = Err(e);
     wrapped.to_payload()
+}
+
+/// Read every letter still rowed for `user_name`, oldest id first. Used
+/// by both the login notify (the socket then pulls) and the
+/// GetMyUnsentLetters pull.
+pub fn unsent_letters_for_user(
+    liver: &LiveForever,
+    user_name: &str,
+) -> Result<Vec<UnsentLetter>, DbError> {
+    let ids = operations_love_letters::get_unsent_letter_ids_for_user(liver, user_name)?;
+    let mut letters = Vec::with_capacity(ids.len());
+    for id in ids {
+        let bytes = operations_love_letters::get_letter(liver, id)?;
+        letters.push(UnsentLetter {
+            letter_id: id,
+            love_letter: bytes,
+        });
+    }
+    Ok(letters)
 }
 
 pub async fn do_request(
@@ -31,26 +51,25 @@ pub async fn do_request(
     match msg_request {
         Request::Register => {
             let locked = state.lock().unwrap();
-            register::handle(msg_content, &locked)
+            register::register_user(msg_content, &locked)
         }
         Request::GetAllYrsPages => {
             let locked = state.lock().unwrap();
-            get_all_yrs_pages::handle(msg_content, &locked)
+            get_all_yrs_pages::send_all_pages(msg_content, &locked)
         }
         Request::Ack => {
             let locked = state.lock().unwrap();
-            ack::handle(msg_content, &locked, sender)
+            ack::acknowledge_letter(msg_content, &locked, sender)
         }
         Request::GetMyUnsentLetters => {
             let locked = state.lock().unwrap();
-            get_my_unsent_letters::handle(msg_content, &locked, sender)
+            get_my_unsent_letters::send_unsent_letters(msg_content, &locked, sender)
         }
-        Request::Nudge => err_bytes(DbError::IllegalInput(
-            "Nudge is server-only; it can't be submitted as a job".to_string(),
-        )),
-        Request::Login => login::handle(msg_content, state, telephone, socket_id).await,
+        Request::Login => login::log_in(msg_content, state, telephone, socket_id).await,
         Request::SendLoveLetter => {
-            send_love_letter::handle(msg_content, state, telephone, sender).await
+            send_love_letter::accept_letter(msg_content, state, telephone, sender).await
         }
     }
 }
+
+pub use operations_pages::StoredPage;

@@ -8,5 +8,10 @@ members = [
     "shared/server_protocol",
     "mock_client/mock_client_core",
     "mock_client/cli_gui",
+    "client_internals/shared_internals_for_server",
+]
+exclude = [
+    "client_internals/web",
+    "client_internals/android",
 ]
 resolver = "3"

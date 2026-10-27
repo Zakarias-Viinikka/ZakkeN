@@ -6,11 +6,8 @@ pub enum Request {
     Login,
     SendLoveLetter,
     GetAllYrsPages,
-    /// how a client acknowledges it's received a love letter response
+    /// how a client acknowledges it's received a love letter
     Ack,
-    /// server -> client: something new happened, go request your unsent
-    /// letters with GetMyUnsentLetters.
-    Nudge,
     /// client -> server: give me every love letter I haven't received yet.
     GetMyUnsentLetters,
 }

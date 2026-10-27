@@ -1,46 +1,33 @@
-use db_core::db::operations_love_letters;
+use super::core::unsent_letters_for_user;
 use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
-use server_protocol::{GetMyUnsentLettersPayload, UnsentLetter};
+use server_protocol::GetMyUnsentLettersPayload;
 
-pub fn handle(
+/// A client is asking for every letter it hasn't received yet. Used as a
+/// manual pull; the server also pushes letters on login and on new
+/// letters, so this path is a fallback that still works.
+pub fn send_unsent_letters(
     _msg_content: Vec<u8>,
     state: &LiveForever,
     sender: Option<&str>,
 ) -> Vec<u8> {
     let Some(user_name) = sender else {
-        let wrapped: Result<GetMyUnsentLettersPayload, DbError> =
-            Err(DbError::IllegalInput(
-                "GetMyUnsentLetters without a logged-in user".to_string(),
-            ));
+        let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(
+            DbError::IllegalInput("GetMyUnsentLetters without a logged-in user".to_string()),
+        );
         return wrapped.to_payload();
     };
 
-    let ids =
-        match operations_love_letters::get_unsent_letter_ids_for_user(state, user_name) {
-            Ok(ids) => ids,
-            Err(e) => {
-                let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
-                return wrapped.to_payload();
-            }
-        };
-
-    let mut letters = Vec::new();
-    for id in ids {
-        match operations_love_letters::get_letter(state, id) {
-            Ok(bytes) => letters.push(UnsentLetter {
-                letter_id: id,
-                love_letter: bytes,
-            }),
-            Err(e) => {
-                let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
-                return wrapped.to_payload();
-            }
+    match unsent_letters_for_user(state, user_name) {
+        Ok(letters) => {
+            let wrapped: Result<GetMyUnsentLettersPayload, DbError> =
+                Ok(GetMyUnsentLettersPayload { letters });
+            wrapped.to_payload()
+        }
+        Err(e) => {
+            let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
+            wrapped.to_payload()
         }
     }
-
-    let wrapped: Result<GetMyUnsentLettersPayload, DbError> =
-        Ok(GetMyUnsentLettersPayload { letters });
-    wrapped.to_payload()
 }

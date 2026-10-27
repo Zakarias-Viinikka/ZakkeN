@@ -1,16 +1,16 @@
 use crate::logging::log_error;
 use crate::telephone::Telephone;
-use db_wrapper::android_mascot::LiveForever;
 use db_core::db::user_registration;
+use db_wrapper::android_mascot::LiveForever;
 use error_stuff::{ErrorDetails, LogCategory};
 use protocol::error::DbError;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::LoginPayload;
 use std::sync::{Arc, Mutex};
 
-use super::err_bytes;
+use super::core::err_bytes;
 
-pub async fn handle(
+pub async fn log_in(
     msg_content: Vec<u8>,
     state: &Arc<Mutex<LiveForever>>,
     telephone: &Telephone,
@@ -27,7 +27,7 @@ pub async fn handle(
 
     let exists = {
         let locked = state.lock().unwrap();
-        match user_registration::user_exists(&*locked, &payload.user_name) {
+        match user_registration::user_exists(&locked, &payload.user_name) {
             Ok(b) => b,
             Err(e) => return err_bytes(e),
         }
@@ -44,16 +44,16 @@ pub async fn handle(
         .attach_name(socket_id, payload.user_name.clone())
         .await;
 
-    // Nudge the just-connected socket so it writes a Nudge to the client
-    // and the client pulls its unsent letters.
-    if let Err(e) = telephone.nudge_socket(socket_id).await {
+    // Tell this socket to pull its backlog. The socket does the pull
+    // through the queue; the reply to the login itself is just Ok.
+    if let Err(e) = telephone.notify_socket(socket_id).await {
         log_error(
             &payload.user_name,
             LogCategory::LetterDelivery,
             &ErrorDetails {
-                err_msg: format!("login nudge failed: {e:?}"),
+                err_msg: format!("login notify failed: {e:?}"),
                 file: file!().to_string(),
-                method: "login::handle".to_string(),
+                method: "login::log_in".to_string(),
                 probable_cause: "the telephone's task is not running".to_string(),
             },
         );

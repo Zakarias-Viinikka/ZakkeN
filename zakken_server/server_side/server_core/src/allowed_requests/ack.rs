@@ -4,7 +4,7 @@ use protocol::error::DbError;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::AckPayload;
 
-pub fn handle(
+pub fn acknowledge_letter(
     msg_content: Vec<u8>,
     state: &LiveForever,
     sender: Option<&str>,

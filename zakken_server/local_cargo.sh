@@ -7,7 +7,10 @@ fi
 
 if [ "$1" = "check" ]; then
     shift
-    exec cargo check --workspace --all-targets "$@"
+    cargo check --workspace --all-targets "$@" || exit
+    ( cd client_internals/web && cargo check --all-targets --target wasm32-unknown-unknown "$@" ) || exit
+    ( cd client_internals/android && cargo check --all-targets "$@" ) || exit
+    exit 0
 fi
 
 exec cargo "$@"

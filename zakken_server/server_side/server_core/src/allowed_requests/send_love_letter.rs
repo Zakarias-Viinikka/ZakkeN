@@ -1,8 +1,8 @@
 use crate::logging::{log, log_error};
 use crate::telephone::Telephone;
-use db_wrapper::android_mascot::LiveForever;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
+use db_wrapper::android_mascot::LiveForever;
 use error_stuff::{ErrorDetails, LogCategory};
 use love_letter::deserialize_love_letter;
 use love_letter_parser::get_target_page_id_from_letter;
@@ -11,9 +11,9 @@ use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::SendLoveLetterPayload;
 use std::sync::{Arc, Mutex};
 
-use super::err_bytes;
+use super::core::err_bytes;
 
-pub async fn handle(
+pub async fn accept_letter(
     msg_content: Vec<u8>,
     state: &Arc<Mutex<LiveForever>>,
     telephone: &Telephone,
@@ -28,7 +28,7 @@ pub async fn handle(
                 &ErrorDetails {
                     err_msg: format!("couldn't read the letter: {e:?}"),
                     file: file!().to_string(),
-                    method: "send_love_letter::handle".to_string(),
+                    method: "send_love_letter::accept_letter".to_string(),
                     probable_cause: String::new(),
                 },
             );
@@ -45,7 +45,7 @@ pub async fn handle(
                 &ErrorDetails {
                     err_msg: format!("couldn't decode the letter: {e}"),
                     file: file!().to_string(),
-                    method: "send_love_letter::handle".to_string(),
+                    method: "send_love_letter::accept_letter".to_string(),
                     probable_cause: String::new(),
                 },
             );
@@ -65,7 +65,7 @@ pub async fn handle(
                 &ErrorDetails {
                     err_msg: format!("couldn't apply the letter: {e:?}"),
                     file: file!().to_string(),
-                    method: "send_love_letter::handle".to_string(),
+                    method: "send_love_letter::accept_letter".to_string(),
                     probable_cause: "the page the letter targets couldn't be read or written".to_string(),
                 },
             );
@@ -73,11 +73,7 @@ pub async fn handle(
         }
         log("server", format!("updated its copy of page {target_page}"));
 
-        let letter_id = match operations_love_letters::insert_letter(
-            &locked,
-            payload.love_letter,
-            target_page,
-        ) {
+        let id = match operations_love_letters::insert_letter(&locked, payload.love_letter, target_page) {
             Ok(id) => id,
             Err(e) => {
                 log_error(
@@ -86,15 +82,18 @@ pub async fn handle(
                     &ErrorDetails {
                         err_msg: format!("couldn't save the letter: {e:?}"),
                         file: file!().to_string(),
-                        method: "send_love_letter::handle".to_string(),
+                        method: "send_love_letter::accept_letter".to_string(),
                         probable_cause: "the love_letters_from_clients table rejected the insert".to_string(),
                     },
                 );
                 return err_bytes(e);
             }
         };
-        log("server", format!("saved the letter ({letter_id})"));
+        log("server", format!("saved the letter ({id})"));
 
+        // Queue unsent rows for every registered user except the sender,
+        // so login-notify and GetMyUnsentLetters have something to point
+        // at, and acks have a row to delete.
         let users = match operations_love_letters::get_all_registered_user_names(&locked) {
             Ok(u) => u,
             Err(e) => {
@@ -104,7 +103,7 @@ pub async fn handle(
                     &ErrorDetails {
                         err_msg: format!("couldn't read the user list: {e:?}"),
                         file: file!().to_string(),
-                        method: "send_love_letter::handle".to_string(),
+                        method: "send_love_letter::accept_letter".to_string(),
                         probable_cause: String::new(),
                     },
                 );
@@ -116,16 +115,14 @@ pub async fn handle(
             if Some(user_name.as_str()) == sender {
                 continue;
             }
-            if let Err(e) =
-                operations_love_letters::queue_unsent_for_user(&locked, &user_name, letter_id)
-            {
+            if let Err(e) = operations_love_letters::queue_unsent_for_user(&locked, &user_name, id) {
                 log_error(
                     "server",
                     LogCategory::Database,
                     &ErrorDetails {
                         err_msg: format!("couldn't queue the letter for {user_name}: {e:?}"),
                         file: file!().to_string(),
-                        method: "send_love_letter::handle".to_string(),
+                        method: "send_love_letter::accept_letter".to_string(),
                         probable_cause: "the unsent_love_letters table rejected the row".to_string(),
                     },
                 );
@@ -133,11 +130,11 @@ pub async fn handle(
             }
         }
 
-        letter_id
+        id
     };
 
     let report = telephone
-        .nudge_all(sender.map(|s| s.to_string()))
+        .notify_all(sender.map(|s| s.to_string()))
         .await;
 
     for name in &report.dropped {
@@ -145,10 +142,10 @@ pub async fn handle(
             "server",
             LogCategory::Connection,
             &ErrorDetails {
-                err_msg: format!("lost contact with {name} while nudging for letter {letter_id}"),
+                err_msg: format!("lost contact with {name} while notifying for letter {letter_id}"),
                 file: file!().to_string(),
-                method: "send_love_letter::handle".to_string(),
-                probable_cause: "the client disconnected mid-nudge; their unsent row will reach them".to_string(),
+                method: "send_love_letter::accept_letter".to_string(),
+                probable_cause: "the client disconnected mid-notify; their unsent row will reach them".to_string(),
             },
         );
     }
@@ -159,7 +156,7 @@ pub async fn handle(
     } else {
         log(
             "server",
-            format!("letter {letter_id}: nudged {online} client(s)"),
+            format!("letter {letter_id}: notified {online} client(s)"),
         );
     }
 

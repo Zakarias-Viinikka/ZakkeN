@@ -4,7 +4,7 @@ use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{GetAllYrsPagesPayload, PageRow};
 
-pub fn handle(_msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
+pub fn send_all_pages(_msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
     let stored = match operations_pages::get_all_pages(state) {
         Ok(p) => p,
         Err(e) => {

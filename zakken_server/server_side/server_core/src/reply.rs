@@ -2,7 +2,7 @@ use protocol::serialization::Base64Bytes;
 use server_protocol::{Request, Response, response_to_json_str};
 
 pub fn craft_response(data: Vec<u8>, message_id: usize, request: Request) -> String {
-    let response = Response {
+    let response = Response::Reply {
         message_id,
         request,
         payload: Base64Bytes(data),
@@ -11,11 +11,11 @@ pub fn craft_response(data: Vec<u8>, message_id: usize, request: Request) -> Str
         .unwrap_or_else(|e| format!(r#"{{"error":"failed to serialize response: {}"}}"#, e))
 }
 
-use axum::extract::ws::{Message, WebSocket};
+use axum::extract::ws::{Message as WsMessage, WebSocket};
 
 pub async fn send_message(socket: &mut WebSocket, response: String) -> Result<(), String> {
     socket
-        .send(Message::Text(response.into()))
+        .send(WsMessage::Text(response.into()))
         .await
         .map_err(|_| "failed to send message".to_string())
 }

@@ -1,7 +1,5 @@
 use crate::random_edit::{self, EditKind};
-use crate::wire::{
-    WsRead, WsWrite, decode_result, send_get_all_pages, send_request,
-};
+use crate::wire::{WsRead, WsWrite, decode_result, send_get_all_pages, send_request};
 use futures_util::StreamExt;
 use love_letter::{
     LoveLetter, LoveLetterSketch, build_a_love_letter, deserialize_love_letter,
@@ -13,11 +11,11 @@ use protocol::serialization::Convert;
 use rand::RngExt;
 use server_protocol::{
     AckPayload, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, LoginPayload, RegisterPayload,
-    Request, Response, SendLoveLetterPayload, json_str_to_response,
+    Request, Response, SendLoveLetterPayload, UnsentLetter, json_str_to_response,
 };
-use tokio_tungstenite::tungstenite::Message as WsMessage;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tokio_tungstenite::connect_async;
 
 const FAKE_TIME: &str = "";
@@ -105,20 +103,20 @@ impl MockClient {
         out
     }
 
-    async fn send_raw(&mut self, request: Request, payload: Vec<u8>) -> Result<Response, String> {
+    async fn send_raw(&mut self, request: Request, payload: Vec<u8>) -> Result<Vec<u8>, String> {
         let id = self.next_msg_id;
         self.next_msg_id += 1;
         send_request(&mut self.write, id, request, payload)
             .await
             .map_err(|e| e.to_string())?;
-        self.expect_response_handling_nudges(id).await
+        self.expect_reply(id).await
     }
 
-    /// Await the response whose message_id is `msg_id`. Any Nudge that
-    /// arrives while we wait is handled (pull unsent letters, apply them,
-    /// ack them) before we keep waiting, so the caller sees the response
-    /// to its own request and nothing else.
-    async fn expect_response_handling_nudges(&mut self, msg_id: usize) -> Result<Response, String> {
+    /// Await the payload of the Reply whose message_id is `msg_id`. Any
+    /// `LoveLetterFromServer` that arrives while we wait is applied and
+    /// acked (fire-and-forget) before we keep waiting. Any other Reply
+    /// (an ack we fired off) is skipped.
+    async fn expect_reply(&mut self, msg_id: usize) -> Result<Vec<u8>, String> {
         loop {
             let msg = self
                 .read
@@ -131,79 +129,68 @@ impl MockClient {
                 _ => continue,
             };
             let response = json_str_to_response(text.as_str()).map_err(|e| e.to_string())?;
-            if response.message_id == msg_id {
-                return Ok(response);
-            }
-            if matches!(response.request, Request::Nudge) {
-                self.pull_unsent_letters().await?;
+            match response {
+                Response::Reply {
+                    message_id,
+                    payload,
+                    ..
+                } => {
+                    if message_id == msg_id {
+                        return Ok(payload.0);
+                    }
+                    // A reply to something else; skip.
+                }
+                Response::LoveLetterFromServer(letters) => {
+                    self.apply_and_ack(letters).await?;
+                }
             }
         }
     }
 
     /// Ask the server for every love letter this client hasn't received
-    /// yet, apply each one to the local docs, ack each, and return how
-    /// many were applied. Same code path the Nudge handler uses; exposed
-    /// publicly so the REPL can trigger a manual sync.
+    /// yet, apply each one, ack each, and return how many were applied.
+    /// Manual pull; the server also pushes letters on login and on new
+    /// letters, so this isn't the primary path any more.
     pub async fn sync(&mut self) -> Result<usize, String> {
-        self.pull_unsent_letters().await
-    }
-
-    /// Await the response whose message_id is `msg_id`, ignoring anything
-    /// else that arrives. Used from inside a pull, where re-entering the
-    /// nudge handler would recurse. A nudge that shows up here means there
-    /// are new letters since the pull started; the pull's own results are
-    /// what we act on, and the next nudge (or the next sync) will catch
-    /// the rest.
-    async fn read_response_ignoring_nudges(&mut self, msg_id: usize) -> Result<Response, String> {
-        loop {
-            let msg = self
-                .read
-                .next()
-                .await
-                .ok_or_else(|| "socket closed before response".to_string())?
-                .map_err(|e| format!("recv failed: {e}"))?;
-            let text = match msg {
-                WsMessage::Text(t) => t,
-                _ => continue,
-            };
-            let response = json_str_to_response(text.as_str()).map_err(|e| e.to_string())?;
-            if response.message_id == msg_id {
-                return Ok(response);
-            }
-        }
-    }
-
-    async fn pull_unsent_letters(&mut self) -> Result<usize, String> {
         let id = self.next_msg_id;
         self.next_msg_id += 1;
         send_request(&mut self.write, id, Request::GetMyUnsentLetters, Vec::new())
             .await
             .map_err(|e| e.to_string())?;
-        let resp = self.read_response_ignoring_nudges(id).await?;
-        let payload = decode_result::<GetMyUnsentLettersPayload>(&resp.payload.0)?;
+        let payload_bytes = self.expect_reply(id).await?;
+        let payload = decode_result::<GetMyUnsentLettersPayload>(&payload_bytes)?;
         let count = payload.letters.len();
         for item in payload.letters {
             let letter = deserialize_love_letter(item.love_letter)
                 .map_err(|e| format!("decode letter {}: {e}", item.letter_id))?;
             self.apply_letter(letter)?;
-
-            let ack = AckPayload {
-                letter_id: item.letter_id,
-            };
-            let ack_id = self.next_msg_id;
-            self.next_msg_id += 1;
-            send_request(&mut self.write, ack_id, Request::Ack, ack.to_payload())
-                .await
-                .map_err(|e| e.to_string())?;
-            let _ = self.read_response_ignoring_nudges(ack_id).await?;
+            self.send_ack(item.letter_id).await?;
         }
         Ok(count)
     }
 
-    /// Merge an incoming love letter's snapshot into the local docs, the
-    /// same way the server does in apply_letter. A CreateNewPage we don't
-    /// already have becomes a fresh local page; every other variant merges
-    /// into the existing page's boss, or into page_status for DisablePage.
+    /// Apply each letter locally and send an Ack for each. Acks are
+    /// fire-and-forget; their replies arrive later and are skipped by
+    /// `expect_reply`.
+    async fn apply_and_ack(&mut self, letters: Vec<UnsentLetter>) -> Result<(), String> {
+        for item in letters {
+            let letter = deserialize_love_letter(item.love_letter)
+                .map_err(|e| format!("decode pushed letter {}: {e}", item.letter_id))?;
+            self.apply_letter(letter)?;
+            self.send_ack(item.letter_id).await?;
+        }
+        Ok(())
+    }
+
+    async fn send_ack(&mut self, letter_id: i64) -> Result<(), String> {
+        let ack = AckPayload { letter_id };
+        let ack_id = self.next_msg_id;
+        self.next_msg_id += 1;
+        send_request(&mut self.write, ack_id, Request::Ack, ack.to_payload())
+            .await
+            .map_err(|e| e.to_string())
+    }
+
     fn apply_letter(&mut self, letter: LoveLetter) -> Result<(), String> {
         match letter {
             LoveLetter::CreateNewPage {
@@ -211,7 +198,11 @@ impl MockClient {
                 is_main_menu_page: _,
                 snapshot_of_edit,
             } => {
-                if self.pages.contains_key(&page_id) {
+                // Same as the server's apply_letter: a create for a page we
+                // already have is a merge, not a duplicate to drop.
+                if let Some(boss) = self.pages.get(&page_id) {
+                    BossOfYrs::merge_with_snapshot(Arc::clone(boss), snapshot_of_edit)
+                        .map_err(|e| format!("merge create into {page_id}: {e}"))?;
                     return Ok(());
                 }
                 let unix_time = std::time::SystemTime::now()
@@ -266,18 +257,24 @@ impl MockClient {
                 page_id,
                 snapshot_of_edit,
             } => {
-                if let Some(stored) = self.page_status.get(&page_id) {
-                    let active = Arc::new(
-                        YrsActivePages::new(stored.clone())
-                            .map_err(|e| format!("load status {page_id}: {e}"))?,
-                    );
-                    YrsActivePages::merge_with_snapshot(Arc::clone(&active), snapshot_of_edit)
-                        .map_err(|e| format!("merge status {page_id}: {e}"))?;
-                    let new_status = YrsActivePages::snapshot(Arc::clone(&active))
-                        .map_err(|e| format!("status snapshot {page_id}: {e}"))?;
-                    self.page_status.insert(page_id.clone(), new_status);
-                    self.disabled.insert(page_id);
-                }
+                // Load all pages on connect, so a DisablePage for one we
+                // don't have means our copy is out of sync. Error, don't
+                // drop the letter.
+                let stored = self
+                    .page_status
+                    .get(&page_id)
+                    .cloned()
+                    .ok_or_else(|| format!("DisablePage for unknown page {page_id}"))?;
+                let active = Arc::new(
+                    YrsActivePages::new(stored)
+                        .map_err(|e| format!("load status {page_id}: {e}"))?,
+                );
+                YrsActivePages::merge_with_snapshot(Arc::clone(&active), snapshot_of_edit)
+                    .map_err(|e| format!("merge status {page_id}: {e}"))?;
+                let new_status = YrsActivePages::snapshot(Arc::clone(&active))
+                    .map_err(|e| format!("status snapshot {page_id}: {e}"))?;
+                self.page_status.insert(page_id.clone(), new_status);
+                self.disabled.insert(page_id);
             }
         }
         Ok(())
@@ -287,10 +284,10 @@ impl MockClient {
         let payload = SendLoveLetterPayload {
             love_letter: letter_bytes,
         };
-        let resp = self
+        let bytes = self
             .send_raw(Request::SendLoveLetter, payload.to_payload())
             .await?;
-        decode_result::<()>(&resp.payload.0)
+        decode_result::<()>(&bytes)
     }
 
     fn build_letter(
@@ -309,10 +306,10 @@ impl MockClient {
         let payload = LoginPayload {
             user_name: self.user_name.clone(),
         };
-        let resp = self
+        let bytes = self
             .send_raw(Request::Login, payload.to_payload())
             .await?;
-        match decode_result::<()>(&resp.payload.0) {
+        match decode_result::<()>(&bytes) {
             Ok(()) => Ok(true),
             Err(_) => Ok(false),
         }
@@ -322,10 +319,10 @@ impl MockClient {
         let payload = RegisterPayload {
             user_name: self.user_name.clone(),
         };
-        let resp = self
+        let bytes = self
             .send_raw(Request::Register, payload.to_payload())
             .await?;
-        decode_result::<()>(&resp.payload.0)
+        decode_result::<()>(&bytes)
     }
 
     async fn login_or_register(&mut self) -> Result<(), String> {
@@ -353,9 +350,8 @@ impl MockClient {
         send_get_all_pages(&mut self.write, id)
             .await
             .map_err(|e| e.to_string())?;
-        let resp = self.expect_response_handling_nudges(id).await?;
-
-        let payload = decode_result::<GetAllYrsPagesPayload>(&resp.payload.0)?;
+        let bytes = self.expect_reply(id).await?;
+        let payload = decode_result::<GetAllYrsPagesPayload>(&bytes)?;
 
         let unix_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

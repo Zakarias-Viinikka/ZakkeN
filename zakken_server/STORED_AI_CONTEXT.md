@@ -39,6 +39,15 @@ mock_client/ holds the mock client, at the top level:
 - mock_client_core - mock client logic, no printing.
 - cli_gui - the mock client's REPL.
 
+client_internals/ holds how a client talks to the server:
+- shared_internals_for_server - the target-agnostic response router,
+  with tests. Plain futures, no socket, builds anywhere.
+- web - the browser socket half. Placeholder; wasm only.
+- android - the Android socket half. Placeholder.
+
+The prose version of the client's side is guide_to_interacting_with_server.md
+at the root of zakken_server.
+
 ## db_core - 2026-10-15
 
 Schemas in db/src/db/schema/, one file per table, tbl_ prefix:
@@ -89,14 +98,17 @@ lib.rs is pure re-exports; message.rs, request.rs and builders.rs hold the
 definitions.
 
 Request variants: Register, Login, SendLoveLetter, GetAllYrsPages, Ack,
-GetMyUnsentLetters, Nudge. Ack carries an AckPayload { letter_id: i64 } -
-the client saying it has applied that letter, so the server can delete
-that user's unsent row. GetMyUnsentLetters carries no payload and returns
-a GetMyUnsentLettersPayload { letters: Vec<UnsentLetter> }, where each
-UnsentLetter is { letter_id: i64, love_letter: Vec<u8> }. Nudge is
-server-only: it arrives as a Response with message_id 0, request = Nudge,
-empty payload. The server refuses to run a Nudge if one shows up as a
-job.
+GetMyUnsentLetters. Ack carries an AckPayload { letter_id: i64 } - the
+client saying it has applied that letter, so the server can delete that
+user's unsent row. GetMyUnsentLetters carries no payload and returns a
+GetMyUnsentLettersPayload { letters: Vec<UnsentLetter> }, where each
+UnsentLetter is { letter_id: i64, love_letter: Vec<u8> }.
+
+Response is its own enum now, not a reuse of Request. `Response::Reply {
+message_id, request, payload }` is a reply to a specific client request;
+`message_id` matches the request the client sent. `Response::LoveLetterFromServer(Vec<UnsentLetter>)`
+is a server push: it carries the letters themselves, has no request id,
+and a client applies and acks each letter in it.
 
 Every response payload is a bincode-encoded Result<T, DbError>. This
 matters. An earlier version returned a bare ok_serialized() on success and
@@ -107,11 +119,12 @@ Result<ItsPayloadType, DbError>.
 
 ## server_core - 2026-10-27
 
-ServerState holds only the db connection (LiveForever), behind
-Arc<std::sync::Mutex<ServerState>>. The Telephone lives in this crate too,
-as the `telephone` module, but behind its own handle. The db lock may be
-held while calling Telephone, never the reverse: the telephone's task
-never touches the db.
+There's no wrapper struct around the db any more. The shared state is
+`Arc<std::sync::Mutex<LiveForever>>`; handlers lock it, take `&LiveForever`,
+and drop the guard before awaiting. The Telephone lives in this crate too,
+as the `telephone` module, behind its own handle. The db lock may be held
+while calling Telephone, never the reverse: the telephone's task never
+touches the db.
 
 Every client request goes socket -> queue -> executor -> handler -> reply.
 The socket parses the websocket message, submits a Job to the QueueManager,
@@ -125,17 +138,20 @@ It names a connection before anyone has logged in, which is what lets the
 socket register its nudge channel at birth instead of at login.
 
 do_request is async. Its signature is (request, payload, state, telephone,
-socket_id) -> Vec<u8>. Every handler returns bytes and nothing else. The
-login gate lives here: do_request asks the telephone for the name attached
-to the socket id, and a socket with no name may only call Register or
-Login. Register, GetAllYrsPages, Ack and GetMyUnsentLetters lock the db
-briefly, do their work, and drop the guard; Login and SendLoveLetter do
-their own locking because they need to await the Telephone in between db
-calls. Nudge is refused as a job because it's server-only.
+socket_id) -> Vec<u8>, where `state` is `&Arc<Mutex<LiveForever>>`. Every
+handler returns bytes and nothing else. The login gate lives here:
+do_request asks the telephone for the name attached to the socket id, and
+a socket with no name may only call Register or Login. Register,
+GetAllYrsPages, Ack and GetMyUnsentLetters lock the db briefly, do their
+work, and drop the guard; Login and SendLoveLetter do their own locking
+because they need to await the Telephone in between db calls. Each handler
+has a named fn in allowed_requests/: register_user, send_all_pages,
+acknowledge_letter, send_unsent_letters, log_in, accept_letter.
 
 Login does two things beyond checking the user exists: it tells the
-telephone to attach the name to the socket id, then nudges that socket so
-the client pulls its backlog.
+telephone to attach the name to the socket id, then tells the telephone
+to notify that socket. A notify is "go pull": the telephone carries no
+letters. The socket's own pull is what brings the backlog.
 
 The executor also drains a log channel: anything that wants to write a log
 row sends a ServerLogEntry down it, and the executor is the one that
@@ -148,17 +164,18 @@ main.rs is wiring only. setup.rs opens the db and creates every table.
 socket.rs holds socket_main, the per-connection entry point.
 queue_executor.rs holds the executor loop. lib.rs re-exports all three.
 
-The socket in socket.rs is a `SocketSession`: the websocket, the socket
-id, a log label, and the nudge receiver. Its loop selects on two things:
-the websocket and its nudge channel. The nudge channel is created at birth
-and handed to the telephone at birth, so the socket listens from the
-moment it exists - login changes nothing about the channel, it only gives
-the telephone a name to reach it by. A () arriving on the channel means
-the telephone wants this client to pull; the socket writes a Nudge down
-the websocket (a Response with message_id 0, request Nudge, empty
-payload), and the client's move is to respond with GetMyUnsentLetters,
-apply each letter, and Ack each. Nudges carry no letter id; the fetch is
-the client's side.
+The socket in socket.rs is a `SocketState`: the websocket, the socket
+id, a log label, and a notify receiver. Its loop selects on two things:
+the websocket and its notify channel. The channel is created at birth and
+handed to the telephone at birth, so the socket listens from the moment
+it exists - login changes nothing about the channel, it only gives the
+telephone a name to reach it by. A () arriving on the channel means the
+telephone wants this client to pull. The socket submits
+GetMyUnsentLetters through the queue for itself (message_id 0, which
+never reaches the client), then pushes each letter back to the client as
+its own `Response::LoveLetterFromServer(vec![letter])` message, one letter
+per message, so each is acked on its own. A client that misses a push
+still pulls on the next notify, because the unsent rows stay until acked.
 
 After a Login reply comes back, the socket asks the telephone who it is
 (user_of(socket_id)) and uses that name as its log label. If the login
@@ -172,29 +189,30 @@ used to be the connected_clients crate; it moved because the socket id
 design ties the telephone and the socket loop into one story.
 
 Exposes one struct, `Telephone`. It's a handle to a task that owns a
-HashMap<u64, SocketEntry> - socket id -> { nudge sender, user name }. The
-() on the channel is a nudge: "you have something to pull". Every method
-sends a Command to the task; the task is the only thing that touches the
-map, and it runs on tokio, draining one channel.
+HashMap<u64, SocketEntry> - socket id -> { notify sender, user name }. The
+() on the channel is a notify: "you have something to pull". The
+telephone carries no letters; the letters stay in the db as unsent rows.
+Every method sends a Command to the task; the task is the only thing that
+touches the map, and it runs on tokio, draining one channel.
 
 Telephone is Clone. register_socket and remove_socket are sync and
 fire-and-forget: a socket registers at birth and removes itself at
 disconnect. attach_name(socket_id, name) is async and waits until the task
 has recorded the name, so the executor's login gate can rely on a
 following user_of seeing it. user_of(socket_id) returns the name attached
-to a socket, or None. nudge_socket(socket_id) nudges one connection;
-nudge_all(except) nudges every logged-in connection except `except`.
+to a socket, or None. notify_socket(socket_id) notifies one connection;
+notify_all(except) notifies every logged-in connection except `except`.
 is_connected(user_name) and connected_user_names() ask the map without
 touching it; nothing uses them right now except a test.
 
-nudge_all skips entries with no name: an entry that exists but hasn't
+notify_all skips entries with no name: an entry that exists but hasn't
 logged in can't have a letter queued for it, so there is nothing for it to
 pull. That, plus the one-job-at-a-time executor, is why a live letter
-can't fan out to a user between attach_name and the login nudge.
+can't fan out to a user between attach_name and the login notify.
 
 When a client's channel turns out to be gone (their socket task dropped
-the receiver), nudge_all drops that client from the map and reports it in
-the returned NudgeReport { reached, dropped }. The caller logs the drops.
+the receiver), notify_all drops that client from the map and reports it in
+the returned NotifyReport { reached, dropped }. The caller logs the drops.
 The task also sends a ServerLogEntry down the log channel it was given at
 construction; that's how this module reports without owning the db.
 
@@ -206,16 +224,18 @@ the server nudges, the client fetches.
 On a new letter: deserialize, apply_letter to update the pages table,
 insert the letter (this assigns the letter id), read the registered user
 list, then for every registered user except the sender - queue an unsent
-row for that user, online or not. Then nudge_all(sender). Every connected
-client except the sender gets a Nudge down its socket. Nudged clients
-send GetMyUnsentLetters, receive every letter that's still rowed for them,
-apply each, and Ack each. Offline clients aren't connected, so nudge_all
-doesn't reach them; their unsent rows sit until they log in.
+row for that user, online or not. Then notify_all(sender). Every connected
+client except the sender's socket is told "go pull". That socket submits
+GetMyUnsentLetters through the queue for its user, gets every letter still
+rowed for it, and pushes each to the client as its own
+LoveLetterFromServer(vec![letter]) message. The client applies and acks
+each one. Offline clients aren't connected, so notify_all doesn't reach
+them; their unsent rows sit until they log in.
 
 On Login: the socket registered its channel at birth, so login only
-attaches the name to the socket id and then nudges that socket once. The
-socket writes a Nudge and the client pulls its backlog through
-GetMyUnsentLetters. The rows stay until each is acked.
+attaches the name to the socket id and then notifies that socket once. The
+socket pulls its backlog through GetMyUnsentLetters and pushes each letter
+to the client. The rows stay until each is acked.
 
 On Ack: the client sends the letter id it applied. The server deletes
 that user's unsent row for that letter. A repeated ack for an already
@@ -225,10 +245,11 @@ The client is expected to dedup by letter_id, because a duplicate is
 possible: the server nudged, the connection dropped before the ack, and
 on reconnect the row is still there and shows up in the next pull.
 
-The nudge wire format is a Response with message_id 0, request = Nudge,
-empty payload. The pull wire format is a Message with request =
+The push wire format is `Response::LoveLetterFromServer(Vec<UnsentLetter>)`,
+one message per letter. The pull wire format is a Message with request =
 GetMyUnsentLetters and no payload; the reply carries a bincode of
-Result<GetMyUnsentLettersPayload, DbError>.
+Result<GetMyUnsentLettersPayload, DbError>. The pull is what the socket
+uses internally on a notify; the client never sends it directly.
 
 ## Gotchas - 2026-10-22
 
@@ -244,7 +265,7 @@ The db file path is relative to the directory the server is launched from
 directory, or the server silently opens a fresh empty database.
 
 Never hold the db lock across an .await. If axum complains that the
-handle_socket future isn't Send, that is the cause. A socket must also
+socket_main future isn't Send, that is the cause. A socket must also
 never hold the db lock while awaiting its queue reply, because the
 executor needs that same lock to produce the reply and it would deadlock.
 (The socket task itself no longer touches the db at all; the rule still
@@ -252,7 +273,9 @@ matters for login and send_love_letter, which lock briefly and drop
 before awaiting.)
 
 local_cargo.sh is a per-directory wrapper around cargo. `c c` checks the
-whole workspace. `c t` runs `cargo test --workspace`. `c r` runs
+whole workspace with `--all-targets`, so `#[cfg(test)]` code is included,
+and also checks client_internals/web (wasm target) and
+client_internals/android. `c t` runs `cargo test --workspace`. `c r` runs
 zakken_server from the zakken_server root, cli_gui from mock_client.
 
 yrs's anti_deadlock prints "DEBUG_MODE is OFF (direct call, no timeout)" on

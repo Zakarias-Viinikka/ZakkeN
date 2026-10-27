@@ -102,7 +102,6 @@ pub fn request_name(r: &Request) -> &'static str {
         Request::SendLoveLetter => "sent a love letter",
         Request::GetAllYrsPages => "asked for all pages",
         Request::Ack => "acknowledged a letter",
-        Request::Nudge => "was nudged",
         Request::GetMyUnsentLetters => "asked for its unsent letters",
     }
 }

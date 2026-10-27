@@ -1,0 +1,17 @@
+[workspace]
+
+[package]
+name = "client_android"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+futures = "0.3"
+server_protocol = { path = "../../shared/server_protocol" }
+shared_internals_for_server = { path = "../shared_internals_for_server" }
+# TODO: uniffi (for the Kotlin side) and whatever native websocket crate
+# gets picked. Both are unverified on the target; leave them out until
+# they need to be there, so this crate at least builds the shared parts.

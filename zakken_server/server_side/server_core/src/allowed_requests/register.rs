@@ -4,7 +4,7 @@ use protocol::error::DbError;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::RegisterPayload;
 
-pub fn handle(msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
+pub fn register_user(msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
     let payload = match RegisterPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
         Err(e) => {

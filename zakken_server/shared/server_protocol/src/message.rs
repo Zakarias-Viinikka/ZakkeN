@@ -1,4 +1,4 @@
-use crate::request::Request;
+use crate::request::{Request, UnsentLetter};
 use protocol::serialization::Base64Bytes;
 use serde::{Deserialize, Serialize};
 
@@ -10,8 +10,15 @@ pub struct Message {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct Response {
-    pub message_id: usize,
-    pub request: Request,
-    pub payload: Base64Bytes,
+pub enum Response {
+    /// A reply to a request the client sent. `message_id` matches the
+    /// request, so the client knows which of its asks this answers.
+    Reply {
+        message_id: usize,
+        request: Request,
+        payload: Base64Bytes,
+    },
+    /// The server spontaneously handing over love letters. Carries no
+    /// request id; the client acks each letter in it individually.
+    LoveLetterFromServer(Vec<UnsentLetter>),
 }

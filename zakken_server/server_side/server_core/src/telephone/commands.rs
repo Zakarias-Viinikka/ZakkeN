@@ -1,4 +1,4 @@
-use super::handle::NudgeReport;
+use super::handle::NotifyReport;
 use error_stuff::ServErr;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
@@ -20,13 +20,13 @@ pub enum Command {
         socket_id: u64,
         reply: oneshot::Sender<Option<String>>,
     },
-    NudgeSocket {
+    NotifySocket {
         socket_id: u64,
         reply: oneshot::Sender<Result<(), ServErr>>,
     },
-    NudgeAll {
+    NotifyAll {
         except: Option<String>,
-        reply: oneshot::Sender<NudgeReport>,
+        reply: oneshot::Sender<NotifyReport>,
     },
     IsConnected {
         user_name: String,

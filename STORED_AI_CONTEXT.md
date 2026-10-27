@@ -161,6 +161,7 @@ A workspace in three folders, shaped like rust_practice/server_template_3:
   server_side/   db (package db_core), server_core, love_letter_parser,
                  queue
   mock_client/   mock_client_core, cli_gui
+  client_internals/ shared_internals_for_server, web, android
 
 db_core - schemas and db operations, nothing else. Schemas in
 db/src/db/schema/, one file per table, tbl_ prefix:
@@ -190,25 +191,29 @@ request goes through it, carrying the socket id. The executor (in
 server_core) drains it.
 
 telephone - a module inside server_core now, not a crate. Owns the
-socket id -> { nudge sender, user name } map. No db knowledge, so it
-can never take the db lock; that fixes the lock order at
+socket id -> { notify sender, user name } map. The channel carries ()
+and means "go pull"; the letters stay in the db. No db knowledge, so
+it can never take the db lock; that fixes the lock order at
 db-then-telephone forever. Every method talks to one task that owns
 the map.
 
-server_core - the server. ServerState holds only the db connection.
-do_request is async and returns Vec<u8>; the telephone is a module in
-this crate. main.rs is wiring; setup.rs opens the db; socket.rs holds
-socket_main; queue_executor.rs holds the executor loop, which also
-drains the log channel.
+server_core - the server. The shared state is Arc<Mutex<LiveForever>>,
+no wrapper struct. do_request is async and returns Vec<u8>; the
+telephone is a module in this crate. main.rs is wiring; setup.rs opens
+the db; socket.rs holds socket_main; queue_executor.rs holds the
+executor loop, which also drains the log channel.
 
 Delivery, event-driven, at-least-once. On a new letter: apply to
 pages, store the letter, then for every registered user except the
-sender - queue an unsent row, online or not. Then nudge every connected
-user except the sender. On Ack: delete that user's unsent row. On
-Login: the socket registered its channel at birth, so login attaches
-the name to the socket id and nudges that socket once. The rows stay
-until acked, so a dropped connection gets the letter again on reconnect
-and the client dedups by letter_id.
+sender - queue an unsent row, online or not. Then notify every
+connected user except the sender. A notified socket submits
+GetMyUnsentLetters for its own user and pushes each letter to the
+client as its own LoveLetterFromServer message, so each is acked on its
+own. On Ack: delete that user's unsent row. On Login: the socket
+registered its channel at birth, so login attaches the name to the
+socket id and notifies that socket once. The rows stay until acked, so
+a dropped connection gets the letter again on reconnect and the client
+dedups by letter_id.
 
 mock_client/ is a workspace inside a workspace. mock_client_core owns
 the connection and the operations, no printing. cli_gui is the REPL.

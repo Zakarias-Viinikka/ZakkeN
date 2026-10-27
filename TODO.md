@@ -53,3 +53,7 @@ Two things still open in the harness:
 The original wish ("visual test system", "AI writes the tests") is what
 exists now. Playwright-the-library is web-only; this is the Android
 equivalent built from Appium + adb, not a port of Playwright itself.
+
+## android: double space opens the special menu
+
+On Android the special menu opens on two spaces in a row, and pressing space again closes it. (Web uses z+space / space+z and esc or space again to close.) Not started.

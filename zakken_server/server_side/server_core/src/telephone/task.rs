@@ -1,6 +1,6 @@
 use super::commands::Command;
-use super::handle::NudgeReport;
-use error_stuff::{LogCategory, LogLevel, ServerLogEntry, ServErr};
+use super::handle::NotifyReport;
+use error_stuff::{ErrorDetails, LogCategory, LogLevel, ServerLogEntry, ServErr};
 use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -18,22 +18,12 @@ pub async fn run(
     while let Some(cmd) = alert_telephone_manager_to_nudge_rx.recv().await {
         match cmd {
             Command::RegisterSocket { socket_id, sender } => {
-                sockets.insert(
-                    socket_id,
-                    SocketEntry {
-                        sender,
-                        user_name: None,
-                    },
-                );
+                sockets.insert(socket_id, SocketEntry { sender, user_name: None });
             }
             Command::RemoveSocket { socket_id } => {
                 sockets.remove(&socket_id);
             }
-            Command::AttachName {
-                socket_id,
-                user_name,
-                reply,
-            } => {
+            Command::AttachName { socket_id, user_name, reply } => {
                 if let Some(entry) = sockets.get_mut(&socket_id) {
                     entry.user_name = Some(user_name);
                 }
@@ -43,17 +33,17 @@ pub async fn run(
                 let name = sockets.get(&socket_id).and_then(|e| e.user_name.clone());
                 let _ = reply.send(name);
             }
-            Command::NudgeSocket { socket_id, reply } => {
+            Command::NotifySocket { socket_id, reply } => {
                 let result = match sockets.get(&socket_id) {
-                    Some(entry) => entry.sender.send(()).map_err(|_| ServErr::ServerError(
-                        error_stuff::ErrorDetails {
+                    Some(entry) => entry.sender.send(()).map_err(|_| {
+                        ServErr::ServerError(ErrorDetails {
                             err_msg: format!("socket {socket_id}'s channel is gone"),
                             file: file!().to_string(),
                             method: "telephone::task::run".to_string(),
                             probable_cause: String::new(),
-                        },
-                    )),
-                    None => Err(ServErr::ServerError(error_stuff::ErrorDetails {
+                        })
+                    }),
+                    None => Err(ServErr::ServerError(ErrorDetails {
                         err_msg: format!("socket {socket_id} is not registered"),
                         file: file!().to_string(),
                         method: "telephone::task::run".to_string(),
@@ -75,7 +65,7 @@ pub async fn run(
                     .collect();
                 let _ = reply.send(names);
             }
-            Command::NudgeAll { except, reply } => {
+            Command::NotifyAll { except, reply } => {
                 let mut reached = Vec::new();
                 let mut dropped = Vec::new();
                 let mut to_remove = Vec::new();
@@ -104,7 +94,7 @@ pub async fn run(
                         format!("lost contact with socket {socket_id}, dropped it"),
                     ));
                 }
-                let _ = reply.send(NudgeReport { reached, dropped });
+                let _ = reply.send(NotifyReport { reached, dropped });
             }
         }
     }

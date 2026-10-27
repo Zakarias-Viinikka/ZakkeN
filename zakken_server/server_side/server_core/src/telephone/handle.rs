@@ -2,12 +2,19 @@ use super::commands::Command;
 use error_stuff::{ErrorDetails, ServerLogEntry, ServErr};
 use tokio::sync::{mpsc, oneshot};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct NudgeReport {
+pub struct NotifyReport {
     pub reached: Vec<String>,
     pub dropped: Vec<String>,
 }
 
+/// A handle to the telephone's task. Cheap to clone. All methods send a
+/// command to the task and, where an answer is needed, await a reply.
+///
+/// The telephone carries no letters. It tells sockets "go pull". Each
+/// socket then sends `GetMyUnsentLetters` through the queue for itself
+/// and pushes what comes back to the client, one letter per message.
 #[derive(Clone)]
 pub struct Telephone {
     alert_telephone_manager_to_nudge_tx: mpsc::UnboundedSender<Command>,
@@ -26,8 +33,9 @@ impl Telephone {
         }
     }
 
-    /// Register a socket at birth. The sender is stored under the socket id;
-    /// the socket already holds the receiver and starts listening right away.
+    /// Register a socket at birth. The sender is stored under the socket
+    /// id; the socket already holds the receiver and starts listening
+    /// right away.
     pub fn register_socket(&self, socket_id: u64, sender: mpsc::UnboundedSender<()>) {
         let _ = self
             .alert_telephone_manager_to_nudge_tx
@@ -59,7 +67,6 @@ impl Telephone {
         let _ = reply_rx.await;
     }
 
-    /// The name attached to this socket, or None if no login has happened.
     pub async fn user_of(&self, socket_id: u64) -> Option<String> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -75,42 +82,42 @@ impl Telephone {
         reply_rx.await.unwrap_or(None)
     }
 
-    /// Nudge one specific socket by id.
-    pub async fn nudge_socket(&self, socket_id: u64) -> Result<(), ServErr> {
+    /// Tell one socket to go pull its unsent letters.
+    pub async fn notify_socket(&self, socket_id: u64) -> Result<(), ServErr> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
             .alert_telephone_manager_to_nudge_tx
-            .send(Command::NudgeSocket {
+            .send(Command::NotifySocket {
                 socket_id,
                 reply: reply_tx,
             })
             .is_err()
         {
-            return Err(task_gone("nudge_socket"));
+            return Err(task_gone("notify_socket"));
         }
         match reply_rx.await {
             Ok(r) => r,
-            Err(_) => Err(task_gone("nudge_socket")),
+            Err(_) => Err(task_gone("notify_socket")),
         }
     }
 
-    /// Nudge every logged-in socket except `except`.
-    pub async fn nudge_all(&self, except: Option<String>) -> NudgeReport {
+    /// Tell every logged-in socket except `except` to go pull.
+    pub async fn notify_all(&self, except: Option<String>) -> NotifyReport {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
             .alert_telephone_manager_to_nudge_tx
-            .send(Command::NudgeAll {
+            .send(Command::NotifyAll {
                 except,
                 reply: reply_tx,
             })
             .is_err()
         {
-            return NudgeReport {
+            return NotifyReport {
                 reached: Vec::new(),
                 dropped: Vec::new(),
             };
         }
-        reply_rx.await.unwrap_or(NudgeReport {
+        reply_rx.await.unwrap_or(NotifyReport {
             reached: Vec::new(),
             dropped: Vec::new(),
         })
@@ -166,14 +173,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn nudge_all_reaches_everyone_except_the_sender() {
+    async fn notify_all_reaches_everyone_except_the_sender() {
         let (log_tx, _log_rx) = mpsc::unbounded_channel();
         let telephone = Telephone::new(log_tx);
         let mut alice = add(&telephone, 1, "alice").await;
         let mut bob = add(&telephone, 2, "bob").await;
         let mut carol = add(&telephone, 3, "carol").await;
 
-        let report = telephone.nudge_all(Some("alice".to_string())).await;
+        let report = telephone.notify_all(Some("alice".to_string())).await;
 
         let mut reached = report.reached.clone();
         reached.sort();
@@ -185,13 +192,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn nudge_all_drops_a_client_whose_receiver_is_gone() {
+    async fn notify_all_drops_a_client_whose_receiver_is_gone() {
         let (log_tx, _log_rx) = mpsc::unbounded_channel();
         let telephone = Telephone::new(log_tx);
         let bob = add(&telephone, 2, "bob").await;
         drop(bob);
 
-        let report = telephone.nudge_all(None).await;
+        let report = telephone.notify_all(None).await;
 
         assert!(report.reached.is_empty());
         assert_eq!(report.dropped, vec!["bob".to_string()]);
@@ -199,13 +206,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_removed_client_is_not_nudged() {
+    async fn a_removed_client_is_not_notified() {
         let (log_tx, _log_rx) = mpsc::unbounded_channel();
         let telephone = Telephone::new(log_tx);
         let mut alice = add(&telephone, 1, "alice").await;
         telephone.remove_socket(1);
 
-        let report = telephone.nudge_all(None).await;
+        let report = telephone.notify_all(None).await;
 
         assert!(report.reached.is_empty());
         assert!(report.dropped.is_empty());

@@ -4,9 +4,12 @@ use crate::telephone::Telephone;
 use axum::extract::ws::{Message, WebSocket};
 use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use protocol::error::DbError;
-use protocol::serialization::{Base64Bytes, Convert};
+use protocol::serialization::Convert;
 use queue::{Priority, QueueManager};
-use server_protocol::{Request, Response, json_str_to_message, response_to_json_str};
+use server_protocol::{
+    GetMyUnsentLettersPayload, Request, Response, UnsentLetter, json_str_to_message,
+    response_to_json_str,
+};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -19,13 +22,16 @@ enum NextRequest {
     Closed,
 }
 
+/// Everything one websocket connection carries between loop turns.
 struct SocketState {
     socket: WebSocket,
     socket_id: u64,
     /// Who this socket is, for log lines. The address until login renames it.
     label: String,
     /// Created at birth, handed to the telephone at birth. Never moves.
-    incoming_nudges: UnboundedReceiver<()>,
+    /// The telephone writes `()` here; on receipt, the socket pulls its
+    /// unsent letters and pushes each one to the client.
+    notify: UnboundedReceiver<()>,
 }
 
 impl SocketState {
@@ -33,13 +39,13 @@ impl SocketState {
         socket: WebSocket,
         socket_id: u64,
         addr: SocketAddr,
-        incoming_nudges: UnboundedReceiver<()>,
+        notify: UnboundedReceiver<()>,
     ) -> Self {
         SocketState {
             socket,
             socket_id,
             label: addr.to_string(),
-            incoming_nudges,
+            notify,
         }
     }
 
@@ -80,13 +86,13 @@ impl SocketState {
                     }
                 }
 
-                nudge = self.incoming_nudges.recv() => {
-                    if nudge.is_none() {
-                        // The telephone's task ended; no more nudges will
-                        // come. Stop this socket too.
+                notified = self.notify.recv() => {
+                    if notified.is_none() {
+                        // The telephone's task ended; no more notifications
+                        // will come. Stop this socket too.
                         break;
                     }
-                    if !self.send_nudge().await {
+                    if !self.pull_and_push(queue).await {
                         break;
                     }
                 }
@@ -94,6 +100,100 @@ impl SocketState {
         }
 
         log(&self.label, "disconnected");
+    }
+
+    /// The socket was told "go pull". Submit GetMyUnsentLetters through
+    /// the queue for this socket's user, then send each letter back to
+    /// the client as its own `LoveLetterFromServer` message, so each one
+    /// can be applied and acked on its own.
+    ///
+    /// Returns true if the socket is still usable. A failed pull (queue
+    /// closed, decode error) is logged and treated as "try again next
+    /// time"; the letters are still rowed server-side.
+    async fn pull_and_push(&mut self, queue: &QueueManager) -> bool {
+        // message_id 0 for the internal pull: nothing on the client side
+        // matches it, and it never reaches the client.
+        let reply_rx = match queue.submit(
+            0,
+            Request::GetMyUnsentLetters,
+            Vec::new(),
+            self.socket_id,
+            Priority::Normal,
+        ) {
+            Ok(rx) => rx,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::Queue,
+                    &ErrorDetails {
+                        err_msg: format!("pull: couldn't queue: {e}"),
+                        file: file!().to_string(),
+                        method: "SocketState::pull_and_push".to_string(),
+                        probable_cause: "the queue executor isn't running".to_string(),
+                    },
+                );
+                return true;
+            }
+        };
+
+        let bytes = match reply_rx.await {
+            Ok(b) => b,
+            Err(_) => {
+                log_error(
+                    &self.label,
+                    LogCategory::Queue,
+                    &ErrorDetails {
+                        err_msg: "pull: queue dropped the reply".to_string(),
+                        file: file!().to_string(),
+                        method: "SocketState::pull_and_push".to_string(),
+                        probable_cause: "the executor task ended".to_string(),
+                    },
+                );
+                return true;
+            }
+        };
+
+        let outer: Result<GetMyUnsentLettersPayload, DbError> =
+            match Convert::un_payloadify(&bytes) {
+                Ok(v) => v,
+                Err(e) => {
+                    log_error(
+                        &self.label,
+                        LogCategory::LetterDelivery,
+                        &ErrorDetails {
+                            err_msg: format!("pull: couldn't decode payload: {e:?}"),
+                            file: file!().to_string(),
+                            method: "SocketState::pull_and_push".to_string(),
+                            probable_cause: String::new(),
+                        },
+                    );
+                    return true;
+                }
+            };
+
+        let payload = match outer {
+            Ok(p) => p,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::LetterDelivery,
+                    &ErrorDetails {
+                        err_msg: format!("pull: server returned error: {e:?}"),
+                        file: file!().to_string(),
+                        method: "SocketState::pull_and_push".to_string(),
+                        probable_cause: String::new(),
+                    },
+                );
+                return true;
+            }
+        };
+
+        for letter in payload.letters {
+            if !self.send_love_letters(vec![letter]).await {
+                return false;
+            }
+        }
+        true
     }
 
     async fn next_request(socket: &mut WebSocket) -> NextRequest {
@@ -144,11 +244,12 @@ impl SocketState {
                     &ErrorDetails {
                         err_msg: format!("couldn't queue the request: {e}"),
                         file: file!().to_string(),
-                        method: "SocketSession::run_request".to_string(),
+                        method: "SocketState::run_request".to_string(),
                         probable_cause: "the queue executor isn't running".to_string(),
                     },
                 );
-                let err: Result<(), DbError> = Err(DbError::BadCode(format!("queue closed: {e}")));
+                let err: Result<(), DbError> =
+                    Err(DbError::BadCode(format!("queue closed: {e}")));
                 self.send_reply(err.to_payload(), msg_id, request).await;
                 return None;
             }
@@ -163,7 +264,7 @@ impl SocketState {
                     &ErrorDetails {
                         err_msg: "the queue dropped the reply".to_string(),
                         file: file!().to_string(),
-                        method: "SocketSession::run_request".to_string(),
+                        method: "SocketState::run_request".to_string(),
                         probable_cause: "the executor task ended".to_string(),
                     },
                 );
@@ -186,23 +287,18 @@ impl SocketState {
         }
     }
 
-    async fn send_nudge(&mut self) -> bool {
-        let nudge_response = Response {
-            message_id: 0,
-            request: Request::Nudge,
-            payload: Base64Bytes(Vec::new()),
-        };
-
-        let json = match response_to_json_str(&nudge_response) {
+    async fn send_love_letters(&mut self, letters: Vec<UnsentLetter>) -> bool {
+        let response = Response::LoveLetterFromServer(letters);
+        let json = match response_to_json_str(&response) {
             Ok(j) => j,
             Err(e) => {
                 log_error(
                     &self.label,
                     LogCategory::LetterDelivery,
                     &ErrorDetails {
-                        err_msg: format!("nudge: serialize failed: {e}"),
+                        err_msg: format!("push: serialize failed: {e}"),
                         file: file!().to_string(),
-                        method: "SocketSession::send_nudge".to_string(),
+                        method: "SocketState::send_love_letters".to_string(),
                         probable_cause: String::new(),
                     },
                 );
@@ -217,9 +313,9 @@ impl SocketState {
                     &self.label,
                     LogCategory::LetterDelivery,
                     &ErrorDetails {
-                        err_msg: format!("nudge: send failed: {e}"),
+                        err_msg: format!("push: send failed: {e}"),
                         file: file!().to_string(),
-                        method: "SocketSession::send_nudge".to_string(),
+                        method: "SocketState::send_love_letters".to_string(),
                         probable_cause: "the client's socket closed".to_string(),
                     },
                 );
@@ -236,11 +332,11 @@ pub async fn socket_main(
     addr: SocketAddr,
 ) {
     let socket_id = NEXT_SOCKET_ID.fetch_add(1, Ordering::Relaxed);
-    let (nudge_tx, nudge_rx) = tokio::sync::mpsc::unbounded_channel();
-    telephone.register_socket(socket_id, nudge_tx);
+    let (notify_tx, notify_rx) = tokio::sync::mpsc::unbounded_channel();
+    telephone.register_socket(socket_id, notify_tx);
 
-    let mut session = SocketState::new(socket, socket_id, addr, nudge_rx);
-    session.run(&telephone, &queue).await;
+    let mut state = SocketState::new(socket, socket_id, addr, notify_rx);
+    state.run(&telephone, &queue).await;
 
     telephone.remove_socket(socket_id);
 }
