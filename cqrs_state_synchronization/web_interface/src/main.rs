@@ -9,6 +9,8 @@ use web_interface::db::{cached_ids, init};
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::setup_page::SetupPage;
+use web_interface::leptos_components::small_components::popup::{create_popup, PopupContainer};
+use web_interface::server_link::REMOTE_DISABLED_OPEN_PAGE;
 use web_internal_db::db_gui::db_gui_main;
 
 fn main() {
@@ -23,6 +25,7 @@ fn App() -> impl IntoView {
     // Batcher lives for the app's lifetime. Handle goes into leptos
     // context so MainContent can pull it out.
     let (batcher, batcher_handle) = Batcher::new();
+    let batcher_for_link = batcher_handle.clone();
     provide_context(batcher_handle);
     spawn_local(async move {
         batcher.run().await;
@@ -37,9 +40,15 @@ fn App() -> impl IntoView {
     Effect::new(move |_| {
         spawn_local(async move {
             init::init_all().await;
+            cached_ids::INIT_DONE.set(true);
             tables_ready.set(true);
         });
     });
+
+    // Starts the connection to zakken_server. Fires once INIT_DONE,
+    // SESSION_ID, and USER_ID are all set. Does nothing if the user has
+    // no USER_ID yet (UserGate redirects to /setup).
+    web_interface::server_link::start_server_link(batcher_for_link, open_pages);
 
     view! {
         {move || {
@@ -57,6 +66,9 @@ fn App() -> impl IntoView {
                             <Route path=path!("/setup") view=SetupPage/>
                         </Routes>
                         <UserGate/>
+                        <div style="position: absolute; top: 0; right: 0; z-index: 9999;">
+                            <PopupContainer />
+                        </div>
                     </main>
                 </Router>
             }.into_any()
@@ -82,7 +94,21 @@ fn UserGate() -> impl IntoView {
 #[component]
 fn MainContentRoute() -> impl IntoView {
     let params = leptos_router::hooks::use_params_map();
+    let navigate = leptos_router::hooks::use_navigate();
     let open = expect_context::<OpenPages>();
+
+    // If the currently open page is disabled remotely, leave the view.
+    Effect::new(move |_| {
+        let Some(pid) = REMOTE_DISABLED_OPEN_PAGE.get() else {
+            return;
+        };
+        if open.page1.page_id.get_untracked() != pid {
+            return;
+        }
+        REMOTE_DISABLED_OPEN_PAGE.set(None);
+        create_popup("This page was disabled from another client.".to_string());
+        navigate("/Menu", Default::default());
+    });
 
     Effect::new(move |_| {
         let page_id = params.get().get("page_id").unwrap_or_default();

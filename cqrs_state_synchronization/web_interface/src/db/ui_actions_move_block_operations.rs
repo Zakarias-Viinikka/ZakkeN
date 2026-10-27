@@ -10,7 +10,7 @@ use data_builder_for_operations_that_need_to_be_correct::{
     move_block as build_move_block,
 };
 use error_stuff::CqrsErr;
-use leptos::prelude::*;
+
 use leptos::prelude::GetUntracked;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     add_block_requires_three_db_actions, delete_block_requires_three_db_actions,
@@ -23,6 +23,7 @@ use web_internal_db::db_helper;
 use crate::complicated_signal_flow::BatcherHandle;
 use crate::db::db_helpers_for_web_client;
 use crate::db::ui_actions_helper::is_main_menu_page;
+use crate::db::write_lock::WRITE_LOCK;
 
 pub async fn move_block(
     batcher: BatcherHandle,
@@ -33,6 +34,7 @@ pub async fn move_block(
     session_id: String,
 ) -> Result<(), CqrsErr> {
     batcher.flush_now().await?;
+    let _guard = WRITE_LOCK.acquire().await;
     let yrs = db_helpers_for_web_client::get_yrs_unblobbed(
         page_id,
         crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
@@ -50,6 +52,8 @@ pub async fn move_block(
 
     move_block_requires_three_db_actions(everything).await?;
 
+    drop(_guard);
+    crate::server_link::kick_send();
     Ok(())
 }
 
@@ -63,6 +67,7 @@ pub async fn move_block_to_another_page(
     session_id: String,
 ) -> Result<(), CqrsErr> {
     batcher.flush_now().await?;
+    let _guard = WRITE_LOCK.acquire().await;
     let content = old_boss
         .clone()
         .read_block(block_id.clone())?
@@ -119,5 +124,7 @@ pub async fn move_block_to_another_page(
 
     db_helper::everything_went_perfectly().await?;
 
+    drop(_guard);
+    crate::server_link::kick_send();
     Ok(())
 }

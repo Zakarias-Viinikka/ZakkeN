@@ -381,6 +381,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "client_web"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gloo-timers",
+ "js-sys",
+ "serde_json",
+ "server_protocol",
+ "shared_internals_for_server",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "codee"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2338,6 +2353,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "server_error_stuff"
+version = "0.1.0"
+dependencies = [
+ "protocol",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "server_fn"
 version = "0.8.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2396,6 +2420,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "server_protocol"
+version = "0.1.0"
+dependencies = [
+ "protocol",
+ "serde",
+ "serde_json",
+ "server_error_stuff",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2404,6 +2438,15 @@ dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
  "digest",
+]
+
+[[package]]
+name = "shared_internals_for_server"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "server_error_stuff",
+ "server_protocol",
 ]
 
 [[package]]
@@ -3163,6 +3206,7 @@ name = "web_interface"
 version = "0.1.0"
 dependencies = [
  "client_table_blueprints",
+ "client_web",
  "console_error_panic_hook",
  "data_builder_for_operations_that_need_to_be_correct",
  "error_stuff",
@@ -3175,8 +3219,11 @@ dependencies = [
  "leptos-use",
  "leptos_meta",
  "leptos_router",
+ "love_letter",
  "protocol",
  "rapier2d",
+ "server_protocol",
+ "shared_internals_for_server",
  "stylist",
  "text_diff",
  "wasm-bindgen",

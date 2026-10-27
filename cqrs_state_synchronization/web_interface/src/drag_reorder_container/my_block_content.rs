@@ -4,6 +4,7 @@ use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
 /// The actual block content. This is the file I own and edit for block
 /// behaviour. Right now: a textarea that fires on_input for every
@@ -47,18 +48,41 @@ pub fn MyBlockContent(
 
     // Keep the textarea's value in sync with the block's content signal.
     // No-op during typing (signal and textarea already match), but
-    // exposes external content changes (split, merge) to the DOM.
+    // exposes external content changes (remote edits, split, merge) to
+    // the DOM. When the textarea is focused, the caret is preserved
+    // across the change.
     Effect::new(move |_| {
-        let current = content_signal_for_render.get();
-        if let Some(el) = textarea_ref.get_untracked() {
-            if el.value() != current {
-                el.set_value(&current);
-                let _ = web_sys::HtmlElement::style(&el).set_property("height", "auto");
-                let sh = el.scroll_height();
-                let _ = web_sys::HtmlElement::style(&el)
-                    .set_property("height", &format!("{}px", sh));
-            }
+        let new_value = content_signal_for_render.get();
+        let Some(el) = textarea_ref.get_untracked() else {
+            return;
+        };
+        let old_value = el.value();
+        if old_value == new_value {
+            return;
         }
+        let is_focused = {
+            let active = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.active_element());
+            match active {
+                Some(active) => {
+                    let a: &JsValue = active.as_ref();
+                    let e: &JsValue = el.as_ref();
+                    a == e
+                }
+                None => false,
+            }
+        };
+        let caret_before = el.selection_start().ok().flatten().unwrap_or(0);
+        el.set_value(&new_value);
+        if is_focused {
+            let new_caret = map_caret_across_edit(&old_value, &new_value, caret_before);
+            let _ = el.set_selection_range(new_caret, new_caret);
+        }
+        let _ = web_sys::HtmlElement::style(&el).set_property("height", "auto");
+        let sh = el.scroll_height();
+        let _ = web_sys::HtmlElement::style(&el)
+            .set_property("height", &format!("{}px", sh));
     });
 
     Effect::new(move |_| {
@@ -235,4 +259,37 @@ pub fn MyBlockContent(
             style="border: 1px solid rgba(0, 0, 0, 0.05); outline: none; resize: none;"
         ></textarea>
     }
+}
+
+/// Map a caret position from `old` to `new` when `new` is `old` with
+/// one contiguous edit applied. All lengths are UTF-16 units, matching
+/// what `selection_start` / `set_selection_range` use.
+fn map_caret_across_edit(old: &str, new: &str, caret: u32) -> u32 {
+    let old_u: Vec<u16> = old.encode_utf16().collect();
+    let new_u: Vec<u16> = new.encode_utf16().collect();
+    let caret = caret as usize;
+
+    let min_len = old_u.len().min(new_u.len());
+    let mut prefix = 0;
+    while prefix < min_len && old_u[prefix] == new_u[prefix] {
+        prefix += 1;
+    }
+
+    let mut suffix = 0;
+    while suffix < (old_u.len() - prefix)
+        && suffix < (new_u.len() - prefix)
+        && old_u[old_u.len() - 1 - suffix] == new_u[new_u.len() - 1 - suffix]
+    {
+        suffix += 1;
+    }
+
+    if caret <= prefix {
+        return caret as u32;
+    }
+    if caret >= old_u.len() - suffix {
+        let delta = new_u.len() as isize - old_u.len() as isize;
+        let shifted = (caret as isize + delta).max(prefix as isize);
+        return shifted as u32;
+    }
+    prefix as u32
 }

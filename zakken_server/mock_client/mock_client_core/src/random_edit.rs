@@ -58,6 +58,12 @@ pub fn perform_edit(boss: &Arc<BossOfYrs>, kind: EditKind) -> Result<EditOutcome
     let chars: Vec<char> = block.text.chars().collect();
     let block_id = block.id_in_yrs.clone();
     let page_id = boss.page_id.clone();
+    // Position of the block within the page, counting all blocks
+    // (title included), 0-based. Matches the [N] labels in `pages`.
+    let block_position = blocks
+        .iter()
+        .position(|b| b.id_in_yrs == block_id)
+        .unwrap_or(0);
 
     let (text_edit, description) = match action {
         0 => {
@@ -67,7 +73,10 @@ pub fn perform_edit(boss: &Arc<BossOfYrs>, kind: EditKind) -> Result<EditOutcome
                 rng.random_range(0..=chars.len()) as u32
             };
             let new_text = "mock_insert".to_string();
-            let desc = format!("insert {:?} at {} in block {}", new_text, pos, block_id);
+            let desc = format!(
+                "insert {:?} at {} in block [{}] {}",
+                new_text, pos, block_position, block_id
+            );
             (
                 TextEdit::Insert {
                     text: new_text,
@@ -81,7 +90,10 @@ pub fn perform_edit(boss: &Arc<BossOfYrs>, kind: EditKind) -> Result<EditOutcome
             let max_len = chars.len() - pos as usize;
             let len = rng.random_range(1..=max_len);
             let removed: String = chars[pos as usize..pos as usize + len].iter().collect();
-            let desc = format!("delete {:?} at {} in block {}", removed, pos, block_id);
+            let desc = format!(
+                "delete {:?} at {} in block [{}] {}",
+                removed, pos, block_position, block_id
+            );
             (
                 TextEdit::Delete {
                     text: removed,
@@ -97,8 +109,8 @@ pub fn perform_edit(boss: &Arc<BossOfYrs>, kind: EditKind) -> Result<EditOutcome
             let old: String = chars[pos as usize..pos as usize + len].iter().collect();
             let new_text = "mock_replace".to_string();
             let desc = format!(
-                "replace {:?} with {:?} at {} in block {}",
-                old, new_text, pos, block_id
+                "replace {:?} with {:?} at {} in block [{}] {}",
+                old, new_text, pos, block_position, block_id
             );
             (
                 TextEdit::Replace {

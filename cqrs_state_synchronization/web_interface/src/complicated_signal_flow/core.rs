@@ -33,7 +33,6 @@ use error_stuff::CqrsErr;
 use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures_channel::oneshot;
 use futures_util::StreamExt;
-use leptos::prelude::*;
 use protocol::error::DbError;
 use my_yrs_lib::BossOfYrs;
 use text_diff::diff_batching::combine_list_of_getdiff_results::combine_getdiff_results;
@@ -136,6 +135,27 @@ impl BatcherHandle {
 
 /// Batches text edits so every keyboard input isn't an edit. Also
 /// supports adding undo/redo support more cleanly.
+/// Run `work` as the only writer: flush the batcher, then take the
+/// write lock, then run `work`, then release. Used by the receive
+/// worker so a remote apply can't interleave with a local flush.
+///
+/// Deadlock rule: nothing inside `work` may call `flush_now()`. The
+/// lock is held by then, and `flush_now` takes it again.
+pub async fn run_exclusive<Fut, F, T>(
+    batcher: &BatcherHandle,
+    work: F,
+) -> Result<T, CqrsErr>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<T, CqrsErr>>,
+{
+    batcher.flush_now().await?;
+    let guard = crate::db::write_lock::WRITE_LOCK.acquire().await;
+    let result = work().await;
+    drop(guard);
+    result
+}
+
 pub struct Batcher {
     pending: RwSignal<Vec<PendingEdit>>,
     receiver: UnboundedReceiver<BatcherMsg>,
@@ -199,6 +219,11 @@ impl Batcher {
             return Ok(());
         }
 
+        // One writer at a time. Everything below — the transaction, the
+        // executor calls, the commit — runs under this guard. Dropped at
+        // the end of the function, including on any early error return.
+        let _write_guard = crate::db::write_lock::WRITE_LOCK.acquire().await;
+
         let session_id = crate::db::cached_ids::SESSION_ID
             .get_untracked()
             .expect(crate::db::cached_ids::INIT_ERR);
@@ -257,6 +282,7 @@ impl Batcher {
         match failure {
             None => {
                 web_internal_db::db_helper::everything_went_perfectly().await?;
+                crate::server_link::kick_send();
                 Ok(())
             }
             Some(e) => {

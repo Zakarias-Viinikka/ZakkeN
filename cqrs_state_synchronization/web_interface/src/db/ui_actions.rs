@@ -1,10 +1,12 @@
-use client_table_blueprints::{tbl_client_love_letter, tbl_every_block_in_existence, tbl_pages};
+use client_table_blueprints::{
+    tbl_client_love_letter, tbl_every_block_in_existence, tbl_key_value_storage, tbl_pages,
+    tbl_seen_server_letters,
+};
 use data_builder_for_operations_that_need_to_be_correct::{
     add_block as build_add_block, create_page, delete_block as build_delete_block,
     disable_page as build_disable_page, edit_block as build_edit_block,
 };
 use error_stuff::CqrsErr;
-use leptos::prelude::*;
 use leptos::prelude::{GetUntracked, Set};
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     add_block_requires_three_db_actions, delete_block_requires_three_db_actions,
@@ -21,9 +23,14 @@ use web_internal_db::db_helper;
 use crate::complicated_signal_flow::BatcherHandle;
 use crate::db::db_helpers_for_web_client;
 use crate::db::ui_actions_helper::{get_active_pages_blob, get_page_is_disabled};
+use crate::db::write_lock::WRITE_LOCK;
 
 /// Add one block to a page. The caller already has the boss; it does
 /// not need to be fetched here.
+///
+/// Holds the write lock across build + executor, so a remote letter
+/// can't merge into the boss between them and get overwritten by the
+/// executor's blob write.
 pub async fn add_block(
     batcher: BatcherHandle,
     yrs: Arc<BossOfYrs>,
@@ -34,6 +41,7 @@ pub async fn add_block(
     session_id: String,
 ) -> Result<String, CqrsErr> {
     batcher.flush_now().await?;
+    let _guard = WRITE_LOCK.acquire().await;
     let ctx = build_add_block(
         yrs,
         block_content,
@@ -45,15 +53,17 @@ pub async fn add_block(
     )?;
     let block_id = ctx.every_block_in_existence_insert.my_id_as_given_by_yrs.clone();
     add_block_requires_three_db_actions(ctx).await?;
+    crate::server_link::kick_send();
     Ok(block_id)
 }
 
 /// Add a block with a caller-chosen id, without flushing the batcher.
 /// This exists so the ui can make blocks that the user can write to
 /// before the db has made the block.
-/// Only the batcher's own flush may call this. It already owns the
-/// queue and is inside its transaction, and `add_block` above would
-/// wait on the batcher and deadlock.
+///
+/// Only the batcher's own flush may call this. It already holds the
+/// write lock and owns the queue; acquiring the lock again would
+/// deadlock, and calling `add_block` above would wait on the batcher.
 pub async fn add_block_unflushed(
     yrs: Arc<BossOfYrs>,
     block_id: String,
@@ -101,8 +111,11 @@ pub async fn delete_block(
     session_id: String,
 ) -> Result<(), CqrsErr> {
     batcher.flush_now().await?;
+    let _guard = WRITE_LOCK.acquire().await;
     let ctx = build_delete_block(yrs, block_id, session_id)?;
     delete_block_requires_three_db_actions(ctx).await?;
+    drop(_guard);
+    crate::server_link::kick_send();
     Ok(())
 }
 
@@ -132,6 +145,7 @@ async fn write_title_to_block(
 
 pub async fn create_new_page(batcher: BatcherHandle) -> Result<(), CqrsErr> {
     batcher.flush_now().await?;
+    let _guard = WRITE_LOCK.acquire().await;
     let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
     let everything = create_page(true, session_id.clone())?;
 
@@ -146,6 +160,8 @@ pub async fn create_new_page(batcher: BatcherHandle) -> Result<(), CqrsErr> {
 
     write_title_to_block(page_id, title_block_id, "title".to_string(), session_id).await?;
 
+    drop(_guard);
+    crate::server_link::kick_send();
     Ok(())
 }
 
@@ -157,6 +173,7 @@ pub async fn disable_page(
     session_id: String,
 ) -> Result<(), CqrsErr> {
     batcher.flush_now().await?;
+    let _guard = WRITE_LOCK.acquire().await;
     if get_page_is_disabled(page_id.clone()).await? {
         return Ok(());
     }
@@ -167,17 +184,45 @@ pub async fn disable_page(
 
     disabled_page_requires_three_db_actions(everything).await?;
 
+    drop(_guard);
+    crate::server_link::kick_send();
     Ok(())
 }
 
 pub async fn delete_everything() -> Result<(), CqrsErr> {
+    let _guard = WRITE_LOCK.acquire().await;
     let tables_to_delete = vec![
         tbl_pages::TABLE_NAME,
         tbl_every_block_in_existence::TABLE_NAME,
         tbl_client_love_letter::TABLE_NAME,
+        tbl_seen_server_letters::TABLE_NAME,
     ];
 
     for table_name in &tables_to_delete {
+        db_helper::delete_all_rows(DeleteAllRowsIn {
+            table_name: table_name.to_string(),
+        })
+        .await?;
+    }
+
+    Ok(())
+}
+
+/// Wipe every local table, including key_value_storage (which holds
+/// USER_ID and session_id). On reload the user is bounced to /setup.
+/// Server-side state is not touched; if you want a clean start on both
+/// sides, wipe the server's test_db.sqlite yourself.
+pub async fn reset_everything() -> Result<(), CqrsErr> {
+    let _guard = WRITE_LOCK.acquire().await;
+    let tables_to_wipe = vec![
+        tbl_pages::TABLE_NAME,
+        tbl_every_block_in_existence::TABLE_NAME,
+        tbl_client_love_letter::TABLE_NAME,
+        tbl_seen_server_letters::TABLE_NAME,
+        tbl_key_value_storage::TABLE_NAME,
+    ];
+
+    for table_name in &tables_to_wipe {
         db_helper::delete_all_rows(DeleteAllRowsIn {
             table_name: table_name.to_string(),
         })

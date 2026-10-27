@@ -172,3 +172,98 @@ pub async fn get_all_blocks_for_page(page_id: String) -> Result<Vec<BlockRow>, D
     }
     Ok(result)
 }
+
+pub async fn page_exists(page_id: String) -> Result<bool, DbError> {
+    let out = db_helper::get_data(GetDataIn {
+        table_name: tbl_pages::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: PAGE_ID.name.to_string(),
+            y: page_id,
+        }),
+        columns_to_read: vec![PAGE_ID.name.to_string()],
+    })
+    .await?;
+    Ok(!out.rows.is_empty())
+}
+
+/// Read every block of a page with its frac position. Same columns as
+/// `get_all_blocks_for_page`, plus FRAC_POSITION, so the reconcile can
+/// tell whether the block moved.
+pub async fn get_existing_blocks_for_page(
+    page_id: String,
+) -> Result<Vec<data_builder_for_operations_that_need_to_be_correct::ExistingBlock>, DbError>
+{
+    let order_by = format!(
+        "{} ASC, {} ASC",
+        tbl_every_block_in_existence::FRAC_POSITION.name,
+        tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS.name,
+    );
+
+    let out = db_helper::get_data_ordered(GetDataOrderedIn {
+        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                .name
+                .to_string(),
+            y: page_id,
+        }),
+        columns_to_read: vec![
+            tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                .name
+                .to_string(),
+            tbl_every_block_in_existence::CONTENT.name.to_string(),
+            tbl_every_block_in_existence::FRAC_POSITION.name.to_string(),
+            tbl_every_block_in_existence::IS_TITLE.name.to_string(),
+        ],
+        order_by,
+    })
+    .await?;
+
+    let mut result = Vec::with_capacity(out.rows.len());
+    for row in out.rows {
+        let mut cols = row.cols.into_iter();
+        let block_id = MY_ID_AS_GIVEN_BY_YRS
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing block_id".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("block_id was null".into()))?;
+        let content = CONTENT
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing content".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("content was null".into()))?;
+        let frac_position = tbl_every_block_in_existence::FRAC_POSITION
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing frac".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("frac was null".into()))?;
+        let is_title_str = IS_TITLE
+            .try_destruct_db_col(
+                cols.next()
+                    .ok_or_else(|| DbError::ColDestructFail("missing is_title".into()))?,
+            )
+            .map_err(DbError::ColDestructFail)?
+            .ok_or_else(|| DbError::ColDestructFail("is_title was null".into()))?;
+        result.push(data_builder_for_operations_that_need_to_be_correct::ExistingBlock {
+            block_id,
+            content,
+            frac_position,
+            is_title: is_title_str == "true",
+        });
+    }
+    Ok(result)
+}
+
+pub async fn clear_seen_server_letters() -> Result<(), DbError> {
+    db_helper::delete_all_rows(DeleteAllRowsIn {
+        table_name: client_table_blueprints::tbl_seen_server_letters::TABLE_NAME.to_string(),
+    })
+    .await?;
+    Ok(())
+}

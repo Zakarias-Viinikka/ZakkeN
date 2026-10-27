@@ -6,8 +6,9 @@ use crate::{
             disable_page_button::DisablePageButton, edit_title_button::EditTitleButton,
         },
         dev_panel::sidebar::SidebarContainer,
-        small_components::popup::{PopupContainer, create_popup},
+        small_components::popup::create_popup,
     },
+    server_link::MENU_TICK,
 };
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;
@@ -60,23 +61,32 @@ pub fn Menu() -> impl IntoView {
          local_pages_set: WriteSignal<Vec<LocalPages>>,
          */
 
-        <div style="position: absolute; top: 0; right: 0;">
-            <PopupContainer />
-        </div>
     }
 }
 
 fn create_local_pages() -> (ReadSignal<Vec<LocalPages>>, WriteSignal<Vec<LocalPages>>) {
     let (local_pages, local_pages_set) = signal(Vec::<LocalPages>::new());
+    let latest = RwSignal::new(0u32);
 
-    spawn_local(async move {
-        match db::db_helpers_for_web_client::get_all_menu_pages().await {
-            Ok(pages) => local_pages_set.set(pages),
-            Err(e) => {
-                log!("get_all_menu_pages failed: {:?}", e);
-                create_popup(format!("get_all_menu_pages failed: {:?}", e));
+    // Refetch on mount and every time MENU_TICK bumps. The token
+    // prevents a slow earlier fetch from clobbering a newer one.
+    Effect::new(move |_| {
+        let _ = MENU_TICK.get();
+        latest.update(|n| *n = n.wrapping_add(1));
+        let my_token = latest.get_untracked();
+        spawn_local(async move {
+            match db::db_helpers_for_web_client::get_all_menu_pages().await {
+                Ok(pages) => {
+                    if latest.get_untracked() == my_token {
+                        local_pages_set.set(pages);
+                    }
+                }
+                Err(e) => {
+                    log!("get_all_menu_pages failed: {:?}", e);
+                    create_popup(format!("get_all_menu_pages failed: {:?}", e));
+                }
             }
-        }
+        });
     });
 
     (local_pages, local_pages_set)

@@ -17,7 +17,7 @@ db_wrapper = { path = "/home/zakke/ProgStuff/z_db/db_wrapper", features = ["andr
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 db_core = { path = "../db" }
 server_protocol = { path = "../../shared/server_protocol" }
-error_stuff = { path = "../../shared/error_stuff" }
+error_stuff = { path = "../../shared/error_stuff", package = "server_error_stuff" }
 love_letter_parser = { path = "../love_letter_parser" }
 queue = { path = "../queue" }
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"

@@ -14,4 +14,4 @@ yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 server_protocol = { path = "../../shared/server_protocol" }
-error_stuff = { path = "../../shared/error_stuff" }
+error_stuff = { path = "../../shared/error_stuff", package = "server_error_stuff" }

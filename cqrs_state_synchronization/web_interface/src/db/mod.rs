@@ -7,3 +7,5 @@ pub mod init;
 pub mod ui_actions;
 pub mod ui_actions_move_block_operations;
 pub mod ui_actions_helper;
+
+pub mod write_lock;

@@ -20,3 +20,9 @@ pub use disable_page::{EverythingForDisablePage, disable_page};
 pub use edit_block::{EveryBlockInExistenceUpdateCtx, EverythingForEditBlock, edit_block};
 pub use move_block::{EverythingForMoveBlock, move_block};
 pub use shared::{ClientLoveLetterInsertCtx, PagesUpdateCtx};
+
+pub mod merge_page;
+pub use merge_page::{
+    build_merge_blob, build_merge_disable, build_merge_new_page, ExistingBlock, FinalBlock,
+    MergePlan, NewPageInfo, ReconcileOp,
+};

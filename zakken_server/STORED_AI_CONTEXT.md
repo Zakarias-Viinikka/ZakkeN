@@ -281,20 +281,18 @@ zakken_server from the zakken_server root, cli_gui from mock_client.
 yrs's anti_deadlock prints "DEBUG_MODE is OFF (direct call, no timeout)" on
 every method call. That's from the yrs crate, not from the server.
 
-## What's left - 2026-10-22
+## What's left - 2026-10-27
 
-Cross-client delivery has still never been exercised end to end. The mock
-client now knows how to receive: it handles a Nudge by pulling
-GetMyUnsentLetters, applying each letter to its local boss (or
-page_status), and Acking each. The same path is exposed as the `sync`
-REPL command, so you can force a pull without waiting for a nudge. Two
-mock clients with different user names, one editing while the other
-syncs, is still the test that proves "user A edits, user B receives" -
-it just hasn't been run.
+Cross-client delivery has been exercised end to end. On 2026-10-27 the
+web client and the mock client were run side by side. The web client's
+queued letters flushed to the server (20 in one burst after a stuck
+send loop was fixed), the mock client synced them, and a mock-client
+edit pushed to the web client and was acked. The receive path
+(`Response::LoveLetterFromServer` -> apply -> ack) works in both
+directions.
 
-The mock client always creates pages with is_main_menu_page = false. The
-letter field exists and is threaded correctly; the mock client just doesn't
-have a rule for which page should be the menu.
+The mock client now creates pages with is_main_menu_page = true, so
+mock-created pages appear in the web menu.
 
 Retention - deleting a letter once every registered user has acked it - is
 deferred. A letter with no unsent rows is harmless in the table. Note that

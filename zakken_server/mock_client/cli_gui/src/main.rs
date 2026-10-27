@@ -114,7 +114,13 @@ async fn run() -> Result<(), String> {
                 } else {
                     for p in pages {
                         let tag = if p.disabled { "  [disabled]" } else { "" };
-                        lines.push(format!("{}{}", p.page_id, tag));
+                        let title = p
+                            .blocks
+                            .first()
+                            .map(|b| b.text.clone())
+                            .filter(|t| !t.is_empty())
+                            .unwrap_or_else(|| p.page_id.clone());
+                        lines.push(format!("{}{}", title, tag));
                         for b in &p.blocks {
                             let text = if b.text.is_empty() {
                                 "(empty)".to_string()
@@ -129,46 +135,56 @@ async fn run() -> Result<(), String> {
             }
 
             "newpage" => match client.create_page().await {
-                Ok(id) => vec![
-                    format!("created page {}", id),
-                    format!(
-                        "now {} page(s), {} active",
-                        client.page_count(),
-                        client.active_page_count()
-                    ),
-                ],
+                Ok(id) => {
+                    let display = client.page_title(&id).unwrap_or(id);
+                    vec![
+                        format!("created page {}", display),
+                        format!(
+                            "now {} page(s), {} active",
+                            client.page_count(),
+                            client.active_page_count()
+                        ),
+                    ]
+                }
                 Err(e) => vec![format!("couldn't create a page: {e}")],
             },
 
             "disable" => match client.disable_random_page().await {
-                Ok(id) => vec![
-                    format!("disabled page {}", id),
-                    format!(
-                        "now {} page(s), {} active",
-                        client.page_count(),
-                        client.active_page_count()
-                    ),
-                ],
+                Ok(id) => {
+                    let display = client.page_title(&id).unwrap_or(id);
+                    vec![
+                        format!("disabled page {}", display),
+                        format!(
+                            "now {} page(s), {} active",
+                            client.page_count(),
+                            client.active_page_count()
+                        ),
+                    ]
+                }
                 Err(e) => vec![format!("couldn't disable a page: {e}")],
             },
 
             "newblock" => match client.insert_block_on_random_page().await {
-                Ok((page_id, block_id)) => vec![
-                    format!("on page {}", page_id),
-                    format!("added block {}", block_id),
-                ],
+                Ok((page_id, block_id)) => {
+                    let display = client.page_title(&page_id).unwrap_or(page_id);
+                    vec![
+                        format!("on page {}", display),
+                        format!("added block {}", block_id),
+                    ]
+                }
                 Err(e) => vec![format!("couldn't add a block: {e}")],
             },
 
             "delblock" => match client.delete_block_on_random_page().await {
                 Ok((page_id, position, text)) => {
+                    let display = client.page_title(&page_id).unwrap_or(page_id);
                     let shown = if text.is_empty() {
                         "(empty)".to_string()
                     } else {
                         format!("\"{}\"", text)
                     };
                     vec![
-                        format!("on page {}", page_id),
+                        format!("on page {}", display),
                         format!("removed block at position {} ({})", position, shown),
                     ]
                 }
@@ -197,7 +213,10 @@ async fn run() -> Result<(), String> {
 
 async fn do_edit(client: &mut MockClient, kind: EditKind) -> Vec<String> {
     match client.edit_random_page(kind).await {
-        Ok((page_id, desc)) => vec![format!("on page {}", page_id), desc],
+        Ok((page_id, desc)) => {
+            let display = client.page_title(&page_id).unwrap_or(page_id);
+            vec![format!("on page {}", display), desc]
+        }
         Err(e) => vec![format!("edit failed: {e}")],
     }
 }

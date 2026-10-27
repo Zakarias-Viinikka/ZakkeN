@@ -1,0 +1,343 @@
+//! The receive worker and the bootstrap.
+//!
+//! One task, one letter at a time. Consumes `LoveLetterFromServer`
+//! pushes, decodes each, applies, acks. The seen set is in-memory and
+//! spans reconnects within a tab session; duplicates are ignored and
+//! acked again.
+//!
+//! On the first connection for a tab session, bootstrap runs first:
+//! GetAllYrsPages, apply each row via merge, set BOOTSTRAPPED. Pushes
+//! that arrive during bootstrap queue in the channel and apply after.
+
+use std::collections::HashSet;
+use std::sync::{LazyLock, Mutex};
+
+use client_table_blueprints::tbl_seen_server_letters;
+use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures_util::StreamExt;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use love_letter::deserialize_love_letter;
+use protocol::error::DbError;
+use protocol::payload::{GetDataIn, InsertDataIn, SelectArgument, SelectArguments};
+use protocol::schema_helper::DestructDbReturnCol;
+use protocol::serialization::{Base64Bytes, Convert};
+use server_protocol::{
+    AckPayload, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, Message as ServerMessage,
+    PageRow, Request, UnsentLetter,
+};
+use shared_internals_for_server::ResponseRouter;
+use web_internal_db::db_helper;
+
+use crate::complicated_signal_flow::{BatcherHandle, OpenPages};
+use crate::leptos_components::small_components::popup::create_popup;
+
+use super::merge::{apply_letter, ApplyError};
+
+pub static BOOTSTRAPPED: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
+
+pub static MENU_TICK: LazyLock<ArcRwSignal<u32>> =
+    LazyLock::new(|| ArcRwSignal::new(0));
+
+static SEEN_IDS: LazyLock<Mutex<HashSet<i64>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+pub fn spawn_worker(
+    router: ResponseRouter,
+    letters_rx: UnboundedReceiver<Vec<UnsentLetter>>,
+    batcher: BatcherHandle,
+    open: OpenPages,
+) {
+    spawn_local(async move {
+        run_worker(router, letters_rx, batcher, open).await;
+    });
+}
+
+pub fn make_letters_channel() -> (
+    UnboundedSender<Vec<UnsentLetter>>,
+    UnboundedReceiver<Vec<UnsentLetter>>,
+) {
+    unbounded()
+}
+
+async fn run_worker(
+    router: ResponseRouter,
+    mut letters_rx: UnboundedReceiver<Vec<UnsentLetter>>,
+    batcher: BatcherHandle,
+    open: OpenPages,
+) {
+    // Login first. This might clear `seen_server_letters` if the server
+    // was wiped, so it must run before `load_seen_from_db`.
+    if let Err(e) = super::identity::login(&router).await {
+        leptos::logging::error!("login: {e}");
+        create_popup(format!("login failed: {e}"));
+        return;
+    }
+    super::kick_send();
+
+    if let Err(e) = load_seen_from_db().await {
+        leptos::logging::warn!("load_seen_from_db: {e:?}");
+    }
+
+    if !BOOTSTRAPPED.get_untracked() {
+        match bootstrap(&router, &batcher, open).await {
+            Ok(()) => BOOTSTRAPPED.set(true),
+            Err(e) => {
+                leptos::logging::error!("bootstrap failed: {e:?}");
+                create_popup(format!("bootstrap failed: {e:?}"));
+            }
+        }
+    }
+
+    match pull_unsent(&router).await {
+        Ok(letters) => {
+            for item in letters {
+                if !handle_one(&batcher, open, &router, item).await {
+                    return;
+                }
+            }
+        }
+        Err(e) => {
+            leptos::logging::warn!("initial pull failed: {e:?}");
+        }
+    }
+
+    while let Some(batch) = letters_rx.next().await {
+        for item in batch {
+            if !handle_one(&batcher, open, &router, item).await {
+                return;
+            }
+        }
+    }
+    leptos::logging::warn!("receive worker exiting: socket channel closed");
+}
+
+async fn bootstrap(
+    router: &ResponseRouter,
+    batcher: &BatcherHandle,
+    open: OpenPages,
+) -> Result<(), DbError> {
+    let bytes = send_request(router, Request::GetAllYrsPages, Vec::new())
+        .await
+        .map_err(|e| DbError::BadCode(format!("GetAllYrsPages: {e}")))?;
+    let payload: Result<GetAllYrsPagesPayload, DbError> = Convert::un_payloadify(&bytes)
+        .map_err(|e| DbError::BadCode(format!("decode pages: {e:?}")))?;
+    let payload = payload?;
+
+    for row in payload.pages {
+        apply_bootstrap_row(batcher, open, row).await?;
+    }
+    Ok(())
+}
+
+async fn apply_bootstrap_row(
+    batcher: &BatcherHandle,
+    open: OpenPages,
+    row: PageRow,
+) -> Result<(), DbError> {
+    let is_disabled = !page_status_is_active(&row.page_status, &row.page_id);
+
+    let page_exists =
+        crate::db::db_helpers_for_web_client::page_exists(row.page_id.clone()).await?;
+
+    if !page_exists {
+        let letter = love_letter::LoveLetter::CreateNewPage {
+            page_id: row.page_id.clone(),
+            is_main_menu_page: row.is_main_menu_page == "true",
+            snapshot_of_edit: row.blobbed_page,
+        };
+        apply_letter(batcher, open, letter)
+            .await
+            .map_err(apply_error_to_db_error)?;
+        if is_disabled {
+            let letter = love_letter::LoveLetter::DisablePage {
+                page_id: row.page_id.clone(),
+                snapshot_of_edit: row.page_status,
+            };
+            apply_letter(batcher, open, letter)
+                .await
+                .map_err(apply_error_to_db_error)?;
+        }
+    } else {
+        let letter = love_letter::LoveLetter::EditBlock {
+            text_edit: my_yrs_lib::TextEdit::Insert {
+                text: String::new(),
+                position: 0,
+            },
+            edit_target: my_yrs_lib::EditTarget::Text,
+            target_page_id: row.page_id.clone(),
+            block_id: String::new(),
+            snapshot_of_edit: row.blobbed_page,
+        };
+        apply_letter(batcher, open, letter)
+            .await
+            .map_err(apply_error_to_db_error)?;
+        if is_disabled {
+            let letter = love_letter::LoveLetter::DisablePage {
+                page_id: row.page_id.clone(),
+                snapshot_of_edit: row.page_status,
+            };
+            apply_letter(batcher, open, letter)
+                .await
+                .map_err(apply_error_to_db_error)?;
+        }
+    }
+    MENU_TICK.update(|n| *n = n.wrapping_add(1));
+    Ok(())
+}
+
+fn page_status_is_active(status_blob: &[u8], page_id: &str) -> bool {
+    if status_blob.is_empty() {
+        return true;
+    }
+    match my_yrs_lib::YrsActivePages::new(status_blob.to_vec()) {
+        Ok(active) => std::sync::Arc::new(active)
+            .is_page_active(page_id.to_string())
+            .unwrap_or(true),
+        Err(_) => true,
+    }
+}
+
+fn apply_error_to_db_error(e: ApplyError) -> DbError {
+    match e {
+        ApplyError::UnknownPage(p) => {
+            DbError::IllegalInput(format!("bootstrap: unknown page {p}"))
+        }
+        ApplyError::Fatal(c) => DbError::BadCode(format!("bootstrap apply: {c:?}")),
+    }
+}
+
+async fn pull_unsent(router: &ResponseRouter) -> Result<Vec<UnsentLetter>, DbError> {
+    let bytes = send_request(router, Request::GetMyUnsentLetters, Vec::new())
+        .await
+        .map_err(|e| DbError::BadCode(format!("GetMyUnsentLetters: {e}")))?;
+    let payload: Result<GetMyUnsentLettersPayload, DbError> = Convert::un_payloadify(&bytes)
+        .map_err(|e| DbError::BadCode(format!("decode unsent: {e:?}")))?;
+    payload.map(|p| p.letters)
+}
+
+async fn handle_one(
+    batcher: &BatcherHandle,
+    open: OpenPages,
+    router: &ResponseRouter,
+    item: UnsentLetter,
+) -> bool {
+    if SEEN_IDS.lock().unwrap().contains(&item.letter_id) {
+        send_ack(router, item.letter_id).await;
+        return true;
+    }
+    SEEN_IDS.lock().unwrap().insert(item.letter_id);
+
+    let letter = match deserialize_love_letter(item.love_letter) {
+        Ok(l) => l,
+        Err(e) => {
+            leptos::logging::error!("decode letter {}: {e}", item.letter_id);
+            return true;
+        }
+    };
+
+    let created_new_page = matches!(letter, love_letter::LoveLetter::CreateNewPage { .. });
+
+    match apply_letter(batcher, open, letter).await {
+        Ok(outcome) => {
+            // Persist before acking: if we crash after this and before
+            // the ack, the seen set already has the id on reconnect,
+            // so it won't be re-applied. If we crash before this,
+            // re-applying is idempotent.
+            if let Err(e) = persist_seen(item.letter_id).await {
+                leptos::logging::warn!("persist_seen {}: {e:?}", item.letter_id);
+            }
+            send_ack(router, item.letter_id).await;
+            if outcome.changed {
+                MENU_TICK.update(|n| *n = n.wrapping_add(1));
+            }
+            if created_new_page {
+                if let Ok(more) = pull_unsent(router).await {
+                    for extra in more {
+                        if !Box::pin(handle_one(batcher, open, router, extra)).await {
+                            return false;
+                        }
+                    }
+                }
+            }
+            true
+        }
+        Err(ApplyError::UnknownPage(pid)) => {
+            leptos::logging::warn!(
+                "letter {} targets unknown page {pid}; leaving unacked",
+                item.letter_id
+            );
+            SEEN_IDS.lock().unwrap().remove(&item.letter_id);
+            true
+        }
+        Err(ApplyError::Fatal(e)) => {
+            leptos::logging::error!("apply letter {}: {e:?}", item.letter_id);
+            create_popup(
+                "Data problem while receiving an edit. Copy anything you're afraid of losing, then reload."
+                    .to_string(),
+            );
+            false
+        }
+    }
+}
+
+async fn send_ack(router: &ResponseRouter, letter_id: i64) {
+    let payload = AckPayload { letter_id };
+    let payload_bytes = payload.to_payload();
+    let _ = router
+        .send_request(move |id| ServerMessage {
+            message_id: id,
+            request: Request::Ack,
+            payload: Base64Bytes(payload_bytes),
+        })
+        .map(|rx| {
+            spawn_local(async move {
+                let _ = rx.await;
+            });
+        });
+}
+
+async fn send_request(
+    router: &ResponseRouter,
+    request: Request,
+    payload: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    let reply_rx = router
+        .send_request(|id| ServerMessage {
+            message_id: id,
+            request,
+            payload: Base64Bytes(payload),
+        })
+        .map_err(|e| format!("send_request: {e:?}"))?;
+    reply_rx
+        .await
+        .map_err(|_| "reply dropped (connection lost)".to_string())
+}
+
+async fn load_seen_from_db() -> Result<(), DbError> {
+    let out = db_helper::get_data(GetDataIn {
+        table_name: tbl_seen_server_letters::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::All),
+        columns_to_read: vec![tbl_seen_server_letters::LETTER_ID.name.to_string()],
+    })
+    .await?;
+    let mut seen = SEEN_IDS.lock().unwrap();
+    seen.clear();
+    for row in out.rows {
+        if let Some(col) = row.cols.into_iter().next() {
+            if let Ok(Some(id)) = tbl_seen_server_letters::LETTER_ID.try_destruct_db_col(col) {
+                seen.insert(id);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn persist_seen(id: i64) -> Result<(), DbError> {
+    db_helper::insert_data(InsertDataIn {
+        table_name: tbl_seen_server_letters::TABLE_NAME.into(),
+        values: tbl_seen_server_letters::new_seen_server_letter_row(id),
+    })
+    .await?;
+    Ok(())
+}

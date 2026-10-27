@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use client_table_blueprints::{
     tbl_client_love_letter, tbl_every_block_in_existence, tbl_key_value_storage, tbl_pages,
+    tbl_seen_server_letters,
 };
 
 use error_stuff::CqrsErr;
@@ -19,6 +20,7 @@ pub async fn create_all_tables() {
         tbl_every_block_in_existence::new_table_every_block_in_existence(),
         tbl_key_value_storage::new_table_key_value_storage(),
         tbl_pages::new_table_pages(),
+        tbl_seen_server_letters::new_table_seen_server_letters(),
     ];
 
     let mut name_map: HashMap<u8, String> = HashMap::new();
@@ -26,6 +28,7 @@ pub async fn create_all_tables() {
     name_map.insert(1, tbl_every_block_in_existence::TABLE_NAME.into());
     name_map.insert(2, tbl_key_value_storage::TABLE_NAME.into());
     name_map.insert(3, tbl_pages::TABLE_NAME.into());
+    name_map.insert(4, tbl_seen_server_letters::TABLE_NAME.into());
 
     //my db throws an err if table already exists. aka. nothing happens.
     // so ill just swallow the err.

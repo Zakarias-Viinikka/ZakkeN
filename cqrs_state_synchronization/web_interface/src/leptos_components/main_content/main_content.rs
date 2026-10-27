@@ -338,9 +338,6 @@ pub fn MainContent() -> impl IntoView {
         });
     });
 
-    let state_1 = Signal::derive(move || page1.page_state.get());
-    let state_2 = Signal::derive(move || None::<PageLoadState>);
-
     view! {
         <div style=move || {
             if crate::complicated_signal_flow::APP_LOCKED.get() {
@@ -349,7 +346,7 @@ pub fn MainContent() -> impl IntoView {
                 "min-height: 100vh;"
             }
         }>
-            <ConnectionIndicator state_1=state_1 state_2=state_2 />
+            <ConnectionIndicator />
             <BackgroundActivityIndicator />
             <DragReorderContainer
                 pages=pages_for_ui

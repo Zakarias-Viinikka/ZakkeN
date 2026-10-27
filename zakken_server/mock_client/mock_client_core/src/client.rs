@@ -79,6 +79,20 @@ impl MockClient {
             .count()
     }
 
+    /// The page's display name: the first block's text, or None if the
+    /// page doesn't exist or its title is empty. Callers fall back to
+    /// page_id when this returns None.
+    pub fn page_title(&self, page_id: &str) -> Option<String> {
+        self.pages.get(page_id).and_then(|boss| {
+            boss.clone().get_entire_page().ok().and_then(|blocks| {
+                blocks
+                    .first()
+                    .map(|b| b.text.clone())
+                    .filter(|t| !t.is_empty())
+            })
+        })
+    }
+
     pub fn pages_info(&self) -> Vec<PageInfo> {
         let mut out: Vec<PageInfo> = self
             .pages
@@ -427,7 +441,7 @@ impl MockClient {
         let page_id = boss.page_id.clone();
         let sketch = LoveLetterSketch::CreateNewPage {
             page_id: page_id.clone(),
-            is_main_menu_page: false,
+            is_main_menu_page: true,
         };
         let bytes = self.build_letter(sketch, &boss)?;
         self.send_unit_letter(bytes).await?;

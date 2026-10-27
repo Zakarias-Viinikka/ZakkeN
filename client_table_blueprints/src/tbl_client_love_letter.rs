@@ -23,28 +23,28 @@ pub fn new_table_client_love_letter() -> Vec<ColumnDef> {
 
 pub const TABLE_NAME: &str = "client_love_letter";
 
-const SNAPSHOT_OF_EDIT: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+pub const SNAPSHOT_OF_EDIT: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "snapshot_of_edit",
     type_of_col: &TypeOfCol::Blob,
     can_be_null: false,
     _marker: PhantomData,
 };
 
-const LOVE_LETTER_SKETCH: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
+pub const LOVE_LETTER_SKETCH: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
     name: "love_letter_sketch",
     type_of_col: &TypeOfCol::Blob,
     can_be_null: false,
     _marker: PhantomData,
 };
 
-const SESSION_ID: SchemaColumn<String> = SchemaColumn::<String> {
+pub const SESSION_ID: SchemaColumn<String> = SchemaColumn::<String> {
     name: "session_id",
     type_of_col: &TypeOfCol::Text,
     can_be_null: false,
     _marker: PhantomData,
 };
 
-const TARGET_ID: SchemaColumn<String> = SchemaColumn::<String> {
+pub const TARGET_ID: SchemaColumn<String> = SchemaColumn::<String> {
     name: "target_id",
     type_of_col: &TypeOfCol::Text,
     can_be_null: false,

@@ -213,15 +213,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "error_stuff"
-version = "0.1.0"
-dependencies = [
- "protocol",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -584,21 +575,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "server_error_stuff"
+version = "0.1.0"
+dependencies = [
+ "protocol",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "server_protocol"
 version = "0.1.0"
 dependencies = [
- "error_stuff",
  "protocol",
  "serde",
  "serde_json",
+ "server_error_stuff",
 ]
 
 [[package]]
 name = "shared_internals_for_server"
 version = "0.1.0"
 dependencies = [
- "error_stuff",
  "futures",
+ "server_error_stuff",
  "server_protocol",
 ]
 

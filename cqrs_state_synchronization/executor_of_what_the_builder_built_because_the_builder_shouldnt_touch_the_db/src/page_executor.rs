@@ -408,3 +408,163 @@ async fn insert_into_client_love_letter(
 
     Ok(())
 }
+
+pub async fn apply_merge_plan(
+    plan: data_builder_for_operations_that_need_to_be_correct::MergePlan,
+) -> Result<(), CqrsErr> {
+    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
+
+    if let Some(new_page) = &plan.is_new_page {
+        let values = new_page_row(
+            plan.page_id.clone(),
+            new_page.is_main_menu_page,
+            plan.new_blob.clone().unwrap_or_default(),
+            new_page.version.clone(),
+        )?;
+        unwrap_or_bail_and_regret!(
+            db_helper::insert_data(InsertDataIn {
+                table_name: tbl_pages::TABLE_NAME.into(),
+                values,
+            })
+            .await,
+            do_i_own_the_transaction
+        );
+    } else if let Some(blob) = &plan.new_blob {
+        unwrap_or_bail_and_regret!(
+            db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+                table_name: tbl_pages::TABLE_NAME.to_string(),
+                where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+                    x: tbl_pages::PAGE_ID.name.to_string(),
+                    y: plan.page_id.clone(),
+                }),
+                column: tbl_pages::BLOBBED_PAGE.name.to_string(),
+                new_value: Col::Blob(blob.clone()),
+            })
+            .await,
+            do_i_own_the_transaction
+        );
+    }
+
+    if let Some(status) = &plan.new_status {
+        unwrap_or_bail_and_regret!(
+            db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+                table_name: tbl_pages::TABLE_NAME.to_string(),
+                where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+                    x: tbl_pages::PAGE_ID.name.to_string(),
+                    y: plan.page_id.clone(),
+                }),
+                column: tbl_pages::PAGE_STATUS.name.to_string(),
+                new_value: Col::Blob(status.clone()),
+            })
+            .await,
+            do_i_own_the_transaction
+        );
+    }
+
+    if plan.set_page_disabled {
+        unwrap_or_bail_and_regret!(
+            db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+                table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+                where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+                    x: tbl_every_block_in_existence::ID_OF_PAGE_I_BELONG_TO
+                        .name
+                        .to_string(),
+                    y: plan.page_id.clone(),
+                }),
+                column: tbl_every_block_in_existence::PAGE_IS_DISABLED
+                    .name
+                    .to_string(),
+                new_value: Col::Text("true".to_string()),
+            })
+            .await,
+            do_i_own_the_transaction
+        );
+    }
+
+    for op in plan.reconcile {
+        match op {
+            data_builder_for_operations_that_need_to_be_correct::ReconcileOp::Insert {
+                block_id,
+                content,
+                frac_position,
+                is_title,
+            } => {
+                let values = new_every_block_in_existence_row(
+                    is_title,
+                    plan.is_main_menu_page,
+                    content,
+                    block_id,
+                    plan.page_id.clone(),
+                    frac_position,
+                )?;
+                unwrap_or_bail_and_regret!(
+                    db_helper::insert_data(InsertDataIn {
+                        table_name: tbl_every_block_in_existence::TABLE_NAME.into(),
+                        values,
+                    })
+                    .await,
+                    do_i_own_the_transaction
+                );
+            }
+            data_builder_for_operations_that_need_to_be_correct::ReconcileOp::UpdateContent {
+                block_id,
+                new_content,
+            } => {
+                unwrap_or_bail_and_regret!(
+                    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+                        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+                        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+                            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                                .name
+                                .to_string(),
+                            y: block_id,
+                        }),
+                        column: tbl_every_block_in_existence::CONTENT.name.to_string(),
+                        new_value: Col::Text(new_content),
+                    })
+                    .await,
+                    do_i_own_the_transaction
+                );
+            }
+            data_builder_for_operations_that_need_to_be_correct::ReconcileOp::UpdateFrac {
+                block_id,
+                new_frac_position,
+            } => {
+                unwrap_or_bail_and_regret!(
+                    db_helper::edit_col_in_row_where(EditColInRowWhereIn {
+                        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+                        where_clause: SelectArguments::Single(SelectArgument::XEqualY {
+                            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                                .name
+                                .to_string(),
+                            y: block_id,
+                        }),
+                        column: tbl_every_block_in_existence::FRAC_POSITION.name.to_string(),
+                        new_value: Col::Text(new_frac_position),
+                    })
+                    .await,
+                    do_i_own_the_transaction
+                );
+            }
+            data_builder_for_operations_that_need_to_be_correct::ReconcileOp::Delete { block_id } => {
+                unwrap_or_bail_and_regret!(
+                    db_helper::delete_row_where(DeleteRowWhereIn {
+                        table_name: tbl_every_block_in_existence::TABLE_NAME.to_string(),
+                        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+                            x: tbl_every_block_in_existence::MY_ID_AS_GIVEN_BY_YRS
+                                .name
+                                .to_string(),
+                            y: block_id,
+                        }),
+                    })
+                    .await,
+                    do_i_own_the_transaction
+                );
+            }
+        }
+    }
+
+    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
+
+    Ok(())
+}

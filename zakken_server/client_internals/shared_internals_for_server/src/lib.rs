@@ -123,6 +123,12 @@ impl ResponseRouter {
 
         Ok(reply_rx)
     }
+
+    /// Drop every pending waiter. Their `await` returns `Err(RecvError)`.
+    /// Called when the socket closes, so callers don't hang forever.
+    pub fn fail_all_pending(&self) {
+        self.pending.lock().unwrap().clear();
+    }
 }
 
 #[cfg(test)]

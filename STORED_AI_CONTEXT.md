@@ -106,7 +106,7 @@ love_letter/android_output_folder, text_diff/android_output_folder -
 build artifacts the Android app downloads via update.sh. Regenerated
 by each crate's build script; committed to the repo.
 
-## cqrs work status - 2026-10-27
+## cqrs work status - 2026-10-27 (web<-server link landed)
 
 Most of the earlier near-term list is built now. `add_block`,
 `edit_block`, `delete_block`, `move_block`, and
@@ -123,6 +123,13 @@ The Enter-split rule is "split at the cursor" now, not three newlines;
 blocks appear in `page.blocks` before the DB has them (the batcher's
 queue is an enum of Edit and AddBlock, run in order), and arrow keys
 navigate between blocks. See the cqrs CURRENT_STATE.md for the shape.
+
+The web client now talks to `zakken_server`. `client_internals/`
+holds the shared router, the wasm socket, and an android placeholder.
+`web_interface/src/server_link/` owns the connection (identity,
+bootstrap, receive worker, sender, write lock). Sync has been observed
+end to end: a web edit reaches the mock client, and a mock-client edit
+reaches the web client.
 
 The drag-reorder UI lives inside `web_interface`, in
 `drag_reorder_container/`. The folder has three layers:

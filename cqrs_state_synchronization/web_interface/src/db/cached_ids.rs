@@ -21,3 +21,6 @@ pub static SESSION_ID: LazyLock<ArcRwSignal<Option<String>>> =
 
 pub static USER_ID: LazyLock<ArcRwSignal<Option<String>>> =
     LazyLock::new(|| ArcRwSignal::new(None));
+
+pub static INIT_DONE: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
