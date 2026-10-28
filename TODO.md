@@ -28,6 +28,27 @@ I want to make a project that uses my zap egui project as a reference for how to
 
 Basically I want to create a demo for: "create a menu system for reversing a yrs action and displaying the change in the same way zapgui does"
 
+## export / import / wipe / adopt / reconcile
+
+User-triggered sync recovery. Pre-plan in artifacts/28_preplan.md.
+Covers: hard-copy JSON for pages and backlinks, dataset generation
+id in the server's Login reply, new request variants for wipe and
+adopt, and a per-page reconcile flow. Web first; Android deferred
+but kept compatible. Depends on the yrs hard copy primitive below.
+
+Not started.
+
+## yrs: hard copy primitive
+
+BossOfYrs::from_hard_copy(blocks: Vec<HardCopyBlock>) -> Arc<BossOfYrs>.
+Takes a plain block list (id, content, meta, frac_position) and
+returns a fresh doc with those blocks, using
+insert_new_block_with_preexisting_id so ids survive. No history,
+no update log, fresh clocks. Both client and server need it for the
+export / import / wipe / adopt flow. Needed fairly soon.
+
+Not started.
+
 ## mock client: deliberate editing
 
 The mock client makes random destructive edits, so it can only test so
