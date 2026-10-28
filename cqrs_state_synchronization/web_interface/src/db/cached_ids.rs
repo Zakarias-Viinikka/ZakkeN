@@ -1,17 +1,8 @@
-//! In-memory cache for session id and user id.
-//!
-//! Same idea as the Android app's FastStorage. Read once from
-//! key_value_storage at startup, keep the value in a signal, every
-//! later read is a sync call. Writes go to both storage and the
-//! signal.
-//!
-//! Both start as None. `init_all` in `init.rs` fills them before
-//! the router mounts. If anything reads them before that, that's a
-//! bug in the boot order, not something to recover from.
-
 use std::sync::LazyLock;
 
+use error_stuff::CqrsErr;
 use leptos::prelude::*;
+use protocol::error::DbError;
 
 pub const INIT_ERR: &str =
     "cached_ids not initialized; init::init_all must run before anything reads them";
@@ -24,3 +15,17 @@ pub static USER_ID: LazyLock<ArcRwSignal<Option<String>>> =
 
 pub static INIT_DONE: LazyLock<ArcRwSignal<bool>> =
     LazyLock::new(|| ArcRwSignal::new(false));
+
+pub fn current_session_id() -> String {
+    SESSION_ID.get_untracked().expect(INIT_ERR)
+}
+
+pub fn current_user_id() -> String {
+    USER_ID.get_untracked().expect(INIT_ERR)
+}
+
+pub fn try_current_user_id() -> Result<String, CqrsErr> {
+    USER_ID.get_untracked().ok_or_else(|| {
+        CqrsErr::DbErrorContainer(DbError::IllegalInput("USER_ID not set".to_string()))
+    })
+}

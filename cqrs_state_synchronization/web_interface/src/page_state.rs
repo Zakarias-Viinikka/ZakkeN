@@ -1,51 +1,34 @@
-//! One page's live state.
-//!
-//! Passed to `MainContent` (which runs its load effects and builds the
-//! drag view from it), to `page_loading_logic` (which reads the page id
-//! and fills in the boss, blocks, and state), and to nothing else.
-//! The drag component gets the page id and the block list as plain
-//! values, not the Page itself.
+use std::sync::Arc;
 
 use leptos::prelude::*;
+use my_yrs_lib::BossOfYrs;
 
 use crate::complicated_signal_flow::BlockRow;
 
-/// One page's entire live state.
-///
-/// Created once in `main.rs` and handed to `MainContent` via context.
-/// Not created by `MainContent` - the point is that a route change
-/// reuses the same `Page` and just resets its fields, so the yrs doc
-/// and the block list survive long enough for the flush-on-load to
-/// matter.
-///
-/// `page_state` drives the loading sequence. The state effect in
-/// `MainContent` matches on it, does one step, and lets the resulting
-/// state change fire the effect again for the next step.
-///
-/// `preload_request` and `preload_response` are the preload exchange
-/// for this page. Each page has its own pair so a slow response for
-/// one can't clobber the other's once two-page view exists.
 #[derive(Clone, Copy)]
 pub struct Page {
     pub page_id: RwSignal<String>,
-    pub boss_of_yrs: RwSignal<Option<std::sync::Arc<my_yrs_lib::BossOfYrs>>>,
+    pub boss_of_yrs: RwSignal<Option<Arc<BossOfYrs>>>,
     pub blocks: RwSignal<Vec<BlockRow>>,
     pub page_state: RwSignal<PageLoadState>,
     pub preload_request: RwSignal<Option<String>>,
     pub preload_response: RwSignal<Option<Vec<BlockRow>>>,
 }
 
-/// Where a page is in the preload -> offline -> server sequence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PageLoadState {
     Loading,
-    /// The number is how many blocks the preloader returned. Zero when
-    /// nothing was preloaded.
     PreloadLoaded(usize),
     Loaded,
     Online,
     Offline,
     LoadFailed,
+}
+
+#[derive(Clone, Copy)]
+pub struct OpenPages {
+    pub page1: Page,
+    pub page2: RwSignal<Option<Page>>,
 }
 
 impl Page {
@@ -58,5 +41,48 @@ impl Page {
             preload_request: RwSignal::new(None),
             preload_response: RwSignal::new(None),
         }
+    }
+}
+
+impl OpenPages {
+    pub fn boss_for_page(&self, page_id: &str) -> Option<Arc<BossOfYrs>> {
+        if self.page1.page_id.get_untracked() == page_id {
+            return self.page1.boss_of_yrs.get_untracked();
+        }
+        if let Some(p2) = self.page2.get_untracked() {
+            if p2.page_id.get_untracked() == page_id {
+                return p2.boss_of_yrs.get_untracked();
+            }
+        }
+        None
+    }
+
+    pub fn page_for_block(&self, block_id: &str) -> Option<Page> {
+        if self
+            .page1
+            .blocks
+            .get_untracked()
+            .iter()
+            .any(|b| b.block_id == block_id)
+        {
+            return Some(self.page1);
+        }
+        if let Some(p2) = self.page2.get_untracked() {
+            if p2
+                .blocks
+                .get_untracked()
+                .iter()
+                .any(|b| b.block_id == block_id)
+            {
+                return Some(p2);
+            }
+        }
+        None
+    }
+
+    pub fn page_and_boss_for_block(&self, block_id: &str) -> Option<(Arc<BossOfYrs>, Page)> {
+        let page = self.page_for_block(block_id)?;
+        let boss = page.boss_of_yrs.get_untracked()?;
+        Some((boss, page))
     }
 }

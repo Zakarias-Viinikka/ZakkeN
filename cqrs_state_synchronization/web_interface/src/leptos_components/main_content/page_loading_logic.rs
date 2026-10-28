@@ -1,43 +1,62 @@
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 
-use crate::page_state::{Page, PageLoadState};
-use crate::db::db_helpers_for_web_client;
+use crate::db::batcher::BatcherHandle;
+use crate::db::cached_ids::current_user_id;
+use crate::db::reads::{blocks as reads_blocks, pages as reads_pages};
 use crate::leptos_components::small_components::popup::create_popup;
+use crate::page_state::{Page, PageLoadState};
 
-/// Step 1. Ask for preloaded blocks.
-///
-/// Writes the page id into preload_request. When the preloader exists,
-/// it will read this, fetch whatever it has, and write the result into
-/// preload_response. The page's response effect will then seed the
-/// blocks and transition to PreloadLoaded(count).
-///
-/// For now nothing watches preload_request, so we seed
-/// preload_response with an empty Vec directly to drive the effect.
-/// Remove that line once the preloader exists.
+pub fn install_load_effects(page1: Page, batcher: BatcherHandle) {
+    Effect::new(move |_| {
+        if page1.page_id.get().is_empty() {
+            return;
+        }
+        match page1.page_state.get() {
+            PageLoadState::Loading => preload_pages(page1),
+            PageLoadState::PreloadLoaded(_) => {
+                let batcher = batcher.clone();
+                spawn_local(async move {
+                    load_offline(page1, batcher).await;
+                });
+            }
+            PageLoadState::Loaded => {
+                spawn_local(async move {
+                    load_from_server(page1).await;
+                });
+            }
+            _ => {}
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(blocks) = page1.preload_response.get() {
+            page1.preload_response.set(None);
+            if matches!(page1.page_state.get_untracked(), PageLoadState::Loading) {
+                let count = blocks.len();
+                page1.blocks.set(blocks);
+                page1.page_state.set(PageLoadState::PreloadLoaded(count));
+            }
+        }
+    });
+}
+
 pub fn preload_pages(page: Page) {
     let pid = page.page_id.get_untracked();
     page.preload_request.set(Some(pid));
-    // TODO: remove when the preloader exists — currently the only
-    // thing that ever writes to preload_response
     page.preload_response.set(Some(Vec::new()));
 }
 
-/// Step 2. Read the yrs blob from db, build the BossOfYrs, read every
-/// block row for this page, seed the live block signal. Set Loaded on
-/// success, LoadFailed on error.
-pub async fn load_offline(page: Page, batcher: crate::complicated_signal_flow::BatcherHandle) {
-    // Flush pending edits before the boss is replaced. Without this,
-    // the last batch of typing against the old boss is dropped when
-    // the new one loads.
+pub async fn load_offline(page: Page, batcher: BatcherHandle) {
     if let Err(e) = batcher.flush_now().await {
         leptos::logging::error!("flush before load_offline failed: {:?}", e);
     }
 
     let pid = page.page_id.get_untracked();
 
-    let boss = match db_helpers_for_web_client::get_yrs_unblobbed(
+    let boss = match reads_pages::get_yrs_unblobbed(
         pid.clone(),
-        crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
+        current_user_id(),
         crate::get_time(),
     )
     .await
@@ -52,7 +71,7 @@ pub async fn load_offline(page: Page, batcher: crate::complicated_signal_flow::B
     };
     page.boss_of_yrs.set(Some(boss));
 
-    match db_helpers_for_web_client::get_all_blocks_for_page(pid).await {
+    match reads_blocks::get_all_blocks_for_page(pid).await {
         Ok(rows) => {
             page.blocks.set(rows);
             page.page_state.set(PageLoadState::Loaded);
@@ -65,9 +84,6 @@ pub async fn load_offline(page: Page, batcher: crate::complicated_signal_flow::B
     }
 }
 
-/// Step 3. Ask the server whether our copy matches.
-///
-/// Not implemented. The server side of this doesn't exist yet.
 pub async fn load_from_server(page: Page) {
     let _ = page;
 }

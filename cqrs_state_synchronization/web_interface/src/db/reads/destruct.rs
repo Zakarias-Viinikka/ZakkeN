@@ -1,5 +1,5 @@
 use client_table_blueprints::tbl_every_block_in_existence::{
-    CONTENT, ID_OF_PAGE_I_BELONG_TO, MY_ID_AS_GIVEN_BY_YRS,
+    CONTENT, FRAC_POSITION, ID_OF_PAGE_I_BELONG_TO, IS_TITLE, MY_ID_AS_GIVEN_BY_YRS,
 };
 use protocol::{
     error::DbError,
@@ -59,4 +59,19 @@ pub fn destruct_page_id(col: Col) -> Result<String, DbError> {
         .try_destruct_db_col(col)
         .map_err(DbError::ColDestructFail)?
         .ok_or_else(|| DbError::ColDestructFail("id_of_page_i_belong_to was null".into()))
+}
+
+pub fn destruct_frac_position(col: Col) -> Result<String, DbError> {
+    FRAC_POSITION
+        .try_destruct_db_col(col)
+        .map_err(DbError::ColDestructFail)?
+        .ok_or_else(|| DbError::ColDestructFail("frac_position was null".into()))
+}
+
+pub fn destruct_is_title(col: Col) -> Result<bool, DbError> {
+    let s = IS_TITLE
+        .try_destruct_db_col(col)
+        .map_err(DbError::ColDestructFail)?
+        .ok_or_else(|| DbError::ColDestructFail("is_title was null".into()))?;
+    Ok(s == "true")
 }

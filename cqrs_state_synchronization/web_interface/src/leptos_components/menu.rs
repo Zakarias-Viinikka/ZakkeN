@@ -1,6 +1,6 @@
 use crate::{
     complicated_signal_flow::LocalPages,
-    db,
+    db::reads::menu::get_all_menu_pages,
     leptos_components::{
         action_buttons::{
             disable_page_button::DisablePageButton, edit_title_button::EditTitleButton,
@@ -54,13 +54,6 @@ pub fn Menu() -> impl IntoView {
                 </div>
             </For>
         </div>
-
-        /*
-         *
-         current_title_ctr: RwSignal<usize>,
-         local_pages_set: WriteSignal<Vec<LocalPages>>,
-         */
-
     }
 }
 
@@ -68,14 +61,12 @@ fn create_local_pages() -> (ReadSignal<Vec<LocalPages>>, WriteSignal<Vec<LocalPa
     let (local_pages, local_pages_set) = signal(Vec::<LocalPages>::new());
     let latest = RwSignal::new(0u32);
 
-    // Refetch on mount and every time MENU_TICK bumps. The token
-    // prevents a slow earlier fetch from clobbering a newer one.
     Effect::new(move |_| {
         let _ = MENU_TICK.get();
         latest.update(|n| *n = n.wrapping_add(1));
         let my_token = latest.get_untracked();
         spawn_local(async move {
-            match db::db_helpers_for_web_client::get_all_menu_pages().await {
+            match get_all_menu_pages().await {
                 Ok(pages) => {
                     if latest.get_untracked() == my_token {
                         local_pages_set.set(pages);

@@ -8,10 +8,10 @@
 //! errors retry the same row on each kick, and after 3 consecutive
 //! failures on the same letter, popup once.
 
-use std::sync::{LazyLock, Mutex};
+use std::sync::LazyLock;
 
 use client_table_blueprints::tbl_client_love_letter;
-use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures_channel::mpsc::{unbounded, UnboundedReceiver};
 use futures_util::StreamExt;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -24,27 +24,15 @@ use server_protocol::{Request, SendLoveLetterPayload};
 use shared_internals_for_server::RouterHandle;
 use web_internal_db::db_helper;
 
+use crate::db::kick_send::install_kick_sender;
 use crate::db::write_lock::WRITE_LOCK;
 use crate::leptos_components::small_components::popup::create_popup;
 
-/// How many local letters are still waiting for the server. Feeds the
-/// border (yellow while > 0 and connected).
 pub static PENDING_COUNT: LazyLock<ArcRwSignal<usize>> = LazyLock::new(|| ArcRwSignal::new(0));
 
-static KICK_TX: LazyLock<Mutex<Option<UnboundedSender<()>>>> = LazyLock::new(|| Mutex::new(None));
-
-/// Ask the sender to try again. Called after every executor, after a
-/// successful batcher flush, and on reconnect.
-pub fn kick_send() {
-    if let Some(tx) = KICK_TX.lock().unwrap().as_ref() {
-        let _ = tx.unbounded_send(());
-    }
-}
-
-/// Start the sender for one connection. Called from `run_one_connection`.
 pub fn spawn_sender(router: RouterHandle) {
     let (tx, rx) = unbounded();
-    *KICK_TX.lock().unwrap() = Some(tx);
+    install_kick_sender(tx);
     spawn_local(async move {
         run_sender(router, rx).await;
     });

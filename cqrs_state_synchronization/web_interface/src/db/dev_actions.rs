@@ -1,22 +1,24 @@
-
-
-use data_builder_for_operations_that_need_to_be_correct::{add_block, create_page};
-use leptos::prelude::GetUntracked;
-use error_stuff::CqrsErr;
-use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::{
-    end_transaction_if_i_own_the_transaction, start_transaction_if_not_in_one,
+use client_table_blueprints::{
+    tbl_client_love_letter, tbl_every_block_in_existence, tbl_key_value_storage, tbl_pages,
+    tbl_seen_server_letters,
 };
+use data_builder_for_operations_that_need_to_be_correct::{add_block, create_page};
+use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     add_block_requires_three_db_actions, insert_page_requires_three_db_inserts,
+    run_in_transaction,
 };
 use my_yrs_lib::yrs_wrapper::PositionToInsert;
+use protocol::payload::DeleteAllRowsIn;
 use web_internal_db::db_helper;
 
-use crate::db::db_helpers_for_web_client;
+use crate::db::cached_ids::{current_session_id, current_user_id};
+use crate::db::reads::pages::get_yrs_unblobbed;
+use crate::db::write_lock::WRITE_LOCK;
+use crate::db::writes::edit_title_for_page;
+use crate::get_time;
 
 pub async fn insert_three_pages() -> Result<(), CqrsErr> {
-    let do_i_own_the_transaction = start_transaction_if_not_in_one!();
-
     let seeds: [(&str, &[&str]); 3] = [
         (
             "Grocery list",
@@ -39,9 +41,9 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
         ),
     ];
 
-    for (title, body) in seeds {
-        let result: Result<(), CqrsErr> = async {
-            let session_id = crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR);
+    run_in_transaction(|| async move {
+        for (title, body) in seeds {
+            let session_id = current_session_id();
 
             let everything = create_page(true, session_id.clone())?;
             let title_block_id = everything
@@ -57,14 +59,9 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
             let page_id = everything.page_to_insert.page_id.clone();
             insert_page_requires_three_db_inserts(everything).await?;
 
-            let boss = db_helpers_for_web_client::get_yrs_unblobbed(
-                page_id,
-                crate::db::cached_ids::USER_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR),
-                crate::get_time(),
-            )
-            .await?;
+            let boss = get_yrs_unblobbed(page_id, current_user_id(), get_time()).await?;
 
-            db_helpers_for_web_client::edit_title_for_page(
+            edit_title_for_page(
                 boss.clone(),
                 title_block_id,
                 title.to_string(),
@@ -73,7 +70,7 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
             .await?;
 
             if let Some(first) = body.first() {
-                db_helpers_for_web_client::edit_title_for_page(
+                edit_title_for_page(
                     boss.clone(),
                     first_normal_id,
                     first.to_string(),
@@ -94,20 +91,41 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
                 )?;
                 add_block_requires_three_db_actions(ctx).await?;
             }
-
-            Ok(())
         }
-        .await;
+        Ok(())
+    })
+    .await
+}
 
-        if let Err(e) = result {
-            if do_i_own_the_transaction {
-                db_helper::regret_everything().await?;
-            }
-            return Err(e);
-        }
+pub async fn delete_everything() -> Result<(), CqrsErr> {
+    let _guard = WRITE_LOCK.acquire().await;
+    wipe_tables(&[
+        tbl_pages::TABLE_NAME,
+        tbl_every_block_in_existence::TABLE_NAME,
+        tbl_client_love_letter::TABLE_NAME,
+        tbl_seen_server_letters::TABLE_NAME,
+    ])
+    .await
+}
+
+pub async fn reset_everything() -> Result<(), CqrsErr> {
+    let _guard = WRITE_LOCK.acquire().await;
+    wipe_tables(&[
+        tbl_pages::TABLE_NAME,
+        tbl_every_block_in_existence::TABLE_NAME,
+        tbl_client_love_letter::TABLE_NAME,
+        tbl_seen_server_letters::TABLE_NAME,
+        tbl_key_value_storage::TABLE_NAME,
+    ])
+    .await
+}
+
+async fn wipe_tables(tables: &[&str]) -> Result<(), CqrsErr> {
+    for table_name in tables {
+        db_helper::delete_all_rows(DeleteAllRowsIn {
+            table_name: table_name.to_string(),
+        })
+        .await?;
     }
-
-    end_transaction_if_i_own_the_transaction!(do_i_own_the_transaction);
-
     Ok(())
 }

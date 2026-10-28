@@ -1,14 +1,12 @@
-use crate::complicated_signal_flow::{BlockInputEvent, FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID};
+use crate::complicated_signal_flow::BlockInputEvent;
 use crate::drag_reorder_container::BlockRenderInput;
+use crate::complicated_signal_flow::{FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID};
 use leptos::ev;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 
-/// The actual block content. This is the file I own and edit for block
-/// behaviour. Right now: a textarea that fires on_input for every
-/// keystroke. Later: on:click, on:focus, effects, anything I want.
 #[component]
 pub fn MyBlockContent(
     block: BlockRenderInput,
@@ -30,8 +28,6 @@ pub fn MyBlockContent(
     let content_signal_for_focus = content_signal.clone();
     let content_signal_for_start = content_signal.clone();
 
-    // Auto-size on mount. Retried across a few frames because the DOM
-    // node may not be laid out on the first effect tick.
     Effect::new(move |_| {
         spawn_local(async move {
             for _ in 0..3 {
@@ -46,11 +42,6 @@ pub fn MyBlockContent(
         });
     });
 
-    // Keep the textarea's value in sync with the block's content signal.
-    // No-op during typing (signal and textarea already match), but
-    // exposes external content changes (remote edits, split, merge) to
-    // the DOM. When the textarea is focused, the caret is preserved
-    // across the change.
     Effect::new(move |_| {
         let new_value = content_signal_for_render.get();
         let Some(el) = textarea_ref.get_untracked() else {
@@ -147,9 +138,6 @@ pub fn MyBlockContent(
     let is_title = block.is_title;
     let on_keydown = move |e: ev::KeyboardEvent| {
         let key = e.key();
-        // Up/Down: the browser moves the caret within the text first.
-        // Only when the caret is already at the very end (Down) or the
-        // very start (Up) does the key jump to the neighbouring block.
         if (key == "ArrowUp" || key == "ArrowDown")
             && !e.shift_key()
             && !e.ctrl_key()
@@ -177,10 +165,7 @@ pub fn MyBlockContent(
             if !is_title {
                 if let Some(el) = textarea_ref.get_untracked() {
                     let value = el.value();
-                    // Whitespace-only counts as empty, so Enter in an
-                    // "empty" block just types a newline, never splits.
                     if !value.trim().is_empty() {
-                        // Split at the cursor instead of typing a newline.
                         e.prevent_default();
                         let utf16: Vec<u16> = value.encode_utf16().collect();
                         let start = el.selection_start().ok().flatten().unwrap_or(0) as usize;
@@ -189,8 +174,6 @@ pub fn MyBlockContent(
                         let end = end.clamp(start, utf16.len());
                         let before = String::from_utf16_lossy(&utf16[..start]);
                         let after = String::from_utf16_lossy(&utf16[end..]);
-                        // Drop the caret now so it doesn't sit in the old
-                        // block while the new one is being created.
                         let _ = el.blur();
                         on_split.run((my_block_id.clone(), before, after));
                         return;
@@ -261,9 +244,6 @@ pub fn MyBlockContent(
     }
 }
 
-/// Map a caret position from `old` to `new` when `new` is `old` with
-/// one contiguous edit applied. All lengths are UTF-16 units, matching
-/// what `selection_start` / `set_selection_range` use.
 fn map_caret_across_edit(old: &str, new: &str, caret: u32) -> u32 {
     let old_u: Vec<u16> = old.encode_utf16().collect();
     let new_u: Vec<u16> = new.encode_utf16().collect();

@@ -2,7 +2,9 @@ use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 
 use crate::{
-    complicated_signal_flow::{BatcherHandle, LocalPages}, db::ui_actions::disable_page,
+    complicated_signal_flow::LocalPages,
+    db::batcher::BatcherHandle,
+    db::ui_actions::disable_page,
     leptos_components::small_components::popup::create_popup,
 };
 
@@ -22,7 +24,7 @@ pub fn DisablePageButton(
                 let page_id = page_id.clone();
                 let batcher_handle = batcher_handle.clone();
                 spawn_local(async move {
-                    match disable_page(batcher_handle, page_id.clone(), crate::db::cached_ids::SESSION_ID.get_untracked().expect(crate::db::cached_ids::INIT_ERR)).await {
+                    match disable_page(batcher_handle, page_id.clone(), crate::db::cached_ids::current_session_id()).await {
                         Err(e) => create_popup(format!("Error: {:?}", e)),
                         Ok(()) => {
                             local_pages_set.update(|pages| {

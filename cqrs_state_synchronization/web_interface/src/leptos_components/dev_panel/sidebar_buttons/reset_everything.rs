@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 
 use crate::{
-    db::ui_actions::reset_everything,
+    db::dev_actions::reset_everything,
     leptos_components::{
         dev_panel::sidebar_buttons::reload_the_page,
         small_components::popup::create_popup,

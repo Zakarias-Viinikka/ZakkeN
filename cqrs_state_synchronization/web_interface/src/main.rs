@@ -3,14 +3,14 @@ use leptos::task::spawn_local;
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
-use web_interface::complicated_signal_flow::{Batcher, OpenPages};
-use web_interface::page_state::{Page, PageLoadState};
+use web_interface::db::batcher::Batcher;
+use web_interface::page_state::{OpenPages, Page, PageLoadState};
 use web_interface::db::{cached_ids, init};
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::setup_page::SetupPage;
 use web_interface::leptos_components::small_components::popup::{create_popup, PopupContainer};
-use web_interface::server_link::REMOTE_DISABLED_OPEN_PAGE;
+use web_interface::complicated_signal_flow::REMOTE_DISABLED_OPEN_PAGE;
 use web_internal_db::db_gui::db_gui_main;
 
 fn main() {
@@ -22,8 +22,6 @@ fn main() {
 fn App() -> impl IntoView {
     let tables_ready = RwSignal::new(false);
 
-    // Batcher lives for the app's lifetime. Handle goes into leptos
-    // context so MainContent can pull it out.
     let (batcher, batcher_handle) = Batcher::new();
     let batcher_for_link = batcher_handle.clone();
     provide_context(batcher_handle);
@@ -45,9 +43,6 @@ fn App() -> impl IntoView {
         });
     });
 
-    // Starts the connection to zakken_server. Fires once INIT_DONE,
-    // SESSION_ID, and USER_ID are all set. Does nothing if the user has
-    // no USER_ID yet (UserGate redirects to /setup).
     web_interface::server_link::start_server_link(batcher_for_link, open_pages);
 
     view! {
@@ -97,7 +92,6 @@ fn MainContentRoute() -> impl IntoView {
     let navigate = leptos_router::hooks::use_navigate();
     let open = expect_context::<OpenPages>();
 
-    // If the currently open page is disabled remotely, leave the view.
     Effect::new(move |_| {
         let Some(pid) = REMOTE_DISABLED_OPEN_PAGE.get() else {
             return;
@@ -118,7 +112,6 @@ fn MainContentRoute() -> impl IntoView {
         if open.page1.page_id.get_untracked() == page_id {
             return;
         }
-        //this is a leptos method, unrelated to text diff batcher
         batch(move || {
             open.page1.page_id.set(page_id);
             open.page1.boss_of_yrs.set(None);

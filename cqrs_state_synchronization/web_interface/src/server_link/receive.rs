@@ -1,14 +1,3 @@
-//! The receive worker and the bootstrap.
-//!
-//! One task, one letter at a time. Consumes `LoveLetterFromServer`
-//! pushes, decodes each, applies, acks. The seen set is in-memory and
-//! spans reconnects within a tab session; duplicates are ignored and
-//! acked again.
-//!
-//! On the first connection for a tab session, bootstrap runs first:
-//! GetAllYrsPages, apply each row via merge, set BOOTSTRAPPED. Pushes
-//! that arrive during bootstrap queue in the channel and apply after.
-
 use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
@@ -19,7 +8,9 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use love_letter::deserialize_love_letter;
 use protocol::error::DbError;
-use protocol::payload::{GetDataIn, InsertDataIn, SelectArgument, SelectArguments};
+use protocol::payload::{
+    DeleteAllRowsIn, GetDataIn, InsertDataIn, SelectArgument, SelectArguments,
+};
 use protocol::schema_helper::DestructDbReturnCol;
 use protocol::serialization::Convert;
 use server_protocol::{
@@ -28,8 +19,11 @@ use server_protocol::{
 use shared_internals_for_server::RouterHandle;
 use web_internal_db::db_helper;
 
-use crate::complicated_signal_flow::{BatcherHandle, OpenPages};
+use crate::db::batcher::BatcherHandle;
+use crate::db::kick_send::kick_send;
+use crate::db::reads::pages::page_exists;
 use crate::leptos_components::small_components::popup::create_popup;
+use crate::page_state::OpenPages;
 
 use super::merge::{apply_letter, ApplyError};
 
@@ -60,6 +54,14 @@ pub fn make_letters_channel() -> (
     unbounded()
 }
 
+pub async fn clear_seen_server_letters() -> Result<(), DbError> {
+    db_helper::delete_all_rows(DeleteAllRowsIn {
+        table_name: tbl_seen_server_letters::TABLE_NAME.to_string(),
+    })
+    .await?;
+    Ok(())
+}
+
 async fn run_worker(
     router: RouterHandle,
     mut letters_rx: UnboundedReceiver<UnsentLetter>,
@@ -67,14 +69,12 @@ async fn run_worker(
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
-    // Login first. This might clear `seen_server_letters` if the server
-    // was wiped, so it must run before `load_seen_from_db`.
     if let Err(e) = super::identity::login(&router).await {
         leptos::logging::error!("login: {e}");
         create_popup(format!("login failed: {e}"));
         return;
     }
-    super::kick_send();
+    kick_send();
 
     if let Err(e) = load_seen_from_db().await {
         leptos::logging::warn!("load_seen_from_db: {e:?}");
@@ -116,15 +116,11 @@ async fn run_worker(
                 None => break,
             },
             futures_util::future::Either::Right((_, _)) => {
-                // Reconnect. The new server-side socket has no user
-                // attached, so re-run login, then push anything still
-                // queued locally and pull whatever the server queued
-                // for us while we were disconnected.
                 if let Err(e) = super::identity::login(&router).await {
                     leptos::logging::error!("reconnect login: {e}");
                     continue;
                 }
-                super::kick_send();
+                kick_send();
                 match pull_unsent(&router).await {
                     Ok(letters) => {
                         for item in letters {
@@ -146,11 +142,6 @@ async fn start_over_fresh(
     batcher: &BatcherHandle,
     open: OpenPages,
 ) -> Result<(), DbError> {
-    // GetAllYrsPages returns the server's full page set. Merging that
-    // into a non-empty local db is a union, not a fast-forward, and
-    // yrs union across divergent lineages silently corrupts state.
-    // Bootstrap is therefore only allowed against a clean local db;
-    // anything else goes through reconcile/adopt.
     if local_db_has_pages().await? {
         return Err(DbError::IllegalInput(
             "bootstrap refused: local db already has pages. Wipe locally, or use reconcile/adopt."
@@ -179,10 +170,9 @@ async fn apply_bootstrap_row(
 ) -> Result<(), DbError> {
     let is_disabled = !page_status_is_active(&row.page_status, &row.page_id);
 
-    let page_exists =
-        crate::db::db_helpers_for_web_client::page_exists(row.page_id.clone()).await?;
+    let exists = page_exists(row.page_id.clone()).await?;
 
-    if !page_exists {
+    if !exists {
         let letter = love_letter::LoveLetter::CreateNewPage {
             page_id: row.page_id.clone(),
             is_main_menu_page: row.is_main_menu_page == "true",
@@ -293,10 +283,6 @@ async fn handle_one(
 
     match apply_letter(batcher, open, letter).await {
         Ok(outcome) => {
-            // Persist before acking: if we crash after this and before
-            // the ack, the seen set already has the id on reconnect,
-            // so it won't be re-applied. If we crash before this,
-            // re-applying is idempotent.
             if let Err(e) = persist_seen(item.letter_id).await {
                 leptos::logging::warn!("persist_seen {}: {e:?}", item.letter_id);
             }

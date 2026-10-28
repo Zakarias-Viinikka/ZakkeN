@@ -4,11 +4,6 @@ use super::drag_reorder_black_box::{BlockRenderInput, DragReorderBlackBox, MoveE
 
 use super::my_block_content::MyBlockContent;
 
-/// The wrapper I actually call from MainContent. It is the only thing
-/// that knows about both the black-box drag component and the block
-/// content component I own. Everything rapier/drag/reorder/vacuum/
-/// cascade stays inside PagesUiThatOnlyOwnsDragReorder — I never touch
-/// it.
 #[component]
 pub fn DragReorderContainer(
     #[prop(into)] pages: Signal<Vec<PageInput>>,

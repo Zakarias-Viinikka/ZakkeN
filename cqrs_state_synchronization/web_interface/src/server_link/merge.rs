@@ -1,44 +1,36 @@
-//! Apply a love letter received from the server.
-//!
-//! Reads what the builder needs from the db (or reuses the open page's
-//! boss), runs the pure builder to get a plan, then runs the executor
-//! under `run_exclusive` so no local flush or entry-point write can
-//! interleave with the merge.
-//!
-//! Also updates `open.page1.blocks` when the merge touched the open
-//! page, so the UI reflects the change without a reload.
-
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use data_builder_for_operations_that_need_to_be_correct::{
     build_merge_blob, build_merge_disable, build_merge_new_page, FinalBlock,
 };
 use error_stuff::CqrsErr;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::apply_merge_plan;
-use leptos::prelude::{ArcRwSignal, GetUntracked, Set};
+use leptos::prelude::{GetUntracked, Set};
 use love_letter::LoveLetter;
 use my_yrs_lib::BossOfYrs;
 use protocol::error::DbError;
 
-use crate::complicated_signal_flow::{run_exclusive, BatcherHandle, BlockRow, OpenPages};
-use crate::db::{cached_ids, db_helpers_for_web_client, ui_actions_helper};
+use crate::complicated_signal_flow::{BlockRow, REMOTE_DISABLED_OPEN_PAGE};
+use crate::db::batcher::{run_exclusive, BatcherHandle};
+use crate::db::cached_ids::{self, try_current_user_id};
+use crate::db::reads::{blocks as reads_blocks, pages as reads_pages};
+use crate::page_state::OpenPages;
 
-/// Set when a DisablePage letter arrives for the page currently open in
-/// the viewer. A route-level effect watches this and navigates to the
-/// menu with a popup.
-pub static REMOTE_DISABLED_OPEN_PAGE: LazyLock<ArcRwSignal<Option<String>>> =
-    LazyLock::new(|| ArcRwSignal::new(None));
-
-/// Why an apply failed, so the worker can decide whether to halt or
-/// just leave the letter unacked.
 pub enum ApplyError {
-    /// The letter targets a page that doesn't exist locally and isn't
-    /// a CreateNewPage. The worker leaves it unacked; a following
-    /// CreateNewPage for that page will make a re-pull succeed.
     UnknownPage(String),
-    /// Anything else. The worker shows the "copy your changes, reload"
-    /// popup and stops, because state is now suspect.
     Fatal(CqrsErr),
+}
+
+impl From<DbError> for ApplyError {
+    fn from(e: DbError) -> Self {
+        ApplyError::Fatal(CqrsErr::DbErrorContainer(e))
+    }
+}
+
+impl From<CqrsErr> for ApplyError {
+    fn from(e: CqrsErr) -> Self {
+        ApplyError::Fatal(e)
+    }
 }
 
 pub struct ApplyOutcome {
@@ -57,9 +49,7 @@ pub async fn apply_letter(
             is_main_menu_page,
             snapshot_of_edit,
         } => {
-            let exists = db_helpers_for_web_client::page_exists(page_id.clone())
-                .await
-                .map_err(|e| ApplyError::Fatal(CqrsErr::DbErrorContainer(e)))?;
+            let exists = reads_pages::page_exists(page_id.clone()).await?;
             if exists {
                 apply_blob(batcher, open, page_id, snapshot_of_edit).await
             } else {
@@ -104,18 +94,13 @@ async fn apply_blob(
     page_id: String,
     snapshot_of_edit: Vec<u8>,
 ) -> Result<ApplyOutcome, ApplyError> {
-    let Some(boss) = pick_boss_for_page(open, &page_id).await.map_err(ApplyError::Fatal)? else {
+    let Some(boss) = pick_boss_for_page(open, &page_id).await? else {
         return Err(ApplyError::UnknownPage(page_id));
     };
 
-    let existing_blocks =
-        db_helpers_for_web_client::get_existing_blocks_for_page(page_id.clone())
-            .await
-            .map_err(|e| ApplyError::Fatal(CqrsErr::DbErrorContainer(e)))?;
+    let existing_blocks = reads_blocks::get_existing_blocks_for_page(page_id.clone()).await?;
 
-    let is_main_menu_page = ui_actions_helper::is_main_menu_page(page_id.clone())
-        .await
-        .map_err(|e| ApplyError::Fatal(e))?;
+    let is_main_menu_page = reads_pages::is_main_menu_page(page_id.clone()).await?;
 
     let pid_for_plan = page_id.clone();
     let pid_for_refresh = page_id.clone();
@@ -129,14 +114,9 @@ async fn apply_blob(
         )?;
         let final_out = plan.final_blocks.clone();
         apply_merge_plan(plan).await?;
-        // Refresh inside the lock: a keystroke landing between the
-        // lock release and the UI refresh would push a diff against
-        // the pre-merge content to the batcher, and that diff would
-        // apply to the wrong offsets on the next flush.
         Ok(refresh_open_page_if_matches(open, &pid_for_refresh, final_out))
     })
-    .await
-    .map_err(ApplyError::Fatal)?;
+    .await?;
 
     Ok(ApplyOutcome { page_id, changed })
 }
@@ -148,11 +128,7 @@ async fn apply_new_page(
     is_main_menu_page: bool,
     snapshot_of_edit: Vec<u8>,
 ) -> Result<ApplyOutcome, ApplyError> {
-    let user_id = cached_ids::USER_ID.get_untracked().ok_or_else(|| {
-        ApplyError::Fatal(CqrsErr::DbErrorContainer(DbError::IllegalInput(
-            "USER_ID not set".to_string(),
-        )))
-    })?;
+    let user_id = try_current_user_id()?;
     let time = crate::get_time();
 
     let pid_for_plan = page_id.clone();
@@ -168,14 +144,8 @@ async fn apply_new_page(
         apply_merge_plan(plan).await?;
         Ok(final_out)
     })
-    .await
-    .map_err(ApplyError::Fatal)?;
+    .await?;
 
-    // A fresh page always changes the menu, whether or not it's the one
-    // currently open. The `refresh_open_page_if_matches` return is
-    // discarded on purpose: it's only true if the page was open AND
-    // the blocks differed, which won't be true for a new page that
-    // isn't the one being viewed.
     let _ = refresh_open_page_if_matches(open, &page_id, final_blocks);
     Ok(ApplyOutcome {
         page_id,
@@ -189,24 +159,19 @@ async fn apply_disable(
     page_id: String,
     snapshot_of_edit: Vec<u8>,
 ) -> Result<ApplyOutcome, ApplyError> {
-    let exists = db_helpers_for_web_client::page_exists(page_id.clone())
-        .await
-        .map_err(|e| ApplyError::Fatal(CqrsErr::DbErrorContainer(e)))?;
+    let exists = reads_pages::page_exists(page_id.clone()).await?;
     if !exists {
         return Err(ApplyError::UnknownPage(page_id));
     }
 
-    let status = ui_actions_helper::get_active_pages_blob(page_id.clone())
-        .await
-        .map_err(|e| ApplyError::Fatal(e))?;
+    let status = reads_pages::get_active_pages_blob(page_id.clone()).await?;
 
     let pid_for_plan = page_id.clone();
     run_exclusive(batcher, move || async move {
         let plan = build_merge_disable(pid_for_plan, snapshot_of_edit, status)?;
         apply_merge_plan(plan).await
     })
-    .await
-    .map_err(ApplyError::Fatal)?;
+    .await?;
 
     if open.page1.page_id.get_untracked() == page_id {
         REMOTE_DISABLED_OPEN_PAGE.set(Some(page_id.clone()));
@@ -218,8 +183,6 @@ async fn apply_disable(
     })
 }
 
-/// If the merged page is the one currently open, update its blocks so
-/// the UI shows the change. Returns whether anything actually changed.
 fn refresh_open_page_if_matches(
     open: OpenPages,
     page_id: &str,
@@ -260,23 +223,19 @@ pub(crate) async fn pick_boss_for_page(
     open: OpenPages,
     page_id: &str,
 ) -> Result<Option<Arc<BossOfYrs>>, CqrsErr> {
-    if open.page1.page_id.get_untracked() == page_id {
-        if let Some(boss) = open.page1.boss_of_yrs.get_untracked() {
-            return Ok(Some(boss));
-        }
+    if let Some(boss) = open.boss_for_page(page_id) {
+        return Ok(Some(boss));
     }
 
-    if !db_helpers_for_web_client::page_exists(page_id.to_string())
+    if !reads_pages::page_exists(page_id.to_string())
         .await
         .map_err(CqrsErr::DbErrorContainer)?
     {
         return Ok(None);
     }
 
-    let user_id = cached_ids::USER_ID.get_untracked().ok_or_else(|| {
-        CqrsErr::DbErrorContainer(DbError::IllegalInput("USER_ID not set".to_string()))
-    })?;
-    let boss = db_helpers_for_web_client::get_yrs_unblobbed(
+    let user_id = cached_ids::try_current_user_id()?;
+    let boss = reads_pages::get_yrs_unblobbed(
         page_id.to_string(),
         user_id,
         crate::get_time(),

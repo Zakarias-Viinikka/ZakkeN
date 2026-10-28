@@ -6,9 +6,8 @@ pub fn get_time() -> String {
     ((js_sys::Date::now() / 1000.0) as u64).to_string()
 }
 
-
-
 pub mod complicated_signal_flow;
+pub mod new_local_block_id;
 pub mod page_state;
 pub mod drag_reorder_container;
 

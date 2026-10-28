@@ -15,7 +15,7 @@ use super::layout::{
 };
 use super::mouse::{handle_mouse_move, handle_mouse_up};
 use super::rapier_world::RapierWorld;
-use super::sync::sync_from_props;
+use super::sync::{sync_from_props, SyncState};
 use crate::complicated_signal_flow::BlockRow;
 use super::types::{BlockRenderInput, MoveEvent, PageInput};
 
@@ -76,9 +76,7 @@ pub fn DragReorderBlackBox(
     {
         let rapier_effect = rapier.clone();
         Effect::new(move || {
-            sync_from_props(
-                pages,
-                blocks,
+            let state = SyncState {
                 boxes,
                 id_map,
                 page_count,
@@ -87,8 +85,9 @@ pub fn DragReorderBlackBox(
                 stored,
                 drag,
                 rect_drag,
-                &rapier_effect,
-            );
+                rapier: &rapier_effect,
+            };
+            sync_from_props(pages, blocks, state);
         });
     }
 

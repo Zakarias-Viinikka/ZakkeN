@@ -1,10 +1,3 @@
-//! Start the link to zakken_server.
-//!
-//! `Router::new(url, on_letters, on_status)` opens the socket and runs
-//! the retry loop internally. This module decides when to start, holds
-//! the two-tab lock, and hands the resulting `RouterHandle` to the
-//! worker and the sender.
-
 use std::sync::{Arc, LazyLock, Mutex};
 
 use leptos::prelude::*;
@@ -12,10 +5,10 @@ use leptos::task::spawn_local;
 use shared_internals_for_server::{ConnStatus, Router};
 use wasm_bindgen::prelude::*;
 
-use crate::complicated_signal_flow::{BatcherHandle, OpenPages};
+use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids;
+use crate::page_state::OpenPages;
 
-/// Where the link is right now. Drives the MainContent border.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConnState {
     Offline,
@@ -63,9 +56,6 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
     let url = build_ws_url();
     let (letters_tx, letters_rx) = super::make_letters_channel();
 
-    // Fires on every RE-connect (not the first connect). Each transport
-    // blip makes a fresh server-side socket with no user attached, so
-    // run_worker listens here and re-runs login to re-authenticate.
     let (reconnect_tx, reconnect_rx) = futures_channel::mpsc::unbounded::<()>();
     let first_connected = Arc::new(std::sync::atomic::AtomicBool::new(true));
 
@@ -110,8 +100,6 @@ fn build_ws_url() -> String {
     format!("{scheme}://{hostname}:3000/ws")
 }
 
-/// When the browser reports offline, show it. The router keeps retrying
-/// in the background; its next status flip will clear the Offline state.
 fn install_offline_listener() {
     let Some(window) = web_sys::window() else {
         return;

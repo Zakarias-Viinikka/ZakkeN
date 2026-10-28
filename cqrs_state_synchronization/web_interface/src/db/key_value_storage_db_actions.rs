@@ -1,16 +1,12 @@
-//! Db reads and writes against the key_value_storage table.
-//!
-//! Two operations: read a value by key (None if absent), and write a
-//! value by key (insert if the key isn't there, update if it is).
-//! Nothing here caches — the cache lives in `cached_ids`, and the
-//! callers in `ui_actions` and `init` set it after the write succeeds.
-
 use client_table_blueprints::tbl_key_value_storage;
 use error_stuff::CqrsErr;
+use leptos::prelude::Set;
 use protocol::error::DbError;
 use protocol::payload::*;
 use protocol::row_col::Col;
 use web_internal_db::db_helper;
+
+use crate::db::cached_ids;
 
 pub async fn read_key_value_from_db(key: &str) -> Result<Option<String>, CqrsErr> {
     let out = db_helper::get_data(GetDataIn {
@@ -67,5 +63,11 @@ pub async fn write_key_value_to_db(key: &str, value: &str) -> Result<(), CqrsErr
         .await?;
     }
 
+    Ok(())
+}
+
+pub async fn set_user_id(name: String) -> Result<(), CqrsErr> {
+    write_key_value_to_db("user_id", &name).await?;
+    cached_ids::USER_ID.set(Some(name));
     Ok(())
 }

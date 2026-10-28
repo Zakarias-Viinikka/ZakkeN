@@ -1,15 +1,3 @@
-//! Register and login against the server.
-//!
-//! Tries the saved `server_user_name` first. If it's missing or the
-//! server says "no such user" (server db wiped), it tries to register
-//! once under the local setup name. No auto-suffix: if the name is
-//! taken, a popup asks the user to pick a different one in /setup and
-//! reload.
-//!
-//! "Same name = same user" is intentional. There's no auth. Two devices
-//! with the same name are the same user; the second one to connect
-//! takes over the first one's socket.
-
 use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
@@ -38,13 +26,7 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
                     "saved server name {saved:?} doesn't exist on server; clearing and re-registering"
                 );
                 clear_saved_name().await?;
-                // Stopgap for "server db wiped": without this the
-                // persistent seen set would drop letters whose ids
-                // restart at 1. A proper dataset-generation id on the
-                // server replaces this later.
-                if let Err(e) =
-                    crate::db::db_helpers_for_web_client::clear_seen_server_letters().await
-                {
+                if let Err(e) = super::receive::clear_seen_server_letters().await {
                     leptos::logging::warn!("clear_seen_server_letters: {e:?}");
                 }
             }

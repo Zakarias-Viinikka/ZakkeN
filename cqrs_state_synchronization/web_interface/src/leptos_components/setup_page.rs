@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::use_navigate;
 
+use crate::db::key_value_storage_db_actions::set_user_id;
 use crate::leptos_components::small_components::popup::create_popup;
 
 #[component]
@@ -16,7 +17,7 @@ pub fn SetupPage() -> impl IntoView {
         }
         let navigate = navigate.clone();
         spawn_local(async move {
-            match crate::db::ui_actions::set_user_id(name_value).await {
+            match set_user_id(name_value).await {
                 Ok(()) => navigate("/Menu", Default::default()),
                 Err(e) => {
                     leptos::logging::error!("set_user_id failed: {:?}", e);
