@@ -18,7 +18,7 @@ pub enum Response {
         request: Request,
         payload: Base64Bytes,
     },
-    /// The server spontaneously handing over love letters. Carries no
-    /// request id; the client acks each letter in it individually.
-    LoveLetterFromServer(Vec<UnsentLetter>),
+    /// The server handing over one love letter. Carries no request id;
+    /// the client acks it individually.
+    LoveLetterFromServer(UnsentLetter),
 }

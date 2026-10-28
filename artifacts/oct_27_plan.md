@@ -28,7 +28,9 @@ From `guide_to_interacting_with_server.md`:
 - On login the server notifies the socket. The socket pulls its
   backlog and pushes each letter as `LoveLetterFromServer`.
 - On a new letter the server notifies every connected client except
-  the sender.
+  the sender. Each notified socket pushes the letter back as one
+  `Response::LoveLetterFromServer(UnsentLetter)` per letter, so each is
+  applied and acked on its own.
 - The client acks each letter by id. Unacked letters come back on
   reconnect.
 - The client dedups by letter id.

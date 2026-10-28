@@ -189,7 +189,7 @@ impl SocketState {
         };
 
         for letter in payload.letters {
-            if !self.send_love_letters(vec![letter]).await {
+            if !self.send_love_letters(letter).await {
                 return false;
             }
         }
@@ -287,8 +287,8 @@ impl SocketState {
         }
     }
 
-    async fn send_love_letters(&mut self, letters: Vec<UnsentLetter>) -> bool {
-        let response = Response::LoveLetterFromServer(letters);
+    async fn send_love_letters(&mut self, letter: UnsentLetter) -> bool {
+        let response = Response::LoveLetterFromServer(letter);
         let json = match response_to_json_str(&response) {
             Ok(j) => j,
             Err(e) => {

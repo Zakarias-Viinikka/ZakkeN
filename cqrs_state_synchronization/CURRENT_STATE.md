@@ -6,7 +6,7 @@
 
 - create_page in the builder works. It builds a BossOfYrs, inserts two blocks (title, then a normal one), snapshots the doc, takes a version bookmark, and returns all the prepared data holding three ctx structs.
 
-- the executor takes all the prepared data and does the three inserts in one transaction: pages, every_block_in_existence, uncommitted_diffs. The executor fns check whether a transaction is already open; if one is, they don't begin or commit, and the outer call owns it.
+- the executor takes all the prepared data and does the three inserts in one transaction: pages, every_block_in_existence, client_love_letter. The executor fns check whether a transaction is already open; if one is, they don't begin or commit, and the outer call owns it.
 
 - there's a method for editing a block, and it's also used for adding a title to a fresh page.
 
@@ -225,3 +225,45 @@ Untested this session: whether yrs accepts the 32-hex local block id,
 and whether the queued add works when the executor skips its own begin
 and commit inside an already-open transaction (which CURRENT_STATE
 says it does). Not compiled as far as I know.
+
+## Update - 2026-10-28
+
+The web client now talks to `zakken_server`. Milestone observed end to
+end: a web-client edit reaches the mock client via `sync`, a mock-client
+edit reaches the web client via the server's push and is acked.
+
+Shape:
+
+- `client_internals/shared_internals_for_server` owns both the socket
+  and the router. `Router::new(url, on_love_letters, on_conn_status)`
+  returns a `RouterHandle`. `Router` itself is private; callers only
+  see `RouterHandle`. Per-target socket code lives in
+  `src/socket_web.rs` / `src/socket_android.rs`; both expose
+  `spawn(...)` and `spawn_dispatch(router)` so `Router::new` is
+  identical for either.
+- `web_interface/src/server_link/` has the lifecycle: `core.rs`
+  (start + ConnStatus -> border), `identity.rs` (register/login, no
+  auto-suffix — server "already taken" tells the user to pick a
+  different name in /setup), `merge.rs` (one letter -> merge into
+  boss + reconcile mirror), `receive.rs` (bootstrap + receive worker),
+  `send.rs` (`client_love_letter` queue -> SendLoveLetter).
+- Persistence: `tbl_seen_server_letters` tracks received ids. Written
+  before the ack. Cleared on `NoSuchUser` login reply — stopgap for
+  "server db wiped" until the dataset-generation id lands.
+- Concurrency: a global `WriteLock` serializes every write entry point
+  (add_block, delete_block, move_block, move_block_to_another_page,
+  disable_page, create_new_page, title write), the batcher flush, and
+  the apply path. It closes the look-then-act hole in the "20ms poll
+  for no open transaction" idea.
+- Router callback now takes `UnsentLetter`, not `Vec<UnsentLetter>`.
+  Response variant carries one letter; one push per letter.
+- Mock client: `is_main_menu_page = true` on `create_page`, pages
+  sorted by title, edit descriptions include the block's `[N]`
+  position within the page.
+
+Not yet done, flagged: multi-device identity is "same name = same
+user, no auth". The second device with the same name takes over the
+first's socket. Fine for the local-network use case.
+
+`oct_27_plan.md` moved to `ZakkeN/artifacts/oct_27_plan.md` for
+reference.

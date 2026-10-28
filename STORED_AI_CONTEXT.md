@@ -17,7 +17,7 @@ text plus metadata. Every page's state lives in a yrs CRDT doc; the
 sqlite mirror is queryable but not authoritative. Edits are described
 as "love letters" - a serialized intent the client sends to the server
 so both sides agree on what changed. The client stores its own copy in
-uncommitted_diffs while the server tracks which registered clients have
+client_love_letter while the server tracks which registered clients have
 received which letters.
 
 The server now works end to end for the shapes that exist. See the
@@ -39,9 +39,9 @@ is my_yrs_lib even though the package name is yrs - imports say
 my_yrs_lib, Cargo.toml lines say yrs.path.
 
 client_table_blueprints (ZakkeN/client_table_blueprints) - the schema.
-tbl_pages, tbl_every_block_in_existence, tbl_uncommitted_diffs,
+tbl_pages, tbl_every_block_in_existence, tbl_client_love_letter,
 tbl_incoming_love_letters, tbl_backlinks, tbl_key_value_storage,
-tbl_logs. Each tbl_x.rs declares the columns as ColumnDefs, exports
+tbl_logs, tbl_seen_server_letters. Each tbl_x.rs declares the columns as ColumnDefs, exports
 SchemaColumn consts, and has a new_x_row() helper returning the
 Vec<ColumnValue> for an insert. Table names are TABLE_NAME consts.
 The server depends on this crate for tbl_pages so the page schema
@@ -125,11 +125,13 @@ queue is an enum of Edit and AddBlock, run in order), and arrow keys
 navigate between blocks. See the cqrs CURRENT_STATE.md for the shape.
 
 The web client now talks to `zakken_server`. `client_internals/`
-holds the shared router, the wasm socket, and an android placeholder.
-`web_interface/src/server_link/` owns the connection (identity,
-bootstrap, receive worker, sender, write lock). Sync has been observed
-end to end: a web edit reaches the mock client, and a mock-client edit
-reaches the web client.
+holds a shared crate that owns both the socket connection and the
+response router (`Router::new` opens the socket, spawns the dispatch
+and retry loops, returns a `RouterHandle`; per-target socket code lives
+in `socket_web.rs` / `socket_android.rs`).
+`web_interface/src/server_link/` owns the connection lifecycle
+(identity, bootstrap, receive worker, sender, write lock). Sync has
+been observed end to end.
 
 The drag-reorder UI lives inside `web_interface`, in
 `drag_reorder_container/`. The folder has three layers:

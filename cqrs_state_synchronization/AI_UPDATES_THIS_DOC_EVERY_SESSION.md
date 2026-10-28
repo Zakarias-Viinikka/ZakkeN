@@ -1,3 +1,48 @@
+Wednesday, 28 October 2026 (web client talks to server)
+========================================================
+
+The web client now talks to `zakken_server`. `client_internals/`
+got a real shape: `shared_internals_for_server` owns both the socket
+connection and the response router. `Router::new(url, on_love_letters,
+on_conn_status)` opens the socket, spawns the dispatch loop and the
+retry loop, returns a `RouterHandle`. `Router` is a private struct
+that never escapes. Per-target socket code lives in
+`src/socket_web.rs` and `src/socket_android.rs`, both exposing
+`spawn(url, outgoing_rx, incoming_tx, on_conn_status)` and
+`spawn_dispatch(router)`, so `Router::new` is identical for both.
+
+`web_interface/src/server_link/` has the whole lifecycle: `core.rs`
+(start, ConnStatus -> border, two-tab Web Lock), `identity.rs`
+(register/login, no auto-suffix — server "already taken" tells the
+user to pick a different name in /setup and reload), `merge.rs`
+(one letter -> boss merge + mirror reconcile), `receive.rs`
+(bootstrap + receive worker), `send.rs` (client_love_letter queue ->
+SendLoveLetter, retries with backoff, popup after 3 consecutive
+errors on the same letter).
+
+Persistence: `tbl_seen_server_letters` tracks received letter ids.
+Written before the ack so a crash between apply and ack doesn't
+re-apply. Cleared on `NoSuchUser` login reply — stopgap for
+"server db wiped" until the dataset-generation id lands.
+
+Concurrency: a global `WriteLock` serializes every write entry point
+plus the batcher flush and the apply path. Replaces the earlier
+"20ms poll for no open transaction" idea, which was look-then-act and
+had a hole.
+
+Bug fixed during testing: the wasm socket writer was spawned before
+the `WebSocket` reached `OPEN`, so the first send threw and killed
+the writer. Fixed by waiting for `OPEN` before draining the outgoing
+queue.
+
+Milestone observed end to end: web-client edit reaches the mock client
+via `sync`; mock-client edit reaches the web client via the server's
+push and is acked.
+
+`oct_27_plan.md` moved to `ZakkeN/artifacts/oct_27_plan.md` for
+reference. The plan was implemented across two sessions with shape
+changes (write lock added, router reshape done on 28th).
+
 Tuesday, 27 October 2026 (Enter-split, local block ids, arrow keys)
 ====================================================================
 

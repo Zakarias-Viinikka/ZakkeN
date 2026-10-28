@@ -198,6 +198,7 @@ name = "client_web"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "gloo-timers",
  "js-sys",
  "serde_json",
  "server_protocol",
@@ -342,6 +343,18 @@ name = "glob"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+
+[[package]]
+name = "gloo-timers"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "482ce8a491a501da4cd806bd190275363d674f2845005c6ddbd5d3e1dd54495d"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "goblin"
@@ -626,8 +639,14 @@ name = "shared_internals_for_server"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "gloo-timers",
+ "js-sys",
+ "protocol",
  "server_error_stuff",
  "server_protocol",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

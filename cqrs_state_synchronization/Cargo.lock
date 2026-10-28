@@ -381,21 +381,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "client_web"
-version = "0.1.0"
-dependencies = [
- "futures",
- "gloo-timers",
- "js-sys",
- "serde_json",
- "server_protocol",
- "shared_internals_for_server",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "codee"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2445,8 +2430,14 @@ name = "shared_internals_for_server"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "gloo-timers",
+ "js-sys",
+ "protocol",
  "server_error_stuff",
  "server_protocol",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -3206,7 +3197,6 @@ name = "web_interface"
 version = "0.1.0"
 dependencies = [
  "client_table_blueprints",
- "client_web",
  "console_error_panic_hook",
  "data_builder_for_operations_that_need_to_be_correct",
  "error_stuff",

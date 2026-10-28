@@ -7,6 +7,14 @@ edition = "2024"
 futures = "0.3"
 server_protocol = { path = "../../shared/server_protocol" }
 error_stuff = { path = "../../shared/error_stuff", package = "server_error_stuff" }
-
-[dev-dependencies]
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "console"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+gloo-timers = { version = "0.4", features = ["futures"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# filled in when the android socket lands

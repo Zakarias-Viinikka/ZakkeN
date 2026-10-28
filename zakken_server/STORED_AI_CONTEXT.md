@@ -40,10 +40,19 @@ mock_client/ holds the mock client, at the top level:
 - cli_gui - the mock client's REPL.
 
 client_internals/ holds how a client talks to the server:
-- shared_internals_for_server - the target-agnostic response router,
-  with tests. Plain futures, no socket, builds anywhere.
-- web - the browser socket half. Placeholder; wasm only.
-- android - the Android socket half. Placeholder.
+- shared_internals_for_server - owns the socket connection AND the
+  response router. `Router::new(url, on_love_letters, on_conn_status)`
+  opens the socket, spawns the dispatch loop and the retry loop, and
+  returns a `RouterHandle`. The `Router` struct never escapes; callers
+  only see `RouterHandle`. Per-target socket code lives in
+  `src/socket_web.rs` (web_sys::WebSocket,
+  wasm_bindgen_futures::spawn_local) and `src/socket_android.rs`
+  (stub). Both expose `spawn(url, outgoing_rx, incoming_tx,
+  on_conn_status)` and `spawn_dispatch(router)`, so `Router::new` is
+  identical for both targets. `ConnStatus` (Connecting / Connected /
+  Failed) is passed to `on_conn_status` on every change.
+- web - stub. The browser socket moved into shared_internals_for_server.
+- android - stub.
 
 The prose version of the client's side is guide_to_interacting_with_server.md
 at the root of zakken_server.
@@ -228,8 +237,8 @@ row for that user, online or not. Then notify_all(sender). Every connected
 client except the sender's socket is told "go pull". That socket submits
 GetMyUnsentLetters through the queue for its user, gets every letter still
 rowed for it, and pushes each to the client as its own
-LoveLetterFromServer(vec![letter]) message. The client applies and acks
-each one. Offline clients aren't connected, so notify_all doesn't reach
+LoveLetterFromServer(letter) message. The client applies and acks each
+one. Offline clients aren't connected, so notify_all doesn't reach
 them; their unsent rows sit until they log in.
 
 On Login: the socket registered its channel at birth, so login only
@@ -245,7 +254,7 @@ The client is expected to dedup by letter_id, because a duplicate is
 possible: the server nudged, the connection dropped before the ack, and
 on reconnect the row is still there and shows up in the next pull.
 
-The push wire format is `Response::LoveLetterFromServer(Vec<UnsentLetter>)`,
+The push wire format is `Response::LoveLetterFromServer(UnsentLetter)`,
 one message per letter. The pull wire format is a Message with request =
 GetMyUnsentLetters and no payload; the reply carries a bincode of
 Result<GetMyUnsentLettersPayload, DbError>. The pull is what the socket

@@ -171,10 +171,15 @@ async fn apply_new_page(
     .await
     .map_err(ApplyError::Fatal)?;
 
-    let changed = refresh_open_page_if_matches(open, &page_id, final_blocks);
+    // A fresh page always changes the menu, whether or not it's the one
+    // currently open. The `refresh_open_page_if_matches` return is
+    // discarded on purpose: it's only true if the page was open AND
+    // the blocks differed, which won't be true for a new page that
+    // isn't the one being viewed.
+    let _ = refresh_open_page_if_matches(open, &page_id, final_blocks);
     Ok(ApplyOutcome {
         page_id,
-        changed: changed || true,
+        changed: true,
     })
 }
 

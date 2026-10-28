@@ -92,7 +92,7 @@ the schema, compare against expectation, report drift.
 /home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/tbl_key_value_storage.rs
 /home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/tbl_logs.rs
 /home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/tbl_pages.rs
-/home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/tbl_uncommitted_diffs.rs
+/home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/tbl_client_love_letter.rs
 /home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/lib.rs
 /home/zakke/ProgStuff/ZakkeN/client_table_blueprints/src/new_row_helper.rs
 /home/zakke/ProgStuff/ZakkeN/client_table_blueprints/Cargo.toml

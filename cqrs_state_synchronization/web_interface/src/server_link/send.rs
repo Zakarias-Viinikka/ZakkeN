@@ -19,9 +19,9 @@ use love_letter::{build_a_love_letter, deserialize_sketch, love_letter_to_bytes}
 use protocol::error::DbError;
 use protocol::payload::*;
 use protocol::schema_helper::DestructDbReturnCol;
-use protocol::serialization::{Base64Bytes, Convert};
-use server_protocol::{Message as ServerMessage, Request, SendLoveLetterPayload};
-use shared_internals_for_server::ResponseRouter;
+use protocol::serialization::Convert;
+use server_protocol::{Request, SendLoveLetterPayload};
+use shared_internals_for_server::RouterHandle;
 use web_internal_db::db_helper;
 
 use crate::db::write_lock::WRITE_LOCK;
@@ -42,7 +42,7 @@ pub fn kick_send() {
 }
 
 /// Start the sender for one connection. Called from `run_one_connection`.
-pub fn spawn_sender(router: ResponseRouter) {
+pub fn spawn_sender(router: RouterHandle) {
     let (tx, rx) = unbounded();
     *KICK_TX.lock().unwrap() = Some(tx);
     spawn_local(async move {
@@ -50,7 +50,7 @@ pub fn spawn_sender(router: ResponseRouter) {
     });
 }
 
-async fn run_sender(router: ResponseRouter, mut rx: UnboundedReceiver<()>) {
+async fn run_sender(router: RouterHandle, mut rx: UnboundedReceiver<()>) {
     let mut current_letter_id: Option<i64> = None;
     let mut consecutive_failures: u32 = 0;
     let mut popped_this_streak: bool = false;
@@ -155,7 +155,7 @@ enum SendResult {
     ServerErr(DbError),
 }
 
-async fn send_one(router: &ResponseRouter, row: &PendingRow) -> SendResult {
+async fn send_one(router: &RouterHandle, row: &PendingRow) -> SendResult {
     let sketch = match deserialize_sketch(row.love_letter_sketch.clone()) {
         Ok(s) => s,
         Err(e) => {
@@ -172,18 +172,10 @@ async fn send_one(router: &ResponseRouter, row: &PendingRow) -> SendResult {
 
     let payload = SendLoveLetterPayload { love_letter: bytes };
     let payload_bytes = payload.to_payload();
-    let reply_rx = match router.send_request(|id| ServerMessage {
-        message_id: id,
-        request: Request::SendLoveLetter,
-        payload: Base64Bytes(payload_bytes),
-    }) {
-        Ok(rx) => rx,
-        Err(e) => {
-            return SendResult::ServerErr(DbError::BadCode(format!("send_request: {e:?}")));
-        }
-    };
-
-    let reply_bytes = match reply_rx.await {
+    let reply_bytes = match router
+        .send_request(Request::SendLoveLetter, payload_bytes)
+        .await
+    {
         Ok(b) => b,
         Err(_) => return SendResult::Transport,
     };

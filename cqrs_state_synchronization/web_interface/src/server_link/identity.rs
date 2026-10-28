@@ -1,24 +1,34 @@
 //! Register and login against the server.
 //!
 //! Tries the saved `server_user_name` first. If it's missing or the
-//! server says "no such user" (server db wiped), it registers under the
-//! local setup name, appending -1, -2, ... until one sticks, and saves
-//! the winner.
+//! server says "no such user" (server db wiped), it tries to register
+//! once under the local setup name. No auto-suffix: if the name is
+//! taken, a popup asks the user to pick a different one in /setup and
+//! reload.
+//!
+//! "Same name = same user" is intentional. There's no auth. Two devices
+//! with the same name are the same user; the second one to connect
+//! takes over the first one's socket.
 
-use leptos::prelude::GetUntracked;
+use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
-use protocol::serialization::{Base64Bytes, Convert};
-use server_protocol::{LoginPayload, Message as ServerMessage, RegisterPayload, Request};
-use shared_internals_for_server::ResponseRouter;
+use protocol::serialization::Convert;
+use server_protocol::{LoginPayload, RegisterPayload, Request};
+use shared_internals_for_server::RouterHandle;
 
-use crate::db::key_value_storage_db_actions;
+use crate::db::{cached_ids, key_value_storage_db_actions};
+use crate::leptos_components::small_components::popup::create_popup;
 
 const SERVER_NAME_KEY: &str = "server_user_name";
+const USER_ID_KEY: &str = "user_id";
 
-pub async fn login(router: &ResponseRouter) -> Result<(), String> {
-    let Some(setup_name) = crate::db::cached_ids::USER_ID.get_untracked() else {
+pub async fn login(router: &RouterHandle) -> Result<(), String> {
+    let Some(setup_name) = cached_ids::USER_ID.get_untracked() else {
         return Err("USER_ID not set".to_string());
     };
+    if setup_name.is_empty() {
+        return Err("USER_ID is empty".to_string());
+    }
 
     if let Some(saved) = read_saved_name().await? {
         match try_login(router, &saved).await? {
@@ -42,26 +52,27 @@ pub async fn login(router: &ResponseRouter) -> Result<(), String> {
         }
     }
 
-    for candidate in candidates(setup_name) {
-        match try_register(router, &candidate).await? {
-            RegisterOutcome::Ok => {
-                save_name(&candidate).await?;
-                return match try_login(router, &candidate).await? {
-                    LoginOutcome::Ok => Ok(()),
-                    other => Err(format!("login after register failed: {other:?}")),
-                };
+    match try_register(router, &setup_name).await? {
+        RegisterOutcome::Ok => {
+            save_name(&setup_name).await?;
+            match try_login(router, &setup_name).await? {
+                LoginOutcome::Ok => Ok(()),
+                other => Err(format!("login after register failed: {other:?}")),
             }
-            RegisterOutcome::AlreadyRegistered => continue,
-            RegisterOutcome::Other(msg) => return Err(msg),
         }
+        RegisterOutcome::AlreadyRegistered => {
+            create_popup(format!(
+                "Server says '{}' is already taken. Open /setup to pick a different name (like '{}-1'), then reload the page.",
+                setup_name, setup_name
+            ));
+            clear_user_id().await?;
+            Err(format!(
+                "server name '{}' is already taken; pick a different one in /setup",
+                setup_name
+            ))
+        }
+        RegisterOutcome::Other(msg) => Err(msg),
     }
-    Err("all candidate server names were already registered".to_string())
-}
-
-fn candidates(base: String) -> impl Iterator<Item = String> {
-    std::iter::once(base.clone())
-        .chain((1u32..).map(move |n| format!("{base}-{n}")))
-        .take(50)
 }
 
 #[derive(Debug)]
@@ -71,11 +82,14 @@ enum LoginOutcome {
     Other(String),
 }
 
-async fn try_login(router: &ResponseRouter, name: &str) -> Result<LoginOutcome, String> {
+async fn try_login(router: &RouterHandle, name: &str) -> Result<LoginOutcome, String> {
     let payload = LoginPayload {
         user_name: name.to_string(),
     };
-    let bytes = send_request(router, Request::Login, payload.to_payload()).await?;
+    let bytes = router
+        .send_request(Request::Login, payload.to_payload())
+        .await
+        .map_err(|e| format!("login request: {e:?}"))?;
     let result: Result<(), DbError> = Convert::un_payloadify(&bytes)
         .map_err(|e| format!("decode login reply: {e:?}"))?;
     match result {
@@ -94,11 +108,14 @@ enum RegisterOutcome {
     Other(String),
 }
 
-async fn try_register(router: &ResponseRouter, name: &str) -> Result<RegisterOutcome, String> {
+async fn try_register(router: &RouterHandle, name: &str) -> Result<RegisterOutcome, String> {
     let payload = RegisterPayload {
         user_name: name.to_string(),
     };
-    let bytes = send_request(router, Request::Register, payload.to_payload()).await?;
+    let bytes = router
+        .send_request(Request::Register, payload.to_payload())
+        .await
+        .map_err(|e| format!("register request: {e:?}"))?;
     let result: Result<(), DbError> = Convert::un_payloadify(&bytes)
         .map_err(|e| format!("decode register reply: {e:?}"))?;
     match result {
@@ -108,23 +125,6 @@ async fn try_register(router: &ResponseRouter, name: &str) -> Result<RegisterOut
         }
         Err(e) => Ok(RegisterOutcome::Other(format!("register failed: {e:?}"))),
     }
-}
-
-async fn send_request(
-    router: &ResponseRouter,
-    request: Request,
-    payload: Vec<u8>,
-) -> Result<Vec<u8>, String> {
-    let reply_rx = router
-        .send_request(|id| ServerMessage {
-            message_id: id,
-            request,
-            payload: Base64Bytes(payload),
-        })
-        .map_err(|e| format!("send_request: {e:?}"))?;
-    reply_rx
-        .await
-        .map_err(|_| "reply dropped (connection lost)".to_string())
 }
 
 async fn read_saved_name() -> Result<Option<String>, String> {
@@ -144,4 +144,12 @@ async fn clear_saved_name() -> Result<(), String> {
     key_value_storage_db_actions::write_key_value_to_db(SERVER_NAME_KEY, "")
         .await
         .map_err(|e| format!("clear server_user_name: {e:?}"))
+}
+
+async fn clear_user_id() -> Result<(), String> {
+    key_value_storage_db_actions::write_key_value_to_db(USER_ID_KEY, "")
+        .await
+        .map_err(|e| format!("clear user_id: {e:?}"))?;
+    cached_ids::USER_ID.set(None);
+    Ok(())
 }

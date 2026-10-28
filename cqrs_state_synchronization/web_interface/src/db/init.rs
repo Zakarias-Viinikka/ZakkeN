@@ -68,8 +68,9 @@ async fn init_session_id() -> Result<(), CqrsErr> {
 }
 
 async fn init_user_id() -> Result<(), CqrsErr> {
-    let existing =
-        crate::db::key_value_storage_db_actions::read_key_value_from_db(USER_ID_KEY).await?;
+    let existing = crate::db::key_value_storage_db_actions::read_key_value_from_db(USER_ID_KEY)
+        .await?
+        .filter(|s| !s.is_empty());
     cached_ids::USER_ID.set(existing);
     Ok(())
 }

@@ -21,12 +21,11 @@ use love_letter::deserialize_love_letter;
 use protocol::error::DbError;
 use protocol::payload::{GetDataIn, InsertDataIn, SelectArgument, SelectArguments};
 use protocol::schema_helper::DestructDbReturnCol;
-use protocol::serialization::{Base64Bytes, Convert};
+use protocol::serialization::Convert;
 use server_protocol::{
-    AckPayload, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, Message as ServerMessage,
-    PageRow, Request, UnsentLetter,
+    AckPayload, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, PageRow, Request, UnsentLetter,
 };
-use shared_internals_for_server::ResponseRouter;
+use shared_internals_for_server::RouterHandle;
 use web_internal_db::db_helper;
 
 use crate::complicated_signal_flow::{BatcherHandle, OpenPages};
@@ -43,8 +42,8 @@ pub static MENU_TICK: LazyLock<ArcRwSignal<u32>> =
 static SEEN_IDS: LazyLock<Mutex<HashSet<i64>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 pub fn spawn_worker(
-    router: ResponseRouter,
-    letters_rx: UnboundedReceiver<Vec<UnsentLetter>>,
+    router: RouterHandle,
+    letters_rx: UnboundedReceiver<UnsentLetter>,
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
@@ -54,15 +53,15 @@ pub fn spawn_worker(
 }
 
 pub fn make_letters_channel() -> (
-    UnboundedSender<Vec<UnsentLetter>>,
-    UnboundedReceiver<Vec<UnsentLetter>>,
+    UnboundedSender<UnsentLetter>,
+    UnboundedReceiver<UnsentLetter>,
 ) {
     unbounded()
 }
 
 async fn run_worker(
-    router: ResponseRouter,
-    mut letters_rx: UnboundedReceiver<Vec<UnsentLetter>>,
+    router: RouterHandle,
+    mut letters_rx: UnboundedReceiver<UnsentLetter>,
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
@@ -102,24 +101,23 @@ async fn run_worker(
         }
     }
 
-    while let Some(batch) = letters_rx.next().await {
-        for item in batch {
-            if !handle_one(&batcher, open, &router, item).await {
-                return;
-            }
+    while let Some(item) = letters_rx.next().await {
+        if !handle_one(&batcher, open, &router, item).await {
+            return;
         }
     }
     leptos::logging::warn!("receive worker exiting: socket channel closed");
 }
 
 async fn bootstrap(
-    router: &ResponseRouter,
+    router: &RouterHandle,
     batcher: &BatcherHandle,
     open: OpenPages,
 ) -> Result<(), DbError> {
-    let bytes = send_request(router, Request::GetAllYrsPages, Vec::new())
+    let bytes = router
+        .send_request(Request::GetAllYrsPages, Vec::new())
         .await
-        .map_err(|e| DbError::BadCode(format!("GetAllYrsPages: {e}")))?;
+        .map_err(|e| DbError::BadCode(format!("GetAllYrsPages: {e:?}")))?;
     let payload: Result<GetAllYrsPagesPayload, DbError> = Convert::un_payloadify(&bytes)
         .map_err(|e| DbError::BadCode(format!("decode pages: {e:?}")))?;
     let payload = payload?;
@@ -207,10 +205,11 @@ fn apply_error_to_db_error(e: ApplyError) -> DbError {
     }
 }
 
-async fn pull_unsent(router: &ResponseRouter) -> Result<Vec<UnsentLetter>, DbError> {
-    let bytes = send_request(router, Request::GetMyUnsentLetters, Vec::new())
+async fn pull_unsent(router: &RouterHandle) -> Result<Vec<UnsentLetter>, DbError> {
+    let bytes = router
+        .send_request(Request::GetMyUnsentLetters, Vec::new())
         .await
-        .map_err(|e| DbError::BadCode(format!("GetMyUnsentLetters: {e}")))?;
+        .map_err(|e| DbError::BadCode(format!("GetMyUnsentLetters: {e:?}")))?;
     let payload: Result<GetMyUnsentLettersPayload, DbError> = Convert::un_payloadify(&bytes)
         .map_err(|e| DbError::BadCode(format!("decode unsent: {e:?}")))?;
     payload.map(|p| p.letters)
@@ -219,7 +218,7 @@ async fn pull_unsent(router: &ResponseRouter) -> Result<Vec<UnsentLetter>, DbErr
 async fn handle_one(
     batcher: &BatcherHandle,
     open: OpenPages,
-    router: &ResponseRouter,
+    router: &RouterHandle,
     item: UnsentLetter,
 ) -> bool {
     if SEEN_IDS.lock().unwrap().contains(&item.letter_id) {
@@ -281,37 +280,13 @@ async fn handle_one(
     }
 }
 
-async fn send_ack(router: &ResponseRouter, letter_id: i64) {
+async fn send_ack(router: &RouterHandle, letter_id: i64) {
     let payload = AckPayload { letter_id };
     let payload_bytes = payload.to_payload();
-    let _ = router
-        .send_request(move |id| ServerMessage {
-            message_id: id,
-            request: Request::Ack,
-            payload: Base64Bytes(payload_bytes),
-        })
-        .map(|rx| {
-            spawn_local(async move {
-                let _ = rx.await;
-            });
-        });
-}
-
-async fn send_request(
-    router: &ResponseRouter,
-    request: Request,
-    payload: Vec<u8>,
-) -> Result<Vec<u8>, String> {
-    let reply_rx = router
-        .send_request(|id| ServerMessage {
-            message_id: id,
-            request,
-            payload: Base64Bytes(payload),
-        })
-        .map_err(|e| format!("send_request: {e:?}"))?;
-    reply_rx
-        .await
-        .map_err(|_| "reply dropped (connection lost)".to_string())
+    let router = router.clone();
+    spawn_local(async move {
+        let _ = router.send_request(Request::Ack, payload_bytes).await;
+    });
 }
 
 async fn load_seen_from_db() -> Result<(), DbError> {

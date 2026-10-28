@@ -8,7 +8,7 @@
 use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::StreamExt;
 use server_protocol::{UnsentLetter, json_str_to_response, message_to_json_str};
-use shared_internals_for_server::{ResponseRouter, RouterHandles};
+use shared_internals_for_server::{Router, RouterHandle, RouterHandles};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -21,7 +21,7 @@ pub enum ConnEvent {
 }
 
 pub struct ClientHandle {
-    router: ResponseRouter,
+    router: RouterHandle,
     conn_events: UnboundedReceiver<ConnEvent>,
     ws: WebSocket,
     _onmessage: Option<Closure<dyn FnMut(MessageEvent)>>,
@@ -31,7 +31,7 @@ pub struct ClientHandle {
 }
 
 impl ClientHandle {
-    pub fn router_clone(&self) -> ResponseRouter {
+    pub fn router_clone(&self) -> RouterHandle {
         self.router.clone()
     }
 
@@ -58,12 +58,14 @@ impl ClientHandle {
 
 pub fn connect<F>(url: &str, on_love_letters: F) -> Result<ClientHandle, String>
 where
-    F: FnMut(Vec<UnsentLetter>) + 'static,
+    F: FnMut(UnsentLetter) + 'static,
 {
     let ws = WebSocket::new(url).map_err(|e| format!("WebSocket::new: {e:?}"))?;
 
-    let (router, handles, routing) = ResponseRouter::new(on_love_letters);
-    spawn_local(routing);
+    let (router, router_handle, handles) = Router::new(on_love_letters);
+    spawn_local(async move {
+        router.run().await;
+    });
 
     let RouterHandles {
         outgoing,
@@ -153,7 +155,7 @@ where
     ws.set_onerror(Some(onerror.as_ref().unchecked_ref()));
 
     Ok(ClientHandle {
-        router,
+        router: router_handle,
         conn_events: conn_rx,
         ws,
         _onmessage: Some(onmessage),

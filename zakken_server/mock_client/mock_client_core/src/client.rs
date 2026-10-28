@@ -113,7 +113,14 @@ impl MockClient {
                     .collect(),
             })
             .collect();
-        out.sort_by(|a, b| a.page_id.cmp(&b.page_id));
+        // Sort by title (first block's text, falling back to page id),
+        // then page id for tie-breaking. Matches how the `pages`
+        // command is read by a human.
+        out.sort_by(|a, b| {
+            let ta = a.blocks.first().map(|b| b.text.as_str()).unwrap_or("");
+            let tb = b.blocks.first().map(|b| b.text.as_str()).unwrap_or("");
+            ta.cmp(tb).then_with(|| a.page_id.cmp(&b.page_id))
+        });
         out
     }
 
@@ -154,8 +161,8 @@ impl MockClient {
                     }
                     // A reply to something else; skip.
                 }
-                Response::LoveLetterFromServer(letters) => {
-                    self.apply_and_ack(letters).await?;
+                Response::LoveLetterFromServer(letter) => {
+                    self.apply_and_ack(letter).await?;
                 }
             }
         }
@@ -183,16 +190,13 @@ impl MockClient {
         Ok(count)
     }
 
-    /// Apply each letter locally and send an Ack for each. Acks are
-    /// fire-and-forget; their replies arrive later and are skipped by
-    /// `expect_reply`.
-    async fn apply_and_ack(&mut self, letters: Vec<UnsentLetter>) -> Result<(), String> {
-        for item in letters {
-            let letter = deserialize_love_letter(item.love_letter)
-                .map_err(|e| format!("decode pushed letter {}: {e}", item.letter_id))?;
-            self.apply_letter(letter)?;
-            self.send_ack(item.letter_id).await?;
-        }
+    /// Apply one pushed letter locally and Ack it. The ack reply arrives
+    /// later and is skipped by `expect_reply`.
+    async fn apply_and_ack(&mut self, item: UnsentLetter) -> Result<(), String> {
+        let letter = deserialize_love_letter(item.love_letter)
+            .map_err(|e| format!("decode pushed letter {}: {e}", item.letter_id))?;
+        self.apply_letter(letter)?;
+        self.send_ack(item.letter_id).await?;
         Ok(())
     }
 
