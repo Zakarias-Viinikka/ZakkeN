@@ -1,5 +1,7 @@
 uniffi::setup_scaffolding!();
 
+mod row_values;
+
 pub mod new_row_helper;
 pub mod tbl_backlinks;
 pub mod tbl_every_block_in_existence;
@@ -8,5 +10,4 @@ pub mod tbl_key_value_storage;
 pub mod tbl_logs;
 pub mod tbl_pages;
 pub mod tbl_client_love_letter;
-
 pub mod tbl_seen_server_letters;

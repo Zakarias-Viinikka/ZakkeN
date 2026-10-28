@@ -1,5 +1,7 @@
 use std::fmt;
 
+use smart_frac_index::frac_core_internals::errors::FracIndexError;
+
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ErrorInfo {
     pub error_msg: String,
@@ -49,24 +51,18 @@ impl fmt::Display for YrsError {
     }
 }
 
-impl From<smart_frac_index::frac_core_internals::errors::FracIndexError> for YrsError {
-    fn from(e: smart_frac_index::frac_core_internals::errors::FracIndexError) -> Self {
+impl From<FracIndexError> for YrsError {
+    fn from(e: FracIndexError) -> Self {
         match e {
-            smart_frac_index::frac_core_internals::errors::FracIndexError::GenericError { info } => {
-                YrsError::GenericError {
-                    info: ErrorInfo {
-                        error_msg: info.error_msg,
-                        file: info.file,
-                        method: info.method,
-                    },
-                }
-            }
+            FracIndexError::GenericError { info } => YrsError::GenericError {
+                info: ErrorInfo {
+                    error_msg: info.error_msg,
+                    file: info.file,
+                    method: info.method,
+                },
+            },
         }
     }
 }
 
-impl std::error::Error for YrsError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
+impl std::error::Error for YrsError {}

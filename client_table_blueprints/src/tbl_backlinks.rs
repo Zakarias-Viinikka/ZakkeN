@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -6,26 +5,13 @@ use my_yrs_lib::YrsBacklinks;
 use my_yrs_lib::YrsError;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
-//use protocol::error::DbError;
-//use protocol::error::DbError::ColDestructFail;
 use protocol::new_table::ForeignKeyDef;
 use protocol::new_table::id_column;
 use protocol::new_table::not_null_col;
 use protocol::payload::ColumnValue;
-use protocol::row_col::Col;
-//use protocol::schema_helper::DestructDbReturnCol;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-#[uniffi::export]
-pub fn new_table_backlinks() -> Vec<ColumnDef> {
-    vec![
-        id_column(),
-        not_null_col(ColumnType::Text, "page_that_holds_link_id"),
-        not_null_col(ColumnType::Text, "page_being_linked_to_id"),
-        not_null_col(ColumnType::Blob, "disabled"),
-        not_null_col(ColumnType::Blob, "version"),
-    ]
-}
+use crate::row_values::{blob_value, text_value};
 
 pub const TABLE_NAME: &str = "backlinks";
 
@@ -58,6 +44,17 @@ pub const VERSION: SchemaColumn<Vec<u8>> = SchemaColumn::<Vec<u8>> {
 };
 
 #[uniffi::export]
+pub fn new_table_backlinks() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_col(ColumnType::Text, PAGE_THAT_HOLDS_LINK_ID.name),
+        not_null_col(ColumnType::Text, PAGE_BEING_LINKED_TO_ID.name),
+        not_null_col(ColumnType::Blob, DISABLED.name),
+        not_null_col(ColumnType::Blob, VERSION.name),
+    ]
+}
+
+#[uniffi::export]
 pub fn get_foreign_def_backlinks() -> Vec<ForeignKeyDef> {
     vec![
         ForeignKeyDef {
@@ -73,12 +70,6 @@ pub fn get_foreign_def_backlinks() -> Vec<ForeignKeyDef> {
     ]
 }
 
-// ---
-/*
-   new row helper here
-*/
-// ---
-
 #[uniffi::export]
 pub fn new_backlink_row(
     page_that_holds_link_id: String,
@@ -89,21 +80,9 @@ pub fn new_backlink_row(
     let version = backlinks_doc.create_bookmark()?;
 
     Ok(vec![
-        ColumnValue {
-            column_name: PAGE_THAT_HOLDS_LINK_ID.name.to_string(),
-            value: Col::Text(page_that_holds_link_id),
-        },
-        ColumnValue {
-            column_name: PAGE_BEING_LINKED_TO_ID.name.to_string(),
-            value: Col::Text(page_being_linked_to_id),
-        },
-        ColumnValue {
-            column_name: DISABLED.name.to_string(),
-            value: Col::Blob(disabled),
-        },
-        ColumnValue {
-            column_name: VERSION.name.to_string(),
-            value: Col::Blob(version),
-        },
+        text_value(&PAGE_THAT_HOLDS_LINK_ID, page_that_holds_link_id),
+        text_value(&PAGE_BEING_LINKED_TO_ID, page_being_linked_to_id),
+        blob_value(&DISABLED, disabled),
+        blob_value(&VERSION, version),
     ])
 }

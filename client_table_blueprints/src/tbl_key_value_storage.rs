@@ -1,24 +1,15 @@
-#![allow(non_snake_case)]
 use std::marker::PhantomData;
 
-//use protocol::error::DbError;
-//use protocol::error::DbError::ColDestructFail;
-//use protocol::schema_helper::DestructDbReturnCol;
+use my_yrs_lib::YrsError;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
 use protocol::new_table::id_column;
 use protocol::new_table::not_null_col;
 use protocol::new_table::not_null_unique_col;
+use protocol::payload::ColumnValue;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-#[uniffi::export]
-pub fn new_table_key_value_storage() -> Vec<ColumnDef> {
-    vec![
-        id_column(),
-        not_null_unique_col(ColumnType::Text, "key"),
-        not_null_col(ColumnType::Text, "value"),
-    ]
-}
+use crate::row_values::text_value;
 
 pub const TABLE_NAME: &str = "key_value_storage";
 
@@ -36,25 +27,16 @@ pub const VALUE: SchemaColumn<String> = SchemaColumn::<String> {
     _marker: PhantomData,
 };
 
-// ---
-/*
-   new row helper here
-*/
-// ---
-use my_yrs_lib::YrsError;
-use protocol::payload::ColumnValue;
-use protocol::row_col::Col;
+#[uniffi::export]
+pub fn new_table_key_value_storage() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_unique_col(ColumnType::Text, KEY.name),
+        not_null_col(ColumnType::Text, VALUE.name),
+    ]
+}
 
 #[uniffi::export]
 pub fn new_key_value_item(key: String, value: String) -> Result<Vec<ColumnValue>, YrsError> {
-    Ok(vec![
-        ColumnValue {
-            column_name: KEY.name.to_string(),
-            value: Col::Text(key),
-        },
-        ColumnValue {
-            column_name: VALUE.name.to_string(),
-            value: Col::Text(value),
-        },
-    ])
+    Ok(vec![text_value(&KEY, key), text_value(&VALUE, value)])
 }

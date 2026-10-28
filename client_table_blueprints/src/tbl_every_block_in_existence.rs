@@ -1,32 +1,15 @@
-#![allow(non_snake_case)]
 use std::marker::PhantomData;
 
 use my_yrs_lib::YrsError;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
-//use protocol::error::DbError;
-//use protocol::error::DbError::ColDestructFail;
 use protocol::new_table::ForeignKeyDef;
 use protocol::new_table::id_column;
 use protocol::new_table::not_null_col;
 use protocol::payload::ColumnValue;
-use protocol::row_col::Col;
-//use protocol::schema_helper::DestructDbReturnCol;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-#[uniffi::export]
-pub fn new_table_every_block_in_existence() -> Vec<ColumnDef> {
-    vec![
-        id_column(),
-        not_null_col(ColumnType::Text, "is_title"),
-        not_null_col(ColumnType::Text, "is_part_of_main_menu_page"),
-        not_null_col(ColumnType::Text, "content"),
-        not_null_col(ColumnType::Text, "my_id_as_given_by_yrs"),
-        not_null_col(ColumnType::Text, "id_of_page_i_belong_to"),
-        not_null_col(ColumnType::Text, "frac_position"),
-        not_null_col(ColumnType::Text, "page_is_disabled"),
-    ]
-}
+use crate::row_values::text_value;
 
 pub const TABLE_NAME: &str = "every_block_in_existence";
 
@@ -80,6 +63,20 @@ pub const PAGE_IS_DISABLED: SchemaColumn<String> = SchemaColumn::<String> {
 };
 
 #[uniffi::export]
+pub fn new_table_every_block_in_existence() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_col(ColumnType::Text, IS_TITLE.name),
+        not_null_col(ColumnType::Text, IS_PART_OF_MAIN_MENU_PAGE.name),
+        not_null_col(ColumnType::Text, CONTENT.name),
+        not_null_col(ColumnType::Text, MY_ID_AS_GIVEN_BY_YRS.name),
+        not_null_col(ColumnType::Text, ID_OF_PAGE_I_BELONG_TO.name),
+        not_null_col(ColumnType::Text, FRAC_POSITION.name),
+        not_null_col(ColumnType::Text, PAGE_IS_DISABLED.name),
+    ]
+}
+
+#[uniffi::export]
 pub fn get_foreign_def_every_block_in_existence() -> Vec<ForeignKeyDef> {
     vec![ForeignKeyDef {
         column_name: ID_OF_PAGE_I_BELONG_TO.name.to_string(),
@@ -88,51 +85,22 @@ pub fn get_foreign_def_every_block_in_existence() -> Vec<ForeignKeyDef> {
     }]
 }
 
-// ---
-/*
-   new row helper here
-*/
-// ---
-
-// frac_position is the block's fractional index — a hex string the
-// caller already knows before the row is inserted.
 #[uniffi::export]
 pub fn new_every_block_in_existence_row(
     is_title: bool,
     is_part_of_main_menu_page: bool,
     content: String,
-    my_id_as_given_by_yrs: String,  //block id
-    id_of_page_i_belong_to: String, //page id
+    my_id_as_given_by_yrs: String,
+    id_of_page_i_belong_to: String,
     frac_position: String,
 ) -> Result<Vec<ColumnValue>, YrsError> {
     Ok(vec![
-        ColumnValue {
-            column_name: IS_TITLE.name.to_string(),
-            value: Col::Text(is_title.to_string()),
-        },
-        ColumnValue {
-            column_name: IS_PART_OF_MAIN_MENU_PAGE.name.to_string(),
-            value: Col::Text(is_part_of_main_menu_page.to_string()),
-        },
-        ColumnValue {
-            column_name: CONTENT.name.to_string(),
-            value: Col::Text(content),
-        },
-        ColumnValue {
-            column_name: MY_ID_AS_GIVEN_BY_YRS.name.to_string(),
-            value: Col::Text(my_id_as_given_by_yrs),
-        },
-        ColumnValue {
-            column_name: ID_OF_PAGE_I_BELONG_TO.name.to_string(),
-            value: Col::Text(id_of_page_i_belong_to),
-        },
-        ColumnValue {
-            column_name: FRAC_POSITION.name.to_string(),
-            value: Col::Text(frac_position),
-        },
-        ColumnValue {
-            column_name: PAGE_IS_DISABLED.name.to_string(),
-            value: Col::Text("false".to_string()),
-        },
+        text_value(&IS_TITLE, is_title.to_string()),
+        text_value(&IS_PART_OF_MAIN_MENU_PAGE, is_part_of_main_menu_page.to_string()),
+        text_value(&CONTENT, content),
+        text_value(&MY_ID_AS_GIVEN_BY_YRS, my_id_as_given_by_yrs),
+        text_value(&ID_OF_PAGE_I_BELONG_TO, id_of_page_i_belong_to),
+        text_value(&FRAC_POSITION, frac_position),
+        text_value(&PAGE_IS_DISABLED, "false".to_string()),
     ])
 }

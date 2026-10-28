@@ -1,20 +1,14 @@
-#![allow(non_snake_case)]
 use std::marker::PhantomData;
 
+use my_yrs_lib::YrsError;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
 use protocol::new_table::id_column;
 use protocol::new_table::not_null_col;
+use protocol::payload::ColumnValue;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-#[uniffi::export]
-pub fn new_table_incoming_love_letters() -> Vec<ColumnDef> {
-    vec![
-        id_column(),
-        not_null_col(ColumnType::Blob, "love_letter"),
-        not_null_col(ColumnType::Text, "target_page_id"),
-    ]
-}
+use crate::row_values::{blob_value, text_value};
 
 pub const TABLE_NAME: &str = "incoming_love_letters";
 
@@ -32,14 +26,14 @@ pub const TARGET_PAGE_ID: SchemaColumn<String> = SchemaColumn::<String> {
     _marker: PhantomData,
 };
 
-// ---
-/*
-   new row helper here
-*/
-// ---
-use my_yrs_lib::YrsError;
-use protocol::payload::ColumnValue;
-use protocol::row_col::Col;
+#[uniffi::export]
+pub fn new_table_incoming_love_letters() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_col(ColumnType::Blob, LOVE_LETTER.name),
+        not_null_col(ColumnType::Text, TARGET_PAGE_ID.name),
+    ]
+}
 
 #[uniffi::export]
 pub fn new_incoming_love_letter_row(
@@ -47,13 +41,7 @@ pub fn new_incoming_love_letter_row(
     target_page_id: String,
 ) -> Result<Vec<ColumnValue>, YrsError> {
     Ok(vec![
-        ColumnValue {
-            column_name: LOVE_LETTER.name.to_string(),
-            value: Col::Blob(love_letter),
-        },
-        ColumnValue {
-            column_name: TARGET_PAGE_ID.name.to_string(),
-            value: Col::Text(target_page_id),
-        },
+        blob_value(&LOVE_LETTER, love_letter),
+        text_value(&TARGET_PAGE_ID, target_page_id),
     ])
 }

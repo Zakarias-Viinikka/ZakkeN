@@ -1,25 +1,14 @@
-#![allow(non_snake_case)]
 use std::marker::PhantomData;
 
-//use protocol::error::DbError;
-//use protocol::error::DbError::ColDestructFail;
-//use protocol::schema_helper::DestructDbReturnCol;
+use my_yrs_lib::YrsError;
 use protocol::new_table::ColumnDef;
 use protocol::new_table::ColumnType;
 use protocol::new_table::id_column;
 use protocol::new_table::not_null_col;
+use protocol::payload::ColumnValue;
 use protocol::schema_helper::{SchemaColumn, TypeOfCol};
 
-#[uniffi::export]
-pub fn new_table_client_love_letter() -> Vec<ColumnDef> {
-    vec![
-        id_column(),
-        not_null_col(ColumnType::Blob, "snapshot_of_edit"),
-        not_null_col(ColumnType::Blob, "love_letter_sketch"),
-        not_null_col(ColumnType::Text, "session_id"),
-        not_null_col(ColumnType::Text, "target_id"),
-    ]
-}
+use crate::row_values::{blob_value, text_value};
 
 pub const TABLE_NAME: &str = "client_love_letter";
 
@@ -51,14 +40,16 @@ pub const TARGET_ID: SchemaColumn<String> = SchemaColumn::<String> {
     _marker: PhantomData,
 };
 
-// ---
-/*
-   new row helper here
-*/
-// ---
-use my_yrs_lib::YrsError;
-use protocol::payload::ColumnValue;
-use protocol::row_col::Col;
+#[uniffi::export]
+pub fn new_table_client_love_letter() -> Vec<ColumnDef> {
+    vec![
+        id_column(),
+        not_null_col(ColumnType::Blob, SNAPSHOT_OF_EDIT.name),
+        not_null_col(ColumnType::Blob, LOVE_LETTER_SKETCH.name),
+        not_null_col(ColumnType::Text, SESSION_ID.name),
+        not_null_col(ColumnType::Text, TARGET_ID.name),
+    ]
+}
 
 #[uniffi::export]
 pub fn new_client_love_letter_row(
@@ -68,21 +59,9 @@ pub fn new_client_love_letter_row(
     target_id: String,
 ) -> Result<Vec<ColumnValue>, YrsError> {
     Ok(vec![
-        ColumnValue {
-            column_name: SNAPSHOT_OF_EDIT.name.to_string(),
-            value: Col::Blob(snapshot_of_edit),
-        },
-        ColumnValue {
-            column_name: LOVE_LETTER_SKETCH.name.to_string(),
-            value: Col::Blob(love_letter_sketch),
-        },
-        ColumnValue {
-            column_name: SESSION_ID.name.to_string(),
-            value: Col::Text(session_id),
-        },
-        ColumnValue {
-            column_name: TARGET_ID.name.to_string(),
-            value: Col::Text(target_id),
-        },
+        blob_value(&SNAPSHOT_OF_EDIT, snapshot_of_edit),
+        blob_value(&LOVE_LETTER_SKETCH, love_letter_sketch),
+        text_value(&SESSION_ID, session_id),
+        text_value(&TARGET_ID, target_id),
     ])
 }
