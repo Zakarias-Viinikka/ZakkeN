@@ -1,23 +1,19 @@
 # client_internals
 
-How a client talks to `zakken_server`. Three folders:
+How a client talks to `zakken_server`. One crate:
 
-- `shared_internals_for_server` — target-agnostic. The response router:
-  every request gets a fresh id, and the reply to that id goes back to
-  whoever is waiting. A response whose id has no waiter (nudges are the
-  case that matters, message id 0) goes on its own channel. Depends on
-  `futures` + `server_protocol` + `error_stuff` only.
+- `shared_internals_for_server` — everything the client needs to hold
+  a connection. The response router assigns each request a fresh id
+  and routes the reply back to whoever is waiting. The per-target
+  socket halves live inside it as `src/socket_web.rs` and
+  `src/socket_android.rs`, so `Router::new(url, on_letters,
+  on_conn_status)` is the same call on both targets and only the
+  `spawn` underneath differs. The web half opens a `WebSocket` via
+  `web_sys`, writes outgoing messages, decodes incoming JSON, and
+  retries on disconnect. The Android half is a placeholder until a
+  native websocket crate is picked.
 
-- `web` — the browser half. Opens a `WebSocket` via `web_sys`, writes
-  outgoing messages, decodes incoming JSON, and drives the shared router.
-  Modeled on
-  `rust_practice/server_template_3/client_side/how_to_talk_to_server`.
-  Wasm only; excluded from the workspace.
-
-- `android` — the Android half. Same idea, over a native websocket,
-  exposed across uniffi. Skeleton; the socket crate hasn't been chosen.
-  Excluded from the workspace.
-
-Why split this way: the router is the same in both, so it lives once.
-The socket is different in each, so it lives twice. The socket half is
-the only part that knows about a platform.
+Earlier there were two extra crates, `client_web` and `client_android`,
+one per target. They became empty when the socket code moved into the
+shared crate so `Router::new` could stay identical for both, and were
+removed.

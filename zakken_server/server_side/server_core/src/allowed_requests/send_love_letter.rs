@@ -55,8 +55,26 @@ pub async fn accept_letter(
 
     let target_page = get_target_page_id_from_letter(&letter);
 
+    // One transaction across the whole handler. If any step fails, the
+    // pages update, the letter row, and the unsent rows all roll back
+    // together, so a client retry starts clean instead of leaving a
+    // duplicate letter id and a stray unsent row per user.
     let letter_id = {
         let locked = state.lock().unwrap();
+
+        if let Err(e) = locked.begin_all_or_nothing() {
+            log_error(
+                "server",
+                LogCategory::Database,
+                &ErrorDetails {
+                    err_msg: format!("couldn't begin transaction: {e:?}"),
+                    file: file!().to_string(),
+                    method: "send_love_letter::accept_letter".to_string(),
+                    probable_cause: "another transaction is already open".to_string(),
+                },
+            );
+            return err_bytes(e);
+        }
 
         if let Err(e) = apply_letter(&locked, letter) {
             log_error(
@@ -69,6 +87,7 @@ pub async fn accept_letter(
                     probable_cause: "the page the letter targets couldn't be read or written".to_string(),
                 },
             );
+            let _ = locked.regret_everything();
             return err_bytes(e);
         }
         log("server", format!("updated its copy of page {target_page}"));
@@ -86,6 +105,7 @@ pub async fn accept_letter(
                         probable_cause: "the love_letters_from_clients table rejected the insert".to_string(),
                     },
                 );
+                let _ = locked.regret_everything();
                 return err_bytes(e);
             }
         };
@@ -107,6 +127,7 @@ pub async fn accept_letter(
                         probable_cause: String::new(),
                     },
                 );
+                let _ = locked.regret_everything();
                 return err_bytes(e);
             }
         };
@@ -126,8 +147,23 @@ pub async fn accept_letter(
                         probable_cause: "the unsent_love_letters table rejected the row".to_string(),
                     },
                 );
+                let _ = locked.regret_everything();
                 return err_bytes(e);
             }
+        }
+
+        if let Err(e) = locked.everything_went_perfectly() {
+            log_error(
+                "server",
+                LogCategory::Database,
+                &ErrorDetails {
+                    err_msg: format!("couldn't commit the transaction: {e:?}"),
+                    file: file!().to_string(),
+                    method: "send_love_letter::accept_letter".to_string(),
+                    probable_cause: "sqlite rejected the commit".to_string(),
+                },
+            );
+            return err_bytes(e);
         }
 
         id

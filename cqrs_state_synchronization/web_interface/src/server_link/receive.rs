@@ -12,7 +12,7 @@
 use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
-use client_table_blueprints::tbl_seen_server_letters;
+use client_table_blueprints::{tbl_pages, tbl_seen_server_letters};
 use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures_util::StreamExt;
 use leptos::prelude::*;
@@ -33,7 +33,7 @@ use crate::leptos_components::small_components::popup::create_popup;
 
 use super::merge::{apply_letter, ApplyError};
 
-pub static BOOTSTRAPPED: LazyLock<ArcRwSignal<bool>> =
+pub static STARTED_FRESH: LazyLock<ArcRwSignal<bool>> =
     LazyLock::new(|| ArcRwSignal::new(false));
 
 pub static MENU_TICK: LazyLock<ArcRwSignal<u32>> =
@@ -44,11 +44,12 @@ static SEEN_IDS: LazyLock<Mutex<HashSet<i64>>> = LazyLock::new(|| Mutex::new(Has
 pub fn spawn_worker(
     router: RouterHandle,
     letters_rx: UnboundedReceiver<UnsentLetter>,
+    reconnect_rx: UnboundedReceiver<()>,
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
     spawn_local(async move {
-        run_worker(router, letters_rx, batcher, open).await;
+        run_worker(router, letters_rx, reconnect_rx, batcher, open).await;
     });
 }
 
@@ -62,6 +63,7 @@ pub fn make_letters_channel() -> (
 async fn run_worker(
     router: RouterHandle,
     mut letters_rx: UnboundedReceiver<UnsentLetter>,
+    mut reconnect_rx: UnboundedReceiver<()>,
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
@@ -78,9 +80,9 @@ async fn run_worker(
         leptos::logging::warn!("load_seen_from_db: {e:?}");
     }
 
-    if !BOOTSTRAPPED.get_untracked() {
-        match bootstrap(&router, &batcher, open).await {
-            Ok(()) => BOOTSTRAPPED.set(true),
+    if !STARTED_FRESH.get_untracked() {
+        match start_over_fresh(&router, &batcher, open).await {
+            Ok(()) => STARTED_FRESH.set(true),
             Err(e) => {
                 leptos::logging::error!("bootstrap failed: {e:?}");
                 create_popup(format!("bootstrap failed: {e:?}"));
@@ -101,19 +103,61 @@ async fn run_worker(
         }
     }
 
-    while let Some(item) = letters_rx.next().await {
-        if !handle_one(&batcher, open, &router, item).await {
-            return;
+    loop {
+        let next_item = letters_rx.next();
+        let next_reconnect = reconnect_rx.next();
+        match futures_util::future::select(next_item, next_reconnect).await {
+            futures_util::future::Either::Left((item, _)) => match item {
+                Some(i) => {
+                    if !handle_one(&batcher, open, &router, i).await {
+                        return;
+                    }
+                }
+                None => break,
+            },
+            futures_util::future::Either::Right((_, _)) => {
+                // Reconnect. The new server-side socket has no user
+                // attached, so re-run login, then push anything still
+                // queued locally and pull whatever the server queued
+                // for us while we were disconnected.
+                if let Err(e) = super::identity::login(&router).await {
+                    leptos::logging::error!("reconnect login: {e}");
+                    continue;
+                }
+                super::kick_send();
+                match pull_unsent(&router).await {
+                    Ok(letters) => {
+                        for item in letters {
+                            if !handle_one(&batcher, open, &router, item).await {
+                                return;
+                            }
+                        }
+                    }
+                    Err(e) => leptos::logging::warn!("reconnect pull failed: {e:?}"),
+                }
+            }
         }
     }
     leptos::logging::warn!("receive worker exiting: socket channel closed");
 }
 
-async fn bootstrap(
+async fn start_over_fresh(
     router: &RouterHandle,
     batcher: &BatcherHandle,
     open: OpenPages,
 ) -> Result<(), DbError> {
+    // GetAllYrsPages returns the server's full page set. Merging that
+    // into a non-empty local db is a union, not a fast-forward, and
+    // yrs union across divergent lineages silently corrupts state.
+    // Bootstrap is therefore only allowed against a clean local db;
+    // anything else goes through reconcile/adopt.
+    if local_db_has_pages().await? {
+        return Err(DbError::IllegalInput(
+            "bootstrap refused: local db already has pages. Wipe locally, or use reconcile/adopt."
+                .to_string(),
+        ));
+    }
+
     let bytes = router
         .send_request(Request::GetAllYrsPages, Vec::new())
         .await
@@ -203,6 +247,16 @@ fn apply_error_to_db_error(e: ApplyError) -> DbError {
         }
         ApplyError::Fatal(c) => DbError::BadCode(format!("bootstrap apply: {c:?}")),
     }
+}
+
+async fn local_db_has_pages() -> Result<bool, DbError> {
+    let out = db_helper::get_data(GetDataIn {
+        table_name: tbl_pages::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::All),
+        columns_to_read: vec![tbl_pages::PAGE_ID.name.to_string()],
+    })
+    .await?;
+    Ok(!out.rows.is_empty())
 }
 
 async fn pull_unsent(router: &RouterHandle) -> Result<Vec<UnsentLetter>, DbError> {

@@ -1,3 +1,54 @@
+Wednesday, 28 October 2026 (audit pass, reconnect fix, client_internals cleanup)
+==============================================================================
+
+Docs pass first, then audit, then three real fixes.
+
+Docs: `plan.md` rewritten against the code (it still described
+`ConnectedClients` and a request list without `Ack` /
+`GetMyUnsentLetters`). `guide_to_interacting_with_server.md` gained
+the register-then-login paragraph, the "client starts disconnected"
+line, and a pointer to `shared/server_protocol/src/responses.rs`.
+`plan_for_general_data_management_ops.md` moved from `artifacts/` to
+the repo root; the two docs pointing at the old path were fixed.
+
+Protocol split: `shared/server_protocol/src/request.rs` lost the
+reply-only structs. `PageRow`, `GetAllYrsPagesPayload`, `UnsentLetter`
+and `GetMyUnsentLettersPayload` now live in a new `responses.rs`.
+`lib.rs` re-exports everything, so no call site changed.
+
+Reconnect bug fixed. `run_worker` only logged in once at task start;
+every socket reconnect produced a fresh server-side socket with no
+user attached, so every request after a transport blip failed with
+"not logged in" until a page reload. Two changes: `socket_web.rs`
+fires an `on_disconnect` hook that clears the router's pending map
+(so in-flight callers error out instead of hanging), and `core.rs`
+watches the second and later `ConnStatus::Connected` to feed a
+reconnect signal into `receive.rs`. The worker re-runs login,
+`kick_send` and `pull_unsent` on each reconnect.
+
+`accept_letter` now wraps its whole db section in one transaction.
+Before, a failure while queueing unsent rows left the letter row
+committed, so the client's retry created a second `letter_id` for
+the same edit and a duplicate unsent row per user.
+`begin_all_or_nothing` at the top, `regret_everything` on every error
+path, `everything_went_perfectly` at the end.
+
+`start_over_fresh` (renamed from `bootstrap`). Refuses to run if the
+local db already has pages. `GetAllYrsPages` returns the server's
+full set, and merging that into a non-empty local db is a union across
+divergent lineages. Anything with local pages goes through
+reconcile/adopt instead.
+
+Cleanup: removed `client_internals/web` and
+`client_internals/android`. Both were orphaned after the socket halves
+moved into `shared_internals_for_server` as `socket_web.rs` /
+`socket_android.rs`; nothing depended on them and both were
+workspace-excluded. `local_cargo.sh` no longer cds into them.
+`Router`'s host-target dead_code warnings got a `cfg_attr(not(any(
+wasm32, android)), allow(dead_code))`.
+
+`c c` green on both workspaces.
+
 Wednesday, 28 October 2026 (web client talks to server)
 ========================================================
 

@@ -267,3 +267,38 @@ first's socket. Fine for the local-network use case.
 
 `oct_27_plan.md` moved to `ZakkeN/artifacts/oct_27_plan.md` for
 reference.
+
+## Update - 2026-10-28 (audit pass, reconnect fix, cleanup)
+
+Three real fixes came out of an audit of the sync path.
+
+Reconnect: `run_worker` only logged in once at spawn. Every socket
+reconnect made a fresh server-side socket with no user attached, so
+the server rejected every request with "not logged in" until a page
+reload. `socket_web.rs` now fires an `on_disconnect` hook that clears
+the router's pending map (in-flight callers error out instead of
+hanging), and `core.rs` watches the second and later
+`ConnStatus::Connected` to feed a reconnect signal into `receive.rs`.
+The worker re-runs login, `kick_send`, and `pull_unsent` on each
+reconnect.
+
+`accept_letter` now wraps its whole db section in one transaction.
+Before, a failure while queueing unsent rows left the letter row
+committed, so the client's retry created a second `letter_id` for the
+same edit and a duplicate unsent row per user.
+
+`start_over_fresh` (renamed from `bootstrap`). It now refuses to run
+if the local db already has pages. `GetAllYrsPages` returns the
+server's full set, and merging that into a non-empty local db is a
+union across divergent lineages, which is what the plan's I1 forbids.
+Anything with local pages has to go through reconcile/adopt.
+
+Cleanup: removed `client_internals/web` and `client_internals/android`.
+Both were orphaned after the socket halves moved into
+`shared_internals_for_server` as `socket_web.rs` / `socket_android.rs`;
+nothing depended on them and both were workspace-excluded.
+`local_cargo.sh` no longer cds into them. `Router`'s host-target
+dead_code warnings got a `cfg_attr(not(any(wasm32, android)),
+allow(dead_code))`.
+
+Both workspaces `c c` green.

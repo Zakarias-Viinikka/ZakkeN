@@ -30,7 +30,8 @@ Basically I want to create a demo for: "create a menu system for reversing a yrs
 
 ## export / import / wipe / adopt / reconcile
 
-User-triggered sync recovery. Pre-plan in artifacts/28_preplan.md.
+User-triggered sync recovery. Plan in
+plan_for_general_data_management_ops.md.
 Covers: hard-copy JSON for pages and backlinks, dataset generation
 id in the server's Login reply, new request variants for wipe and
 adopt, and a per-page reconcile flow. Web first; Android deferred

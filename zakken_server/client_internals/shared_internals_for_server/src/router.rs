@@ -10,10 +10,10 @@
 //! caller-supplied callback. It's spawned inside `new`, not returned.
 
 use error_stuff::{ErrorDetails, ServErr};
-#[allow(unused_imports)]
-use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use futures::channel::oneshot;
 use futures::StreamExt;
+#[allow(unused_imports)]
+use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
+use futures::channel::oneshot;
 use protocol::serialization::Base64Bytes;
 use server_protocol::{Message, Request, Response, UnsentLetter};
 use std::collections::HashMap;
@@ -35,6 +35,10 @@ struct Shared {
     outgoing_tx: UnboundedSender<Message>,
 }
 
+#[cfg_attr(
+    not(any(target_arch = "wasm32", target_os = "android")),
+    allow(dead_code)
+)]
 pub struct Router {
     shared: Arc<Shared>,
     incoming_responses_rx: UnboundedReceiver<Response>,
@@ -69,13 +73,32 @@ impl Router {
             on_love_letters: Box::new(on_love_letters),
         };
         socket::spawn_dispatch(dispatch);
-        socket::spawn(url, outgoing_rx, incoming_tx, on_conn_status);
+
+        // Whenever the socket dies, drop every waiter still hoping for
+        // a reply over the old connection. The server does not replay
+        // in-flight replies on reconnect, so without this the waiting
+        // callers would hang forever.
+        let shared_for_disconnect = Arc::clone(&shared);
+        let on_disconnect = move || {
+            shared_for_disconnect.pending.lock().unwrap().clear();
+        };
+        socket::spawn(
+            url,
+            outgoing_rx,
+            incoming_tx,
+            on_conn_status,
+            on_disconnect,
+        );
 
         RouterHandle { shared }
     }
 
     /// The dispatch loop. Ends when the socket half drops
     /// `incoming_tx`, i.e. when the socket task fully exits.
+    #[cfg_attr(
+        not(any(target_arch = "wasm32", target_os = "android")),
+        allow(dead_code)
+    )]
     pub(crate) async fn run(mut self) {
         while let Some(response) = self.incoming_responses_rx.next().await {
             match response {

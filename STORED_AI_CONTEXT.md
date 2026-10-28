@@ -117,7 +117,9 @@ in context as `BatcherHandle`. Every write entry point flushes first.
 Page-inside-page and the special menu (z+space opens, esc or space
 again closes, down arrow selects) are designed but not started. The
 loading system - preload, then offline, then server - is described in
-ZakkeN/cache_and_preload.md.
+ZakkeN/cache_and_preload.md. The general data management operations -
+export, import, pause, wipe server, adopt, reconcile - are planned in
+ZakkeN/plan_for_general_data_management_ops.md.
 
 The Enter-split rule is "split at the cursor" now, not three newlines;
 blocks appear in `page.blocks` before the DB has them (the batcher's
@@ -130,8 +132,10 @@ response router (`Router::new` opens the socket, spawns the dispatch
 and retry loops, returns a `RouterHandle`; per-target socket code lives
 in `socket_web.rs` / `socket_android.rs`).
 `web_interface/src/server_link/` owns the connection lifecycle
-(identity, bootstrap, receive worker, sender, write lock). Sync has
-been observed end to end.
+(identity, start_over_fresh, receive worker, sender, write lock). Sync
+has been observed end to end. The receive worker re-runs login on
+every reconnect, not just the first connect, because each new
+server-side socket starts with no user attached.
 
 The drag-reorder UI lives inside `web_interface`, in
 `drag_reorder_container/`. The folder has three layers:
@@ -162,15 +166,15 @@ new textarea but does not route input to it. Replaced with
 `opacity: 0; pointer-events: none`. `ZakkeN/tmp_focus_test` reproduces
 the mechanic and can be deleted, or kept as a regression test.
 
-## zakken_server - 2026-10-27
+## zakken_server - 2026-10-28
 
-A workspace in three folders, shaped like rust_practice/server_template_3:
+A workspace in four folders, shaped like rust_practice/server_template_3:
 
   shared/        error_stuff, server_protocol
   server_side/   db (package db_core), server_core, love_letter_parser,
                  queue
   mock_client/   mock_client_core, cli_gui
-  client_internals/ shared_internals_for_server, web, android
+  client_internals/ shared_internals_for_server
 
 db_core - schemas and db operations, nothing else. Schemas in
 db/src/db/schema/, one file per table, tbl_ prefix:
@@ -192,7 +196,12 @@ YrsActivePages. It deliberately doesn't call cqrs's builder.
 
 server_protocol - the server's own Message, Response, Request and
 payload structs. Request variants: Register, Login, SendLoveLetter,
-GetAllYrsPages, Ack. Every response payload is bincode
+GetAllYrsPages, Ack, GetMyUnsentLetters. Request-only payloads
+(RegisterPayload, LoginPayload, SendLoveLetterPayload, AckPayload)
+live in request.rs; reply-only payloads (PageRow,
+GetAllYrsPagesPayload, UnsentLetter, GetMyUnsentLettersPayload) live
+in responses.rs. lib.rs is pure re-exports, so no call site cares
+which file a struct is in. Every reply payload is bincode
 Result<T, DbError>, so the client can tell success from failure.
 
 queue - Job, Priority, QueueManager. No db knowledge. Every client

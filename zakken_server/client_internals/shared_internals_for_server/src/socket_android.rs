@@ -8,13 +8,15 @@ use server_protocol::{Message, Response};
 
 use crate::conn_status::ConnStatus;
 
-pub(crate) fn spawn<S>(
+pub(crate) fn spawn<S, F>(
     _url: String,
     _outgoing_rx: UnboundedReceiver<Message>,
     _incoming_tx: UnboundedSender<Response>,
     _on_conn_status: S,
+    _on_disconnect: F,
 ) where
     S: FnMut(ConnStatus) + 'static,
+    F: Fn() + 'static,
 {
     unimplemented!("android socket not wired yet");
 }

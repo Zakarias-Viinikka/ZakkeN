@@ -1,4 +1,5 @@
-use crate::request::{Request, UnsentLetter};
+use crate::request::Request;
+use crate::responses::UnsentLetter;
 use protocol::serialization::Base64Bytes;
 use serde::{Deserialize, Serialize};
 

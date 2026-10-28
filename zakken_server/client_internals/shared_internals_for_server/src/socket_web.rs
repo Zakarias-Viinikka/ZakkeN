@@ -21,26 +21,37 @@ use web_sys::{MessageEvent, WebSocket};
 
 use crate::conn_status::ConnStatus;
 
-pub(crate) fn spawn<S>(
+pub(crate) fn spawn<S, F>(
     url: String,
     outgoing_rx: UnboundedReceiver<Message>,
     incoming_tx: UnboundedSender<Response>,
     on_conn_status: S,
+    on_disconnect: F,
 ) where
     S: FnMut(ConnStatus) + 'static,
+    F: Fn() + 'static,
 {
     spawn_local(async move {
-        run_retry(url, outgoing_rx, incoming_tx, on_conn_status).await;
+        run_retry(
+            url,
+            outgoing_rx,
+            incoming_tx,
+            on_conn_status,
+            on_disconnect,
+        )
+        .await;
     });
 }
 
-async fn run_retry<S>(
+async fn run_retry<S, F>(
     url: String,
     mut outgoing_rx: UnboundedReceiver<Message>,
     incoming_tx: UnboundedSender<Response>,
     mut on_conn_status: S,
+    on_disconnect: F,
 ) where
     S: FnMut(ConnStatus) + 'static,
+    F: Fn() + 'static,
 {
     let mut backoff_ms: u32 = 1000;
     loop {
@@ -49,6 +60,11 @@ async fn run_retry<S>(
             Ok(ws) => {
                 on_conn_status(ConnStatus::Connected);
                 let closed_cleanly = run_one(ws, &mut outgoing_rx, incoming_tx.clone()).await;
+                // The socket has died. Any request still waiting for a
+                // reply over the old connection will never get one, so
+                // drop the waiters and let their callers see an error
+                // instead of hanging.
+                on_disconnect();
                 if !closed_cleanly {
                     // The message channel itself closed; nothing more
                     // to do.

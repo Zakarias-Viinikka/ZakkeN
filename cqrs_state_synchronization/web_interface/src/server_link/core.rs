@@ -5,7 +5,7 @@
 //! the two-tab lock, and hands the resulting `RouterHandle` to the
 //! worker and the sender.
 
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -63,6 +63,13 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
     let url = build_ws_url();
     let (letters_tx, letters_rx) = super::make_letters_channel();
 
+    // Fires on every RE-connect (not the first connect). Each transport
+    // blip makes a fresh server-side socket with no user attached, so
+    // run_worker listens here and re-runs login to re-authenticate.
+    let (reconnect_tx, reconnect_rx) = futures_channel::mpsc::unbounded::<()>();
+    let first_connected = Arc::new(std::sync::atomic::AtomicBool::new(true));
+
+    let first_connected_cb = Arc::clone(&first_connected);
     let router = Router::new(
         url,
         move |letter| {
@@ -70,13 +77,18 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
         },
         move |status| match status {
             ConnStatus::Connecting => CONN_STATE.set(ConnState::Connecting),
-            ConnStatus::Connected => CONN_STATE.set(ConnState::Connected),
+            ConnStatus::Connected => {
+                CONN_STATE.set(ConnState::Connected);
+                if !first_connected_cb.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    let _ = reconnect_tx.unbounded_send(());
+                }
+            }
             ConnStatus::Failed => CONN_STATE.set(ConnState::FailedToConnect),
         },
     );
 
     super::spawn_sender(router.clone());
-    super::spawn_worker(router, letters_rx, batcher, open);
+    super::spawn_worker(router, letters_rx, reconnect_rx, batcher, open);
 }
 
 fn build_ws_url() -> String {
