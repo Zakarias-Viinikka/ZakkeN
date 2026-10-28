@@ -9,4 +9,7 @@ leptos = { version = "0.8.22", features = ["csr"] }
 leptos_router = "0.8.17"
 stylist = "0.15.1"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Element", "HtmlDivElement", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "MediaQueryList", "Window"] }
+web-sys = { version = "0.3", features = ["CssStyleDeclaration", "Document", "DomRect", "Element", "HtmlDivElement", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "MediaQueryList", "MouseEvent", "ResizeObserver", "ResizeObserverEntry", "Window"] }
+js-sys = "0.3"
+gloo-timers = { version = "0.4.0", features = ["futures"] }
+rapier2d = "0.35.3"

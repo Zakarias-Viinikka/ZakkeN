@@ -1,0 +1,182 @@
+.ps-stage {
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+}
+
+.ps-page-panel {
+    position: absolute;
+    background: #1c2433;
+    border: 1px solid rgba(228, 233, 242, 0.09);
+    border-top-color: rgba(138, 180, 255, 0.5);
+    border-radius: 14px;
+    pointer-events: none;
+}
+
+.ps-page-title {
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(228, 233, 242, 0.35);
+    pointer-events: none;
+}
+
+.ps-box {
+    position: absolute;
+    z-index: 1;
+    background: transparent;
+    border: 1px solid rgba(228, 233, 242, 0.04);
+    border-radius: 6px;
+    padding: 0 0.6rem;
+    display: flex;
+    align-items: stretch;
+    transition: border-color 0.15s ease;
+}
+
+.ps-box:hover {
+    border-color: rgba(228, 233, 242, 0.09);
+}
+
+.ps-box.ps-box-title {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+}
+
+.ps-box.ps-box-title:hover {
+    border: none;
+}
+
+.ps-box.ps-ghost {
+    border: 1px dashed rgba(138, 180, 255, 0.5);
+    border-radius: 10px;
+}
+
+.ps-box.ps-ghost * {
+    visibility: hidden;
+}
+
+.ps-box.ps-unmeasured {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ps-box.ps-dragging {
+    z-index: 50;
+    background: #2b3648;
+    border: 1px solid rgba(138, 180, 255, 0.6);
+    border-radius: 10px;
+    box-shadow: 0 24px 48px -18px rgba(0, 0, 0, 0.75);
+}
+
+.ps-handle {
+    position: absolute;
+    left: -34px;
+    top: 0.6rem;
+    width: 28px;
+    height: 1.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #7d8aa3;
+    font-size: 0.75rem;
+    letter-spacing: -0.1em;
+    cursor: grab;
+    user-select: none;
+    opacity: 0.5;
+    border-radius: 6px;
+    transition: opacity 0.2s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.ps-box:hover .ps-handle,
+.ps-box:focus-within .ps-handle {
+    opacity: 0.85;
+}
+
+.ps-handle:hover {
+    opacity: 1;
+    background: rgba(138, 180, 255, 0.15);
+    color: #8ab4ff;
+}
+
+.ps-handle:active {
+    cursor: grabbing;
+}
+
+.ps-handle.ps-handle-pinned {
+    display: none;
+}
+
+.ps-content {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: rgba(228, 233, 242, 0.74);
+    font: inherit;
+    padding: 0.1rem 0;
+    resize: none;
+    outline: none;
+    overflow: hidden;
+    transition: color 0.3s ease;
+    line-height: 1.6;
+}
+
+.ps-content:focus {
+    color: #e4e9f2;
+}
+
+.ps-box.ps-box-title .ps-content {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+    color: #e4e9f2;
+    padding: 0.2rem 0;
+}
+
+.ps-vacuum {
+    position: absolute;
+    background: rgba(138, 180, 255, 0.06);
+    border: 1px dashed rgba(138, 180, 255, 0.5);
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    user-select: none;
+    pointer-events: none;
+}
+
+.ps-vacuum-rect {
+    position: absolute;
+    z-index: 60;
+    background: #2b3648;
+    border: 1px solid rgba(138, 180, 255, 0.55);
+    border-radius: 6px;
+    cursor: grab;
+    user-select: none;
+    box-shadow: 0 8px 16px -10px rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ps-vacuum-rect:active {
+    cursor: grabbing;
+}
+
+.ps-box-label {
+    font-size: 0.7rem;
+    color: #e4e9f2;
+    pointer-events: none;
+}
+
+.ps-content:placeholder-shown {
+    color: rgba(228, 233, 242, 0.35);
+}
+
+.ps-box-title .ps-content:placeholder-shown {
+    color: rgba(228, 233, 242, 0.3);
+}

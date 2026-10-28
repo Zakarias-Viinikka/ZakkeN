@@ -5,6 +5,7 @@ use std::time::Duration;
 
 const PANE_LINE_HEIGHT_PX: f64 = 24.0;
 const AUTO_TYPE_INTERVAL_MS: u64 = 130;
+const DOT_DELAYS_MS: [u32; 3] = [0, 150, 300];
 
 const AUTO_TYPE_WORDS: &[&str] = &[
     "The", "quick", "brown", "fox", "jumps", "over", "the", "lazy", "dog",
@@ -23,7 +24,7 @@ pub fn RunningIntoWall() -> impl IntoView {
     let text = RwSignal::new(String::new());
     let measure_trigger = RwSignal::new(0u64);
     let rows_display = RwSignal::new(0i32);
-    let bar = RwSignal::new(None::<(u64, i32)>);
+    let bars: RwSignal<Vec<(u64, i32, u32)>> = RwSignal::new(Vec::new());
     let bar_gen = RwSignal::new(0u64);
     let baseline = RwSignal::new(0i32);
     let baseline_ready = RwSignal::new(false);
@@ -43,10 +44,12 @@ pub fn RunningIntoWall() -> impl IntoView {
         if baseline_ready.get_untracked() {
             let before = baseline.get_untracked();
             if rows_now > before && before > 0 {
-                bar_gen.update(|g| *g = g.wrapping_add(1));
-                let g = bar_gen.get_untracked();
                 let top_px = (before as f64 * PANE_LINE_HEIGHT_PX) as i32;
-                bar.set(Some((g, top_px)));
+                for &delay in DOT_DELAYS_MS.iter() {
+                    bar_gen.update(|g| *g = g.wrapping_add(1));
+                    let g = bar_gen.get_untracked();
+                    bars.update(|v| v.push((g, top_px, delay)));
+                }
             }
         }
         baseline.set(rows_now);
@@ -97,7 +100,7 @@ pub fn RunningIntoWall() -> impl IntoView {
         baseline_ready.set(false);
         baseline.set(0);
         rows_display.set(0);
-        bar.set(None);
+        bars.set(Vec::new());
         bar_gen.set(0);
         measure_trigger.update(|n| *n = n.wrapping_add(1));
     };
@@ -117,13 +120,20 @@ pub fn RunningIntoWall() -> impl IntoView {
                 <div class="rtw-text" node_ref=pane_ref>
                     {move || text.get()}
                     <For
-                        each=move || {
-                            bar.get().map(|entry| vec![entry]).unwrap_or_default()
-                        }
-                        key=|(g, _)| *g
-                        children=move |(_, top)| {
-                            let style_attr = format!("top: {top}px;");
-                            view! { <div class="rtw-bar" style=style_attr></div> }
+                        each=move || bars.get()
+                        key=|(g, _, _)| *g
+                        children=move |(g, top, delay)| {
+                            let style_attr = format!("top: {}px; --delay: {}ms;", top, delay);
+                            let g_self = g;
+                            view! {
+                                <div
+                                    class="rtw-dot"
+                                    style=style_attr
+                                    on:animationend=move |_| {
+                                        bars.update(|v| v.retain(|(id, _, _)| *id != g_self));
+                                    }
+                                ></div>
+                            }
                         }
                     />
                 </div>

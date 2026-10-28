@@ -80,21 +80,6 @@ pub fn BlockTransition() -> AnyView {
     gap: 6px;
 }
 
-.bt-btn {
-    font: inherit;
-    font-size: 13px;
-    padding: 6px 12px;
-    border: 1px solid rgba(128, 128, 128, 0.5);
-    border-radius: 6px;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-}
-
-.bt-btn:hover {
-    border-color: rgba(128, 128, 128, 0.9);
-}
-
 .bt-input {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 14px;
@@ -102,10 +87,10 @@ pub fn BlockTransition() -> AnyView {
     padding: 10px;
     min-height: 120px;
     resize: vertical;
-    border: 1px solid rgba(128, 128, 128, 0.5);
-    border-radius: 6px;
-    background: rgba(128, 128, 128, 0.06);
-    color: inherit;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-1);
+    color: var(--fg);
 }
 
 .bt-previews {
@@ -115,10 +100,11 @@ pub fn BlockTransition() -> AnyView {
 }
 
 .bt-pane {
-    border: 1px solid rgba(128, 128, 128, 0.4);
-    border-radius: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
     padding: 12px;
     min-height: 240px;
+    background: var(--surface-2);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 14px;
     line-height: 1.5;
@@ -127,7 +113,11 @@ pub fn BlockTransition() -> AnyView {
 .bt-pane-title {
     font-weight: 600;
     margin-bottom: 8px;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-faint);
 }
 
 .bt-line, .bt-line-rise, .bt-line-settle {
