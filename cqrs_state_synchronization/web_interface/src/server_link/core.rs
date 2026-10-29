@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::LazyLock;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -21,23 +21,17 @@ pub enum ConnState {
 pub static CONN_STATE: LazyLock<ArcRwSignal<ConnState>> =
     LazyLock::new(|| ArcRwSignal::new(ConnState::Offline));
 
-static STARTED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
-
 pub fn start_server_link(batcher: BatcherHandle, open: OpenPages) {
     Effect::new(move |_| {
-        if *STARTED.lock().unwrap() {
-            return;
-        }
         if !cached_ids::INIT_DONE.get() {
             return;
         }
-        if cached_ids::SESSION_ID.get().is_none() {
+        if cached_ids::SESSION_ID.get_untracked().is_none() {
             return;
         }
-        if cached_ids::USER_ID.get().is_none() {
+        if cached_ids::USER_ID.get_untracked().is_none() {
             return;
         }
-        *STARTED.lock().unwrap() = true;
         let batcher_clone = batcher.clone();
         spawn_local(async move {
             start_link(batcher_clone, open).await;
@@ -51,34 +45,46 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
         return;
     }
 
-    install_offline_listener();
+    install_check_if_internet_connection_is_lost_and_set_conn_state_to_offline();
 
     let url = build_ws_url();
-    let (letters_tx, letters_rx) = super::make_letters_channel();
+    let (
+        tx_give_love_letter_that_came_from_server_to_task_that_processes_it,
+        rx_take_love_letter_from_server_and_process_it,
+    ) = super::make_letters_channel();
 
-    let (reconnect_tx, reconnect_rx) = futures_channel::mpsc::unbounded::<()>();
-    let first_connected = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    // rxtx for task_that_receives_socket_messages
+    // talks to the thing that owns receiving
+    // spontaneous love letters
+    let (
+        tx_tell_receiving_task_that_socket_reconnected_so_it_can_relogin,
+        rx_hear_that_socket_reconnected_so_we_can_relogin,
+    ) = futures_channel::mpsc::unbounded::<()>();
 
-    let first_connected_cb = Arc::clone(&first_connected);
-    let router = Router::new(
-        url,
-        move |letter| {
-            let _ = letters_tx.unbounded_send(letter);
-        },
-        move |status| match status {
-            ConnStatus::Connecting => CONN_STATE.set(ConnState::Connecting),
-            ConnStatus::Connected => {
-                CONN_STATE.set(ConnState::Connected);
-                if !first_connected_cb.swap(false, std::sync::atomic::Ordering::Relaxed) {
-                    let _ = reconnect_tx.unbounded_send(());
-                }
-            }
-            ConnStatus::Failed => CONN_STATE.set(ConnState::FailedToConnect),
-        },
-    );
+    let on_love_letter_from_server = move |letter| {
+        let _ = tx_give_love_letter_that_came_from_server_to_task_that_processes_it
+            .unbounded_send(letter);
+    };
+    let on_conn_status_change = move |status| match status {
+        ConnStatus::Connecting => CONN_STATE.set(ConnState::Connecting),
+        ConnStatus::Connected => {
+            CONN_STATE.set(ConnState::Connected);
+            let _ =
+                tx_tell_receiving_task_that_socket_reconnected_so_it_can_relogin.unbounded_send(());
+        }
+        ConnStatus::Failed => CONN_STATE.set(ConnState::FailedToConnect),
+    };
+
+    let router = Router::new(url, on_love_letter_from_server, on_conn_status_change);
 
     super::spawn_sender(router.clone());
-    super::spawn_worker(router, letters_rx, reconnect_rx, batcher, open);
+    super::spawn_task_for_receiving_socket_messages(
+        router,
+        rx_take_love_letter_from_server_and_process_it,
+        rx_hear_that_socket_reconnected_so_we_can_relogin,
+        batcher,
+        open,
+    );
 }
 
 fn build_ws_url() -> String {
@@ -100,14 +106,13 @@ fn build_ws_url() -> String {
     format!("{scheme}://{hostname}:3000/ws")
 }
 
-fn install_offline_listener() {
+fn install_check_if_internet_connection_is_lost_and_set_conn_state_to_offline() {
     let Some(window) = web_sys::window() else {
         return;
     };
     let on_offline = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
         CONN_STATE.set(ConnState::Offline);
     });
-    let _ = window
-        .add_event_listener_with_callback("offline", on_offline.as_ref().unchecked_ref());
+    let _ = window.add_event_listener_with_callback("offline", on_offline.as_ref().unchecked_ref());
     on_offline.forget();
 }

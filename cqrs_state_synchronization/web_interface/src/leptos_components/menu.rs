@@ -14,12 +14,6 @@ use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;
 use leptos_router::components::A;
 
-#[derive(Clone)]
-struct PagesToNavTo {
-    id: usize,
-    title: String,
-}
-
 #[component]
 pub fn Menu() -> impl IntoView {
     let (local_pages, local_pages_set) = create_local_pages();

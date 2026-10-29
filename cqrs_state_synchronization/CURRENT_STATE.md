@@ -302,3 +302,21 @@ dead_code warnings got a `cfg_attr(not(any(wasm32, android)),
 allow(dead_code))`.
 
 Both workspaces `c c` green.
+
+## Update - 2026-10-29 (structural refactor)
+
+File layout changed across the whole dependency chain (cqrs, yrs, z_db, client_table_blueprints, love_letter). Full details in `refactor_plan.md` at the cqrs workspace root and in the top entry of `AI_UPDATES_THIS_DOC_EVERY_SESSION.md`.
+
+Two small behaviour changes: (1) the receive task now logs in on every connect (not once at start); (2) a remote page-disable no longer navigates the viewer away — it just shows a popup, and the user keeps working on the page.
+
+Where things live now:
+- `page_executor/` folder (transaction, operations, merge_plan, table_writes).
+- `web_interface/src/db/` layered: reads, writes, batcher, ui_actions, kick_send.
+- `complicated_signal_flow/` = plain signal types (rows, block_input_event, ui_signals, focus). `OpenPages` in `page_state.rs`.
+- `main_content/callbacks/` per callback.
+- `server_link::receive::task_for_receiving_socket_messages` (was `run_worker`); `spawn_task_for_receiving_socket_messages` (was `spawn_worker`).
+- `yrs_wrapper/` folder (types, keys, errors, apply_update, block_lookup, frac_position, text_edit, snapshots, boss).
+- `protocol/payload/` folder (create, read, update, delete, types).
+- `love_letter/src/` split into broken_heart, sketch, letter, build_a_love_letter, bytes.
+
+`c c` from `cqrs_state_synchronization/` now runs with `--workspace --exclude web_interface` automatically (via `local_cargo.sh`). web_interface still checks on trunk save.

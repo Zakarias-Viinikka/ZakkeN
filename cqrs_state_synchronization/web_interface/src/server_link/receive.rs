@@ -35,15 +35,25 @@ pub static MENU_TICK: LazyLock<ArcRwSignal<u32>> =
 
 static SEEN_IDS: LazyLock<Mutex<HashSet<i64>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
-pub fn spawn_worker(
+static START_OVER_FRESH_ATTEMPTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub fn spawn_task_for_receiving_socket_messages(
     router: RouterHandle,
-    letters_rx: UnboundedReceiver<UnsentLetter>,
-    reconnect_rx: UnboundedReceiver<()>,
+    rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<UnsentLetter>,
+    rx_hear_that_socket_reconnected_so_we_can_relogin: UnboundedReceiver<()>,
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
     spawn_local(async move {
-        run_worker(router, letters_rx, reconnect_rx, batcher, open).await;
+        task_for_receiving_socket_messages(
+            router,
+            rx_take_love_letter_from_server_and_process_it,
+            rx_hear_that_socket_reconnected_so_we_can_relogin,
+            batcher,
+            open,
+        )
+        .await;
     });
 }
 
@@ -62,50 +72,20 @@ pub async fn clear_seen_server_letters() -> Result<(), DbError> {
     Ok(())
 }
 
-async fn run_worker(
+async fn task_for_receiving_socket_messages(
     router: RouterHandle,
-    mut letters_rx: UnboundedReceiver<UnsentLetter>,
-    mut reconnect_rx: UnboundedReceiver<()>,
+    mut rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<UnsentLetter>,
+    mut rx_hear_that_socket_reconnected_so_we_can_relogin: UnboundedReceiver<()>,
     batcher: BatcherHandle,
     open: OpenPages,
 ) {
-    if let Err(e) = super::identity::login(&router).await {
-        leptos::logging::error!("login: {e}");
-        create_popup(format!("login failed: {e}"));
-        return;
-    }
-    kick_send();
-
     if let Err(e) = load_seen_from_db().await {
         leptos::logging::warn!("load_seen_from_db: {e:?}");
     }
 
-    if !STARTED_FRESH.get_untracked() {
-        match start_over_fresh(&router, &batcher, open).await {
-            Ok(()) => STARTED_FRESH.set(true),
-            Err(e) => {
-                leptos::logging::error!("bootstrap failed: {e:?}");
-                create_popup(format!("bootstrap failed: {e:?}"));
-            }
-        }
-    }
-
-    match pull_unsent(&router).await {
-        Ok(letters) => {
-            for item in letters {
-                if !handle_one(&batcher, open, &router, item).await {
-                    return;
-                }
-            }
-        }
-        Err(e) => {
-            leptos::logging::warn!("initial pull failed: {e:?}");
-        }
-    }
-
     loop {
-        let next_item = letters_rx.next();
-        let next_reconnect = reconnect_rx.next();
+        let next_item = rx_take_love_letter_from_server_and_process_it.next();
+        let next_reconnect = rx_hear_that_socket_reconnected_so_we_can_relogin.next();
         match futures_util::future::select(next_item, next_reconnect).await {
             futures_util::future::Either::Left((item, _)) => match item {
                 Some(i) => {
@@ -117,10 +97,20 @@ async fn run_worker(
             },
             futures_util::future::Either::Right((_, _)) => {
                 if let Err(e) = super::identity::login(&router).await {
-                    leptos::logging::error!("reconnect login: {e}");
+                    leptos::logging::error!("login: {e}");
+                    create_popup(format!("login failed: {e}"));
                     continue;
                 }
                 kick_send();
+                if !START_OVER_FRESH_ATTEMPTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                    match start_over_fresh(&router, &batcher, open).await {
+                        Ok(()) => STARTED_FRESH.set(true),
+                        Err(e) => {
+                            leptos::logging::error!("start_over_fresh failed: {e:?}");
+                            create_popup(format!("start_over_fresh failed: {e:?}"));
+                        }
+                    }
+                }
                 match pull_unsent(&router).await {
                     Ok(letters) => {
                         for item in letters {
@@ -129,7 +119,7 @@ async fn run_worker(
                             }
                         }
                     }
-                    Err(e) => leptos::logging::warn!("reconnect pull failed: {e:?}"),
+                    Err(e) => leptos::logging::warn!("pull failed: {e:?}"),
                 }
             }
         }
@@ -144,7 +134,7 @@ async fn start_over_fresh(
 ) -> Result<(), DbError> {
     if local_db_has_pages().await? {
         return Err(DbError::IllegalInput(
-            "bootstrap refused: local db already has pages. Wipe locally, or use reconcile/adopt."
+            "start_over_fresh refused: local db already has pages. Wipe locally, or use reconcile/adopt."
                 .to_string(),
         ));
     }
@@ -233,9 +223,9 @@ fn page_status_is_active(status_blob: &[u8], page_id: &str) -> bool {
 fn apply_error_to_db_error(e: ApplyError) -> DbError {
     match e {
         ApplyError::UnknownPage(p) => {
-            DbError::IllegalInput(format!("bootstrap: unknown page {p}"))
+            DbError::IllegalInput(format!("start_over_fresh: unknown page {p}"))
         }
-        ApplyError::Fatal(c) => DbError::BadCode(format!("bootstrap apply: {c:?}")),
+        ApplyError::Fatal(c) => DbError::BadCode(format!("start_over_fresh apply: {c:?}")),
     }
 }
 

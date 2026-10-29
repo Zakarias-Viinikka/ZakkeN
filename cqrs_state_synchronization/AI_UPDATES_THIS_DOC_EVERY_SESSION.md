@@ -1,3 +1,40 @@
+Thursday, 29 October 2026 (structural refactor across cqrs, yrs, z_db, blueprints, love_letter)
+=========================================================================================
+
+Full plan lives in `cqrs_state_synchronization/refactor_plan.md`. Read that for the details. Below is what changed behaviourally and where things live now.
+
+**Behaviour changes (small, intentional)**
+
+- The receive task logs in on every connect, not once at task start. Login moved into the reconnect handler; the `first_connected` flag was deleted. Every connect runs login → kick_send → start_over_fresh (once, guarded) → pull_unsent.
+- A remote page-disable shows a popup and does not navigate the viewer away. `REMOTE_DISABLED_OPEN_PAGE` was deleted. The user keeps working; the page just stops appearing in the menu.
+
+**cqrs workspace — where things live now**
+
+- `page_executor.rs` became `page_executor/`: `transaction.rs` (`run_in_transaction`), `operations.rs` (seven `*_requires_three_db_*` fns), `merge_plan.rs`, `table_writes/{pages,every_block,love_letter}.rs`. The four transaction macros are gone.
+- `web_interface/src/db/` is layered: `write_lock`, `cached_ids`, `key_value_storage_db_actions`, `kick_send` at the bottom; `reads/` above; `writes.rs` above that; `batcher/` above that; `ui_actions/` above that; `server_link/` and `leptos_components/` at the top. `kick_send` moved into `db/` so `db` no longer imports upward.
+- `complicated_signal_flow/` stays as the home of the plain signal types: `rows.rs` (`BlockRow`, `LocalPages`), `block_input_event.rs`, `ui_signals.rs` (`APP_LOCKED`, `FOCUS_BLOCK_ID`, `FOCUS_BLOCK_AT_START`), `focus.rs` (`at_end`, `at_start`). `OpenPages` moved to `page_state.rs`.
+- `MainContent` split. Callbacks moved to `main_content/callbacks/`. Both load effects moved to `page_loading_logic::install_load_effects`. `OpenPages` has methods `boss_for_page`, `page_for_block`, `page_and_boss_for_block`. `new_local_block_id` is in `src/new_local_block_id.rs`.
+- `server_link::receive`: `spawn_worker` → `spawn_task_for_receiving_socket_messages`, `run_worker` → `task_for_receiving_socket_messages`. Channel names describe what crosses them.
+
+**Workspace-check gotcha**
+
+`Cargo.toml` no longer has `default-members` (it hid web_interface from rust-analyzer). `local_cargo.sh` now auto-adds `--workspace --exclude web_interface` for `check`/`build`/`test`/`clippy` when run from the workspace root with no scope arg, so `c c` from the root only checks the three native crates. web_interface still checks on trunk save (or from inside `web_interface/`). `.zed/settings.json` in `web_interface/` sets the wasm32 target for rust-analyzer when Zed's root is `web_interface/`.
+
+**Sibling crates**
+
+- yrs (X1): `yrs_wrapper.rs` (~700 lines) became `yrs_wrapper/{mod,types,keys,errors,apply_update,block_lookup,frac_position,text_edit,snapshots,boss}.rs`. Macros `generic_error!`, `lock_poisoned!`, `read_doc!`, `write_doc!`, `guarded!` replace ~17 lock-poison map_errs, ~16 `prevent_deadlock(...)` wrappers, and the `GenericError{ErrorInfo{file: file!(), ...}}` construction. `apply_update_bytes` replaces the three decode-and-apply-update copies. `find_block` replaces three find-by-id loops. `yrs_active_pages.rs` and `yrs_backlinks.rs` got the same treatment. Public paths unchanged through `yrs_wrapper/mod.rs` re-exports.
+- z_db (X2): `web_internal_db/db_helper.rs` — 36 fns collapsed from 4 lines each to one line each over four generic helpers. `protocol/payload.rs` split into `payload/{create,read,update,delete,types}.rs`, `pub use` at `payload/mod.rs` so `protocol::payload::*` still works.
+- client_table_blueprints (X3): `row_values.rs` with `text_value`/`blob_value` replaces the ~16 `ColumnValue` struct literals. `new_table_*` in every `tbl_*.rs` reads column names from the `SchemaColumn` consts. `#![allow(non_snake_case)]` removed.
+- love_letter (X4): `lib.rs` is now a table of contents. `broken_heart.rs`, `sketch.rs`, `letter.rs`, `build_a_love_letter.rs`, `bytes.rs` split out. Variant and field order frozen.
+
+**Bugs found, not fixed**
+
+Ten items in `refactor_plan.md`. The interesting ones: same-page `move_block` edits a freshly-loaded boss instead of the open one; `apply_blob` reads the mirror before `run_exclusive` flushes the batcher; yrs `AtEnd` uses array order not frac key order; `Batcher::flush` drains pending before begin.
+
+**Cross-workspace**
+
+cqrs, yrs, z_db/web_internal_db, client_table_blueprints, love_letter, zakken_server all `c c` green. No consumer outside the repo needed updating; builder/executor old paths still resolve through `mod.rs` re-exports.
+
 Wednesday, 28 October 2026 (audit pass, reconnect fix, client_internals cleanup)
 ==============================================================================
 

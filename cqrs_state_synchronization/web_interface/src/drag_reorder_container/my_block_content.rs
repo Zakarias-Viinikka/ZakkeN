@@ -26,11 +26,12 @@ pub fn MyBlockContent(
     let is_title = block.is_title;
 
     install_autosize_on_mount_effect(textarea_ref);
-    install_value_sync_effect(textarea_ref, block.content.clone());
-    install_focus_at_end_effect(textarea_ref, block.content.clone(), my_block_id.clone());
-    install_focus_at_start_effect(textarea_ref, block.content.clone(), my_block_id.clone());
+    install_value_sync_effect(textarea_ref, content_signal.clone());
+    install_focus_at_end_effect(textarea_ref, content_signal.clone(), my_block_id.clone());
+    install_focus_at_start_effect(textarea_ref, content_signal.clone(), my_block_id.clone());
 
     let my_block_id_for_keydown = my_block_id.clone();
+    let content_signal_for_keydown = content_signal.clone();
     let on_keydown = move |e: ev::KeyboardEvent| {
         if handle_arrow(&e, textarea_ref, &my_block_id_for_keydown, on_navigate) {
             return;
@@ -43,25 +44,26 @@ pub fn MyBlockContent(
             &e,
             textarea_ref,
             is_title,
-            content_signal,
+            &content_signal_for_keydown,
             &my_block_id_for_keydown,
             on_delete_request,
             on_merge_with_above,
         );
     };
 
+    let content_signal_for_input = content_signal.clone();
     let on_ev = move |e: ev::Event| {
         let Some(t) = e.target() else {
             return;
         };
         let ta: web_sys::HtmlTextAreaElement = t.unchecked_into();
         let new_val = ta.value();
-        let old_val = block.content.get_untracked();
+        let old_val = content_signal_for_input.get_untracked();
         let cursor_pos = ta.selection_start().ok().flatten().unwrap_or(0) as usize;
         let was_enter_val = was_enter.get_value();
         was_enter.set_value(false);
 
-        block.content.set(new_val.clone());
+        content_signal_for_input.set(new_val.clone());
         on_input.run(BlockInputEvent {
             block_id: block.block_id.to_string(),
             old_text: old_val,
@@ -160,7 +162,7 @@ fn handle_backspace(
     e: &ev::KeyboardEvent,
     textarea_ref: NodeRef<Textarea>,
     is_title: bool,
-    content_signal: ArcRwSignal<String>,
+    content_signal: &ArcRwSignal<String>,
     my_block_id: &str,
     on_delete_request: Callback<String>,
     on_merge_with_above: Callback<(String, String)>,
@@ -279,7 +281,7 @@ fn install_focus_at_start_effect(
         if !is_target {
             return;
         }
-        let content_sig = content_signal;
+        let content_sig = content_signal.clone();
         let my_id = my_block_id.clone();
         spawn_local(async move {
             for i in 0..20 {

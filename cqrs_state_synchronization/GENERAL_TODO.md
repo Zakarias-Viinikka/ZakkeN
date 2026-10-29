@@ -50,9 +50,9 @@ flush on close and on visibilitychange, so the last batch isn't lost when the ta
 
 everything built here gets reflected in the Android docs, so Android knows what it can use as a reference and what it still needs to implement.
 
-add_block and delete_block are built in the builder and executor, plus uniffi exports. Not wired into the web interface yet, because the page UI for it hasn't been designed - that's still in a lab and the lab needs auditing first.
+add_block and delete_block are built in the builder and executor, plus uniffi exports, and are wired into the web interface: on_split pushes an add_block (via push_add_block in main_content/callbacks/on_split.rs), on_delete_request calls delete_block (in main_content/callbacks/on_delete_request.rs).
 
-pure_web_ui_components crate exists at cqrs_state_synchronization/pure_web_ui_components. Exports PagesUiThatOnlyOwnsDragReorder with PageInput / BlockInput / MoveEvent. Came from the drag_reorder final_test lab, split into modules (drag_state, rebuild, heights, sync, apply_move, mouse, plus the untouched cascade / layout / rapier_world). Visual confirmation stripped - that was testing-only. Stage background removed, parent owns it. Nothing in web_interface calls it yet; the real page UI hasn't been designed.
+
 
 Moving a block within a page works end to end on web (yrs method, love letter variant, builder, executor, ui_action, on_move wired). After a drag the page does not re-order until reload, because the block signal is re-read from db only on load.
 
@@ -60,13 +60,13 @@ Moving a block to another page works on web. ui_actions_move_block_operations::m
 
 Back button: navigating back to a previous route doesn't re-render without a manual refresh. Cause not yet diagnosed.
 
-Preload flow lives in complicated_signal_flow/core.rs. Page is the one struct for a page's live state: page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response. PageLoadState is the enum, with PreloadLoaded(usize) carrying the count. Page::new builds one; MainContent builds one per page and Copy hands it into that page's effects.
+Preload flow lives in leptos_components/main_content/page_loading_logic.rs. Page is the one struct for a page's live state (in page_state.rs): page_id, boss_of_yrs, blocks, page_state, preload_request, preload_response. PageLoadState is the enum, with PreloadLoaded(usize) carrying the count. Page::new builds one; MainContent builds one per page and Copy hands it into that page's effects.
 
 The loading sequence is two effects per page. The state effect matches on page_state, calls preload_pages / load_offline / load_from_server for that step, and the resulting state change fires it again for the next step. The response effect watches preload_response; when it flips to Some it sets the blocks and moves to PreloadLoaded(count). preload_pages writes preload_request, and - because no preloader exists yet - also seeds preload_response with an empty Vec. That fallback goes away when the preloader exists.
 
 Batcher notification has no home right now. When the batcher exists it needs a signal for "this page is about to change", and the executor crate has to reach it, which isn't solved.
 
-BlockRow is the one block type. It lives in complicated_signal_flow/core.rs. There is no BlockInput anymore.
+BlockRow is the one block type. It lives in complicated_signal_flow/rows.rs. There is no BlockInput anymore.
 
 dev_actions::insert_three_pages seeds three pages with varied titles and bodies.
 

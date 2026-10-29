@@ -10,7 +10,7 @@ use love_letter::LoveLetter;
 use my_yrs_lib::BossOfYrs;
 use protocol::error::DbError;
 
-use crate::complicated_signal_flow::{BlockRow, REMOTE_DISABLED_OPEN_PAGE};
+use crate::complicated_signal_flow::BlockRow;
 use crate::db::batcher::{run_exclusive, BatcherHandle};
 use crate::db::cached_ids::{self, try_current_user_id};
 use crate::db::reads::{blocks as reads_blocks, pages as reads_pages};
@@ -174,7 +174,10 @@ async fn apply_disable(
     .await?;
 
     if open.page1.page_id.get_untracked() == page_id {
-        REMOTE_DISABLED_OPEN_PAGE.set(Some(page_id.clone()));
+        crate::leptos_components::small_components::popup::create_popup(
+            "This page was disabled from another client. You can keep working on it, but it won't appear in the menu anymore."
+                .to_string(),
+        );
     }
 
     Ok(ApplyOutcome {

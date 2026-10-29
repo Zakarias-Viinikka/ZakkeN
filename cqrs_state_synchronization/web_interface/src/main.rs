@@ -4,13 +4,13 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
 use web_interface::db::batcher::Batcher;
-use web_interface::page_state::{OpenPages, Page, PageLoadState};
 use web_interface::db::{cached_ids, init};
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::setup_page::SetupPage;
-use web_interface::leptos_components::small_components::popup::{create_popup, PopupContainer};
-use web_interface::complicated_signal_flow::REMOTE_DISABLED_OPEN_PAGE;
+use web_interface::leptos_components::small_components::popup::PopupContainer;
+use web_interface::page_state::{OpenPages, Page, PageLoadState};
+
 use web_internal_db::db_gui::db_gui_main;
 
 fn main() {
@@ -60,7 +60,7 @@ fn App() -> impl IntoView {
                             <Route path=path!("/MainContent/:page_id") view=MainContentRoute/>
                             <Route path=path!("/setup") view=SetupPage/>
                         </Routes>
-                        <UserGate/>
+                        <SetupGuard/>
                         <div style="position: absolute; top: 0; right: 0; z-index: 9999;">
                             <PopupContainer />
                         </div>
@@ -72,7 +72,7 @@ fn App() -> impl IntoView {
 }
 
 #[component]
-fn UserGate() -> impl IntoView {
+fn SetupGuard() -> impl IntoView {
     let navigate = leptos_router::hooks::use_navigate();
     let location = leptos_router::hooks::use_location();
 
@@ -89,20 +89,7 @@ fn UserGate() -> impl IntoView {
 #[component]
 fn MainContentRoute() -> impl IntoView {
     let params = leptos_router::hooks::use_params_map();
-    let navigate = leptos_router::hooks::use_navigate();
     let open = expect_context::<OpenPages>();
-
-    Effect::new(move |_| {
-        let Some(pid) = REMOTE_DISABLED_OPEN_PAGE.get() else {
-            return;
-        };
-        if open.page1.page_id.get_untracked() != pid {
-            return;
-        }
-        REMOTE_DISABLED_OPEN_PAGE.set(None);
-        create_popup("This page was disabled from another client.".to_string());
-        navigate("/Menu", Default::default());
-    });
 
     Effect::new(move |_| {
         let page_id = params.get().get("page_id").unwrap_or_default();
@@ -112,6 +99,8 @@ fn MainContentRoute() -> impl IntoView {
         if open.page1.page_id.get_untracked() == page_id {
             return;
         }
+        //this is a leptos batch. not related to text_diff batcher
+        // expresses: "let me do all these changes and only run related effects once im done"
         batch(move || {
             open.page1.page_id.set(page_id);
             open.page1.boss_of_yrs.set(None);
