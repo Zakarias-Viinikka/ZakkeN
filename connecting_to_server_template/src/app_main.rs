@@ -8,12 +8,35 @@ use leptos::prelude::*;
 
 #[component]
 pub fn AppMain() -> impl IntoView {
-    let (client_started, set_client_started) = signal(false);
     let (server_started, set_server_started) = signal(false);
     let (client_handle, server_handle, client_rx, server_rx) = client_server_coms::new();
     let client_handle_for_controls = client_handle.clone();
     let client_handle_for_modal = client_handle.clone();
+    let client_handle_for_effect = client_handle.clone();
     let server_handle_for_controls = server_handle.clone();
+
+    Effect::new(move |_| {
+        if server_started.get() {
+            client_handle_for_effect.clone().turn_on_server();
+        }
+    });
+
+    let client_handle_for_auto = client_handle.clone();
+    let auto_connect_seen = RwSignal::new(false);
+    Effect::new(move |_| {
+        if !crate::server_link::client_started_signal().get() {
+            return;
+        }
+        if auto_connect_seen.get_untracked() {
+            return;
+        }
+        auto_connect_seen.set(true);
+        let coms = client_handle_for_auto.clone();
+        leptos::task::spawn_local(async move {
+            let outcome = crate::server_link::restart_sync_stack(coms).await;
+            crate::data_ops::announce_connect_outcome(outcome);
+        });
+    });
 
     let plan_sig = Signal::derive(move || crate::reconcile::plan_signal().get());
     let error_sig = Signal::derive(move || crate::reconcile::error_signal().get());
@@ -25,7 +48,7 @@ pub fn AppMain() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match crate::reconcile::reconcile_apply(coms, decisions).await {
                 Ok(()) => crate::reconcile::clear_modal(),
-                Err(e) => crate::reconcile::error_signal().set(Some(e)),
+                Err(e) => crate::reconcile::error_signal().set(Some(e.to_string())),
             }
         });
     });
@@ -40,9 +63,11 @@ pub fn AppMain() -> impl IntoView {
         <div class="sides">
             <Client handle=client_handle rx=client_rx>
                 <Show
-                    when=move || client_started.get()
+                    when=move || crate::server_link::client_started_signal().get()
                     fallback=move || view! {
-                        <ClientFallback on_start=move |_| set_client_started.set(true)/>
+                        <ClientFallback on_start=move |_| {
+                            crate::server_link::client_started_signal().set(true)
+                        }/>
                     }
                 >
                     <div class="side">

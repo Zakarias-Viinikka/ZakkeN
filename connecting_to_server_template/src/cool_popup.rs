@@ -156,12 +156,29 @@ pub fn show_popup(message: impl Into<String>) {
 }
 
 pub fn show_popup_as(kind: PopupKind, message: impl Into<String>) {
+    let message: String = message.into();
+    let mut coalesced = false;
+    POPUPS.update(|v| {
+        for p in v.iter_mut() {
+            if p.kind == kind
+                && p.message == message
+                && matches!(p.state.get_untracked(), ToastState::Live)
+            {
+                p.remaining.set(p.life_ms);
+                coalesced = true;
+                return;
+            }
+        }
+    });
+    if coalesced {
+        return;
+    }
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     let life = kind.lifetime();
     let popup = Popup {
         id,
         kind,
-        message: message.into(),
+        message,
         life_ms: life,
         remaining: ArcRwSignal::new(life),
         state: ArcRwSignal::new(ToastState::Live),

@@ -53,3 +53,37 @@
 .border-paused {
     border-color: #4a90e2;
 }
+
+.border-needs-reconcile {
+    border-color: #e8b060;
+}
+
+.border-failed {
+    border-color: #ff6b6b;
+}
+
+.border-pulse {
+    animation: border-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes border-pulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .border-pulse {
+        animation: none;
+        border-style: dashed;
+    }
+}
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
+}
+
+.border-lonewolf {
+    border-color: #a78bfa;
+}

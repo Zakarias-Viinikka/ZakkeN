@@ -4,7 +4,7 @@
 //! pending queue and boot sequence arrive in later steps.
 
 use leptos::prelude::*;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -47,6 +47,36 @@ pub fn conn_state_signal() -> ArcRwSignal<ConnState> {
 
 pub fn current_generation() -> Option<i64> {
     CURRENT_LOGIN_GENERATION.get_untracked()
+}
+
+pub fn current_conn_state() -> ConnState {
+    CONN_STATE.get_untracked()
+}
+
+pub fn current_restart_in_flight() -> bool {
+    RESTART_IN_FLIGHT.get_untracked()
+}
+
+/// Lonewolf: socket is up and login succeeded, but sync is gated.
+pub fn is_lonewolf() -> bool {
+    current_conn_state() == ConnState::Connected && crate::sync_mode::is_gated()
+}
+
+// PLACEHOLDER: the real apply path wipes every local page row, then builds
+// each server page locally via build_merge_new_page inside one transaction.
+// Here it only logs the count.
+pub fn apply_server_pages_locally(pages: &[crate::protocol::PageRow]) {
+    leptos::logging::log!(
+        "apply_server_pages_locally: applying {} pages",
+        pages.len()
+    );
+}
+
+pub enum RestartOutcome {
+    Synced,
+    AlreadyStopped,
+    JustChanged,
+    Failed(String),
 }
 
 pub fn stored_generation() -> Option<i64> {
@@ -98,11 +128,62 @@ pub fn check_login_generation(server_generation: i64) -> GenerationCheck {
 // PLACEHOLDER: the real `clear_seen_everywhere` clears the client's
 // `seen_server_letters` table and the in-memory seen-ids set. Here it is
 // a no-op until the receive path lands.
-pub fn clear_seen_everywhere() {}
+pub fn clear_seen_everywhere() {
+    clear_seen_set();
+}
 
 static PENDING_QUEUE: LazyLock<Mutex<VecDeque<crate::protocol::LoveLetter>>> =
     LazyLock::new(|| Mutex::new(VecDeque::new()));
-static DRAIN_RUNNING: AtomicBool = AtomicBool::new(false);
+
+static SENDING: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
+
+static LAST_SEND_FAILED: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
+
+static RESTART_IN_FLIGHT: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
+
+static IGNORED_WHILE_STOPPED: LazyLock<ArcRwSignal<usize>> =
+    LazyLock::new(|| ArcRwSignal::new(0));
+
+static CLIENT_STARTED: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
+
+static SEEN_LETTERS: LazyLock<Mutex<HashSet<i64>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+pub fn sending_signal() -> ArcRwSignal<bool> {
+    SENDING.clone()
+}
+
+pub fn last_send_failed_signal() -> ArcRwSignal<bool> {
+    LAST_SEND_FAILED.clone()
+}
+
+pub fn restart_in_flight_signal() -> ArcRwSignal<bool> {
+    RESTART_IN_FLIGHT.clone()
+}
+
+pub fn ignored_while_stopped_signal() -> ArcRwSignal<usize> {
+    IGNORED_WHILE_STOPPED.clone()
+}
+
+pub fn client_started_signal() -> ArcRwSignal<bool> {
+    CLIENT_STARTED.clone()
+}
+
+pub fn has_seen(letter_id: i64) -> bool {
+    SEEN_LETTERS.lock().expect("seen poisoned").contains(&letter_id)
+}
+
+pub fn mark_seen(letter_id: i64) {
+    SEEN_LETTERS.lock().expect("seen poisoned").insert(letter_id);
+}
+
+pub fn clear_seen_set() {
+    SEEN_LETTERS.lock().expect("seen poisoned").clear();
+}
 
 pub fn queue_pretend_edit(
     coms: &crate::client_server_coms::ComsHandleForClient,
@@ -128,13 +209,20 @@ pub fn kick_send(coms: crate::client_server_coms::ComsHandleForClient) {
     if crate::sync_mode::is_gated() {
         return;
     }
-    if DRAIN_RUNNING.swap(true, Ordering::AcqRel) {
+    if CONN_STATE.get_untracked() != ConnState::Connected {
         return;
     }
+    if SENDING.get_untracked() {
+        return;
+    }
+    SENDING.set(true);
     let coms = coms;
     leptos::task::spawn_local(async move {
         loop {
             if crate::sync_mode::is_gated() {
+                break;
+            }
+            if CONN_STATE.get_untracked() != ConnState::Connected {
                 break;
             }
             let letter = {
@@ -144,14 +232,25 @@ pub fn kick_send(coms: crate::client_server_coms::ComsHandleForClient) {
             let Some(letter) = letter else { break };
             match coms.send_letter(letter).await {
                 Ok(()) => {
+                    LAST_SEND_FAILED.set(false);
                     let mut q = PENDING_QUEUE.lock().expect("pending queue poisoned");
                     q.pop_front();
                     PENDING_COUNT.set(q.len());
                 }
-                Err(_) => break,
+                Err(e) => {
+                    LAST_SEND_FAILED.set(true);
+                    if matches!(e, crate::client_server_coms::ComsError::Server(_)) {
+                        let n = PENDING_COUNT.get_untracked();
+                        crate::cool_popup::show_popup_as(
+                            crate::cool_popup::PopupKind::Error,
+                            format!("Sending failed: {e}. {n} edits still queued; they retry on the next edit or reconnect."),
+                        );
+                    }
+                    break;
+                }
             }
         }
-        DRAIN_RUNNING.store(false, Ordering::Release);
+        SENDING.set(false);
     });
 }
 
@@ -159,24 +258,33 @@ static BOOTSTRAPPED: AtomicBool = AtomicBool::new(false);
 
 pub async fn restart_sync_stack(
     coms: crate::client_server_coms::ComsHandleForClient,
-) -> Result<(), String> {
-    // Connect phase.
+) -> RestartOutcome {
+    RESTART_IN_FLIGHT.set(true);
+    let result = run_restart(coms).await;
+    RESTART_IN_FLIGHT.set(false);
+    result
+}
+
+async fn run_restart(
+    coms: crate::client_server_coms::ComsHandleForClient,
+) -> RestartOutcome {
     CONN_STATE.set(ConnState::Connecting);
     if !coms.is_server_online().await {
         CONN_STATE.set(ConnState::FailedToConnect);
-        return Err("server is offline".into());
+        return RestartOutcome::Failed("the server is offline".into());
     }
     CONN_STATE.set(ConnState::Connected);
 
-    // Login phase.
     let login = match coms.login(TEMPLATE_USER_NAME).await {
         Ok(p) => p,
         Err(e) => {
-            crate::cool_popup::show_popup(format!("login failed: {e}"));
-            return Err(e.to_string());
+            CONN_STATE.set(ConnState::FailedToConnect);
+            CURRENT_LOGIN_GENERATION.set(None);
+            return RestartOutcome::Failed(format!("login failed: {e}"));
         }
     };
     CURRENT_LOGIN_GENERATION.set(Some(login.dataset_generation));
+    let mut just_changed = false;
     match check_login_generation(login.dataset_generation) {
         GenerationCheck::FirstTime => {
             STORED_DATASET_GENERATION.set(Some(login.dataset_generation));
@@ -186,29 +294,38 @@ pub async fn restart_sync_stack(
             let was_already = crate::sync_mode::current_mode()
                 == crate::sync_mode::SyncMode::NeedsReconcile;
             crate::sync_mode::set_sync_mode(crate::sync_mode::SyncMode::NeedsReconcile);
+            crate::sync_mode::set_mode_reason(crate::sync_mode::ModeReason::ServerChanged);
             clear_seen_everywhere();
-            if !was_already {
-                crate::cool_popup::show_popup(
-                    "server dataset changed; sync is paused until Reconcile or Adopt",
-                );
-            }
+            just_changed = !was_already;
         }
     }
 
-    // Gated tail.
     if crate::sync_mode::is_gated() {
-        return Ok(());
+        return if just_changed {
+            RestartOutcome::JustChanged
+        } else {
+            RestartOutcome::AlreadyStopped
+        };
     }
     kick_send(coms.clone());
     if !BOOTSTRAPPED.swap(true, Ordering::AcqRel) {
-        start_over_fresh(&coms).await?;
+        if let Err(e) = start_over_fresh(&coms).await {
+            return RestartOutcome::Failed(format!("bootstrap failed: {e}"));
+        }
     }
-    pull_unsent(&coms).await?;
-    Ok(())
+    if let Err(e) = pull_unsent(&coms).await {
+        return RestartOutcome::Failed(format!("pull failed: {e}"));
+    }
+    RestartOutcome::Synced
 }
 
 pub fn receive_letter(coms: &crate::client_server_coms::ComsHandleForClient, letter: crate::protocol::UnsentLetter) {
     if crate::sync_mode::is_gated() {
+        IGNORED_WHILE_STOPPED.update(|n| *n += 1);
+        return;
+    }
+    if has_seen(letter.letter_id) {
+        coms.ack(letter.letter_id);
         return;
     }
     // PLACEHOLDER: the real apply path merges the letter's snapshot into
@@ -222,6 +339,7 @@ pub fn receive_letter(coms: &crate::client_server_coms::ComsHandleForClient, let
             crate::protocol::LoveLetter::DisablePage { page_id, .. } => page_id.clone(),
         }
     );
+    mark_seen(letter.letter_id);
     APPLIED_COUNT.update(|n| *n += 1);
     coms.ack(letter.letter_id);
 }

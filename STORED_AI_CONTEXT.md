@@ -267,6 +267,40 @@ Deviations from the plan:
 
 Expected non-bugs: server pages don't grow after a reconcile push, letters dropped while paused aren't re-delivered, and edits made before Connect may drain anyway (kick_send gates on mode only, not on connection state).
 
+### Update - 2026-10-29 (state machine and feedback layer)
+
+A second plan ("state machine and feedback layer") is implemented. Behaviour now follows R1–R9 (one popup per verb, refusals first, busy overlay on every server-awaiting verb, single-flight restart, ConnState meanings, two gates on sending, failure semantics, discards announced, mode reason). Fake-server stand-ins F1–F7 are in.
+
+What changed since the shape-only build:
+
+- Server power is real. It boots off. The fallback "Start server" reveals the panel AND fires `turn_on_server()`. Controls "Turn off server" / "Start server" toggle it after that. Power off keeps data; the socket-lost message fires.
+- Fake latency (500ms light, 900ms heavy) via `leptos::set_timeout` + oneshot. `AreYouOnline`, Login, GetAllPages, SendLetter, GetMyUnsentLetters, Wipe, Adopt all defer their reply. Mutation happens at arrival; reply re-checks power and drops if off.
+- Server backlog, socket-live flag, Push pretend letter goes through the server. GetMyUnsentLetters returns the backlog; Ack removes.
+- Server page rows: CreateNewPage inserts a row if absent. Server panel shows power, generation, pages, unsent backlog, letters received, fault armed.
+- "Fail next request" arms a one-shot that fails the next mutating request (Login, SendLetter, Wipe, Adopt). "Other client wipes" mints a new generation and fires socket-lost — the only way to reach the generation-changed branch.
+- Client receive has a seen set. `clear_seen_everywhere` actually clears it now. Receive order: gated (bump ignored counter, no ack), already-seen (ack only), otherwise apply/mark/bump/ack.
+- `restart_sync_stack` returns `RestartOutcome` (Synced / AlreadyStopped / JustChanged / Failed), never pops. `announce_connect_outcome` is the popup layer. Single-flight via `RESTART_IN_FLIGHT`.
+- Drain loop gates on ConnState::Connected AND on `is_gated()`, and surfaces send failures as Error "Sending failed: ... N edits still queued" (server errors only; transport failures are silent because ConnectionLost already warned).
+- Status line at the top of ClientPanel. Single derivation, nine rows in the plan, first matching wins.
+- Border states: Offline / Connecting / Failed / Connected / NeedsReconcile / Lonewolf. `border-needs-reconcile` amber `#e8b060` (gated + not connected), `border-lonewolf` violet `#a78bfa` (gated + connected — the "connected but disconnected" case), `border-failed` red, `border-pulse` animation over any state while work is in flight, dashed-border fallback under reduced motion. "Lonewolf" is the name for the gated-but-connected state; `server_link::is_lonewolf()` is the predicate. It is not a `SyncMode` variant.
+- `CustomButton` gained `#[prop(optional, into)] disabled: Signal<bool>`. Controls button policy: client-section + Wipe disabled until client started; server power controls disabled when the appropriate polarity; everything else stays enabled and refuses with a popup (test bench).
+- `VerbError` enum in `data_ops` (Refused → Warning popup, Failed → Error popup). `spawn_verb` splits. `reconcile_plan` returns `Result<Option<ReconcilePlan>, VerbError>`; "already in progress" is an Info no-op not an error.
+- Popup coalescing: `show_popup_as` resets the timer of a live toast with same kind and message instead of stacking.
+- Client panel gained reason suffix, ignored-while-stopped counter, and amber coloring when login ≠ stored generation.
+
+Behaviour changes since the earlier update:
+
+- Paused was merged into NeedsReconcile. `SyncMode` is now just `Connected` / `NeedsReconcile`. The Pause button sets NeedsReconcile with reason `YouPaused`. There is no Resume button — the only exits are Reconcile, Adopt, or (soon) a dedicated "Wipe server & start from mine" that currently calls adopt.
+- Mode and reason persist to localStorage and load on boot. Reload into paused stays paused. Connected resets to Connected (no persistence). Auto-connect on "Start client" fires unless mode is already NeedsReconcile.
+- `ModeReason` extended with `YouPaused`.
+- `CustomButton`, status line and border states all live in the client half; nothing on the server side invents behaviour.
+- The Reconcile-actions group has four buttons: Reconcile, Adopt my data, Wipe server & start from mine, Wipe mine & start from server. The last one is the new "client becomes the server's mirror" verb (`data_ops::wipe_local_and_pull_from_server`): fetches all pages, clears queue and seen, applies every server page locally (PLACEHOLDER — logs the count), records generation, sets Connected, restarts. `"Wipe server & start from mine"` still calls `adopt_local` — same behaviour as Adopt my data; if the human wants them distinct that is a plan question.
+
+Known deviations still in place:
+
+- Verb popups fire from inside `with_busy`, not strictly after the overlay clears. Both happen in the same tick and the popup sits above the overlay, so nothing is hidden.
+- "Wipe server & start from mine" duplicates Adopt.
+
 main.rs still says use connecting_to_server_example::app_main::AppMain. That is a compile error unless the package is renamed back to connecting_to_server_example. The Cargo.toml [package] name is connecting_to_server_template. Fix by editing main.rs, do not rename the package.
 
 ## External: z_db - 2026-10-13

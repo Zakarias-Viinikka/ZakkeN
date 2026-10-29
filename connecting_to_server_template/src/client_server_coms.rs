@@ -31,10 +31,20 @@ pub enum MessageToServer {
         pages: Vec<AdoptPage>,
         reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>,
     },
+    // STAND-IN: test-bench controls (F1, F4, F6, F7 in the plan).
+    TurnOn,
+    TurnOff,
+    ArmFault,
+    PushPretendLetter {
+        letter: LoveLetter,
+    },
+    OtherClientWipes,
 }
 
 pub enum MessageToClient {
     LoveLetterFromServer(UnsentLetter),
+    // STAND-IN: F3. Server signals the socket is gone.
+    ConnectionLost,
 }
 
 #[derive(Clone, Debug)]
@@ -128,6 +138,22 @@ impl ComsHandleForClient {
         self.send_request(|reply| MessageToServer::AdoptDataset { pages, reply })
             .await
     }
+
+    pub fn turn_on_server(&self) {
+        let _ = self.tx.unbounded_send(MessageToServer::TurnOn);
+    }
+    pub fn turn_off_server(&self) {
+        let _ = self.tx.unbounded_send(MessageToServer::TurnOff);
+    }
+    pub fn arm_fault(&self) {
+        let _ = self.tx.unbounded_send(MessageToServer::ArmFault);
+    }
+    pub fn push_pretend_letter(&self, letter: LoveLetter) {
+        let _ = self.tx.unbounded_send(MessageToServer::PushPretendLetter { letter });
+    }
+    pub fn other_client_wipes(&self) {
+        let _ = self.tx.unbounded_send(MessageToServer::OtherClientWipes);
+    }
 }
 
 #[derive(Clone)]
@@ -138,6 +164,10 @@ pub struct ComsHandleForServer {
 impl ComsHandleForServer {
     pub fn push_letter(&self, letter: UnsentLetter) {
         let _ = self.tx.unbounded_send(MessageToClient::LoveLetterFromServer(letter));
+    }
+
+    pub fn send_connection_lost(&self) {
+        let _ = self.tx.unbounded_send(MessageToClient::ConnectionLost);
     }
 }
 
