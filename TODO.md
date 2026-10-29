@@ -53,6 +53,16 @@ want to look?". Way down the line. Not started.
 
 ## planned
 
+### Automated e2e testing from the template
+
+The template (`connecting_to_server_template`) has a full state × action grid now — every sync mode, connection state, and verb combination has a defined behaviour. That grid should become automated tests, not just a manual hand-walk.
+
+Shape: run the server, run the web app, click "Start tests" in the app, and let the tests drive the scenarios. Each row of the state table is a test case. Some are asserts against the visible state (border color, status line, panel readouts), some are assert-on-event (a popup appeared, a mode changed, an error is shown).
+
+Then a shell script (or something similar) on the computer that runs the whole thing headlessly — start trunk serve, start the server, launch Playwright or similar, trigger the in-app test runner, wait, read the result, print pass/fail plus what went wrong for each failure.
+
+Not started. Questions to work out later: where the test data lives, how tests reset between cases (reload? a reset endpoint on the fake server?), what "run the same tests on the real web_interface + zakken_server" looks like — presumably the same tests with different drivers, which is why the template has to have well-defined states in the first place.
+
 Visual effect labs: see writing_effects_lab.md and new_page_popup.md.
 
 Cache and preload: see cache_and_preload.md.
