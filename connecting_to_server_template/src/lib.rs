@@ -4,6 +4,12 @@ pub mod client_server_coms;
 pub mod controls;
 pub mod cool_popup;
 pub mod custom_button;
+pub mod data_ops;
+pub mod overlays;
+pub mod protocol;
+pub mod reconcile;
 pub mod server;
+pub mod server_link;
+pub mod sync_mode;
 
 pub use custom_button::CustomButton;

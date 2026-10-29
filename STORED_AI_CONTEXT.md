@@ -243,7 +243,31 @@ plan.md at ZakkeN/plan.md describes this server's current state.
 
 ZakkeN/connecting_to_server_template - a self-contained Leptos CSR demo. Two halves ("client" and "server") in one app, talking through two futures::mpsc channels in client_server_coms.rs. No socket, no DB, not part of any Cargo workspace. It exists to be a reference for how connection status and the general data management operations (pause, resume, wipe, adopt, reconcile, dataset generation) should be shaped, so the real web client (cqrs_state_synchronization/web_interface) and the real server (zakken_server) can be modeled against it. Behaviour behind the enums and handle methods is faked: pretend-edit buttons, a pretend-reconcile modal, a mocked generation check. Names don't have to match the real thing exactly; the shape should. The plan in plan_for_general_data_management_ops.md is the reference for what shapes to mirror.
 
-As of 2026-10-29 the template still has its pre-plan shape. MessageToServer and MessageToClient are placeholders. The border is online/offline only. Controls has connect/wipe buttons that don't do anything real. There is no reconcile modal and no sync-mode signal. main.rs still says `use connecting_to_server_example::...` even though the package is connecting_to_server_template - that is a compile error. A plan is being written (by an AI) to redesign the shapes; update this section again when that plan lands.
+As of 2026-10-29 the work order has been implemented. Files:
+
+- protocol.rs - Payload types and LoveLetter, small copy of the real server protocol. Canned page ids.
+- sync_mode.rs - SyncMode enum (Connected / Paused / NeedsReconcile), static SYNC_MODE, is_gated, set_sync_mode (only writer). Persistence is a placeholder comment.
+- server_link.rs - ConnState (Offline / Connecting / FailedToConnect / Connected), generation and count signals, restart_sync_stack (soft restart, no page reload), receive_letter (gated), pending queue with kick_send (gated, drain re-checks per send), pull_unsent, start_over_fresh, check_login_generation (canned), clear_seen_everywhere (no-op).
+- data_ops.rs - pause (refused in NeedsReconcile), resume, wipe_server, adopt_local, DATASET_OP_BUSY, with_busy, read_local_pages_placeholder.
+- reconcile.rs - ConflictChoice, ReconcileDecisions, PageDiffSummary, ReconcilePlan, RECONCILE_PLAN/RECONCILE_ERROR signals, a session holding previous_mode + apply_attempted + plan, and the three verbs (plan / apply / cancel). classify_pages_placeholder branches on whether the server returned any pages.
+- overlays.rs - FullScreenBlocker, BusyOverlay, ReconcileModal (with inner ReconcileModalBody, reads plan once untracked so state resets per open).
+- cool_popup.rs - Toast stack with click-to-modal, hover-freeze, per-kind lifetime. show_popup(String) and show_popup_as(PopupKind, String). Replaces a separate popup.rs.
+- server.rs - fake server with dataset_generation (starting at 1) and seed_pages, implements every request. Wipe bumps generation and clears pages. Adopt bumps generation and replaces pages. SendLetter logs and replies Ok. GetMyUnsentLetters returns empty. The "kick other sockets / stamp generation / guard SendLoveLetter on stale stamp" is not representable with one client and is a comment in Login. ServerPanel readout and ServerReadout context.
+- client.rs - BorderComponent now takes BorderState (Offline / Paused / Connected), not a bool. ClientPanel shows mode, conn, pending, applied, both generations, and two pretend-edit buttons. ServerMessageReceiver passes pushed letters to receive_letter.
+- controls.rs - coms + server_coms props. spawn_verb popups on Err. Connect, Pause sync, Resume sync, Adopt my data, Reconcile, Wipe server, Push pretend letter, and a Popups section (Show popup / Show error).
+- app_main.rs - fragment root. .sides, ReconcileModal, BusyOverlay, CoolPopup as siblings. Server takes a started prop so its border stays grey until "Start server" is pressed.
+
+Four gating points read is_gated(): receive_letter, kick_send, the per-send re-check inside kick_send's drain loop, and restart_sync_stack's tail (login runs, bootstrap and pull are skipped).
+
+Deviations from the plan:
+- cool_popup replaces popup.rs. Same show_popup(String) signature, plus show_popup_as(kind, msg). The plan's simple PopupBar was not created.
+- Step 26 (inert on .sides) skipped: attr:inert is not accepted by the Leptos 0.8 view! macro and no fallback was added.
+- Overlay CSS: one file per component under css/, loaded with include_str! inside the component. No shared stylesheet. Z-index order: blocker 100, busy 200, modal 300, popup 400.
+- Sidebar border: paused uses #4a90e2 (blue), online uses #4caf50 (green), offline uses the default grey. The server border stays grey until "Start server" is pressed.
+
+Expected non-bugs: server pages don't grow after a reconcile push, letters dropped while paused aren't re-delivered, and edits made before Connect may drain anyway (kick_send gates on mode only, not on connection state).
+
+main.rs still says use connecting_to_server_example::app_main::AppMain. That is a compile error unless the package is renamed back to connecting_to_server_example. The Cargo.toml [package] name is connecting_to_server_template. Fix by editing main.rs, do not rename the package.
 
 ## External: z_db - 2026-10-13
 

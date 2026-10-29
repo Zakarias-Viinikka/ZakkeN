@@ -1,0 +1,12 @@
+/* FullScreenBlocker: covers the viewport and swallows clicks. z-index 100. */
+.fsb-blocker {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(10, 14, 24, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+}

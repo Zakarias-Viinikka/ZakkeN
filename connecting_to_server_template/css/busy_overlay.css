@@ -1,0 +1,13 @@
+/* BusyOverlay: over the modal blocker. z-index 200. */
+.bo-card {
+    background: #1c2433;
+    border: 1px solid rgba(228, 233, 242, 0.09);
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: 0 24px 48px -18px rgba(0, 0, 0, 0.75);
+    color: #e4e9f2;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    max-width: 360px;
+    text-align: center;
+}
