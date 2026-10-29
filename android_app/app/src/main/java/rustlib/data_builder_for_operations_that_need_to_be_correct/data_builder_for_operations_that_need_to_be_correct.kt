@@ -843,22 +843,22 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block() and 0xFFFF) != 3555) {
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block() and 0xFFFF) != 37911) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_create_page() and 0xFFFF) != 62539) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_delete_block() and 0xFFFF) != 46082) {
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_delete_block() and 0xFFFF) != 28677) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_disable_page() and 0xFFFF) != 52071) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_edit_block() and 0xFFFF) != 27130) {
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_edit_block() and 0xFFFF) != 42568) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_move_block() and 0xFFFF) != 37733) {
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_move_block() and 0xFFFF) != 11624) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }

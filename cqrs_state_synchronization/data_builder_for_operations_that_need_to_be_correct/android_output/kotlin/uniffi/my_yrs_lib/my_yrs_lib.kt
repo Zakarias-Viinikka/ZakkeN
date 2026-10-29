@@ -675,13 +675,13 @@ internal object IntegrityCheckingUniffiLib {
     }
 
     internal fun ensureInitialized() = Unit
+    external fun uniffi_my_yrs_lib_checksum_func_generate_unique_key(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_func_create_bookmark(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_func_doc_from_snapshot(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot(
-    ): Int
-    external fun uniffi_my_yrs_lib_checksum_func_generate_unique_key(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_yrsactivepages_create_bookmark(
     ): Int
@@ -847,13 +847,13 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_func_generate_unique_key(`userId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_func_create_bookmark(`boss`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_func_doc_from_snapshot(`snapshot`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`pageId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
     external fun uniffi_my_yrs_lib_fn_func_generate_diff_snapshot(`boss`: Long,`bookmarkSerialized`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    external fun uniffi_my_yrs_lib_fn_func_generate_unique_key(`userId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_my_yrs_lib_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -974,16 +974,16 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if ((lib.uniffi_my_yrs_lib_checksum_func_create_bookmark() and 0xFFFF) != 60295) {
+    if ((lib.uniffi_my_yrs_lib_checksum_func_generate_unique_key() and 0xFFFF) != 10378) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() and 0xFFFF) != 24419) {
+    if ((lib.uniffi_my_yrs_lib_checksum_func_create_bookmark() and 0xFFFF) != 47362) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot() and 0xFFFF) != 46939) {
+    if ((lib.uniffi_my_yrs_lib_checksum_func_doc_from_snapshot() and 0xFFFF) != 32365) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_func_generate_unique_key() and 0xFFFF) != 51078) {
+    if ((lib.uniffi_my_yrs_lib_checksum_func_generate_diff_snapshot() and 0xFFFF) != 3961) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_my_yrs_lib_checksum_method_yrsactivepages_create_bookmark() and 0xFFFF) != 51218) {
@@ -1025,49 +1025,49 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_my_yrs_lib_checksum_method_yrsbacklinks_snapshot() and 0xFFFF) != 22743) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block() and 0xFFFF) != 64348) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_delete_block() and 0xFFFF) != 35166) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block() and 0xFFFF) != 42943) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_edit_text_block() and 0xFFFF) != 42833) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() and 0xFFFF) != 48765) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_entire_page() and 0xFFFF) != 31740) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_frac_position_of_block() and 0xFFFF) != 29180) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_get_frac_position_of_block() and 0xFFFF) != 53152) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() and 0xFFFF) != 18942) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block() and 0xFFFF) != 10797) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block_with_preexisting_id() and 0xFFFF) != 32293) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_insert_new_block_with_preexisting_id() and 0xFFFF) != 39922) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with() and 0xFFFF) != 23671) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with() and 0xFFFF) != 2055) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot() and 0xFFFF) != 57849) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_merge_with_snapshot() and 0xFFFF) != 31844) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_move_block() and 0xFFFF) != 25578) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_move_block() and 0xFFFF) != 24919) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id() and 0xFFFF) != 29118) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_page_id() and 0xFFFF) != 3676) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block() and 0xFFFF) != 8607) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block() and 0xFFFF) != 25136) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block_meta() and 0xFFFF) != 56184) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block_meta() and 0xFFFF) != 14555) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info() and 0xFFFF) != 64425) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info() and 0xFFFF) != 38564) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot() and 0xFFFF) != 16472) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_snapshot() and 0xFFFF) != 39522) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_user_id() and 0xFFFF) != 41008) {
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_user_id() and 0xFFFF) != 28855) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_my_yrs_lib_checksum_constructor_yrsactivepages_new() and 0xFFFF) != 5945) {
@@ -1082,7 +1082,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_my_yrs_lib_checksum_constructor_yrsbacklinks_new_empty() and 0xFFFF) != 36623) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new() and 0xFFFF) != 15662) {
+    if ((lib.uniffi_my_yrs_lib_checksum_constructor_bossofyrs_new() and 0xFFFF) != 32567) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1472,9 +1472,6 @@ public interface BossOfYrsInterface {
     
     fun `insertNewBlock`(`blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert): kotlin.String
     
-    /**
-     * returns a list of blocks ordered by frac_index
-     */
     fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `positionToInsert`: PositionToInsert)
     
     fun `mergeWith`(`other`: BossOfYrs)
@@ -1686,9 +1683,6 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     
 
     
-    /**
-     * returns a list of blocks ordered by frac_index
-     */
     @Throws(YrsException::class)override fun `insertNewBlockWithPreexistingId`(`blockId`: kotlin.String, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `positionToInsert`: PositionToInsert)
         = 
     callWithHandle {
@@ -3157,7 +3151,19 @@ public object FfiConverterSequenceTypeBlock: FfiConverterRustBuffer<List<Block>>
             FfiConverterTypeBlock.write(it, buf)
         }
     }
+} fun `generateUniqueKey`(`userId`: kotlin.String, `time`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_generate_unique_key(
+    
+        
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`time`),_status)
 }
+    )
+    }
+    
+
     @Throws(YrsException::class) fun `createBookmark`(`boss`: BossOfYrs): kotlin.ByteArray {
             return FfiConverterByteArray.lift(
     uniffiRustCallWithError(YrsException) { _status ->
@@ -3193,18 +3199,6 @@ public object FfiConverterSequenceTypeBlock: FfiConverterRustBuffer<List<Block>>
         
         FfiConverterTypeBossOfYrs.lower(`boss`),
         FfiConverterByteArray.lower(`bookmarkSerialized`),_status)
-}
-    )
-    }
-    
- fun `generateUniqueKey`(`userId`: kotlin.String, `time`: kotlin.String): kotlin.String {
-            return FfiConverterString.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_my_yrs_lib_fn_func_generate_unique_key(
-    
-        
-        FfiConverterString.lower(`userId`),
-        FfiConverterString.lower(`time`),_status)
 }
     )
     }

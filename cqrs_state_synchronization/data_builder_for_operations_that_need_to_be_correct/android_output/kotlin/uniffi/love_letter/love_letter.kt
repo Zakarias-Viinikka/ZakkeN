@@ -846,25 +846,25 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if ((lib.uniffi_love_letter_checksum_func_build_a_love_letter() and 0xFFFF) != 16803) {
+    if ((lib.uniffi_love_letter_checksum_func_build_a_love_letter() and 0xFFFF) != 35619) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_love_letter_checksum_func_deserialize_love_letter() and 0xFFFF) != 62268) {
+    if ((lib.uniffi_love_letter_checksum_func_deserialize_love_letter() and 0xFFFF) != 9570) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_love_letter_checksum_func_deserialize_love_letter_response() and 0xFFFF) != 36491) {
+    if ((lib.uniffi_love_letter_checksum_func_deserialize_love_letter_response() and 0xFFFF) != 41872) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_love_letter_checksum_func_deserialize_sketch() and 0xFFFF) != 47737) {
+    if ((lib.uniffi_love_letter_checksum_func_deserialize_sketch() and 0xFFFF) != 54155) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_love_letter_checksum_func_love_letter_response_to_bytes() and 0xFFFF) != 36342) {
+    if ((lib.uniffi_love_letter_checksum_func_love_letter_response_to_bytes() and 0xFFFF) != 29474) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_love_letter_checksum_func_love_letter_to_bytes() and 0xFFFF) != 14070) {
+    if ((lib.uniffi_love_letter_checksum_func_love_letter_to_bytes() and 0xFFFF) != 55497) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_love_letter_checksum_func_sketch_to_bytes() and 0xFFFF) != 57076) {
+    if ((lib.uniffi_love_letter_checksum_func_sketch_to_bytes() and 0xFFFF) != 14799) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }

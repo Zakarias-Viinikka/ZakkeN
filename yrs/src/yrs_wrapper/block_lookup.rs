@@ -1,14 +1,10 @@
-use yrs::{Array, ArrayRef, GetString, Map, MapRef, ReadTxn, Text, XmlTextRef};
+use yrs::{Array, ArrayRef, GetString, Map, MapRef, ReadTxn, XmlTextRef};
 
 use super::keys::{CONTENT_KEY, FRAC_POSITION_KEY, ID_KEY, META_KEY};
 use super::types::Block;
 use crate::yrs_error::YrsError;
 
-pub(crate) fn string_field<T: ReadTxn>(
-    map: &MapRef,
-    txn: &T,
-    key: &str,
-) -> Option<String> {
+pub(crate) fn string_field<T: ReadTxn>(map: &MapRef, txn: &T, key: &str) -> Option<String> {
     map.get(txn, key).and_then(|v| v.cast::<String>().ok())
 }
 
@@ -111,5 +107,12 @@ pub(crate) fn read_block_at<T: ReadTxn>(
             "read_block_at"
         )
     })?;
-    Ok((frac_position, Block { text, metadata, id_in_yrs }))
+    Ok((
+        frac_position,
+        Block {
+            text,
+            metadata,
+            id_in_yrs,
+        },
+    ))
 }

@@ -1,16 +1,15 @@
 use std::sync::{Arc, RwLock};
 
-use yrs::updates::encoder::Encode;
 use yrs::{
-    Array, Doc, GetString, In, Map, MapPrelim, ReadTxn, StateVector, Text, Transact,
-    XmlTextPrelim, XmlTextRef,
+    Array, Doc, GetString, In, Map, MapPrelim, ReadTxn, StateVector, Transact, XmlTextPrelim,
+    XmlTextRef,
 };
 
 use super::apply_update::apply_update_bytes;
 use super::block_lookup::{find_block, frac_position_by_id, read_block_at, string_field};
 use super::frac_position::{compute_new_frac_position_in, get_new_frac_position};
 use super::keys::{
-    generate_unique_key, BLOCKS_KEY, CONTENT_KEY, FRAC_POSITION_KEY, ID_KEY, META_KEY,
+    BLOCKS_KEY, CONTENT_KEY, FRAC_POSITION_KEY, ID_KEY, META_KEY, generate_unique_key,
 };
 use super::text_edit::apply_edit;
 use super::types::{Block, EditTarget, PositionToInsert, TextEdit};
@@ -90,7 +89,13 @@ impl BossOfYrs {
         crate::guarded!("insert_new_block", move || {
             let doc = crate::read_doc!(self.doc, "insert_new_block");
             let block_id = generate_unique_key(&self.user_id, &self.time);
-            insert_block_into_doc(&doc, block_id.clone(), block_content, block_meta_data, position)?;
+            insert_block_into_doc(
+                &doc,
+                block_id.clone(),
+                block_content,
+                block_meta_data,
+                position,
+            )?;
             Ok(block_id)
         })
     }
@@ -114,7 +119,13 @@ impl BossOfYrs {
                     ));
                 }
             }
-            insert_block_into_doc(&doc, block_id, block_content, block_meta_data, position_to_insert)
+            insert_block_into_doc(
+                &doc,
+                block_id,
+                block_content,
+                block_meta_data,
+                position_to_insert,
+            )
         })
     }
 
@@ -129,7 +140,8 @@ impl BossOfYrs {
                 with_keys.push(read_block_at(&array, &txn, position)?);
             }
             with_keys.sort_by(|a, b| {
-                a.0.cmp(&b.0).then_with(|| a.1.id_in_yrs.cmp(&b.1.id_in_yrs))
+                a.0.cmp(&b.0)
+                    .then_with(|| a.1.id_in_yrs.cmp(&b.1.id_in_yrs))
             });
             Ok(with_keys.into_iter().map(|(_, b)| b).collect())
         })
@@ -282,13 +294,9 @@ impl BossOfYrs {
                 None => Ok(None),
                 Some(block_map) => {
                     let txn = doc.transact();
-                    let meta =
-                        string_field(&block_map, &txn, META_KEY).ok_or_else(|| {
-                            crate::generic_error!(
-                                "read_block_meta: no meta field",
-                                "read_block_meta"
-                            )
-                        })?;
+                    let meta = string_field(&block_map, &txn, META_KEY).ok_or_else(|| {
+                        crate::generic_error!("read_block_meta: no meta field", "read_block_meta")
+                    })?;
                     Ok(Some(meta))
                 }
             }

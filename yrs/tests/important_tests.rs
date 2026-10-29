@@ -163,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_block_at_specific_position() {
+    fn insert_block_between_two_blocks() {
         let boss = new_test_boss();
 
         let text_a = "A".to_string();
@@ -174,19 +174,21 @@ mod tests {
         let meta_b = "meta_b".to_string();
         let meta_c = "meta_c".to_string();
 
-        Arc::clone(&boss)
+        let a_id = Arc::clone(&boss)
             .insert_new_block(text_a.clone(), meta_a.clone(), PositionToInsert::AtEnd)
             .unwrap();
-        Arc::clone(&boss)
+        let b_id = Arc::clone(&boss)
             .insert_new_block(text_b.clone(), meta_b.clone(), PositionToInsert::AtEnd)
             .unwrap();
 
-        // Insert C at position 1 (between A and B)
         Arc::clone(&boss)
             .insert_new_block(
                 text_c.clone(),
                 meta_c.clone(),
-                PositionToInsert::SpecificPosition(1),
+                PositionToInsert::Between {
+                    block_id_of_above: Some(a_id),
+                    block_id_of_below: Some(b_id),
+                },
             )
             .unwrap();
 
@@ -223,7 +225,6 @@ mod tests {
         let meta_b = "meta_b".to_string();
         let meta_c = "meta_c".to_string();
 
-        // Insert three blocks
         Arc::clone(&boss)
             .insert_new_block(text_a.clone(), meta_a.clone(), PositionToInsert::AtEnd)
             .unwrap();
@@ -234,15 +235,12 @@ mod tests {
             .insert_new_block(text_c.clone(), meta_c.clone(), PositionToInsert::AtEnd)
             .unwrap();
 
-        // Get the middle block's id (index 1)
         let middle_block_id = Arc::clone(&boss).get_entire_page().unwrap()[1]
             .id_in_yrs
             .clone();
 
-        // Delete the middle block
         Arc::clone(&boss).delete_block(middle_block_id).unwrap();
 
-        // Verify remaining blocks
         let page = Arc::clone(&boss).get_entire_page().unwrap();
 
         assert_eq!(page.len(), 2);

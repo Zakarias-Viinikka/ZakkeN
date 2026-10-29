@@ -716,6 +716,10 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_client_table_blueprints_checksum_func_new_table_pages(
     ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_seen_server_letter_row(
+    ): Int
+    external fun uniffi_client_table_blueprints_checksum_func_new_table_seen_server_letters(
+    ): Int
     external fun ffi_client_table_blueprints_uniffi_contract_version(
     ): Int
 
@@ -762,6 +766,10 @@ internal object UniffiLib {
     external fun uniffi_client_table_blueprints_fn_func_new_page_row(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`blobbedPage`: RustBuffer.ByValue,`version`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_client_table_blueprints_fn_func_new_table_pages(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_seen_server_letter_row(`letterId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_client_table_blueprints_fn_func_new_table_seen_server_letters(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_client_table_blueprints_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -885,13 +893,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_backlinks() and 0xFFFF) != 39081) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() and 0xFFFF) != 57984) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_backlink_row() and 0xFFFF) != 22125) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_backlinks() and 0xFFFF) != 379) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_client_love_letter_row() and 0xFFFF) != 37880) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_client_love_letter_row() and 0xFFFF) != 36409) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_client_love_letter() and 0xFFFF) != 39430) {
@@ -900,34 +908,40 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_client_table_blueprints_checksum_func_get_foreign_def_every_block_in_existence() and 0xFFFF) != 65402) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 33752) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_every_block_in_existence_row() and 0xFFFF) != 21857) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_every_block_in_existence() and 0xFFFF) != 19192) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() and 0xFFFF) != 20982) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_incoming_love_letter_row() and 0xFFFF) != 41175) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_incoming_love_letters() and 0xFFFF) != 3812) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_key_value_item() and 0xFFFF) != 34184) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_key_value_item() and 0xFFFF) != 26954) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_key_value_storage() and 0xFFFF) != 27735) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_log_row() and 0xFFFF) != 11817) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_log_row() and 0xFFFF) != 29624) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_logs() and 0xFFFF) != 37062) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_client_table_blueprints_checksum_func_new_page_row() and 0xFFFF) != 47200) {
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_page_row() and 0xFFFF) != 42921) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_pages() and 0xFFFF) != 14304) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_seen_server_letter_row() and 0xFFFF) != 307) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_client_table_blueprints_checksum_func_new_table_seen_server_letters() and 0xFFFF) != 64506) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1433,6 +1447,27 @@ object YrsExceptionExternalErrorHandler : UniffiRustCallStatusErrorHandler<YrsEx
             return FfiConverterSequenceTypeColumnDef.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_client_table_blueprints_fn_func_new_table_pages(
+    
+        _status)
+}
+    )
+    }
+    
+ fun `newSeenServerLetterRow`(`letterId`: kotlin.Long): List<ColumnValue> {
+            return FfiConverterSequenceTypeColumnValue.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_seen_server_letter_row(
+    
+        
+        FfiConverterLong.lower(`letterId`),_status)
+}
+    )
+    }
+    
+ fun `newTableSeenServerLetters`(): List<ColumnDef> {
+            return FfiConverterSequenceTypeColumnDef.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_client_table_blueprints_fn_func_new_table_seen_server_letters(
     
         _status)
 }
