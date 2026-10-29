@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("test_results") {
-                            z.zndroid.Tests.TestResultsPage(onBack = { navController.popBackStack() })
+                            z.zndroid.Tests.DevToolsPage(onBack = { navController.popBackStack() })
                         }
                         composable(
                             route = "view_page/{pageId}",

@@ -50,7 +50,8 @@ class UiTestRun:
         try:
             r = subprocess.run(
                 ["adb", "-s", self.serial, "logcat", "-d",
-                 "-s", "GlobalPopup:V", "AndroidRuntime:E"],
+                 "-s", "GlobalPopup:V", "DevCheck:V", "EditBlockExec:I",
+                 "OpsCreateAndRename:I", "RenamePage:I", "AndroidRuntime:E"],
                 capture_output=True, text=True, timeout=10,
             )
             return (r.stdout or "").splitlines()
@@ -62,6 +63,14 @@ class UiTestRun:
         out = []
         for line in raw:
             if "GlobalPopup" in line:
+                out.append(line)
+            elif "DevCheck" in line:
+                out.append(line)
+            elif "EditBlockExec" in line:
+                out.append(line)
+            elif "OpsCreateAndRename" in line:
+                out.append(line)
+            elif "RenamePage" in line:
                 out.append(line)
             elif "FATAL" in line:
                 out.append(line)

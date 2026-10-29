@@ -1,5 +1,7 @@
 package z.zndroid.Tests
 
+import z.zndroid.db.schema.*
+
 /**
  * Defines the columns that the Kotlin code explicitly relies on.
  * Reflects the current live schema blueprints.

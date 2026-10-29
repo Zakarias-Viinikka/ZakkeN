@@ -1,115 +1,120 @@
 # Invented on Android
 
-Things Android does that have no Rust or web counterpart yet. Each entry
-says what Android does and where the equivalent should eventually live,
-so it can be checked once the web side catches up.
+Things Android does that have no Rust or web counterpart yet, or where the
+Android answer is different from web for a phone-shaped reason. Each entry
+says what Android does and where the equivalent should eventually live, so
+it can be checked once the web side catches up.
 
-When you design something without a reference, add an entry here. When
-the web or Rust side catches up, read the entry and verify Android's
-choice.
+When you design something without a reference, add an entry here.
 
 ---
 
 ### Parallel Column Schema Descriptors & Type Canary Tests
 
-Android: Defined parallel `ColumnDescriptor<T>` Kotlin objects per table (`PagesTableSchema`, `EveryBlockInExistenceTableSchema`, `BacklinksTableSchema`, `ClientLoveLetterTableSchema`, `KeyValueStorageTableSchema`, `IncomingLoveLettersTableSchema`, `LogsTableSchema`) holding column name, type name, and unwrap lambda `(Col) -> T`. Created `SchemaCanaryTest` asserting hardcoded type expectations for each column descriptor as a compile/test time substitute for Rust's generic `SchemaColumn<T>`.
+Android: `z.zndroid.db.schema` holds `ColumnDescriptor<T>` objects per table (name, typeName, unwrap(Col) -> T). `SchemaCanaryTest` asserts hardcoded type expectations per column as a compile/test time substitute for Rust's generic `SchemaColumn<T>`. Every read in `db/reads` goes through these descriptors; there are no positional column indexes elsewhere.
 
-Reference location: `client_table_blueprints` or `schema` crate in Rust.
+Reference location: `client_table_blueprints` in Rust.
 
-To verify: Compare `ColumnDescriptor` field types and `SchemaCanaryTest` assertions against the generic `SchemaColumn<T>` definitions in Rust schema crate.
+To verify: Compare `ColumnDescriptor` field types and `SchemaCanaryTest` assertions against the generic `SchemaColumn<T>` definitions in the Rust schema crate.
 
 ---
 
 ### In-Memory Transaction Log Buffer & Rollback Flush
 
-Android: `DbTransactionElement` maintains a thread-local / coroutine-context in-memory log buffer (`logBuffer`). Logs emitted via `Logger` during an active transaction are appended to `logBuffer`. When a transaction commits (`onCommit`), `logBuffer` is cleared without writing. When a transaction rolls back (`onRollback`), `logBuffer` is flushed to the `logs` SQLite table outside the failed transaction. Logs emitted outside a transaction insert directly into `logs`.
+Android: `DbTransactionElement` maintains a coroutine-context in-memory log buffer (`logBuffer`). Logs emitted via `Logger` during an active transaction are appended to `logBuffer`. On commit, `logBuffer` is cleared without writing. On rollback, `logBuffer` is flushed to the `logs` SQLite table outside the failed transaction. Logs emitted outside a transaction insert directly into `logs`.
 
-Reference location: `web_interface` / DB worker or `cqrs_state_synchronization` logging subsystem.
+Reference location: web's DB worker. Whether web preserves error logs from a rolled-back transaction and where they end up should be checked.
 
-To verify: Verify that the web interface worker handles transaction failure logging by preserving error logs outside rolled-back worker transactions.
-
----
-
-### Structural Operations Squash-First Rule & Transaction Wrapping
-
-Android: `splitBlock` and `mergeWithPreviousBlock` flush pending text edit diff buffers (`EditTextInBlock.flushBuffer`) before performing structural actions, and wrap both the flush and the structural change in a single re-entrant SQLite transaction (`DbManager.withTransaction`).
-
-Reference location: `executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db` and `data_builder_for_operations_that_need_to_be_correct` in Rust.
-
-To verify: Ensure that structural builders/executors on the Rust/web side enforce flushing pending text diffs before applying block splits/merges/deletions.
+To verify: Confirm web's worker handles transaction-failure logging by preserving error logs outside rolled-back transactions.
 
 ---
 
-### Nav Menu Title Extraction from Title Block Content
+### PageBatcher with optimistic delete/move
 
-Android: `NavPage` reads page titles from `every_block_in_existence` where `is_title = "true"` and `id_of_page_i_belong_to = page_id`. If empty or blank, displays "Untitled" in a muted color. Renaming from the nav menu calls `DbManager.renamePage` which updates the title block's content via `EditTextInBlock` / `AddBlock` builders.
+Android: `editor/PageBatcher` holds an ordered queue of `Entry.Edit / Add / Delete / Move`. Consecutive edits to a block are squashed via `combineGetdiffResults` before the transaction; any non-edit entry flushes the pending edit run first, then does its own op inside the same transaction. Local UI state (`PageSession.rows`) is updated optimistically for delete and move before the write lands.
 
-Reference location: `web_interface` / Nav menu component in reference web UI.
+Web: `db/batcher` queues only `Edit` and `AddBlock`. Delete and move go straight through `ui_actions` entry points (`delete_block`, `move_block`, `move_block_to_another_page`) which flush the batcher first, then take the write lock. Web does not queue them.
 
-To verify: Check that the web client UI displays the title block content as page title in navigation sidebar and edits title block text when renaming.
+Reference location: `cqrs_state_synchronization/web_interface/src/db/batcher` and `web_interface/src/db/ui_actions`.
 
----
-
-### SafeRowMapper Extension for `List<ColumnValue>`
-
-Android: Extended `SafeRowMapper` to accept `List<ColumnValue>` returned directly by modern UniFFI row builders (`newPageRow`, `newEveryBlockInExistenceRow`, `newKeyValueItem`, `newLogRow`, etc.) and validate column names against table blueprints.
-
-Reference location: `client_table_blueprints` in Rust / Kotlin UniFFI bindings.
-
-To verify: Compare `SafeRowMapper` column name validation logic against UniFFI bindings output for row builders.
+To verify: Decide whether Android's queue-them or web's flush-then-act is correct. Android needs the queue because touching a hardware keyboard can produce Enter-split while the user is still typing in another block, and a structural op that flushes immediately would block that other block's edit.
 
 ---
 
-### External Transaction Hook for E2E Testing
+### Flush-failure reload instead of `APP_LOCKED`
 
-Android: `TestTransactionReceiver` in `src/debug/` listens for three broadcast
-actions and calls `DbManager.beginExternalTransaction()`,
-`endExternalTransaction(commit = false)`, or
-`endExternalTransaction(commit = true)`. While `externalTransactionActive` is
-true, `withTransaction` runs its block inside the already-open transaction
-instead of starting a nested one. Used by the external Python/Appium test
-harness to wrap a whole test run in one transaction that rolls back at
-teardown. Debug-only (source folder `src/debug/`), absent from release builds.
+Android: if a flush inside `PageBatcher.flushNow` fails, the transaction rolls back, the in-memory boss is now ahead of the DB, so `PageSession` rebuilds everything from the DB (destroy the boss, drop the queue) and shows a popup.
 
-Reference location: none. This is testing infrastructure, not a domain
-feature. If the web or Rust side ever gains an equivalent harness, it should
-live in a similarly isolated test-only module.
+Web: on a failed flush, `APP_LOCKED` flips to `true`, the page background turns red, and the user is told to copy anything they need and refresh. Web can't force a reload because the user might lose in-memory state they care about.
+
+Reference location: `cqrs_state_synchronization/web_interface/src/db/batcher/flush.rs` (the `lock_app_after_failed_flush` path).
+
+To verify: Web can't auto-reload, so the Android answer will always differ here. Kept as a note so a future UI rewrite can decide whether to also introduce a visible APP_LOCKED-style state on Android instead of an automatic reload.
+
+---
+
+### Move Up / Down instead of drag
+
+Android: block reorder is two buttons in the long-press block action menu ("Up" / "Down"). No drag. The title can't move and nothing moves above it.
+
+Web: drag the block handle to reorder, implemented by `drag_reorder_container`.
+
+Reference location: `cqrs_state_synchronization/web_interface/src/drag_reorder_container`.
+
+To verify: On a phone, drag-to-reorder competes with text selection and the scroll gesture. This is a UX choice, not a bug. Kept as a note so a future mobile-drag experiment can replace it if it works.
+
+---
+
+### Session id per process, not per navigation
+
+Android: `SessionManager.initialize` reads the last stored id and increments once per process start. `MainActivity` no longer increments on every navigation change. `SessionMonotonicityTest` asserts it stays stable during a session.
+
+Web: `init_session_id` in `db/init.rs` increments on each page reload.
+
+Reference location: `cqrs_state_synchronization/web_interface/src/db/init.rs`.
+
+To verify: Web reloads on navigation (browser refresh), so its "once per reload" and Android's "once per process" are the same shape conceptually. Android does not reload on navigation, so incrementing per navigation would mean an idle tap between pages burns a session id with no writes in it.
+
+---
+
+### Nav "Delete" button means disable
+
+Android: the nav row button labelled "Delete" calls `actions/disablePage`, which sets the page's blocks and status to disabled and removes the page from the menu. No data is deleted. Renamed conceptually but the button label is frozen because the e2e harness (and other tests) click the "Delete" text.
+
+Web: the menu button next to each title is an eye icon (SVG) labelled with the tooltip "disable page". Same behaviour.
+
+Reference location: `web_interface/src/leptos_components/action_buttons/disable_page_button.rs`.
+
+To verify: any future UI redesign can re-label the button. Nothing depends on the label except the e2e test text matcher.
+
+---
+
+### Dev Tools page + DevCheck registry
+
+Android: debug-only page at route `test_results` (nav button "Dev Tools"). `DevCheckRegistry.checks` is the one list of checks. `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
+
+Web: `web_interface/src/db/dev_actions.rs` has `insert_three_pages`, `delete_everything`, `reset_everything` exposed as buttons in a dev sidebar. No pass/fail check registry.
+
+Reference location: `cqrs_state_synchronization/web_interface/src/db/dev_actions.rs` and `web_interface/src/leptos_components/dev_panel`.
+
+To verify: If web ever wants an equivalent check registry, the shape here is the template: one list, one runner, one summary log line that e2e can read.
+
+---
+
+### External transaction hook for e2e testing
+
+Android: `TestTransactionReceiver` in `src/debug/` listens for three broadcast actions and calls `DbManager.beginExternalTransaction()`, `endExternalTransaction(commit = false)`, or `endExternalTransaction(commit = true)`. While `externalTransactionActive` is true, `withTransaction` runs its block inside the already-open transaction instead of starting a nested one. Used by the external Python/Appium test harness to wrap a whole test run in one transaction that rolls back at teardown. Debug-only; absent from release builds.
+
+Reference location: none. This is testing infrastructure, not a domain feature. A matching "server test mode" (see root TODO) is planned for the server.
 
 To verify: N/A - this is a testing-apparatus choice, not a domain design.
 
 ---
 
-### Popup Severity Convention (show vs showError)
+### V3 migration drops and recreates `every_block_in_existence`
 
-Android: `GlobalPopupManager` has two entry points. `show(msg)` is for
-informational popups; `showError(msg)` is for errors and is rendered with an
-`ERROR: ` prefix in the snackbar text. Both are logged to logcat: `Log.i` for
-info, `Log.e` for errors, tag `GlobalPopup`. The convention exists because the
-external test harness needs to distinguish "the user should be told something"
-from "the operation failed", and it reads popups from logcat rather than the
-a11y tree.
+Android: `SchemaVersion.V2.updateOnce` performs the V2 to V3 migration by dropping `every_block_in_existence` and recreating it. `position` REAL became `frac_position` TEXT; no attempt is made to migrate existing rows, so block rows already on the device are lost on first launch after V3.
 
-Reference location: if the web client has an equivalent of "popup severity"
-(it likely does - snackbar vs toast vs alert), this convention should match.
-Check `cqrs_state_synchronization/web_interface` UI components.
+Reference location: none - one-time project-state choice. Web accepted the same data loss.
 
-To verify: confirm the web client distinguishes error notifications from
-informational ones with the same semantic split (error -> user knows something
-broke; info -> user is informed of an expected outcome).
-
----
-
-### V3 migration drops and recreates every_block_in_existence
-
-Android: `SchemaVersion.V2.updateOnce` performs the V2 to V3 migration
-by dropping `every_block_in_existence` and recreating it. The `position`
-REAL column became `frac_position` TEXT; no attempt is made to migrate
-existing rows, so any block rows already on the device are lost on first
-launch after the V3 install.
-
-Reference location: none - this is a one-time project-state choice, not
-a domain design. The web side accepted the same data loss (project is
-pre-data and gets wiped).
-
-To verify: N/A once the project has real data. Until then, this is
-accepted data loss, not a design to keep.
+To verify: N/A once the project has real data. Until then, this is accepted data loss, not a design to keep.

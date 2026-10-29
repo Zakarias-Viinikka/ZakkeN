@@ -10,15 +10,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import uniffi.protocol.*
 import z.zndroid.DbManager
+import z.zndroid.actions.createNewPage
+import z.zndroid.actions.disablePage
+import z.zndroid.actions.renamePage
 import z.zndroid.components.GlobalPopupManager
-
-data class NavPageInfo(
-    val pageId: String,
-    val titleText: String,
-    val isUntitled: Boolean
-)
+import z.zndroid.db.reads.MenuPageRow
+import z.zndroid.db.reads.getMenuPages
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,15 +26,12 @@ fun NavPage(
     onOpenDbInspector: () -> Unit,
     onOpenTests: () -> Unit
 ) {
-    var pageInfos by remember { mutableStateOf(emptyList<NavPageInfo>()) }
+    var pages by remember { mutableStateOf(emptyList<MenuPageRow>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showNewPagePopup by remember { mutableStateOf(false) }
-    var pageToRename by remember { mutableStateOf<NavPageInfo?>(null) }
-    var pageToDelete by remember { mutableStateOf<NavPageInfo?>(null) }
+    var pageToRename by remember { mutableStateOf<MenuPageRow?>(null) }
+    var pageToDelete by remember { mutableStateOf<MenuPageRow?>(null) }
     var renameInputText by remember { mutableStateOf("") }
-    // When true, the next time pageInfos updates, scroll to the last item
-    // (the newest page). Set after page creation and rename so the user
-    // sees the row they just created/renamed regardless of list length.
     var scrollToNewest by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -45,51 +40,15 @@ fun NavPage(
         coroutineScope.launch {
             isLoading = true
             DbManager.awaitReady()
-
-            val pagesRes = DbManager.getPages()
-            if (pagesRes.isFailure) {
-                GlobalPopupManager.showError("Failed to load pages: ${pagesRes.exceptionOrNull()?.message}")
-                isLoading = false
-                return@launch
-            }
-
-            val pageRows = pagesRes.getOrNull() ?: emptyList()
-
-            // Fetch title blocks from every_block_in_existence
-            val titleBlocksData = DbManager.getData(GetDataIn(
-                tableName = "every_block_in_existence",
-                arguments = SelectArguments.Single(SelectArgument.XEqualY("is_title", "true")),
-                columnsToRead = emptyList()
-            )).getOrNull()
-
-            val titlesByPageId = mutableMapOf<String, String>()
-            if (titleBlocksData != null) {
-                val checkOut = DbManager.checkTable(CheckTableIn("every_block_in_existence")).getOrNull()
-                val pageIdColIdx = checkOut?.columns?.indexOfFirst { it.name == "id_of_page_i_belong_to" } ?: 5
-                val contentColIdx = checkOut?.columns?.indexOfFirst { it.name == "content" } ?: 3
-
-                titleBlocksData.rows.forEach { row ->
-                    val pid = (row.cols.getOrNull(pageIdColIdx) as? Col.Text)?.v1
-                    val content = (row.cols.getOrNull(contentColIdx) as? Col.Text)?.v1
-                    if (pid != null && content != null) {
-                        titlesByPageId[pid] = content
-                    }
+            getMenuPages()
+                .onSuccess {
+                    pages = it
+                    isLoading = false
                 }
-            }
-
-            // Resolve page_id column index in pages table
-            val pagesCheck = DbManager.checkTable(CheckTableIn("pages")).getOrNull()
-            val pageIdIdx = pagesCheck?.columns?.indexOfFirst { it.name == "page_id" } ?: 1
-
-            pageInfos = pageRows.map { row ->
-                val pid = (row.cols.getOrNull(pageIdIdx) as? Col.Text)?.v1 ?: ""
-                val rawTitle = titlesByPageId[pid] ?: ""
-                val isUntitled = rawTitle.isBlank()
-                val displayTitle = if (isUntitled) "Untitled" else rawTitle
-                NavPageInfo(pageId = pid, titleText = displayTitle, isUntitled = isUntitled)
-            }
-
-            isLoading = false
+                .onFailure {
+                    GlobalPopupManager.showError("Failed to load pages: ${it.message}")
+                    isLoading = false
+                }
         }
     }
 
@@ -97,18 +56,16 @@ fun NavPage(
         refreshPages()
     }
 
-    LaunchedEffect(pageInfos.size, scrollToNewest) {
-        if (scrollToNewest && pageInfos.isNotEmpty()) {
-            listState.animateScrollToItem(pageInfos.size - 1)
+    LaunchedEffect(pages.size, scrollToNewest) {
+        if (scrollToNewest && pages.isNotEmpty()) {
+            listState.animateScrollToItem(pages.size - 1)
             scrollToNewest = false
         }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Navigation page") }
-            )
+            TopAppBar(title = { Text("Navigation page") })
         }
     ) { innerPadding ->
         Column(
@@ -128,7 +85,7 @@ fun NavPage(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(pageInfos) { info ->
+                    items(pages, key = { it.pageId }) { info ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -139,7 +96,7 @@ fun NavPage(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(
-                                    text = info.titleText,
+                                    text = info.title,
                                     color = if (info.isUntitled) {
                                         LocalContentColor.current.copy(alpha = 0.6f)
                                     } else {
@@ -148,32 +105,26 @@ fun NavPage(
                                 )
                             }
 
-                            TextButton(
-                                onClick = { onOpenAdminView(info.pageId) }
-                            ) {
+                            TextButton(onClick = { onOpenAdminView(info.pageId) }) {
                                 Text("Admin")
                             }
 
                             TextButton(
                                 onClick = {
                                     pageToRename = info
-                                    renameInputText = if (info.isUntitled) "" else info.titleText
+                                    renameInputText = if (info.isUntitled) "" else info.title
                                 }
                             ) {
                                 Text("Rename")
                             }
 
-                            TextButton(
-                                onClick = {
-                                    pageToDelete = info
-                                }
-                            ) {
+                            TextButton(onClick = { pageToDelete = info }) {
                                 Text("Delete")
                             }
                         }
                     }
-                    
-                    if (pageInfos.isEmpty()) {
+
+                    if (pages.isEmpty()) {
                         item {
                             Text(
                                 "No pages found",
@@ -198,8 +149,10 @@ fun NavPage(
                 Text("Database Inspector")
             }
 
-            TextButton(onClick = onOpenTests) {
-                Text("Internal Test Suite")
+            if (z.zndroid.BuildConfig.DEBUG) {
+                TextButton(onClick = onOpenTests) {
+                    Text("Dev Tools")
+                }
             }
         }
     }
@@ -210,13 +163,15 @@ fun NavPage(
             onConfirm = { name ->
                 coroutineScope.launch {
                     DbManager.awaitReady()
-                    DbManager.addPage(name).onSuccess {
-                        showNewPagePopup = false
-                        scrollToNewest = true
-                        refreshPages()
-                    }.onFailure { error ->
-                        GlobalPopupManager.showError("Error: ${error.message}")
-                    }
+                    createNewPage(name)
+                        .onSuccess {
+                            showNewPagePopup = false
+                            scrollToNewest = true
+                            refreshPages()
+                        }
+                        .onFailure { error ->
+                            GlobalPopupManager.showError("Error creating page: ${error.message}")
+                        }
                 }
             }
         )
@@ -241,13 +196,15 @@ fun NavPage(
                         val newTitle = renameInputText.trim()
                         if (newTitle.isNotEmpty()) {
                             coroutineScope.launch {
-                                DbManager.renamePage(currentInfo.pageId, newTitle).onSuccess {
-                                    pageToRename = null
-                                    scrollToNewest = true
-                                    refreshPages()
-                                }.onFailure { error ->
-                                    GlobalPopupManager.showError("Rename failed: ${error.message}")
-                                }
+                                renamePage(currentInfo.pageId, newTitle)
+                                    .onSuccess {
+                                        pageToRename = null
+                                        scrollToNewest = true
+                                        refreshPages()
+                                    }
+                                    .onFailure { error ->
+                                        GlobalPopupManager.showError("Rename failed: ${error.message}")
+                                    }
                             }
                         }
                     },
@@ -267,16 +224,18 @@ fun NavPage(
         AlertDialog(
             onDismissRequest = { pageToDelete = null },
             title = { Text("Delete Page") },
-            text = { Text("Delete \"${currentInfo.titleText}\" and all its blocks? This cannot be undone.") },
+            text = { Text("Hide \"${currentInfo.titleText()}\" from the menu? The page stays in the database; blocks are not removed.") },
             confirmButton = {
                 TextButton(onClick = {
                     coroutineScope.launch {
-                        DbManager.deletePage(currentInfo.pageId).onSuccess {
-                            pageToDelete = null
-                            refreshPages()
-                        }.onFailure { error ->
-                            GlobalPopupManager.showError("Delete failed: ${error.message}")
-                        }
+                        disablePage(currentInfo.pageId)
+                            .onSuccess {
+                                pageToDelete = null
+                                refreshPages()
+                            }
+                            .onFailure { error ->
+                                GlobalPopupManager.showError("Delete failed: ${error.message}")
+                            }
                     }
                 }) {
                     Text("Delete")
@@ -288,3 +247,5 @@ fun NavPage(
         )
     }
 }
+
+private fun MenuPageRow.titleText(): String = title

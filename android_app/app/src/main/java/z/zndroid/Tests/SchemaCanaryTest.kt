@@ -1,5 +1,7 @@
 package z.zndroid.Tests
 
+import z.zndroid.db.schema.*
+
 /**
  * Canary test for schema drift.
  * Asserts each column descriptor's expected type hardcoded.

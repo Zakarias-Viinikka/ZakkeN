@@ -3,6 +3,8 @@
 These are the reusable building blocks a future test should lean on. Each
 function is a short sequence of primitive UI operations, not a full test.
 """
+import re
+import subprocess
 import time
 
 from appium.webdriver.common.appiumby import AppiumBy
@@ -23,6 +25,8 @@ BACK_ARROW = "\u2190"
 BODY_PLACEHOLDER = "Type '/' for commands..."
 RENAME_DIALOG_TITLE = "Rename Page"
 DELETE_DIALOG_TITLE = "Delete Page"
+DEV_TOOLS_BUTTON = "Dev Tools"
+RUN_ALL_CHECKS_BUTTON = "Run all checks"
 
 
 def _row_sibling(element, label, timeout):
@@ -262,3 +266,61 @@ def delete_page(driver, title):
     confirm.click()
 
     ui.wait_text_gone(driver, title, timeout=WAIT)
+
+def open_dev_tools(driver, timeout=WAIT):
+    """Tap the nav button that opens the Dev Tools page, wait for the
+    Run-all button to appear. Dev Tools only exists in debug builds."""
+    ui.click_by_text(driver, DEV_TOOLS_BUTTON)
+    WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located(
+            (AppiumBy.XPATH, f'//*[@text={ui.xpath_literal(RUN_ALL_CHECKS_BUTTON)}]')
+        )
+    )
+
+
+def run_all_dev_checks(driver, serial, timeout=180):
+    """Tap 'Run all checks' and wait for the DevCheck summary logcat line.
+    Returns {"pass": N, "fail": M, "failures": [(id, detail), ...]}.
+    Raises if the summary never appears."""
+    ui.click_by_text(driver, RUN_ALL_CHECKS_BUTTON)
+    deadline = time.time() + timeout
+    summary = None
+    while time.time() < deadline:
+        r = subprocess.run(
+            ["adb", "-s", serial, "logcat", "-d", "-s", "DevCheck:V"],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in (r.stdout or "").splitlines():
+            m = re.search(r"summary pass=(\d+) fail=(\d+)", line)
+            if m:
+                summary = {"pass": int(m.group(1)), "fail": int(m.group(2))}
+                break
+        if summary:
+            break
+        time.sleep(0.5)
+
+    r = subprocess.run(
+        ["adb", "-s", serial, "logcat", "-d", "-s", "DevCheck:V"],
+        capture_output=True, text=True, timeout=10,
+    )
+    lines = (r.stdout or "").splitlines()
+
+    if summary is None:
+        tail = "\n".join(lines[-30:])
+        raise AssertionError(
+            f"dev checks: no 'DevCheck summary pass=N fail=M' line within {timeout}s. "
+            f"Last DevCheck lines:\n{tail}"
+        )
+
+    failures = []
+    for line in lines:
+        m = re.search(r"id=(\S+) status=FAIL detail=(.*)", line)
+        if m:
+            failures.append((m.group(1), m.group(2).strip()))
+    summary["failures"] = failures
+    return summary
+
+
+def go_back_from_dev_tools(driver, timeout=WAIT):
+    ui.click_by_text(driver, BACK_ARROW)
+    ensure_nav_page(driver, timeout=timeout)

@@ -51,7 +51,7 @@ object SessionManager {
                 val newVal = _currentSessionId.incrementAndGet()
                 StorageAccess.setValue(StorageKey.SESSION_ID, newVal.toString())
             } catch (e: Exception) {
-                GlobalPopupManager.show("Session Error: ${e.message ?: e.toString()}")
+                GlobalPopupManager.showError("Session Error: ${e.message ?: e.toString()}")
             }
         }
     }

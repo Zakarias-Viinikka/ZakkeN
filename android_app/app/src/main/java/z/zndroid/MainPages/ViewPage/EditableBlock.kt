@@ -1,210 +1,194 @@
 package z.zndroid.MainPages.ViewPage
 
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import rustlib.my_yrs_lib.BossOfYrs
-import z.zndroid.DocEvents.EditTextInBlock
-import z.zndroid.DocEvents.EditTextInBlockCtx
-import z.zndroid.DocEvents.RemoveBlock
-import z.zndroid.DocEvents.RemoveBlockCtx
-import rustlib.text_diff.getDiff
+import z.zndroid.editor.BlockRow
+import z.zndroid.editor.PageSession
 
-/**
- * A dedicated component for rendering and editing a single text block.
- * Handles styling (title vs body), live updates, and block deletion.
- */
 @Composable
 fun EditableBlock(
-    state: BlockUiState,
+    row: BlockRow,
     index: Int,
-    boss: BossOfYrs,
-    scope: CoroutineScope,
-    onRefreshWithFocus: (String?, Int?) -> Unit,
-    onHardReload: () -> Unit
+    session: PageSession,
+    listState: LazyListState
 ) {
-    val isTitle = index == 0
-    val textStyle = if (isTitle) {
-        MaterialTheme.typography.headlineMedium
-    } else {
-        MaterialTheme.typography.bodyLarge
-    }
+    val isTitle = row.isTitle
+    val textStyle = if (isTitle) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge
+    var showMenu by remember { mutableStateOf(false) }
 
-    val debounceJob = remember { mutableStateOf<Job?>(null) }
-    var showSlashPopup by remember { mutableStateOf(false) }
-    var showLongPressMenu by remember { mutableStateOf(false) }
-
-    // Fresh page: focus the first empty body block so the soft keyboard
-    // appears and the user can type immediately. Before the two-block
-    // page change, this was handled by ViewPage after
-    // initializePageContent created the body block and returned its id.
-    // Now the block already exists, so the focus has to happen here
-    // where the FocusRequester is attached to the composed BasicTextField.
-    LaunchedEffect(Unit) {
-        if (index == 1 && state.text.isEmpty()) {
-            delay(150)
-            state.focusRequester.requestFocus()
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .combinedClickable(
-                onClick = { /* Normal click focus happens via TextField */ },
-                onLongClick = { showLongPressMenu = true }
-            ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Box(modifier = Modifier.padding(16.dp)) {
-            BasicTextField(
-                value = state.textFieldValue,
-                onValueChange = { newValue ->
-                    val oldText = state.text
-                    val newText = newValue.text
-
-                    // Soft-keyboard Enter arrives as a '\n' in the text, not as Key.Enter.
-                    // Intercept it: strip the newline, then split at the cursor.
-                    if (newText.contains('\n')) {
-                        val sanitized = newText.replace("\n", "")
-                        state.textFieldValue = state.textFieldValue.copy(text = sanitized)
-                        val cursor = newValue.selection.start.coerceAtMost(sanitized.length)
-                        debounceJob.value?.cancel()
-                        scope.launch {
-                            // Flush pending buffered edits before splitting.
-                            // Otherwise the yrs doc splits without the text
-                            // that hadn't been persisted yet, and the text
-                            // is lost on reload.
-                            EditTextInBlock.flushBuffer(boss, state, onHardReload)
-                            splitBlock(boss, state, cursor, index, onHardReload) { newBlockId ->
-                                onRefreshWithFocus(newBlockId, 0)
-                            }
-                        }
-                        return@BasicTextField
-                    }
-
-                    // Slash command detection: subtle popup
-                    if (newText.startsWith("/") && !oldText.startsWith("/")) {
-                        showSlashPopup = true
-                    } else if (!newText.startsWith("/")) {
-                        showSlashPopup = false
-                    }
-
-                    // Buffered update
-                    val diff = getDiff(oldText, newText)
-                    state.diffBuffer.add(diff)
-                    state.textFieldValue = newValue
-
-                    debounceJob.value?.cancel()
-                    debounceJob.value = scope.launch {
-                        delay(500)
-                        EditTextInBlock.flushBuffer(boss, state, onHardReload)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(state.focusRequester)
-                    .onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown) {
-                            when (keyEvent.key) {
-                                Key.Enter -> {
-                                    if (!keyEvent.isShiftPressed) {
-                                        val cursor = state.textFieldValue.selection.start
-                                        debounceJob.value?.cancel()
-                                        scope.launch {
-                                            // Flush pending buffered edits before
-                                            // splitting. See soft-Enter path above.
-                                            EditTextInBlock.flushBuffer(boss, state, onHardReload)
-                                            splitBlock(boss, state, cursor, index, onHardReload) { newBlockId ->
-                                                onRefreshWithFocus(newBlockId, 0)
-                                            }
-                                        }
-                                        return@onPreviewKeyEvent true
-                                    }
-                                }
-                                Key.Backspace -> {
-                                    val cursor = state.textFieldValue.selection.start
-                                    // Merge if cursor is at the very beginning of the block
-                                    // Do not merge if this is the title block (index 0)
-                                    if (cursor == 0 && index > 0) {
-                                        debounceJob.value?.cancel()
-                                        scope.launch {
-                                            // Flush pending buffered edits before
-                                            // merging. Same reason as split.
-                                            EditTextInBlock.flushBuffer(boss, state, onHardReload)
-                                            mergeWithPreviousBlock(boss, state, index, onHardReload) { targetId, cursorAt ->
-                                                onRefreshWithFocus(targetId, cursorAt)
-                                            }
-                                        }
-                                        return@onPreviewKeyEvent true
-                                    }
-                                }
-                            }
-                        }
-                        false
-                    },
-                textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                decorationBox = { innerTextField ->
-                    if (state.text.isEmpty()) {
-                        Text(
-                            text = if (isTitle) "Page Title" else "Type '/' for commands...",
-                            style = textStyle,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                    }
-                    innerTextField()
-                }
-            )
-
-            // Subtle Slash Popup
-            if (showSlashPopup) {
-                Card(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(top = 40.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Text(
-                        "Actions...",
-                        modifier = Modifier.padding(8.dp).combinedClickable(
-                            onClick = { 
-                                showSlashPopup = false
-                                showLongPressMenu = true 
-                            }
-                        ),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+    LaunchedEffect(session.pendingFocus.value) {
+        val req = session.pendingFocus.value ?: return@LaunchedEffect
+        if (req.blockId != row.blockId) return@LaunchedEffect
+        runCatching { listState.animateScrollToItem(index) }
+        for (attempt in 0..5) {
+            try {
+                withFrameNanos { }
+                row.focusRequester.requestFocus()
+                row.textFieldValue = row.textFieldValue.copy(selection = TextRange(req.offset))
+                session.clearPendingFocus()
+                return@LaunchedEffect
+            } catch (_: IllegalStateException) {
+                delay(16)
             }
         }
     }
 
-    // Long Press Action Menu
-    if (showLongPressMenu) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .width(24.dp)
+                .padding(top = 4.dp)
+                .clickable { showMenu = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "::",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+            )
+        }
+
+        BasicTextField(
+            value = row.textFieldValue,
+            onValueChange = { newValue ->
+                if (newValue.text.contains('\n')) {
+                    val cleanText = newValue.text.replace("\n", "")
+                    val cursor = newValue.selection.start.coerceAtMost(cleanText.length)
+                    session.onEnter(index, cursor)
+                    return@BasicTextField
+                }
+                if (newValue.text == row.textFieldValue.text) {
+                    row.textFieldValue = newValue
+                } else {
+                    session.onInput(index, newValue)
+                }
+            },
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(row.focusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.Enter -> {
+                            if (!event.isShiftPressed) {
+                                val cursor = row.textFieldValue.selection.start
+                                session.onEnter(index, cursor)
+                                true
+                            } else false
+                        }
+                        Key.Backspace -> {
+                            val cursor = row.textFieldValue.selection.start
+                            if (cursor == 0 && index > 0) {
+                                session.onBackspaceAtStart(index)
+                                true
+                            } else false
+                        }
+                        Key.DirectionUp -> {
+                            val cursor = row.textFieldValue.selection.start
+                            if (cursor == 0 && !event.isShiftPressed) {
+                                session.onArrow(index, goDown = false)
+                            } else false
+                        }
+                        Key.DirectionDown -> {
+                            val cursor = row.textFieldValue.selection.start
+                            val len = row.textFieldValue.text.length
+                            if (cursor == len && !event.isShiftPressed) {
+                                session.onArrow(index, goDown = true)
+                            } else false
+                        }
+                        else -> false
+                    }
+                },
+            textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { innerTextField ->
+                if (row.textFieldValue.text.isEmpty()) {
+                    Text(
+                        text = if (isTitle) "Page Title" else "Type '/' for commands...",
+                        style = textStyle,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                }
+                innerTextField()
+            }
+        )
+    }
+
+    if (showMenu) {
         BlockActionMenu(
-            blockText = state.text,
-            onDismiss = { showLongPressMenu = false }
+            blockText = row.textFieldValue.text,
+            canMoveUp = index >= 2,
+            canMoveDown = index < session.rows.size - 1,
+            canDelete = !isTitle && session.rows.count { !it.isTitle } > 1,
+            onDelete = {
+                session.onDeleteBlock(index)
+                showMenu = false
+            },
+            onMoveUp = {
+                session.onMoveUp(index)
+                showMenu = false
+            },
+            onMoveDown = {
+                session.onMoveDown(index)
+                showMenu = false
+            },
+            onDismiss = { showMenu = false }
         )
     }
 }
 
 @Composable
-fun BlockActionMenu(blockText: String, onDismiss: () -> Unit) {
+fun BlockActionMenu(
+    blockText: String,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    canDelete: Boolean,
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {},
@@ -214,9 +198,17 @@ fun BlockActionMenu(blockText: String, onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Button(onClick = { /* Future: Heading */ }) { Text("H1") }
-                    Button(onClick = { /* Future: Todo */ }) { Text("Todo") }
-                    Button(onClick = { /* Future: Delete */ }) { Text("Del") }
+                    Button(onClick = { }) { Text("H1") }
+                    Button(onClick = { }) { Text("Todo") }
+                    Button(onClick = onDelete, enabled = canDelete) { Text("Del") }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(onClick = onMoveUp, enabled = canMoveUp) { Text("Up") }
+                    Button(onClick = onMoveDown, enabled = canMoveDown) { Text("Down") }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(

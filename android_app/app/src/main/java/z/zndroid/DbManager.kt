@@ -242,6 +242,8 @@ object DbManager {
 
     suspend fun getData(input: GetDataIn): Result<GetDataOut> = executeNative { it.getData(input) }
 
+    suspend fun getDataOrdered(input: GetDataOrderedIn): Result<GetDataOut> = executeNative { it.getDataOrdered(input) }
+
     suspend fun insertData(input: InsertDataIn): Result<Unit> = executeNative { it.insertData(input) }
 
     suspend fun deleteRow(input: DeleteRowIn): Result<Unit> = executeNative { it.deleteRow(input) }
@@ -309,114 +311,30 @@ object DbManager {
     }
 
     /**
-     * Proper way to add a new page using Yrs initial snapshots from blueprints.
-     * Creates the title block with [title] content and persists the initial page snapshot to SQLite.
+     * Deprecated: use z.zndroid.actions.createNewPage instead. Kept so
+     * anything else that references it still compiles during the migration.
      */
     suspend fun addPage(title: String, isMainMenu: Boolean = false): Result<Unit> {
-        return try {
-            val userId = z.zndroid.Storage.StorageAccess.getUserId()
-            val boss = rustlib.my_yrs_lib.BossOfYrs(userId, System.currentTimeMillis().toString())
-            val pageId = boss.pageId()
-
-            try {
-                withTransaction {
-                    // 1. Persist initial page row to pages table first so foreign key constraints pass
-                    val initialBlob = boss.snapshot()
-                    val version = ByteArray(0)
-                    val row = newPageRow(pageId, isMainMenu, initialBlob, version)
-                    val values = SafeRowMapper.mapRow(
-                        row = row,
-                        columnDefs = newTablePages(),
-                        expectedNames = listOf("page_id", "blobbed_page", "page_status", "version", "is_main_menu_page")
-                    )
-                    insertData(InsertDataIn("pages", values)).getOrThrow()
-
-                    // 2. Create the title block with title content (which also updates pages.blobbed_page)
-                    z.zndroid.DocEvents.AddBlock.execute(
-                        z.zndroid.DocEvents.AddBlockCtx(
-                            boss = boss,
-                            content = title,
-                            isTitle = true,
-                            isMainMenu = isMainMenu
-                        )
-                    ).getOrThrow()
-
-                    // Web's create_page makes two blocks — a title and an
-                    // empty body. Match that so the initial page opens with
-                    // a textarea ready to type into.
-                    z.zndroid.DocEvents.AddBlock.execute(
-                        z.zndroid.DocEvents.AddBlockCtx(
-                            boss = boss,
-                            content = "",
-                            isTitle = false,
-                            isMainMenu = isMainMenu
-                        )
-                    ).getOrThrow()
-                }.getOrThrow()
-
-                Result.success(Unit)
-            } finally {
-                boss.destroy()
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return z.zndroid.actions.createNewPage(title)
     }
 
     /**
-     * Renames a page title: edits the title block's content using the builder/executor path.
-     * Note: page_id remains unchanged as the stable identity.
+     * Deprecated: use z.zndroid.actions.renamePage instead.
      */
     suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
-        return withTransaction {
-            val pageRow = getPage(pageId).getOrThrow()
-            val userId = z.zndroid.Storage.StorageAccess.getUserId()
-            val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
-                ?: throw Exception("Snapshot blob not found for page $pageId")
-
-            val boss = rustlib.my_yrs_lib.docFromSnapshot(
-                blob, userId, pageId, System.currentTimeMillis().toString()
-            )
-
-            try {
-                val blocks = boss.getEntirePage()
-                val titleBlock = blocks.firstOrNull()
-
-                if (titleBlock != null) {
-                    z.zndroid.DocEvents.EditTextInBlock.execute(
-                        z.zndroid.DocEvents.EditTextInBlockCtx(
-                            boss = boss,
-                            blockId = titleBlock.idInYrs,
-                            oldText = titleBlock.text,
-                            newText = newTitle
-                        )
-                    ).getOrThrow()
-                } else {
-                    // Fallback: page has no title block, add one.
-                    // isMainMenu is read from the pages row we already have.
-                    val isMainMenu = (pageRow.cols.getOrNull(5) as? Col.Text)?.v1 == "true"
-                    z.zndroid.DocEvents.AddBlock.execute(
-                        z.zndroid.DocEvents.AddBlockCtx(
-                            boss = boss,
-                            content = newTitle,
-                            isTitle = true,
-                            isMainMenu = isMainMenu
-                        )
-                    ).getOrThrow()
-                }
-                val updatedSnapshot = boss.snapshot()
-                updatePageSnapshot(pageId, updatedSnapshot).getOrThrow()
-            } finally {
-                boss.destroy()
-            }
-        }
+        return z.zndroid.actions.renamePage(pageId, newTitle)
     }
 
     /**
-     * Deletes a page and all associated rows (blocks, backlinks).
-     * Runs as a single transaction.
+     * Dev-only hard delete. The nav "Delete" button calls
+     * z.zndroid.actions.disablePage instead, which hides the page from
+     * the menu without removing rows. This function is kept for the dev
+     * page's "Wipe all page data" action and for scratch-page cleanup in
+     * the ops checks.
      */
-    suspend fun deletePage(pageId: String): Result<Unit> = withTransaction {
+    suspend fun deletePage(pageId: String): Result<Unit> = hardDeletePage(pageId)
+
+    suspend fun hardDeletePage(pageId: String): Result<Unit> = withTransaction {
         deleteRowsByColumn("every_block_in_existence", "id_of_page_i_belong_to", pageId)
         deleteRowsByColumn("backlinks", "page_that_holds_link_id", pageId)
         deleteRowsByColumn("backlinks", "page_being_linked_to_id", pageId)

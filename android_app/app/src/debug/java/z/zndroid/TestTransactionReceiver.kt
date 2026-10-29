@@ -54,7 +54,7 @@ class TestTransactionReceiver : BroadcastReceiver() {
                         rawPageId
                     }
 
-                    z.zndroid.DocEvents.CheckIfTablesInSync.checkPageSync(resolvedPageId).fold(
+                    z.zndroid.Tests.CheckIfTablesInSync.checkPageSync(resolvedPageId).fold(
                         onSuccess = { comparisons ->
                             val bad = comparisons.filter { !it.isMatch }
                             Log.i(TAG, "SyncCheck page=$rawPageId resolved=$resolvedPageId synced=${bad.isEmpty()} total=${comparisons.size} mismatches=${bad.size}")

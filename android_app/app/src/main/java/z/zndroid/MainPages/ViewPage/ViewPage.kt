@@ -1,139 +1,117 @@
 package z.zndroid.MainPages.ViewPage
 
-import androidx.compose.foundation.layout.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
-import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.docFromSnapshot
-import uniffi.protocol.Col
 import z.zndroid.DbManager
-import z.zndroid.DocEvents.AddBlock
-import z.zndroid.DocEvents.EditTextInBlock
 import z.zndroid.Storage.StorageAccess
 import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
-import androidx.compose.ui.text.TextRange
+import z.zndroid.db.reads.getBlocksForPageOrdered
+import z.zndroid.db.reads.getPageBlob
+import z.zndroid.db.reads.isMainMenuPage
+import z.zndroid.editor.PageSession
+import z.zndroid.editor.PendingFocus
 import z.zndroid.log.ViewPageLogs
-import z.zndroid.MainPages.ViewPage.helpers.ViewPageHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewPage(
-    pageId: String, 
+    pageId: String,
     onBack: () -> Unit,
     onOpenAdminView: () -> Unit
 ) {
-    var boss by remember { mutableStateOf<BossOfYrs?>(null) }
-    var uiStates by remember { mutableStateOf(emptyList<BlockUiState>()) }
+    var session by remember { mutableStateOf<PageSession?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var reloadToken by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    
-    // Recovery mechanism: incrementing this forces a full rebuild of the BossOfYrs from DB.
-    var reloadToken by remember { mutableStateOf(0) }
-
-    fun updateUI(focusId: String? = null, cursorPos: Int? = null) {
-        boss?.let {
-            try {
-                uiStates = ViewPageHelper.syncUiStates(it, uiStates)
-                
-                // Handle focus request after state update
-                if (focusId != null) {
-                    coroutineScope.launch {
-                        delay(50) // Wait for Compose to layout
-                        uiStates.find { it.blockId == focusId }?.let { target ->
-                            target.focusRequester.requestFocus()
-                            if (cursorPos != null) {
-                                target.textFieldValue = target.textFieldValue.copy(
-                                    selection = TextRange(cursorPos)
-                                )
-                            }
-                            
-                            val targetIndex = uiStates.indexOf(target)
-                            if (targetIndex != -1) {
-                                launch {
-                                    listState.animateScrollToItem(targetIndex)
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                ViewPageLogs.logDocEventError("updateUI", e.message ?: "Unknown error")
-                coroutineScope.launch {
-                    GlobalPopupManager.showError("Failed to load blocks: ${e.message}")
-                }
-            }
-        }
-    }
 
     LaunchedEffect(pageId, reloadToken) {
         ViewPageLogs.logPageInit(pageId)
-        // Update current document in both FastStorage and KeyValueStorage
         StorageAccess.setValue(StorageKey.CURRENT_DOCUMENT, pageId)
-
         isLoading = true
-        // Clean up old boss if this is a reload
-        boss?.destroy()
-        boss = null
-        
+        session?.let { runCatching { it.boss.destroy() } }
+        session = null
+
         DbManager.awaitReady()
-        
-        DbManager.getPage(pageId).onSuccess { row ->
-            val userIdRes = StorageAccess.rummage_in_storage(StorageKey.USER_ID)
-            val userId = when (userIdRes) {
-                is z.zndroid.Storage.RummageResult.StringValue -> userIdRes.value
-                else -> {
-                    ViewPageLogs.logPageLoadError(pageId, "User ID not found in storage")
-                    GlobalPopupManager.showError("Error: User ID not found in storage")
-                    isLoading = false
-                    return@onSuccess
-                }
+        try {
+            val mirrorRows = getBlocksForPageOrdered(pageId).getOrThrow()
+            val blob = getPageBlob(pageId).getOrThrow()
+            val userId = StorageAccess.getUserId()
+            val isMainMenu = isMainMenuPage(pageId)
+            val boss = docFromSnapshot(blob, userId, pageId, System.currentTimeMillis().toString())
+            val newSession = PageSession(boss, pageId, isMainMenu, mirrorRows) {
+                reloadToken++
             }
-            
-            // blobbed_page is at index 2 (id:0, page_id:1, blobbed_page:2)
-            val blob = (row.cols.getOrNull(2) as? Col.Blob)?.v1
-            if (blob != null) {
-                try {
-                    val newBoss = docFromSnapshot(blob, userId, pageId, System.currentTimeMillis().toString())
-                    boss = newBoss
-                    uiStates = ViewPageHelper.syncUiStates(newBoss, emptyList())
-                    ViewPageLogs.logPageLoadSuccess(pageId, uiStates.size)
-                    
-                    // Logic: Ensure a new page has a title block
-                    ViewPageHelper.initializePageContent(newBoss, coroutineScope) { newId ->
-                        if (newId != null) {
-                            updateUI(focusId = newId)
-                        }
-                    }
-                } catch (e: Exception) {
-                    ViewPageLogs.logBossInstanceError(pageId, e.message ?: "Unknown error")
-                    GlobalPopupManager.showError("Failed to instance Yrs Doc: ${e.message}")
-                }
-            } else {
-                ViewPageLogs.logPageLoadError(pageId, "Snapshot blob not found")
-                GlobalPopupManager.showError("Error: Snapshot blob not found for page $pageId")
+
+            if (newSession.rows.isEmpty()) {
+                GlobalPopupManager.showError("Page $pageId has no blocks. Reload to try recovery.")
+            } else if (newSession.rows.none { !it.isTitle }) {
+                newSession.queueEmptyBody()
             }
-            isLoading = false
-        }.onFailure { error ->
-            ViewPageLogs.logPageLoadError(pageId, error.message ?: "Unknown error")
-            GlobalPopupManager.showError("Error loading page: ${error.message}")
-            isLoading = false
+
+            session = newSession
+
+            if (newSession.rows.size == 2 && newSession.rows[1].textFieldValue.text.isEmpty()) {
+                newSession.pendingFocus.value = PendingFocus(newSession.rows[1].blockId, 0)
+            }
+            ViewPageLogs.logPageLoadSuccess(pageId, newSession.rows.size)
+        } catch (e: Exception) {
+            ViewPageLogs.logPageLoadError(pageId, e.message ?: "Unknown error")
+            GlobalPopupManager.showError("Failed to load page: ${e.message}")
+        }
+        isLoading = false
+    }
+
+    BackHandler {
+        coroutineScope.launch {
+            session?.closeAndFlush()
+            onBack()
         }
     }
 
-    // Clean up boss when leaving
-    DisposableEffect(Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                coroutineScope.launch {
+                    session?.closeAndFlush()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            boss?.destroy()
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            session?.closeAndFlushAsync()
         }
     }
 
@@ -143,18 +121,8 @@ fun ViewPage(
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = {
-                        // Flush any pending buffered edits before leaving
-                        // the page. Without this, text typed in the last
-                        // 500ms (or text whose debounce hadn't fired yet)
-                        // is destroyed along with the BossOfYrs on dispose.
                         coroutineScope.launch {
-                            val currentBoss = boss
-                            if (currentBoss != null) {
-                                val toFlush = uiStates.toList()
-                                toFlush.forEach { state ->
-                                    EditTextInBlock.flushBuffer(currentBoss, state, { reloadToken++ })
-                                }
-                            }
+                            session?.closeAndFlush()
                             onBack()
                         }
                     }) {
@@ -169,7 +137,8 @@ fun ViewPage(
             )
         }
     ) { innerPadding ->
-        if (isLoading) {
+        val currentSession = session
+        if (isLoading || currentSession == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -182,19 +151,16 @@ fun ViewPage(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (uiStates.isNotEmpty()) {
-                    itemsIndexed(uiStates, key = { _, state -> state.blockId }) { index, state ->
-                        EditableBlock(
-                            state = state,
-                            index = index,
-                            boss = boss!!,
-                            scope = coroutineScope,
-                            onRefreshWithFocus = { id, pos ->
-                                updateUI(focusId = id, cursorPos = pos)
-                            },
-                            onHardReload = { reloadToken++ }
-                        )
-                    }
+                itemsIndexed(
+                    items = currentSession.rows,
+                    key = { _, row -> row.blockId }
+                ) { index, row ->
+                    EditableBlock(
+                        row = row,
+                        index = index,
+                        session = currentSession,
+                        listState = listState
+                    )
                 }
             }
         }
