@@ -1,0 +1,25 @@
+.btn {
+    padding: 0.6rem 1.25rem;
+    border: 2px solid #c7ccd6;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1f2430;
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+
+.btn:hover {
+    background: #f0f2f6;
+    border-color: #a3abb8;
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn:focus-visible {
+    outline: 2px solid #6b8afd;
+    outline-offset: 2px;
+}

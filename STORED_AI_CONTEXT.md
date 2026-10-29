@@ -239,6 +239,12 @@ mock_client_core decodes every response as Result<T, DbError>.
 
 plan.md at ZakkeN/plan.md describes this server's current state.
 
+## connecting_to_server_template - 2026-10-29
+
+ZakkeN/connecting_to_server_template - a self-contained Leptos CSR demo. Two halves ("client" and "server") in one app, talking through two futures::mpsc channels in client_server_coms.rs. No socket, no DB, not part of any Cargo workspace. It exists to be a reference for how connection status and the general data management operations (pause, resume, wipe, adopt, reconcile, dataset generation) should be shaped, so the real web client (cqrs_state_synchronization/web_interface) and the real server (zakken_server) can be modeled against it. Behaviour behind the enums and handle methods is faked: pretend-edit buttons, a pretend-reconcile modal, a mocked generation check. Names don't have to match the real thing exactly; the shape should. The plan in plan_for_general_data_management_ops.md is the reference for what shapes to mirror.
+
+As of 2026-10-29 the template still has its pre-plan shape. MessageToServer and MessageToClient are placeholders. The border is online/offline only. Controls has connect/wipe buttons that don't do anything real. There is no reconcile modal and no sync-mode signal. main.rs still says `use connecting_to_server_example::...` even though the package is connecting_to_server_template - that is a compile error. A plan is being written (by an AI) to redesign the shapes; update this section again when that plan lands.
+
 ## External: z_db - 2026-10-13
 
 ~/ProgStuff/z_db - separate repo. Crates the ZakkeN projects use:

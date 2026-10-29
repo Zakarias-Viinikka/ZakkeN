@@ -1,0 +1,24 @@
+.controls {
+    flex: 0 0 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.controls-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.controls-title {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.controls-hr {
+    width: 100%;
+    border: none;
+    border-top: 1px solid #c7ccd6;
+    margin: 0 0 0.5rem;
+}

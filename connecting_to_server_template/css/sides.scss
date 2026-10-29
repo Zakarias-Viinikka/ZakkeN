@@ -1,0 +1,52 @@
+.sides {
+    display: flex;
+    gap: 2rem;
+    padding: 2rem;
+    width: 100%;
+}
+
+.border {
+    flex: 1;
+    min-width: 720px;
+    display: flex;
+    padding: 4px;
+    border-radius: 10px;
+    border: 3px solid #9aa3b2;
+    transition: border-color 0.2s;
+}
+
+.border-online {
+    border-color: #4caf50;
+}
+
+.side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.side-title {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+    text-align: center;
+}
+
+.side-content {
+    flex: 1;
+    min-height: 60vh;
+    border: 2px solid #c7ccd6;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fff;
+}
+
+.border {
+    min-height: 60vh;
+}
+
+.side-empty {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
