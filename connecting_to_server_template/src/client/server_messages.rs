@@ -18,10 +18,33 @@ impl ServerMessageReceiver {
             MessageToClient::LoveLetterFromServer(letter) => {
                 crate::server_link::receiving::receive_letter(&self.handle, letter);
             }
+            MessageToClient::ServerSaysYouAreNowLonewolf { what_happened } => {
+                self.handle_server_says_you_are_now_lonewolf(&what_happened);
+            }
             MessageToClient::ConnectionLost => {
                 crate::server_link::conn_state::go_offline_after_connection_lost();
             }
         }
+    }
+
+    // The server replaced its dataset (another client wiped, or started
+    // over from its own version). Don't disconnect: the socket is still
+    // up. Set NeedsReconcile + ServerChanged and pop one warning. Then
+    // kick a fast retry that re-registers us (the server wiped its user
+    // list) so reconcile/adopt can talk to the server again. Silent on
+    // success; the popup already told the user what happened.
+    fn handle_server_says_you_are_now_lonewolf(&self, what_happened: &str) {
+        crate::sync_mode::set_sync_mode(crate::sync_mode::SyncMode::NeedsReconcile);
+        crate::sync_mode::set_mode_reason(crate::sync_mode::ModeReason::ServerChanged);
+        crate::server_link::receiving::clear_seen_everywhere();
+        crate::server_link::pending_queue::clear_pending_letters();
+        crate::cool_popup::show_popup_as(
+            crate::cool_popup::PopupKind::Warning,
+            format!(
+                "{what_happened}. You are now lonewolf — sync is stopped until you reconcile or adopt."
+            ),
+        );
+        crate::server_link::restart::kick_lonewolf_retry(self.handle.clone());
     }
 }
 

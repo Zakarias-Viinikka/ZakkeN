@@ -35,13 +35,20 @@ pub fn is_lonewolf() -> bool {
     current_conn_state() == ConnState::Connected && crate::sync_mode::is_gated()
 }
 
+/// Go offline without a popup. Used when another message already explained
+/// why (a DatasetReplaced arrived and popped its own warning) and firing a
+/// second "connection lost" popup would just be noise.
+pub fn force_offline() {
+    CONN_STATE.set(ConnState::Offline);
+    crate::server_link::sending::sending_signal().set(false);
+}
+
 pub fn go_offline_after_connection_lost() {
     if crate::server_link::restart::restart_in_flight_signal().get_untracked() {
         return;
     }
     let was_connected = CONN_STATE.get_untracked() == ConnState::Connected;
-    CONN_STATE.set(ConnState::Offline);
-    crate::server_link::sending::sending_signal().set(false);
+    force_offline();
     if was_connected {
         crate::cool_popup::show_popup_as(
             crate::cool_popup::PopupKind::Warning,

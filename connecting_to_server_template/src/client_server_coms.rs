@@ -7,6 +7,10 @@ use crate::protocol::{
 
 pub enum MessageToServer {
     AreYouOnline(oneshot::Sender<bool>),
+    Register {
+        user_name: String,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
     Login {
         user_name: String,
         reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>,
@@ -39,10 +43,19 @@ pub enum MessageToServer {
         letter: LoveLetter,
     },
     OtherClientWipes,
+    OtherClientReconciled,
+    OtherClientStartedOverFromItsVersion,
 }
 
 pub enum MessageToClient {
     LoveLetterFromServer(UnsentLetter),
+    // STAND-IN: the server replaced its dataset. Distinct from
+    // ConnectionLost so the client knows *why* the socket dies: another
+    // client wiped, or another client told the server to start over from
+    // its own version. The client reacts by going offline + NeedsReconcile
+    // + ServerChanged, so after reconnect + re-register the user has to
+    // pick reconcile or adopt.
+    ServerSaysYouAreNowLonewolf { what_happened: String },
     // STAND-IN: F3. Server signals the socket is gone.
     ConnectionLost,
 }
@@ -96,6 +109,12 @@ impl ComsHandleForClient {
             return false;
         }
         rx.await.unwrap_or(false)
+    }
+
+    pub async fn register(&self, user_name: impl Into<String>) -> Result<(), ComsError> {
+        let user_name = user_name.into();
+        self.send_request(|reply| MessageToServer::Register { user_name, reply })
+            .await
     }
 
     pub async fn login(
@@ -154,6 +173,14 @@ impl ComsHandleForClient {
     pub fn other_client_wipes(&self) {
         let _ = self.tx.unbounded_send(MessageToServer::OtherClientWipes);
     }
+    pub fn other_client_reconciled(&self) {
+        let _ = self.tx.unbounded_send(MessageToServer::OtherClientReconciled);
+    }
+    pub fn other_client_started_over_from_its_version(&self) {
+        let _ = self
+            .tx
+            .unbounded_send(MessageToServer::OtherClientStartedOverFromItsVersion);
+    }
 }
 
 #[derive(Clone)]
@@ -164,6 +191,14 @@ pub struct ComsHandleForServer {
 impl ComsHandleForServer {
     pub fn push_letter(&self, letter: UnsentLetter) {
         let _ = self.tx.unbounded_send(MessageToClient::LoveLetterFromServer(letter));
+    }
+
+    pub fn send_server_says_you_are_now_lonewolf(&self, what_happened: impl Into<String>) {
+        let _ = self
+            .tx
+            .unbounded_send(MessageToClient::ServerSaysYouAreNowLonewolf {
+                what_happened: what_happened.into(),
+            });
     }
 
     pub fn send_connection_lost(&self) {

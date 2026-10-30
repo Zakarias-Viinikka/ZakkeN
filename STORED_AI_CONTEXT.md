@@ -586,3 +586,21 @@ Deviations from the plan:
 ## Plans at the repo root - 2026-10-30
 
 `e2e_webapp_server_mock.md` — the implementation plan for the web E2E harness (`e2e_web_tests/`). Covers server `--test-mode` / `--db-path` / `--port` / `--ping-timeout` flags, mock client `--plain` mode, web client `test_config.rs` with `?test_mode=1&server_port=N` pinned in sessionStorage, the Python + Playwright harness layout, and one happy-path test. Not started.
+
+### Update - 2026-10-30 (register flow, lonewolf message, retries, test-bench restructure)
+
+The template grew the pieces needed to reason about re-registration and dataset replacement, so that behaviour could be exercised against the fake server without touching the real one.
+
+**Register + login are now distinct.** `MessageToServer::Register` was added; the client's `log_in` tries `Register` first, falls through to `Login` on `ERR_USER_ALREADY_EXISTS`. First connect registers; every later connect logs in. Server-side `registered_users: RwSignal<Vec<String>>` tracks names, refuses a duplicate register with `ERR_USER_ALREADY_EXISTS`, and refuses a login for an unknown name with `ERR_NO_SUCH_USER`. Those two strings live in `protocol.rs` because both sides match on them.
+
+**Test bench restructured.** The "Another client did this" group has three buttons: wiped / reconciled / started over from its own version. The old "Other client wipes" was removed from the Server section, and the two Popup buttons were removed entirely. Reconciled no longer bumps generation or kills the socket — a reconcile is a batch of letters, so it queues three `pretend_edit` letters and fans them out. The other two both replace the dataset and clear users.
+
+**Server no longer disconnects on dataset replacement.** Both the wipe and the start-over-from-its-version simulations bump generation, clear pages and users and backlog, and then — only if the client was live — send `MessageToClient::ServerSaysYouAreNowLonewolf { what_happened }`. The socket stays up. If the client was offline when it happened, the state change is silent and it learns about it on next reconnect via `log_in` seeing a new generation.
+
+**Client reacts by going lonewolf, not offline.** `handle_server_says_you_are_now_lonewolf` sets `NeedsReconcile` + `ServerChanged`, clears seen letters and pending edits, pops one warning naming what happened, then calls `server_link::restart::kick_lonewolf_retry`. That runs `restart_sync_stack` up to 3 times at 2s intervals to re-register. Silent on success. The socket is never lost, so `force_offline` is no longer called from this path.
+
+**Offline retry loop.** Separately, when the client is on and `ConnState` is `Offline` or `FailedToConnect`, `retry_reconnect_when_offline` (in `app_main.rs`) runs a 5s loop that pops "Trying to reconnect…" and calls `restart_sync_stack`. Exits on success (announcing via `announce_connect_outcome`, which correctly says "Server dataset changed…" if the reconnect discovers a wipe) or when the client is no longer offline.
+
+**Title + visibility changes.** The Client box title now reflects state: `Client — Offline / Connecting / Failed to connect / Connected / Lonewolf`. "Lonewolf" is the `Connected + NeedsReconcile` combination. The stopped-sync buttons are wrapped in `<Show when=move || show_stopped.get()>` and only visible in that state — before this they were always rendered.
+
+**Behaviour to expect when walking through it.** Connect → Connected. Click "Wiped the server" → one popup naming what happened, client stays Connected, title goes "Client — Lonewolf", stopped-sync buttons appear, ~2s later the retry re-registers silently. Then Reconcile / Adopt / Wipe-local-and-pull exit lonewolf back to Connected.

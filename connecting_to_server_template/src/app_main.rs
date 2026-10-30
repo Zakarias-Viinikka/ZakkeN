@@ -32,6 +32,83 @@ fn connect_once_when_client_starts(coms: ComsHandleForClient) {
     });
 }
 
+fn retry_reconnect_when_offline(coms: ComsHandleForClient) {
+    use crate::server_link::conn_state::ConnState;
+    let retry_running = RwSignal::new(false);
+    Effect::new(move |_| {
+        let running = retry_running.get();
+        if !crate::client::client_started_signal().get() {
+            return;
+        }
+        let conn = crate::server_link::conn_state::conn_state_signal().get();
+        let should_retry = conn == ConnState::Offline || conn == ConnState::FailedToConnect;
+        if !should_retry || running {
+            return;
+        }
+        retry_running.set(true);
+        let coms = coms.clone();
+        let retry_running_for_loop = retry_running.clone();
+        leptos::task::spawn_local(async move {
+            loop {
+                {
+                    let (tx, rx) = futures::channel::oneshot::channel::<()>();
+                    leptos::prelude::set_timeout(
+                        move || {
+                            let _ = tx.send(());
+                        },
+                        std::time::Duration::from_millis(5000),
+                    );
+                    let _ = rx.await;
+                }
+                if !crate::client::client_started_signal().get_untracked() {
+                    break;
+                }
+                let conn = crate::server_link::conn_state::conn_state_signal().get_untracked();
+                if conn != ConnState::Offline && conn != ConnState::FailedToConnect {
+                    break;
+                }
+                crate::cool_popup::show_popup_as(
+                    crate::cool_popup::PopupKind::Warning,
+                    "Trying to reconnect…",
+                );
+                let outcome = crate::server_link::restart::restart_sync_stack(coms.clone()).await;
+                match outcome {
+                    crate::server_link::restart::RestartOutcome::Failed(_) => {
+                        // stay in the loop, retry again in 5s
+                    }
+                    other => {
+                        // JustChanged pops "Server dataset changed. Sync is
+                        // stopped until you Reconcile or Adopt." — which is
+                        // exactly the case where the client was offline when
+                        // another client wiped the server, and the retry
+                        // reconnect is the first time it hears about it.
+                        crate::data_ops::announce_connect_outcome(other);
+                        break;
+                    }
+                }
+            }
+            retry_running_for_loop.set(false);
+        });
+    });
+}
+
+fn client_title() -> Signal<String> {
+    use crate::server_link::conn_state::ConnState;
+    use crate::sync_mode::SyncMode;
+    Signal::derive(move || {
+        let conn = crate::server_link::conn_state::conn_state_signal().get();
+        let mode = crate::sync_mode::sync_mode_signal().get();
+        let state = match (conn, mode) {
+            (ConnState::Connected, SyncMode::NeedsReconcile) => "Lonewolf",
+            (ConnState::Connected, SyncMode::Connected) => "Connected",
+            (ConnState::Connecting, _) => "Connecting",
+            (ConnState::FailedToConnect, _) => "Failed to connect",
+            (ConnState::Offline, _) => "Offline",
+        };
+        format!("Client — {state}")
+    })
+}
+
 #[component]
 pub fn AppMain() -> impl IntoView {
     let (server_started, set_server_started) = signal(false);
@@ -40,10 +117,12 @@ pub fn AppMain() -> impl IntoView {
     let client_handle_for_modal = client_handle.clone();
     let client_handle_for_server_effect = client_handle.clone();
     let client_handle_for_auto = client_handle.clone();
+    let client_handle_for_retry = client_handle.clone();
     let server_handle_for_controls = server_handle.clone();
 
     turn_server_on_when_started(server_started, client_handle_for_server_effect);
     connect_once_when_client_starts(client_handle_for_auto);
+    retry_reconnect_when_offline(client_handle_for_retry);
 
     let plan_sig = Signal::derive(move || crate::reconcile::plan_signal().get());
     let error_sig = Signal::derive(move || crate::reconcile::error_signal().get());
@@ -69,7 +148,7 @@ pub fn AppMain() -> impl IntoView {
                     }
                 >
                     <div class="side">
-                        <h2 class="side-title">"Client"</h2>
+                        <h2 class="side-title">{move || client_title().get()}</h2>
                         <div class="side-content">
                             <crate::client::panel::ClientPanel/>
                         </div>

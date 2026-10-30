@@ -92,3 +92,10 @@ impl LoveLetter {
         }
     }
 }
+
+// Error strings shared by both sides of the template. The real server
+// returns typed DbError values; the template keeps plain strings so the
+// channel stays readable in logs. These two are matched on by the client
+// to decide whether to register or log in.
+pub const ERR_USER_ALREADY_EXISTS: &str = "user already exists";
+pub const ERR_NO_SUCH_USER: &str = "no such user";

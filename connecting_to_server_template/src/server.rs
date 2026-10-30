@@ -6,7 +6,8 @@ pub mod power;
 use crate::client_server_coms::{ComsHandleForServer, MessageToServer};
 use crate::protocol::{
     AdoptPage, DatasetGenerationPayload, GetAllPagesPayload, LoveLetter, PageRow, UnsentLetter,
-    CANNED_PAGE_ID_A, CANNED_PAGE_ID_B,
+    CANNED_PAGE_ID_A, CANNED_PAGE_ID_B, CANNED_PAGE_ID_C, ERR_NO_SUCH_USER,
+    ERR_USER_ALREADY_EXISTS,
 };
 use crate::server::border::BorderComponent;
 use crate::server::latency::{
@@ -29,6 +30,7 @@ pub struct ClientMessageReceiver {
     fault_armed: RwSignal<bool>,
     socket_live: RwSignal<bool>,
     next_letter_id: RwSignal<i64>,
+    registered_users: RwSignal<Vec<String>>,
     handle: ComsHandleForServer,
 }
 
@@ -53,7 +55,12 @@ impl ClientMessageReceiver {
         match msg {
             MessageToServer::PushPretendLetter { letter } => self.queue_pretend_letter(letter),
             MessageToServer::OtherClientWipes => self.simulate_other_client_wiping(),
-            MessageToServer::Login { reply, .. } => self.log_client_in(reply),
+            MessageToServer::OtherClientReconciled => self.simulate_other_client_reconciling(),
+            MessageToServer::OtherClientStartedOverFromItsVersion => {
+                self.simulate_other_client_starting_over_from_its_version()
+            }
+            MessageToServer::Register { user_name, reply } => self.register_user(user_name, reply),
+            MessageToServer::Login { user_name, reply } => self.log_client_in(user_name, reply),
             MessageToServer::GetAllPages { reply } => self.reply_with_all_pages(reply),
             MessageToServer::SendLetter { letter, reply } => {
                 self.accept_letter_and_reply(letter, reply)
@@ -119,17 +126,103 @@ impl ClientMessageReceiver {
     }
 
     fn simulate_other_client_wiping(&self) {
+        // No disconnect. Another client wiped the server; the current
+        // client stays connected but is told it's now lonewolf so it can
+        // re-register on its own. socket_live stays true. The user table
+        // is cleared on purpose: until the client re-registers, letters
+        // sent by other clients won't fan out to it. Catch-up after that
+        // point is reconcile/adopt, not resume — that's why the dataset
+        // generation bumps.
+        let was_live = self.socket_live.get_untracked();
         self.bump_dataset_generation();
         self.pages.set(Vec::new());
         self.backlog.set(Vec::new());
-        self.socket_live.set(false);
-        self.handle.send_connection_lost();
+        self.registered_users.set(Vec::new());
+        if was_live {
+            self.handle
+                .send_server_says_you_are_now_lonewolf("another client wiped the server");
+        }
     }
 
-    fn log_client_in(&self, reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>) {
+    // The other client ran a reconcile. Reconcile is not a reset: the
+    // server just received a batch of love letters and fans them out to
+    // every other connected client, exactly like a burst of normal edits.
+    // No generation bump, no socket kill. From this client's POV it's just
+    // "a bunch of letters arrive at once". Whatever state that produces
+    // (or doesn't) is what the client-side apply logic decides.
+    fn simulate_other_client_reconciling(&self) {
+        let letters = [
+            LoveLetter::pretend_edit(CANNED_PAGE_ID_A, "reconcile delta 1"),
+            LoveLetter::pretend_edit(CANNED_PAGE_ID_A, "reconcile delta 2"),
+            LoveLetter::pretend_edit(CANNED_PAGE_ID_B, "reconcile delta 3"),
+        ];
+        for letter in letters {
+            self.queue_pretend_letter(letter);
+        }
+    }
+
+    // The other client told the server to start over from its own dataset.
+    // Same shape as a wipe: dataset replaced, users gone. No disconnect —
+    // the current client stays connected and is told it's lonewolf so it
+    // can re-register. The page set is populated (unlike a bare wipe)
+    // because the other client's data came with it.
+    fn simulate_other_client_starting_over_from_its_version(&self) {
+        let was_live = self.socket_live.get_untracked();
+        self.bump_dataset_generation();
+        self.pages.set(vec![PageRow {
+            page_id: CANNED_PAGE_ID_C.to_string(),
+            blobbed_page: Vec::new(),
+            page_status: Vec::new(),
+            is_main_menu_page: true,
+        }]);
+        self.backlog.set(Vec::new());
+        self.registered_users.set(Vec::new());
+        if was_live {
+            self.handle.send_server_says_you_are_now_lonewolf(
+                "another client started over from its own version",
+            );
+        }
+    }
+
+    fn register_user(&self, user_name: String, reply: oneshot::Sender<Result<(), String>>) {
+        if self.take_armed_fault() {
+            reply_after_delay(LATENCY_LIGHT_MS, move || {
+                let _ = reply.send(Err("register fault armed".into()));
+            });
+            return;
+        }
+        let exists = self
+            .registered_users
+            .with_untracked(|users| users.contains(&user_name));
+        if exists {
+            reply_after_delay_if_still_powered(LATENCY_LIGHT_MS, move || {
+                let _ = reply.send(Err(ERR_USER_ALREADY_EXISTS.into()));
+            });
+            return;
+        }
+        self.registered_users.update(|users| users.push(user_name));
+        reply_after_delay_if_still_powered(LATENCY_LIGHT_MS, move || {
+            let _ = reply.send(Ok(()));
+        });
+    }
+
+    fn log_client_in(
+        &self,
+        user_name: String,
+        reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>,
+    ) {
         if self.take_armed_fault() {
             reply_after_delay(LATENCY_LIGHT_MS, move || {
                 let _ = reply.send(Err("login fault armed".into()));
+            });
+            return;
+        }
+        let exists = self
+            .registered_users
+            .with_untracked(|users| users.contains(&user_name));
+        if !exists {
+            reply_after_delay_if_still_powered(LATENCY_LIGHT_MS, move || {
+                let _ = reply.send(Err(ERR_NO_SUCH_USER.into()));
             });
             return;
         }
@@ -276,6 +369,7 @@ pub fn Server(
     let fault_armed = RwSignal::new(false);
     let socket_live = RwSignal::new(false);
     let next_letter_id = RwSignal::new(1i64);
+    let registered_users = RwSignal::new(Vec::<String>::new());
 
     let page_count = Signal::derive(move || pages.get().len());
     let backlog_count = Signal::derive(move || backlog.get().len());
@@ -297,6 +391,7 @@ pub fn Server(
         fault_armed,
         socket_live,
         next_letter_id,
+        registered_users,
         handle: handle.clone(),
     });
     let receiver_loop = receiver.clone();
