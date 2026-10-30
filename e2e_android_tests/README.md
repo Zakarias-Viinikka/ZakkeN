@@ -38,13 +38,11 @@ app, runs the suite, writes reports, and prints where they are.
 Each run writes to `artifacts/<timestamp>/`:
 
 report.md is a human-readable summary with pass/fail per step. report.json
-is the same information, structured. screenshots/ holds one screenshot per
-step, named step_NNN_description.png. logcat.txt is the Android log buffer
+is the same information, structured. logcat.txt is the Android log buffer
 captured at the end of the run. artifacts/latest points at the most
 recent run.
 
-Screenshots are evidence, not a pass/fail gate. A behavioral step failing
-is what fails the run.
+A behavioral step failing is what fails the run.
 
 ## Adding a new test
 

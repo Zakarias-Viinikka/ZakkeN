@@ -23,3 +23,9 @@
     outline: 2px solid #6b8afd;
     outline-offset: 2px;
 }
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+    pointer-events: none;
+}

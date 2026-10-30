@@ -5,6 +5,7 @@ pub mod controls;
 pub mod cool_popup;
 pub mod custom_button;
 pub mod data_ops;
+pub mod local_pages;
 pub mod overlays;
 pub mod protocol;
 pub mod reconcile;

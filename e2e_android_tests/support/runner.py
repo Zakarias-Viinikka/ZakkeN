@@ -252,22 +252,6 @@ class UiTestRun:
         except Exception:
             return None
 
-    def _snap(self, path):
-        try:
-            self.driver.save_screenshot(str(path))
-            return str(path)
-        except Exception:
-            return ""
-
-    def _dump_xml(self, screenshot):
-        try:
-            source = self.driver.page_source
-            source_path = screenshot.with_suffix(".xml")
-            source_path.write_text(source)
-            return str(source_path)
-        except Exception:
-            return ""
-
     def finalize(self):
         if self._finalized:
             return

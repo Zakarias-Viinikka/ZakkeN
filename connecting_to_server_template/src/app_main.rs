@@ -1,10 +1,36 @@
 use crate::client::Client;
-use crate::client_server_coms;
+use crate::client_server_coms::{self, ComsHandleForClient};
+use crate::controls::Controls;
 use crate::cool_popup::CoolPopup;
 use crate::overlays::{BusyOverlay, ReconcileModal};
-use crate::controls::Controls;
-use crate::server::{Server, ServerPanel};
+use crate::server::panel::ServerPanel;
+use crate::server::Server;
 use leptos::prelude::*;
+
+fn turn_server_on_when_started(
+    server_started: ReadSignal<bool>,
+    coms: ComsHandleForClient,
+) {
+    Effect::new(move |_| {
+        if server_started.get() {
+            coms.clone().turn_on_server();
+        }
+    });
+}
+
+fn connect_once_when_client_starts(coms: ComsHandleForClient) {
+    let auto_connect_seen = RwSignal::new(false);
+    Effect::new(move |_| {
+        if !crate::client::client_started_signal().get() {
+            return;
+        }
+        if auto_connect_seen.get_untracked() {
+            return;
+        }
+        auto_connect_seen.set(true);
+        crate::data_ops::connect_to_server_and_announce(coms.clone());
+    });
+}
 
 #[component]
 pub fn AppMain() -> impl IntoView {
@@ -12,68 +38,40 @@ pub fn AppMain() -> impl IntoView {
     let (client_handle, server_handle, client_rx, server_rx) = client_server_coms::new();
     let client_handle_for_controls = client_handle.clone();
     let client_handle_for_modal = client_handle.clone();
-    let client_handle_for_effect = client_handle.clone();
+    let client_handle_for_server_effect = client_handle.clone();
+    let client_handle_for_auto = client_handle.clone();
     let server_handle_for_controls = server_handle.clone();
 
-    Effect::new(move |_| {
-        if server_started.get() {
-            client_handle_for_effect.clone().turn_on_server();
-        }
-    });
-
-    let client_handle_for_auto = client_handle.clone();
-    let auto_connect_seen = RwSignal::new(false);
-    Effect::new(move |_| {
-        if !crate::server_link::client_started_signal().get() {
-            return;
-        }
-        if auto_connect_seen.get_untracked() {
-            return;
-        }
-        auto_connect_seen.set(true);
-        let coms = client_handle_for_auto.clone();
-        leptos::task::spawn_local(async move {
-            let outcome = crate::server_link::restart_sync_stack(coms).await;
-            crate::data_ops::announce_connect_outcome(outcome);
-        });
-    });
+    turn_server_on_when_started(server_started, client_handle_for_server_effect);
+    connect_once_when_client_starts(client_handle_for_auto);
 
     let plan_sig = Signal::derive(move || crate::reconcile::plan_signal().get());
     let error_sig = Signal::derive(move || crate::reconcile::error_signal().get());
 
-
     let ch_confirm = client_handle_for_modal.clone();
-    let on_confirm = Callback::new(move |decisions: crate::reconcile::ReconcileDecisions| {
-        let coms = ch_confirm.clone();
-        leptos::task::spawn_local(async move {
-            match crate::reconcile::reconcile_apply(coms, decisions).await {
-                Ok(()) => crate::reconcile::clear_modal(),
-                Err(e) => crate::reconcile::error_signal().set(Some(e.to_string())),
-            }
-        });
+    let on_confirm = Callback::new(move |decisions: crate::reconcile::plan::ReconcileDecisions| {
+        crate::reconcile::modal::apply_decisions_from_modal(ch_confirm.clone(), decisions);
     });
+    let ch_cancel = client_handle_for_modal;
     let on_cancel = Callback::new(move |_: ()| {
-        let coms = client_handle_for_modal.clone();
-        leptos::task::spawn_local(async move {
-            let _ = crate::reconcile::reconcile_cancel(coms).await;
-            crate::reconcile::clear_modal();
-        });
+        crate::reconcile::modal::cancel_from_modal(ch_cancel.clone());
     });
+
     view! {
         <div class="sides">
             <Client handle=client_handle rx=client_rx>
                 <Show
-                    when=move || crate::server_link::client_started_signal().get()
+                    when=move || crate::client::client_started_signal().get()
                     fallback=move || view! {
                         <ClientFallback on_start=move |_| {
-                            crate::server_link::client_started_signal().set(true)
+                            crate::client::client_started_signal().set(true)
                         }/>
                     }
                 >
                     <div class="side">
                         <h2 class="side-title">"Client"</h2>
                         <div class="side-content">
-                            <crate::client::ClientPanel/>
+                            <crate::client::panel::ClientPanel/>
                         </div>
                     </div>
                 </Show>

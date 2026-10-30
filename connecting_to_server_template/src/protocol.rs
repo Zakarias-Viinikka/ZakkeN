@@ -83,4 +83,12 @@ impl LoveLetter {
             snapshot_of_edit,
         }
     }
+
+    pub fn target_page_id(&self) -> String {
+        match self {
+            LoveLetter::EditBlock { target_page_id, .. } => target_page_id.clone(),
+            LoveLetter::CreateNewPage { page_id, .. } => page_id.clone(),
+            LoveLetter::DisablePage { page_id, .. } => page_id.clone(),
+        }
+    }
 }

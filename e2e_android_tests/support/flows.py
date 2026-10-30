@@ -169,8 +169,7 @@ def open_page(driver, title):
         still_on_nav = ui.text_present(driver, NEW_PAGE_BUTTON)
         raise AssertionError(
             f"open_page({title!r}) did not reach ViewPage "
-            f"(still_on_nav={still_on_nav}). "
-            f"A screen XML is saved next to the failure screenshot."
+            f"(still_on_nav={still_on_nav})."
         )
 
 

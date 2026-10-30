@@ -529,3 +529,34 @@ notification on the phone. Actions and details in
 
 The Android AI runs the suite itself, reads the terminal output, fixes
 what it reports. Never edits anything under `e2e_android_tests/`.
+
+### Update - 2026-10-30 (structural refactor)
+
+A structural refactor pass landed. Everything still works the same; the layout is now file+subfolder instead of one file per concern. Full plan archived at ZakkeN/artifacts/refactor_plan.md.
+
+src/ layout now:
+
+- lib.rs  main.rs  app_main.rs  protocol.rs  client_server_coms.rs  custom_button.rs  local_pages.rs
+- sync_mode.rs + sync_mode/persistence.rs
+- server_link.rs + server_link/{conn_state, dataset_generation, pending_queue, sending, receiving, restart}.rs
+- data_ops.rs + data_ops/{verb_error, busy}.rs
+- reconcile.rs + reconcile/{plan, session, classify, modal}.rs
+- client.rs + client/{border, server_messages, status_line, panel}.rs
+- server.rs + server/{power, latency, panel, border}.rs
+- controls.rs (one file, five components: ControlsSection, ClientControls, StoppedSyncControls, PopupControls, ServerControls)
+- overlays.rs + overlays/{full_screen_blocker, busy_overlay, reconcile_modal}.rs
+- cool_popup.rs (deliberately NOT split — it is a black box, only show_popup / show_popup_as / CoolPopup / PopupKind are public)
+
+Conventions:
+- Parent file is `pub mod <child>;` lines only, plus its namesake item when it has one.
+- Call sites use full submodule paths (`server_link::sending::kick_send`, not re-exported).
+- Only cool_popup keeps private submodules; reconcile has a small `pub use plan::{...}` to avoid touching every call site.
+- Statics stay private to their owner file, accessed through function getters.
+
+Behaviour changes: none. Bugs and stale comments were preserved, not fixed.
+
+Deviations from the plan:
+- cool_popup stayed one file, not a folder.
+- `.border-paused` deleted from sides.scss (dead after SyncMode collapse).
+- `.btn:disabled` moved from sides.scss to button.scss.
+- reconcile.rs has one re-export shim (`pub use plan::{ConflictChoice, PageDiffSummary, ReconcileDecisions, ReconcilePlan}`).

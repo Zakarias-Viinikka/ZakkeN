@@ -84,7 +84,6 @@ def _reset_to_nav(driver, serial=None, timeout=20):
 def run():
     run_dir = Path(os.environ.get("RUN_DIR", "./artifacts/_manual_run")).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "screenshots").mkdir(exist_ok=True)
 
     serial = os.environ.get("DEVICE_SERIAL", "")
     recorder = UiTestRun(run_dir=run_dir, serial=serial)
@@ -126,7 +125,6 @@ def run():
                     "description": "rollback external transaction",
                     "expected": "END_TEST_TX_ROLLBACK reports OK",
                     "observed": str(exc) + "  |  force-stopping app to release the transaction",
-                    "screenshot": "",
                     "status": "failed",
                 })
         any_failed = recorder.session_failed or any(

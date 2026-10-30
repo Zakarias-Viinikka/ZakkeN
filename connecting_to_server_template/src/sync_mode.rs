@@ -7,6 +7,8 @@
 //! (socket down) and Connected (syncing normally). Not a SyncMode variant —
 //! see `server_link::is_lonewolf` and `client::BorderState::Lonewolf`.
 
+pub mod persistence;
+
 use leptos::prelude::*;
 use std::sync::LazyLock;
 
@@ -27,83 +29,11 @@ pub enum ModeReason {
     ReconcileIncomplete,
 }
 
-const PERSIST_MODE_KEY: &str = "template_sync_mode";
-const PERSIST_REASON_KEY: &str = "template_mode_reason";
-
-fn storage() -> Option<web_sys::Storage> {
-    web_sys::window()
-        .and_then(|w| w.local_storage().ok())
-        .flatten()
-}
-
-fn read_persisted() -> (SyncMode, Option<ModeReason>) {
-    let Some(s) = storage() else {
-        return (SyncMode::Connected, None);
-    };
-    let mode = s
-        .get_item(PERSIST_MODE_KEY)
-        .ok()
-        .flatten()
-        .and_then(|v| match v.as_str() {
-            "needs_reconcile" => Some(SyncMode::NeedsReconcile),
-            _ => None,
-        })
-        .unwrap_or(SyncMode::Connected);
-    let reason = if mode == SyncMode::NeedsReconcile {
-        s.get_item(PERSIST_REASON_KEY)
-            .ok()
-            .flatten()
-            .and_then(|v| match v.as_str() {
-                "you_paused" => Some(ModeReason::YouPaused),
-                "you_wiped" => Some(ModeReason::YouWiped),
-                "server_changed" => Some(ModeReason::ServerChanged),
-                "wipe_incomplete" => Some(ModeReason::WipeIncomplete),
-                "adopt_incomplete" => Some(ModeReason::AdoptIncomplete),
-                "reconciling" => Some(ModeReason::Reconciling),
-                "reconcile_incomplete" => Some(ModeReason::ReconcileIncomplete),
-                _ => None,
-            })
-    } else {
-        None
-    };
-    (mode, reason)
-}
-
-fn reason_key(r: ModeReason) -> &'static str {
-    match r {
-        ModeReason::YouPaused => "you_paused",
-        ModeReason::YouWiped => "you_wiped",
-        ModeReason::ServerChanged => "server_changed",
-        ModeReason::WipeIncomplete => "wipe_incomplete",
-        ModeReason::AdoptIncomplete => "adopt_incomplete",
-        ModeReason::Reconciling => "reconciling",
-        ModeReason::ReconcileIncomplete => "reconcile_incomplete",
-    }
-}
-
-fn persist_state() {
-    let Some(s) = storage() else { return };
-    match SYNC_MODE.get_untracked() {
-        SyncMode::NeedsReconcile => {
-            let _ = s.set_item(PERSIST_MODE_KEY, "needs_reconcile");
-            if let Some(r) = MODE_REASON.get_untracked() {
-                let _ = s.set_item(PERSIST_REASON_KEY, reason_key(r));
-            } else {
-                let _ = s.remove_item(PERSIST_REASON_KEY);
-            }
-        }
-        SyncMode::Connected => {
-            let _ = s.remove_item(PERSIST_MODE_KEY);
-            let _ = s.remove_item(PERSIST_REASON_KEY);
-        }
-    }
-}
-
 static SYNC_MODE: LazyLock<ArcRwSignal<SyncMode>> =
-    LazyLock::new(|| ArcRwSignal::new(read_persisted().0));
+    LazyLock::new(|| ArcRwSignal::new(persistence::read_persisted().0));
 
 static MODE_REASON: LazyLock<ArcRwSignal<Option<ModeReason>>> =
-    LazyLock::new(|| ArcRwSignal::new(read_persisted().1));
+    LazyLock::new(|| ArcRwSignal::new(persistence::read_persisted().1));
 
 pub fn current_mode() -> SyncMode {
     SYNC_MODE.get_untracked()
@@ -119,7 +49,7 @@ pub fn set_sync_mode(mode: SyncMode) {
         MODE_REASON.set(None);
     }
     SYNC_MODE.set(mode);
-    persist_state();
+    persistence::persist_state();
 }
 
 pub fn current_mode_reason() -> Option<ModeReason> {
@@ -132,12 +62,12 @@ pub fn mode_reason_signal() -> ArcRwSignal<Option<ModeReason>> {
 
 pub fn set_mode_reason(reason: ModeReason) {
     MODE_REASON.set(Some(reason));
-    persist_state();
+    persistence::persist_state();
 }
 
 pub fn clear_mode_reason() {
     MODE_REASON.set(None);
-    persist_state();
+    persistence::persist_state();
 }
 
 pub fn sync_mode_signal() -> ArcRwSignal<SyncMode> {

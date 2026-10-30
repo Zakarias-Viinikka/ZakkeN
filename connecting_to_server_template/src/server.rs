@@ -1,38 +1,25 @@
+pub mod border;
+pub mod latency;
+pub mod panel;
+pub mod power;
+
 use crate::client_server_coms::{ComsHandleForServer, MessageToServer};
 use crate::protocol::{
-    DatasetGenerationPayload, GetAllPagesPayload, LoveLetter, PageRow, UnsentLetter,
+    AdoptPage, DatasetGenerationPayload, GetAllPagesPayload, LoveLetter, PageRow, UnsentLetter,
     CANNED_PAGE_ID_A, CANNED_PAGE_ID_B,
 };
+use crate::server::border::BorderComponent;
+use crate::server::latency::{
+    reply_after_delay, reply_after_delay_if_still_powered, LATENCY_HEAVY_MS, LATENCY_LIGHT_MS,
+};
+use crate::server::panel::ServerReadout;
+use crate::server::power::POWERED;
 use futures::StreamExt;
 use futures::channel::mpsc::UnboundedReceiver;
+use futures::channel::oneshot;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::rc::Rc;
-use std::sync::LazyLock;
-use std::time::Duration;
-
-const LATENCY_LIGHT_MS: u64 = 500;
-const LATENCY_HEAVY_MS: u64 = 900;
-
-static POWERED: LazyLock<ArcRwSignal<bool>> = LazyLock::new(|| ArcRwSignal::new(false));
-
-pub fn powered_signal() -> ArcRwSignal<bool> {
-    POWERED.clone()
-}
-
-fn delay<F: FnOnce() + 'static>(ms: u64, f: F) {
-    let (tx, rx) = futures::channel::oneshot::channel::<()>();
-    leptos::prelude::set_timeout(
-        move || {
-            let _ = tx.send(());
-        },
-        Duration::from_millis(ms),
-    );
-    spawn_local(async move {
-        let _ = rx.await;
-        f();
-    });
-}
 
 pub struct ClientMessageReceiver {
     dataset_generation: RwSignal<i64>,
@@ -49,190 +36,212 @@ impl ClientMessageReceiver {
     fn handle(&self, msg: MessageToServer) {
         let powered = POWERED.get_untracked();
         match msg {
-            MessageToServer::AreYouOnline(tx) => {
-                delay(LATENCY_LIGHT_MS, move || {
-                    let _ = tx.send(powered);
-                });
-            }
-            MessageToServer::TurnOn => {
-                POWERED.set(true);
-            }
-            MessageToServer::TurnOff => {
-                POWERED.set(false);
-                self.socket_live.set(false);
-                self.handle.send_connection_lost();
-            }
-            MessageToServer::ArmFault => {
-                if !self.fault_armed.get_untracked() {
-                    self.fault_armed.set(true);
-                }
-            }
-            MessageToServer::PushPretendLetter { letter } => {
+            MessageToServer::AreYouOnline(tx) => self.reply_whether_online(tx, powered),
+            MessageToServer::TurnOn => self.power_on(),
+            MessageToServer::TurnOff => self.power_off(),
+            MessageToServer::ArmFault => self.arm_next_fault(),
+            other => {
                 if !powered {
                     return;
                 }
-                let id = self.next_letter_id.get_untracked();
-                self.next_letter_id.set(id + 1);
-                let unsent = UnsentLetter { letter_id: id, love_letter: letter };
-                self.backlog.update(|b| b.push(unsent.clone()));
-                if self.socket_live.get_untracked() {
-                    self.handle.push_letter(unsent);
-                }
-            }
-            MessageToServer::OtherClientWipes => {
-                if !powered {
-                    return;
-                }
-                let new_gen = self.dataset_generation.get_untracked() + 1;
-                self.dataset_generation.set(new_gen);
-                self.pages.set(Vec::new());
-                self.backlog.set(Vec::new());
-                self.socket_live.set(false);
-                self.handle.send_connection_lost();
-            }
-            MessageToServer::Login { reply, .. } => {
-                if !powered {
-                    return;
-                }
-                if self.fault_armed.get_untracked() {
-                    self.fault_armed.set(false);
-                    delay(LATENCY_LIGHT_MS, move || {
-                        let _ = reply.send(Err("login fault armed".into()));
-                    });
-                    return;
-                }
-                let generation = self.dataset_generation.get_untracked();
-                self.socket_live.set(true);
-                let powered_sig = POWERED.clone();
-                delay(LATENCY_LIGHT_MS, move || {
-                    if powered_sig.get_untracked() {
-                        let _ = reply.send(Ok(DatasetGenerationPayload {
-                            dataset_generation: generation,
-                        }));
-                    }
-                });
-            }
-            MessageToServer::GetAllPages { reply } => {
-                if !powered {
-                    return;
-                }
-                let pages = self.pages.get_untracked();
-                let powered_sig = POWERED.clone();
-                delay(LATENCY_HEAVY_MS, move || {
-                    if powered_sig.get_untracked() {
-                        let _ = reply.send(Ok(GetAllPagesPayload { pages }));
-                    }
-                });
-            }
-            MessageToServer::SendLetter { letter, reply } => {
-                if !powered {
-                    return;
-                }
-                if self.fault_armed.get_untracked() {
-                    self.fault_armed.set(false);
-                    delay(LATENCY_HEAVY_MS, move || {
-                        let _ = reply.send(Err("send_letter fault armed".into()));
-                    });
-                    return;
-                }
-                if let LoveLetter::CreateNewPage { page_id, is_main_menu_page, .. } = &letter {
-                    let already = self
-                        .pages
-                        .with_untracked(|p| p.iter().any(|r| &r.page_id == page_id));
-                    if !already {
-                        let row = PageRow {
-                            page_id: page_id.clone(),
-                            blobbed_page: Vec::new(),
-                            page_status: Vec::new(),
-                            is_main_menu_page: *is_main_menu_page,
-                        };
-                        self.pages.update(|p| p.push(row));
-                    }
-                }
-                self.letters_received.update(|n| *n += 1);
-                let powered_sig = POWERED.clone();
-                delay(LATENCY_HEAVY_MS, move || {
-                    if powered_sig.get_untracked() {
-                        let _ = reply.send(Ok(()));
-                    }
-                });
-            }
-            MessageToServer::Ack { letter_id } => {
-                if !powered {
-                    return;
-                }
-                self.backlog.update(|b| b.retain(|l| l.letter_id != letter_id));
-            }
-            MessageToServer::GetMyUnsentLetters { reply } => {
-                if !powered {
-                    return;
-                }
-                let letters = self.backlog.get_untracked();
-                let powered_sig = POWERED.clone();
-                delay(LATENCY_LIGHT_MS, move || {
-                    if powered_sig.get_untracked() {
-                        let _ = reply.send(Ok(letters));
-                    }
-                });
-            }
-            MessageToServer::WipeDataset { reply } => {
-                if !powered {
-                    return;
-                }
-                if self.fault_armed.get_untracked() {
-                    self.fault_armed.set(false);
-                    delay(LATENCY_HEAVY_MS, move || {
-                        let _ = reply.send(Err("wipe fault armed".into()));
-                    });
-                    return;
-                }
-                let new_generation = self.dataset_generation.get_untracked() + 1;
-                self.dataset_generation.set(new_generation);
-                self.pages.set(Vec::new());
-                self.backlog.set(Vec::new());
-                let powered_sig = POWERED.clone();
-                delay(LATENCY_HEAVY_MS, move || {
-                    if powered_sig.get_untracked() {
-                        let _ = reply.send(Ok(DatasetGenerationPayload {
-                            dataset_generation: new_generation,
-                        }));
-                    }
-                });
-            }
-            MessageToServer::AdoptDataset { pages: adopted, reply } => {
-                if !powered {
-                    return;
-                }
-                if self.fault_armed.get_untracked() {
-                    self.fault_armed.set(false);
-                    delay(LATENCY_HEAVY_MS, move || {
-                        let _ = reply.send(Err("adopt fault armed".into()));
-                    });
-                    return;
-                }
-                let new_generation = self.dataset_generation.get_untracked() + 1;
-                self.dataset_generation.set(new_generation);
-                let rows: Vec<PageRow> = adopted
-                    .into_iter()
-                    .map(|p| PageRow {
-                        page_id: p.page_id,
-                        blobbed_page: p.snapshot,
-                        page_status: Vec::new(),
-                        is_main_menu_page: p.is_main_menu_page,
-                    })
-                    .collect();
-                self.pages.set(rows);
-                self.backlog.set(Vec::new());
-                let powered_sig = POWERED.clone();
-                delay(LATENCY_HEAVY_MS, move || {
-                    if powered_sig.get_untracked() {
-                        let _ = reply.send(Ok(DatasetGenerationPayload {
-                            dataset_generation: new_generation,
-                        }));
-                    }
-                });
+                self.route_while_powered(other);
             }
         }
+    }
+
+    fn route_while_powered(&self, msg: MessageToServer) {
+        match msg {
+            MessageToServer::PushPretendLetter { letter } => self.queue_pretend_letter(letter),
+            MessageToServer::OtherClientWipes => self.simulate_other_client_wiping(),
+            MessageToServer::Login { reply, .. } => self.log_client_in(reply),
+            MessageToServer::GetAllPages { reply } => self.reply_with_all_pages(reply),
+            MessageToServer::SendLetter { letter, reply } => {
+                self.accept_letter_and_reply(letter, reply)
+            }
+            MessageToServer::Ack { letter_id } => self.forget_acked_letter(letter_id),
+            MessageToServer::GetMyUnsentLetters { reply } => self.reply_with_unsent_letters(reply),
+            MessageToServer::WipeDataset { reply } => self.wipe_dataset_and_reply(reply),
+            MessageToServer::AdoptDataset { pages, reply } => {
+                self.adopt_dataset_and_reply(pages, reply)
+            }
+            MessageToServer::AreYouOnline(_)
+            | MessageToServer::TurnOn
+            | MessageToServer::TurnOff
+            | MessageToServer::ArmFault => {}
+        }
+    }
+
+    fn reply_whether_online(&self, tx: oneshot::Sender<bool>, powered: bool) {
+        reply_after_delay(LATENCY_LIGHT_MS, move || {
+            let _ = tx.send(powered);
+        });
+    }
+
+    fn power_on(&self) {
+        POWERED.set(true);
+    }
+
+    fn power_off(&self) {
+        POWERED.set(false);
+        self.socket_live.set(false);
+        self.handle.send_connection_lost();
+    }
+
+    fn arm_next_fault(&self) {
+        if !self.fault_armed.get_untracked() {
+            self.fault_armed.set(true);
+        }
+    }
+
+    fn take_armed_fault(&self) -> bool {
+        if self.fault_armed.get_untracked() {
+            self.fault_armed.set(false);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn bump_dataset_generation(&self) -> i64 {
+        let new_generation = self.dataset_generation.get_untracked() + 1;
+        self.dataset_generation.set(new_generation);
+        new_generation
+    }
+
+    fn queue_pretend_letter(&self, letter: LoveLetter) {
+        let id = self.next_letter_id.get_untracked();
+        self.next_letter_id.set(id + 1);
+        let unsent = UnsentLetter { letter_id: id, love_letter: letter };
+        self.backlog.update(|b| b.push(unsent.clone()));
+        if self.socket_live.get_untracked() {
+            self.handle.push_letter(unsent);
+        }
+    }
+
+    fn simulate_other_client_wiping(&self) {
+        self.bump_dataset_generation();
+        self.pages.set(Vec::new());
+        self.backlog.set(Vec::new());
+        self.socket_live.set(false);
+        self.handle.send_connection_lost();
+    }
+
+    fn log_client_in(&self, reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>) {
+        if self.take_armed_fault() {
+            reply_after_delay(LATENCY_LIGHT_MS, move || {
+                let _ = reply.send(Err("login fault armed".into()));
+            });
+            return;
+        }
+        let generation = self.dataset_generation.get_untracked();
+        self.socket_live.set(true);
+        reply_after_delay_if_still_powered(LATENCY_LIGHT_MS, move || {
+            let _ = reply.send(Ok(DatasetGenerationPayload {
+                dataset_generation: generation,
+            }));
+        });
+    }
+
+    fn reply_with_all_pages(&self, reply: oneshot::Sender<Result<GetAllPagesPayload, String>>) {
+        let pages = self.pages.get_untracked();
+        reply_after_delay_if_still_powered(LATENCY_HEAVY_MS, move || {
+            let _ = reply.send(Ok(GetAllPagesPayload { pages }));
+        });
+    }
+
+    fn accept_letter_and_reply(
+        &self,
+        letter: LoveLetter,
+        reply: oneshot::Sender<Result<(), String>>,
+    ) {
+        if self.take_armed_fault() {
+            reply_after_delay(LATENCY_HEAVY_MS, move || {
+                let _ = reply.send(Err("send_letter fault armed".into()));
+            });
+            return;
+        }
+        if let LoveLetter::CreateNewPage { page_id, is_main_menu_page, .. } = &letter {
+            let already = self
+                .pages
+                .with_untracked(|p| p.iter().any(|r| &r.page_id == page_id));
+            if !already {
+                let row = PageRow {
+                    page_id: page_id.clone(),
+                    blobbed_page: Vec::new(),
+                    page_status: Vec::new(),
+                    is_main_menu_page: *is_main_menu_page,
+                };
+                self.pages.update(|p| p.push(row));
+            }
+        }
+        self.letters_received.update(|n| *n += 1);
+        reply_after_delay_if_still_powered(LATENCY_HEAVY_MS, move || {
+            let _ = reply.send(Ok(()));
+        });
+    }
+
+    fn forget_acked_letter(&self, letter_id: i64) {
+        self.backlog.update(|b| b.retain(|l| l.letter_id != letter_id));
+    }
+
+    fn reply_with_unsent_letters(
+        &self,
+        reply: oneshot::Sender<Result<Vec<UnsentLetter>, String>>,
+    ) {
+        let letters = self.backlog.get_untracked();
+        reply_after_delay_if_still_powered(LATENCY_LIGHT_MS, move || {
+            let _ = reply.send(Ok(letters));
+        });
+    }
+
+    fn wipe_dataset_and_reply(
+        &self,
+        reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>,
+    ) {
+        if self.take_armed_fault() {
+            reply_after_delay(LATENCY_HEAVY_MS, move || {
+                let _ = reply.send(Err("wipe fault armed".into()));
+            });
+            return;
+        }
+        let new_generation = self.bump_dataset_generation();
+        self.pages.set(Vec::new());
+        self.backlog.set(Vec::new());
+        reply_after_delay_if_still_powered(LATENCY_HEAVY_MS, move || {
+            let _ = reply.send(Ok(DatasetGenerationPayload {
+                dataset_generation: new_generation,
+            }));
+        });
+    }
+
+    fn adopt_dataset_and_reply(
+        &self,
+        adopted: Vec<AdoptPage>,
+        reply: oneshot::Sender<Result<DatasetGenerationPayload, String>>,
+    ) {
+        if self.take_armed_fault() {
+            reply_after_delay(LATENCY_HEAVY_MS, move || {
+                let _ = reply.send(Err("adopt fault armed".into()));
+            });
+            return;
+        }
+        let new_generation = self.bump_dataset_generation();
+        let rows: Vec<PageRow> = adopted
+            .into_iter()
+            .map(|p| PageRow {
+                page_id: p.page_id,
+                blobbed_page: p.snapshot,
+                page_status: Vec::new(),
+                is_main_menu_page: p.is_main_menu_page,
+            })
+            .collect();
+        self.pages.set(rows);
+        self.backlog.set(Vec::new());
+        reply_after_delay_if_still_powered(LATENCY_HEAVY_MS, move || {
+            let _ = reply.send(Ok(DatasetGenerationPayload {
+                dataset_generation: new_generation,
+            }));
+        });
     }
 }
 
@@ -251,40 +260,6 @@ fn seed_pages() -> Vec<PageRow> {
             is_main_menu_page: false,
         },
     ]
-}
-
-#[derive(Clone)]
-pub struct ServerReadout {
-    pub powered: ArcRwSignal<bool>,
-    pub dataset_generation: RwSignal<i64>,
-    pub page_count: Signal<usize>,
-    pub backlog_count: Signal<usize>,
-    pub letters_received: RwSignal<usize>,
-    pub fault_armed: RwSignal<bool>,
-}
-
-#[component]
-pub fn ServerPanel() -> impl IntoView {
-    let readout = expect_context::<ServerReadout>();
-    let powered = readout.powered;
-    let generation = readout.dataset_generation;
-    let page_count = readout.page_count;
-    let backlog = readout.backlog_count;
-    let letters = readout.letters_received;
-    let fault = readout.fault_armed;
-    view! {
-        <div class="side">
-            <h2 class="side-title">"Server"</h2>
-            <div class="side-content">
-                <p>"power: " {move || if powered.get() { "on" } else { "off" }}</p>
-                <p>"generation: " {move || generation.get()}</p>
-                <p>"pages: " {move || page_count.get()}</p>
-                <p>"unsent backlog: " {move || backlog.get()}</p>
-                <p>"letters received: " {move || letters.get()}</p>
-                <p>"fault armed: " {move || if fault.get() { "yes" } else { "no" }}</p>
-            </div>
-        </div>
-    }
 }
 
 #[component]
@@ -339,21 +314,5 @@ pub fn Server(
         <BorderComponent online=border_online>
             {children()}
         </BorderComponent>
-    }
-}
-
-#[component]
-fn BorderComponent(#[prop(into)] online: Signal<bool>, children: ChildrenFn) -> impl IntoView {
-    let class = move || {
-        if online.get() {
-            "border border-online"
-        } else {
-            "border"
-        }
-    };
-    view! {
-        <div class=class>
-            {children()}
-        </div>
     }
 }

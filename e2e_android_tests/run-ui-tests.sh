@@ -6,7 +6,7 @@ ARTIFACTS_DIR="$SCRIPT_DIR/artifacts"
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="$ARTIFACTS_DIR/$RUN_TS"
 ENV_FILE="$SCRIPT_DIR/ip.env"
-mkdir -p "$RUN_DIR/screenshots"
+mkdir -p "$RUN_DIR"
 
 APP_PACKAGE="${APP_PACKAGE:-z.zndroid}"
 APP_ACTIVITY="${APP_ACTIVITY:-z.zndroid.MainActivity}"
@@ -134,7 +134,6 @@ else
   echo "${C_RED}--- end ---${C_RESET}"
 fi
 echo "${C_DIM}report:  $RUN_DIR/report.md${C_RESET}"
-echo "${C_DIM}screens: $RUN_DIR/screenshots${C_RESET}"
 echo "${C_DIM}logcat:  $RUN_DIR/logcat.txt${C_RESET}"
 
 exit "$STATUS"
