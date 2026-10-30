@@ -32,7 +32,7 @@
 
 ## Known bugs
 
-- **`text_diff.getDiff` returns a bare `Delete` for a full replacement.** `getDiff("a", "b")` where old and new share no prefix and no suffix returns `Delete("a", 0)` instead of `Replace("a", "b", 0)`, silently dropping the new text. Workaround in place for renames: `renamePage` sends `DiffResult.Replace(currentTitle, newTitle, 0u)` explicitly instead of calling `getDiff`. Not worked around in the general edit path (`PageSession.onInput`) because that path can't tell a full replacement apart from anything else. Any select-all + paste or 'Cmd+A type' flow will hit this. Report to the Rust side; do not paper over it in Kotlin.
+- **`text_diff.getDiff` full-replacement (resolved).** An earlier report claimed `getDiff("a", "b")` returns `Delete("a", 0)` and drops the new text. Current code returns `Replace { old_text: "a", new_text: "b", position: 0 }`, and `test_replace` in `diff_logic.rs` asserts that. The `renamePage` explicit `Replace` is still correct in principle (a rename is a replace), but it's no longer compensating for a bug. Safe to leave as-is; safe to switch back to `getDiff` if someone wants to.
 - **`edit_text_block` miscounts on non-ASCII for Delete/Replace.** `yrs` counts `chars().count()` for the delete range but `Doc::new()` uses byte offsets by default, so `å/ä/ö/emoji` inside a Delete/Replace range can misplace. Not exercised by any current e2e test. `ops.unicode_edit` in `OpsChecks.kt` reproduces it; it's removed from the `DevCheckRegistry` list until the Rust side is fixed so it doesn't block the suite. Re-add it once the bug is fixed.
 - **`edit_text_block` labels errors as `"edit_text_block_insert"`.** Stale from an earlier method name. Left alone (report only).
 

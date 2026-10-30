@@ -582,3 +582,7 @@ Deviations from the plan:
 - `.border-paused` deleted from sides.scss (dead after SyncMode collapse).
 - `.btn:disabled` moved from sides.scss to button.scss.
 - reconcile.rs has one re-export shim (`pub use plan::{ConflictChoice, PageDiffSummary, ReconcileDecisions, ReconcilePlan}`).
+
+## Plans at the repo root - 2026-10-30
+
+`e2e_webapp_server_mock.md` — the implementation plan for the web E2E harness (`e2e_web_tests/`). Covers server `--test-mode` / `--db-path` / `--port` / `--ping-timeout` flags, mock client `--plain` mode, web client `test_config.rs` with `?test_mode=1&server_port=N` pinned in sessionStorage, the Python + Playwright harness layout, and one happy-path test. Not started.

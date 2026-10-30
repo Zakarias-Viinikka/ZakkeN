@@ -166,8 +166,8 @@ impl BossOfYrs {
         text_edit: TextEdit,
         edit_target: EditTarget,
     ) -> Result<(), YrsError> {
-        crate::guarded!("edit_text_block_insert", move || {
-            let doc = crate::write_doc!(self.doc, "edit_text_block_insert");
+        crate::guarded!("edit_text_block", move || {
+            let doc = crate::write_doc!(self.doc, "edit_text_block");
             let block = {
                 let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
                 let txn = doc.transact();
@@ -176,7 +176,7 @@ impl BossOfYrs {
                     .map_err(|_| {
                         crate::generic_error!(
                             format!("found no block with id: {block_id}"),
-                            "edit_text_block_insert"
+                            "edit_text_block"
                         )
                     })?
             };

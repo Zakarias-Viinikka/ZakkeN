@@ -58,7 +58,11 @@ suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
                 try {
                     val currentTitle = boss.readBlock(titleId)
                         ?: throw Exception("Title block $titleId not present in yrs for page $pageId")
-                    // Bug workaround: text_diff.getDiff returns a bare Delete when
+                    // Historical note: this used to be a workaround for a
+                    // text_diff.getDiff bug that no longer exists — current
+                    // getDiff returns Replace correctly. Sending Replace
+                    // directly is still fine for a rename, so this stays.
+                    // Original comment: text_diff.getDiff returns a bare Delete when
                     // old and new share no prefix and no suffix, dropping the new
                     // text. A rename is a replace, so send Replace explicitly.
                     val diff = DiffResult.Replace(currentTitle, newTitle, 0u)

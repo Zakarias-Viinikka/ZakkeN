@@ -108,7 +108,7 @@ Editor rules:
 
 Navigation:
 - `createNewPage(name)`: one transaction. `createPage(true, sessionId)` builder, `insertPageRequiresThreeDbInserts`, load the boss from the fresh blob, `editBlock` on the title block with `Replace("", name, 0)`.
-- `renamePage(pageId, newTitle)`: finds the title block via the mirror (not via yrs ordering). Sends `Replace(currentTitle, newTitle, 0)` explicitly. Bug workaround: `text_diff.getDiff` returns a bare `Delete` when old and new share no prefix and no suffix, dropping the new text; a rename is a replace, so `Replace` is correct anyway.
+- `renamePage(pageId, newTitle)`: finds the title block via the mirror (not via yrs ordering). Sends `Replace(currentTitle, newTitle, 0)` explicitly. This used to be a workaround for a `text_diff.getDiff` bug that no longer exists — the current `getDiff` returns `Replace` correctly. Sending `Replace` directly is still fine for a rename.
 - `disablePage(pageId)`: skips if already disabled, reads the active-pages blob, `disablePage` builder, `disabledPageRequiresThreeDbActions`. Nav lists only enabled main-menu pages. The button label on the nav row is still "Delete" (frozen for the e2e harness); it means disable, not hard delete. If the page being disabled is the one currently open, the user gets a popup and keeps working.
 - `hardDeletePage(pageId)` in DbManager is dev-only. Used by the dev page's "Wipe all page data" and by ops checks for scratch-page cleanup.
 - `page_id` is the stable identity and never changes during rename.
