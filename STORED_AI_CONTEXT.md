@@ -166,6 +166,28 @@ new textarea but does not route input to it. Replaced with
 `opacity: 0; pointer-events: none`. `ZakkeN/tmp_focus_test` reproduces
 the mechanic and can be deleted, or kept as a regression test.
 
+### Update - 2026-10-30 (naming pass and batcher refactor)
+
+A naming pass landed in cqrs, plus a batcher rewrite to match the new owner+handle convention. Guide: `ZakkeN/coding_style.md`.
+
+Renames in `web_interface/src/`:
+- `server_link/` → `owner_of_interacting_with_server/`. The folder owns all server-interaction logic.
+- `receive.rs` → `main_for_receiving_spontaneous_love_letters_from_server.rs`.
+- `identity.rs` → `main_for_login_and_registration.rs`.
+- `merge.rs` → `main_for_applying_love_letter_from_server_to_app.rs`.
+- `send.rs` → `send_unsent_love_letters_to_server_if_there_are_any.rs`.
+- `two_tab.rs` → `two_tab_guard.rs`.
+- `core.rs` stays `core.rs` (core to a folder is what main is to a crate).
+- `db/kick_send.rs` → `db/main_send_unsent_love_letters.rs`, and function `kick_send()` → `main_send_unsent_love_letters()`. Behaviour unchanged; the name follows caller pov.
+
+Batcher now matches owner+handle:
+- `Batcher::new()` and `Batcher::run()` gone. `BatcherHandle::spawn_task_and_get_handle()` creates the channel, spawns the run loop on `spawn_local`, returns the handle.
+- The pending list moved from a shared `RwSignal` into the run loop's own `Vec<PendingWrite>`.
+- `BatcherMsg` is `Push(PendingWrite)` / `Flush { reply }`. The old `Poke` is gone; `Push` is the poke.
+- `push_edit` / `push_add_block` send `BatcherMsg::Push`. `flush_now()` unchanged (sends `Flush { reply }` and awaits the oneshot).
+- `batcher/mod.rs` no longer re-exports `Batcher`. Only `BatcherHandle`, `PendingWrite`, `run_exclusive`.
+- `main.rs` calls `BatcherHandle::spawn_task_and_get_handle()`; the `spawn_local(batcher.run())` block is gone.
+
 ## zakken_server - 2026-10-28
 
 A workspace in four folders, shaped like rust_practice/server_template_3:

@@ -1,3 +1,38 @@
+Friday, 30 October 2026 (naming pass and batcher refactor)
+======================================================
+
+Naming pass across cqrs, plus a batcher rewrite to the owner+handle convention. New naming guide at `ZakkeN/coding_style.md`.
+
+**Renames in `web_interface/src/`**
+
+- `server_link/` → `owner_of_interacting_with_server/`. The folder owns all server-interaction logic: socket, identity, send, receive, bootstrap, two-tab guard.
+- `receive.rs` → `main_for_receiving_spontaneous_love_letters_from_server.rs`.
+- `identity.rs` → `main_for_login_and_registration.rs`.
+- `merge.rs` → `main_for_applying_love_letter_from_server_to_app.rs`.
+- `send.rs` → `send_unsent_love_letters_to_server_if_there_are_any.rs`.
+- `two_tab.rs` → `two_tab_guard.rs`.
+- `db/kick_send.rs` → `db/main_send_unsent_love_letters.rs`. Function `kick_send()` → `main_send_unsent_love_letters()`. Internal behaviour unchanged (still a doorbell sending `()` on a global channel), but the name follows caller pov per the new guide.
+
+Call sites updated: `lib.rs`, `main.rs`, all `mod.rs` files, and any use of the old names.
+
+**Batcher rewritten to owner+handle**
+
+Old shape had a shared `RwSignal<Vec<PendingWrite>>` on both the handle and the run loop, and the handle both mutated the list and sent a `Poke`. That doesn't fit the owner+handle convention: channels are the pipe, and state is only shared when the state itself is what the split is about.
+
+New shape:
+
+- `BatcherHandle::spawn_task_and_get_handle()` creates the channel, spawns `run_batcher_task` on `spawn_local`, returns the handle.
+- The run loop owns its own `Vec<PendingWrite>`.
+- Handle's `push_edit` / `push_add_block` send `BatcherMsg::Push(PendingWrite::*)`.
+- `BatcherMsg::Poke` is gone. `Push` is the poke.
+- `flush_now()` unchanged: sends `BatcherMsg::Flush { reply }` and awaits the oneshot.
+- `batcher/mod.rs` no longer re-exports `Batcher`; only `BatcherHandle`, `PendingWrite`, `run_exclusive`.
+- `main.rs` calls `BatcherHandle::spawn_task_and_get_handle()`, the `spawn_local(batcher.run())` block is gone.
+
+**Naming guide**
+
+`ZakkeN/coding_style.md`. Vocab (handle, wrapper, core, main, shared, guard, executor), owner+handle pattern, `shared_owner/` for signals with many writers, caller/client pov vs internals, rxtx naming, and named examples.
+
 Thursday, 29 October 2026 (structural refactor across cqrs, yrs, z_db, blueprints, love_letter)
 =========================================================================================
 

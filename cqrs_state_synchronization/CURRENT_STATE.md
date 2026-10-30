@@ -320,3 +320,22 @@ Where things live now:
 - `love_letter/src/` split into broken_heart, sketch, letter, build_a_love_letter, bytes.
 
 `c c` from `cqrs_state_synchronization/` now runs with `--workspace --exclude web_interface` automatically (via `local_cargo.sh`). web_interface still checks on trunk save.
+
+## Update - 2026-10-30 (naming pass and batcher refactor)
+
+Renames in `web_interface/src/`, per `ZakkeN/coding_style.md`:
+- `server_link/` → `owner_of_interacting_with_server/`
+- `receive.rs` → `main_for_receiving_spontaneous_love_letters_from_server.rs`
+- `identity.rs` → `main_for_login_and_registration.rs`
+- `merge.rs` → `main_for_applying_love_letter_from_server_to_app.rs`
+- `send.rs` → `send_unsent_love_letters_to_server_if_there_are_any.rs`
+- `two_tab.rs` → `two_tab_guard.rs`
+- `db/kick_send.rs` → `db/main_send_unsent_love_letters.rs`; function `kick_send()` → `main_send_unsent_love_letters()`
+
+Batcher rewritten to owner+handle:
+- `Batcher::new()` + `Batcher::run()` removed. Entry point is `BatcherHandle::spawn_task_and_get_handle()`, which spawns `run_batcher_task` internally.
+- Pending list moved out of a shared `RwSignal` into the run loop's `Vec<PendingWrite>`.
+- `BatcherMsg` is `Push(PendingWrite)` / `Flush { reply }`. `Poke` is gone.
+- `flush_now()` unchanged.
+
+`main.rs` simplified: no manual run-loop spawn, no re-export of `Batcher`.

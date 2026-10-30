@@ -24,7 +24,7 @@ use server_protocol::{Request, SendLoveLetterPayload};
 use shared_internals_for_server::RouterHandle;
 use web_internal_db::db_helper;
 
-use crate::db::kick_send::install_kick_sender;
+use crate::db::main_send_unsent_love_letters::install_kick_sender;
 use crate::db::write_lock::WRITE_LOCK;
 use crate::leptos_components::small_components::popup::create_popup;
 

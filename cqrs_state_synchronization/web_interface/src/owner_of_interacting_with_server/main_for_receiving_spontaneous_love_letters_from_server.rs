@@ -20,12 +20,12 @@ use shared_internals_for_server::RouterHandle;
 use web_internal_db::db_helper;
 
 use crate::db::batcher::BatcherHandle;
-use crate::db::kick_send::kick_send;
+use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads::pages::page_exists;
 use crate::leptos_components::small_components::popup::create_popup;
 use crate::page_state::OpenPages;
 
-use super::merge::{apply_letter, ApplyError};
+use super::main_for_applying_love_letter_from_server_to_app::{apply_letter, ApplyError};
 
 pub static STARTED_FRESH: LazyLock<ArcRwSignal<bool>> =
     LazyLock::new(|| ArcRwSignal::new(false));
@@ -96,12 +96,12 @@ async fn task_for_receiving_socket_messages(
                 None => break,
             },
             futures_util::future::Either::Right((_, _)) => {
-                if let Err(e) = super::identity::login(&router).await {
+                if let Err(e) = super::main_for_login_and_registration::login(&router).await {
                     leptos::logging::error!("login: {e}");
                     create_popup(format!("login failed: {e}"));
                     continue;
                 }
-                kick_send();
+                main_send_unsent_love_letters();
                 if !START_OVER_FRESH_ATTEMPTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
                     match start_over_fresh(&router, &batcher, open).await {
                         Ok(()) => STARTED_FRESH.set(true),

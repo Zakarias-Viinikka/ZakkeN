@@ -3,7 +3,7 @@ use leptos::task::spawn_local;
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
-use web_interface::db::batcher::Batcher;
+use web_interface::db::batcher::BatcherHandle;
 use web_interface::db::{cached_ids, init};
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
@@ -22,12 +22,9 @@ fn main() {
 fn App() -> impl IntoView {
     let tables_ready = RwSignal::new(false);
 
-    let (batcher, batcher_handle) = Batcher::new();
+    let batcher_handle = BatcherHandle::spawn_task_and_get_handle();
     let batcher_for_link = batcher_handle.clone();
     provide_context(batcher_handle);
-    spawn_local(async move {
-        batcher.run().await;
-    });
 
     let open_pages = OpenPages {
         page1: Page::new(String::new()),
@@ -43,7 +40,7 @@ fn App() -> impl IntoView {
         });
     });
 
-    web_interface::server_link::start_server_link(batcher_for_link, open_pages);
+    web_interface::owner_of_interacting_with_server::start_server_link(batcher_for_link, open_pages);
 
     view! {
         {move || {

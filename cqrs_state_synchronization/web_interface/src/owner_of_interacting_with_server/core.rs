@@ -40,7 +40,7 @@ pub fn start_server_link(batcher: BatcherHandle, open: OpenPages) {
 }
 
 async fn start_link(batcher: BatcherHandle, open: OpenPages) {
-    if !super::two_tab::acquire().await {
+    if !super::two_tab_guard::acquire().await {
         CONN_STATE.set(ConnState::TwoTabs);
         return;
     }

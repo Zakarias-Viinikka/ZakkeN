@@ -26,7 +26,7 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
                     "saved server name {saved:?} doesn't exist on server; clearing and re-registering"
                 );
                 clear_saved_name().await?;
-                if let Err(e) = super::receive::clear_seen_server_letters().await {
+                if let Err(e) = super::main_for_receiving_spontaneous_love_letters_from_server::clear_seen_server_letters().await {
                     leptos::logging::warn!("clear_seen_server_letters: {e:?}");
                 }
             }

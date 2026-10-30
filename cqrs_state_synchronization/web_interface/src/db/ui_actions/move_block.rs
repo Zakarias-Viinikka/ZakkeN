@@ -13,7 +13,7 @@ use my_yrs_lib::{yrs_wrapper::PositionToInsert, BossOfYrs};
 
 use crate::db::batcher::{run_exclusive, BatcherHandle};
 use crate::db::cached_ids::current_user_id;
-use crate::db::kick_send::kick_send;
+use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads::pages::{get_yrs_unblobbed, is_main_menu_page};
 use crate::db::yrs_errors::yrs_error_at;
 use crate::get_time;
@@ -34,7 +34,7 @@ pub async fn move_block(
         Ok(())
     })
     .await?;
-    kick_send();
+    main_send_unsent_love_letters();
     Ok(())
 }
 
@@ -90,6 +90,6 @@ pub async fn move_block_to_another_page(
         .await
     })
     .await?;
-    kick_send();
+    main_send_unsent_love_letters();
     Ok(())
 }

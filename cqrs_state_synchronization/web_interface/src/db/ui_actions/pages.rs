@@ -8,7 +8,7 @@ use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db
 
 use crate::db::batcher::{run_exclusive, BatcherHandle};
 use crate::db::cached_ids::{current_session_id, current_user_id};
-use crate::db::kick_send::kick_send;
+use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads::pages::{get_active_pages_blob, get_page_is_disabled, get_yrs_unblobbed};
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;
@@ -30,7 +30,7 @@ pub async fn create_new_page(batcher: BatcherHandle) -> Result<(), CqrsErr> {
         Ok(())
     })
     .await?;
-    kick_send();
+    main_send_unsent_love_letters();
     Ok(())
 }
 
@@ -50,7 +50,7 @@ pub async fn disable_page(
     })
     .await?;
     if should_kick {
-        kick_send();
+        main_send_unsent_love_letters();
     }
     Ok(())
 }

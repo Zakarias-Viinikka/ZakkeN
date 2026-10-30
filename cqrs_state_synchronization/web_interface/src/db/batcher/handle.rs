@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use error_stuff::CqrsErr;
-use futures_channel::mpsc::UnboundedSender;
+use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_channel::oneshot;
-use leptos::prelude::*;
+use leptos::task::spawn_local;
 use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use my_yrs_lib::BossOfYrs;
 use protocol::error::DbError;
@@ -29,15 +29,24 @@ pub enum PendingWrite {
 
 #[derive(Clone)]
 pub struct BatcherHandle {
-    pub(crate) pending: RwSignal<Vec<PendingWrite>>,
-    pub(crate) sender: UnboundedSender<BatcherMsg>,
+    tx_send_message_to_batcher_task: UnboundedSender<BatcherMsg>,
 }
 
 impl BatcherHandle {
+    pub fn spawn_task_and_get_handle() -> Self {
+        let (tx_send_message_to_batcher_task, rx_receive_message_from_handle) = unbounded();
+        spawn_local(super::run_loop::run_batcher_task(
+            rx_receive_message_from_handle,
+        ));
+        Self {
+            tx_send_message_to_batcher_task,
+        }
+    }
+
     pub fn push_edit(&self, boss: Arc<BossOfYrs>, block_id: String, diff: DiffResult) {
-        self.pending
-            .update(|list| list.push(PendingWrite::Edit { boss, block_id, diff }));
-        let _ = self.sender.unbounded_send(BatcherMsg::Poke);
+        let _ = self
+            .tx_send_message_to_batcher_task
+            .unbounded_send(BatcherMsg::Push(PendingWrite::Edit { boss, block_id, diff }));
     }
 
     pub fn push_add_block(
@@ -49,23 +58,22 @@ impl BatcherHandle {
         is_part_of_main_menu_page: bool,
         session_id: String,
     ) {
-        self.pending.update(|list| {
-            list.push(PendingWrite::AddBlock {
+        let _ = self
+            .tx_send_message_to_batcher_task
+            .unbounded_send(BatcherMsg::Push(PendingWrite::AddBlock {
                 boss,
                 block_id,
                 content,
                 position,
                 is_part_of_main_menu_page,
                 session_id,
-            })
-        });
-        let _ = self.sender.unbounded_send(BatcherMsg::Poke);
+            }));
     }
 
     pub async fn flush_now(&self) -> Result<(), CqrsErr> {
         let (reply, response) = oneshot::channel();
         if self
-            .sender
+            .tx_send_message_to_batcher_task
             .unbounded_send(BatcherMsg::Flush { reply })
             .is_err()
         {

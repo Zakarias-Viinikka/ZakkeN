@@ -11,7 +11,7 @@ use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use my_yrs_lib::BossOfYrs;
 
 use crate::db::batcher::{run_exclusive, BatcherHandle};
-use crate::db::kick_send::kick_send;
+use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 
 pub async fn add_block(
     batcher: BatcherHandle,
@@ -40,7 +40,7 @@ pub async fn add_block(
         Ok(block_id)
     })
     .await?;
-    kick_send();
+    main_send_unsent_love_letters();
     Ok(block_id)
 }
 
@@ -56,6 +56,6 @@ pub async fn delete_block(
         Ok(())
     })
     .await?;
-    kick_send();
+    main_send_unsent_love_letters();
     Ok(())
 }

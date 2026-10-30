@@ -9,18 +9,19 @@ use text_diff::diff_logic::DiffResult;
 
 use crate::complicated_signal_flow::APP_LOCKED;
 use crate::db::cached_ids::current_session_id;
-use crate::db::kick_send::kick_send;
+use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::writes;
 
 use super::handle::PendingWrite;
 
 pub(crate) async fn flush_pending_writes(
-    pending: RwSignal<Vec<PendingWrite>>,
+    pending: &mut Vec<PendingWrite>,
 ) -> Result<(), CqrsErr> {
-    let batch = take_pending(pending);
-    if batch.is_empty() {
+    if pending.is_empty() {
         return Ok(());
     }
+
+    let batch = std::mem::take(pending);
 
     let _write_guard = crate::db::write_lock::WRITE_LOCK.acquire().await;
 
@@ -33,7 +34,7 @@ pub(crate) async fn flush_pending_writes(
 
     match result {
         Ok(()) => {
-            kick_send();
+            main_send_unsent_love_letters();
             Ok(())
         }
         Err(e) => {
@@ -41,12 +42,6 @@ pub(crate) async fn flush_pending_writes(
             Err(e)
         }
     }
-}
-
-fn take_pending(pending: RwSignal<Vec<PendingWrite>>) -> Vec<PendingWrite> {
-    let mut batch = Vec::new();
-    pending.update(|list| batch = std::mem::take(list));
-    batch
 }
 
 async fn write_pending_in_order(

@@ -4,7 +4,7 @@ use futures_channel::mpsc::UnboundedSender;
 
 static KICK_TX: LazyLock<Mutex<Option<UnboundedSender<()>>>> = LazyLock::new(|| Mutex::new(None));
 
-pub fn kick_send() {
+pub fn main_send_unsent_love_letters() {
     if let Some(tx) = KICK_TX.lock().unwrap().as_ref() {
         let _ = tx.unbounded_send(());
     }

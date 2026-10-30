@@ -2,7 +2,7 @@ pub mod batcher;
 pub mod cached_ids;
 pub mod dev_actions;
 pub mod init;
-pub mod kick_send;
+pub mod main_send_unsent_love_letters;
 pub mod key_value_storage_db_actions;
 pub mod reads;
 pub mod ui_actions;

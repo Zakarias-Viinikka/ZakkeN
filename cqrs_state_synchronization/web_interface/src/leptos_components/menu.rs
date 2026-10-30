@@ -8,7 +8,7 @@ use crate::{
         dev_panel::sidebar::SidebarContainer,
         small_components::popup::create_popup,
     },
-    server_link::MENU_TICK,
+    owner_of_interacting_with_server::MENU_TICK,
 };
 use leptos::{logging::log, prelude::*, reactive::spawn_local};
 use leptos_meta::Stylesheet;

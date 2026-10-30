@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::server_link::{ConnState, CONN_STATE, PENDING_COUNT};
+use crate::owner_of_interacting_with_server::{ConnState, CONN_STATE, PENDING_COUNT};
 
 #[component]
 pub fn ConnectionIndicator() -> impl IntoView {
