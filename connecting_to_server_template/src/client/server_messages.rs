@@ -4,7 +4,19 @@ use futures::StreamExt;
 use leptos::task::spawn_local;
 use std::rc::Rc;
 
-pub struct ServerMessageReceiver {
+pub fn spawn_receive_loop(
+    handle: ComsHandleForClient,
+    mut rx: UnboundedReceiver<MessageToClient>,
+) {
+    let receiver = Rc::new(ServerMessageReceiver::new(handle));
+    spawn_local(async move {
+        while let Some(msg) = rx.next().await {
+            receiver.handle(msg);
+        }
+    });
+}
+
+struct ServerMessageReceiver {
     handle: ComsHandleForClient,
 }
 
@@ -53,16 +65,4 @@ impl ServerMessageReceiver {
         );
         crate::owner_of_interacting_with_server::restart::kick_lonewolf_retry(self.handle.clone());
     }
-}
-
-pub fn spawn_receive_loop(
-    handle: ComsHandleForClient,
-    mut rx: UnboundedReceiver<MessageToClient>,
-) {
-    let receiver = Rc::new(ServerMessageReceiver::new(handle));
-    spawn_local(async move {
-        while let Some(msg) = rx.next().await {
-            receiver.handle(msg);
-        }
-    });
 }

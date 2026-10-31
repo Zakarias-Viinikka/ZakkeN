@@ -6,7 +6,7 @@ const BO_CSS: &str = include_str!("../../css/busy_overlay.css");
 
 #[component]
 pub fn BusyOverlay() -> impl IntoView {
-    let busy = crate::data_ops::busy::dataset_op_busy();
+    let busy = crate::ui_ops::busy::dataset_op_busy();
     view! {
         <style>{BO_CSS}</style>
         {move || busy.get().map(|msg| view! {

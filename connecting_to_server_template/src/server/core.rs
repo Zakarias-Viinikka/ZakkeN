@@ -1,20 +1,15 @@
-pub mod border;
-pub mod latency;
-pub mod panel;
-pub mod power;
-
 use crate::client_server_coms::{ComsHandleForServer, MessageToServer};
 use crate::protocol::{
     AdoptPage, DatasetGenerationPayload, GetAllPagesPayload, LoveLetter, PageRow, UnsentLetter,
     CANNED_PAGE_ID_A, CANNED_PAGE_ID_B, CANNED_PAGE_ID_C, ERR_NO_SUCH_USER,
     ERR_USER_ALREADY_EXISTS,
 };
-use crate::server::border::BorderComponent;
+use crate::server::components::border::BorderComponent;
+use crate::server::components::panel::ServerReadout;
 use crate::server::latency::{
     reply_after_delay, reply_after_delay_if_still_powered, LATENCY_HEAVY_MS, LATENCY_LIGHT_MS,
 };
-use crate::server::panel::ServerReadout;
-use crate::server::power::POWERED;
+use crate::shared_owners::power::POWERED;
 use futures::StreamExt;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::channel::oneshot;
@@ -22,7 +17,64 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::rc::Rc;
 
-pub struct ClientMessageReceiver {
+#[component]
+pub fn Server(
+    handle: ComsHandleForServer,
+    rx: UnboundedReceiver<MessageToServer>,
+    #[prop(into)] started: Signal<bool>,
+    children: ChildrenFn,
+) -> impl IntoView {
+    let dataset_generation = RwSignal::new(1i64);
+    let pages = RwSignal::new(seed_pages());
+    let backlog = RwSignal::new(Vec::<UnsentLetter>::new());
+    let letters_received = RwSignal::new(0usize);
+    let fault_armed = RwSignal::new(0u32);
+    let socket_live = RwSignal::new(false);
+    let next_letter_id = RwSignal::new(1i64);
+    let registered_users = RwSignal::new(Vec::<String>::new());
+
+    let page_count = Signal::derive(move || pages.get().len());
+    let backlog_count = Signal::derive(move || backlog.get().len());
+
+    provide_context(ServerReadout {
+        powered: POWERED.clone(),
+        dataset_generation,
+        page_count,
+        backlog_count,
+        letters_received,
+        fault_armed,
+    });
+
+    let receiver = Rc::new(ClientMessageReceiver {
+        dataset_generation,
+        pages,
+        backlog,
+        letters_received,
+        fault_armed,
+        socket_live,
+        next_letter_id,
+        registered_users,
+        handle: handle.clone(),
+    });
+    let receiver_loop = receiver.clone();
+    let _ = started;
+    let mut rx = rx;
+    spawn_local(async move {
+        while let Some(msg) = rx.next().await {
+            receiver_loop.handle(msg);
+        }
+    });
+
+    let powered_sig = POWERED.clone();
+    let border_online = Signal::derive(move || powered_sig.get());
+    view! {
+        <BorderComponent online=border_online>
+            {children()}
+        </BorderComponent>
+    }
+}
+
+struct ClientMessageReceiver {
     dataset_generation: RwSignal<i64>,
     pages: RwSignal<Vec<PageRow>>,
     backlog: RwSignal<Vec<UnsentLetter>>,
@@ -359,61 +411,4 @@ fn seed_pages() -> Vec<PageRow> {
             is_main_menu_page: false,
         },
     ]
-}
-
-#[component]
-pub fn Server(
-    handle: ComsHandleForServer,
-    rx: UnboundedReceiver<MessageToServer>,
-    #[prop(into)] started: Signal<bool>,
-    children: ChildrenFn,
-) -> impl IntoView {
-    let dataset_generation = RwSignal::new(1i64);
-    let pages = RwSignal::new(seed_pages());
-    let backlog = RwSignal::new(Vec::<UnsentLetter>::new());
-    let letters_received = RwSignal::new(0usize);
-    let fault_armed = RwSignal::new(0u32);
-    let socket_live = RwSignal::new(false);
-    let next_letter_id = RwSignal::new(1i64);
-    let registered_users = RwSignal::new(Vec::<String>::new());
-
-    let page_count = Signal::derive(move || pages.get().len());
-    let backlog_count = Signal::derive(move || backlog.get().len());
-
-    provide_context(ServerReadout {
-        powered: POWERED.clone(),
-        dataset_generation,
-        page_count,
-        backlog_count,
-        letters_received,
-        fault_armed,
-    });
-
-    let receiver = Rc::new(ClientMessageReceiver {
-        dataset_generation,
-        pages,
-        backlog,
-        letters_received,
-        fault_armed,
-        socket_live,
-        next_letter_id,
-        registered_users,
-        handle: handle.clone(),
-    });
-    let receiver_loop = receiver.clone();
-    let _ = started;
-    let mut rx = rx;
-    spawn_local(async move {
-        while let Some(msg) = rx.next().await {
-            receiver_loop.handle(msg);
-        }
-    });
-
-    let powered_sig = POWERED.clone();
-    let border_online = Signal::derive(move || powered_sig.get());
-    view! {
-        <BorderComponent online=border_online>
-            {children()}
-        </BorderComponent>
-    }
 }

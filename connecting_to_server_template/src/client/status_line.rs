@@ -1,5 +1,33 @@
 use leptos::prelude::*;
 
+use crate::shared_owners::client_status::{client_status_signal, ClientStatus};
+
+pub fn status_line() -> Signal<String> {
+    let status = client_status_signal();
+    Signal::derive(move || {
+        let sending = crate::owner_of_interacting_with_server::sending::sending_signal().get();
+        let last_failed =
+            crate::owner_of_interacting_with_server::sending::last_send_failed_signal().get();
+        let pending =
+            crate::owner_of_interacting_with_server::pending_queue::pending_count_signal().get();
+        let plan_open = crate::reconcile::open_signal().get();
+        let plan_error = crate::reconcile::error_signal().get().is_some();
+        let reason = crate::sync_mode::mode_reason_signal().get();
+
+        if plan_open {
+            return status_while_reconcile_modal_is_open(plan_error);
+        }
+        match status.get() {
+            ClientStatus::NotStarted => "Not started.".into(),
+            ClientStatus::Locked => "Locked. Reload the page.".into(),
+            ClientStatus::NeedsReconcile | ClientStatus::Lonewolf => {
+                status_while_sync_is_stopped(status.get(), reason)
+            }
+            other => status_while_sync_is_running(other, sending, last_failed, pending),
+        }
+    })
+}
+
 pub fn reason_label(reason: Option<crate::sync_mode::ModeReason>) -> &'static str {
     use crate::sync_mode::ModeReason::*;
     match reason {
@@ -20,19 +48,13 @@ fn status_while_reconcile_modal_is_open(plan_error: bool) -> String {
 }
 
 fn status_while_sync_is_stopped(
-    conn: crate::owner_of_interacting_with_server::conn_state::ConnState,
+    status: ClientStatus,
     reason: Option<crate::sync_mode::ModeReason>,
 ) -> String {
-    use crate::owner_of_interacting_with_server::conn_state::ConnState;
-    let connected = if conn == ConnState::Connected {
-        "(connected)"
+    let (presence, connected) = if status == ClientStatus::Lonewolf {
+        ("Lonewolf", "(connected)")
     } else {
-        "(offline)"
-    };
-    let presence = if conn == ConnState::Connected {
-        "Lonewolf"
-    } else {
-        "Stopped"
+        ("Stopped", "(offline)")
     };
     format!(
         "{presence}: {}. Reconcile or Adopt. {connected}",
@@ -41,17 +63,16 @@ fn status_while_sync_is_stopped(
 }
 
 fn status_while_sync_is_running(
-    conn: crate::owner_of_interacting_with_server::conn_state::ConnState,
+    status: ClientStatus,
     sending: bool,
     last_failed: bool,
     pending: usize,
 ) -> String {
-    use crate::owner_of_interacting_with_server::conn_state::ConnState;
-    match conn {
-        ConnState::Connecting => "Connecting…".into(),
-        ConnState::FailedToConnect => format!("Couldn't connect. {pending} waiting."),
-        ConnState::Offline => format!("Not connected. {pending} edits waiting."),
-        ConnState::Connected => {
+    match status {
+        ClientStatus::Connecting => "Connecting…".into(),
+        ClientStatus::FailedToConnect => format!("Couldn't connect. {pending} waiting."),
+        ClientStatus::Offline => format!("Not connected. {pending} edits waiting."),
+        ClientStatus::Connected => {
             if sending {
                 format!("Sending {pending}…")
             } else if last_failed {
@@ -62,29 +83,6 @@ fn status_while_sync_is_running(
                 format!("{pending} edits waiting.")
             }
         }
+        _ => format!("{status:?}"),
     }
-}
-
-pub fn status_line() -> Signal<String> {
-    Signal::derive(move || {
-        use crate::sync_mode::SyncMode;
-        let mode = crate::sync_mode::sync_mode_signal().get();
-        let conn = crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get();
-        let sending = crate::owner_of_interacting_with_server::sending::sending_signal().get();
-        let last_failed = crate::owner_of_interacting_with_server::sending::last_send_failed_signal().get();
-        let pending = crate::owner_of_interacting_with_server::pending_queue::pending_count_signal().get();
-        let plan_open = crate::reconcile::plan_signal().get().is_some();
-        let plan_error = crate::reconcile::error_signal().get().is_some();
-        let reason = crate::sync_mode::mode_reason_signal().get();
-
-        if plan_open {
-            return status_while_reconcile_modal_is_open(plan_error);
-        }
-        match mode {
-            SyncMode::NeedsReconcile => status_while_sync_is_stopped(conn, reason),
-            SyncMode::Connected => {
-                status_while_sync_is_running(conn, sending, last_failed, pending)
-            }
-        }
-    })
 }

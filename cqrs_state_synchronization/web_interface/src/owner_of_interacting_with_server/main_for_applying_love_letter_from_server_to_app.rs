@@ -13,7 +13,7 @@ use protocol::error::DbError;
 use crate::shared_owners::BlockRow;
 use crate::db::batcher::{run_exclusive, BatcherHandle};
 use crate::db::cached_ids::{self, try_current_user_id};
-use crate::db::reads::{blocks as reads_blocks, pages as reads_pages};
+use crate::db::reads_wrapper::{blocks as reads_blocks, pages as reads_pages};
 use crate::page_state::OpenPages;
 
 pub enum ApplyError {

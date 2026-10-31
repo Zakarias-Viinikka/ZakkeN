@@ -24,7 +24,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<String> {
         let session_id = current_session_id();
         spawn_local(async move {
             if let Err(e) =
-                crate::db::ui_actions::delete_block(batcher, boss, block_id.clone(), session_id)
+                crate::db::ui_ops::delete_block(batcher, boss, block_id.clone(), session_id)
                     .await
             {
                 leptos::logging::error!("delete block failed: {:?}", e);

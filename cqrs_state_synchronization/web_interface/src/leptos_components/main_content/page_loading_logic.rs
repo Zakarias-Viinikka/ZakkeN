@@ -3,7 +3,7 @@ use leptos::task::spawn_local;
 
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_user_id;
-use crate::db::reads::{blocks as reads_blocks, pages as reads_pages};
+use crate::db::reads_wrapper::{blocks as reads_blocks, pages as reads_pages};
 use crate::leptos_components::small_components::popup::create_popup;
 use crate::page_state::{Page, PageLoadState};
 

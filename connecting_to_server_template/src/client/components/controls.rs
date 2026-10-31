@@ -1,19 +1,41 @@
 use crate::client_server_coms::{ComsHandleForClient, ComsHandleForServer};
-use crate::data_ops::verb_error::{announce_verb_error, VerbError};
+use crate::ui_ops::verb_error::{announce_verb_error, VerbError};
 use crate::protocol::LoveLetter;
 use crate::CustomButton;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-fn spawn_verb<F>(fut: F)
-where
-    F: std::future::Future<Output = Result<(), VerbError>> + 'static,
-{
-    spawn_local(async move {
-        if let Err(e) = fut.await {
-            announce_verb_error(e);
-        }
+#[component]
+pub fn Controls(coms: ComsHandleForClient, server_coms: ComsHandleForServer) -> impl IntoView {
+    let _ = server_coms;
+    let coms_client = coms.clone();
+    let coms_stopped = coms.clone();
+    let coms_server = coms.clone();
+    let coms_other_client = coms;
+
+    // The stopped-sync buttons are only usable in lonewolf: socket is up
+    // and login succeeded, but sync is gated. Below that (offline) you
+    // can't reach the server at all, above it (Connected, not gated)
+    // you're not stopped so there's nothing to pick. Tracked reactively
+    // so the group appears the moment the client goes lonewolf and
+    // disappears the moment it stops being lonewolf.
+    let show_stopped = Signal::derive(move || {
+        crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get()
+            == crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
+            && crate::sync_mode::sync_mode_signal().get()
+                == crate::sync_mode::SyncMode::NeedsReconcile
     });
+
+    view! {
+        <div class="controls">
+            <ClientControls coms=coms_client />
+            <Show when=move || show_stopped.get()>
+                <StoppedSyncControls coms=coms_stopped.clone() />
+            </Show>
+            <ServerControls coms=coms_server />
+            <OtherClientControls coms=coms_other_client />
+        </div>
+    }
 }
 
 #[component]
@@ -52,11 +74,11 @@ fn ClientControls(coms: ComsHandleForClient) -> impl IntoView {
             crate::cool_popup::show_popup("Already connecting.");
             return;
         }
-        crate::data_ops::connect_to_server_and_announce(coms_connect.clone());
+        crate::ui_ops::connect_to_server_and_announce(coms_connect.clone());
     };
 
     let pause = move |_| {
-        if let Err(e) = crate::data_ops::pause() {
+        if let Err(e) = crate::ui_ops::pause() {
             crate::cool_popup::show_popup_as(crate::cool_popup::PopupKind::Warning, e);
         }
     };
@@ -91,14 +113,7 @@ fn StoppedSyncControls(coms: ComsHandleForClient) -> impl IntoView {
     let client_disabled = Signal::derive(move || !crate::client::client_started_signal().get());
 
     let reconcile_click = move |_| {
-        let coms = coms_reconcile.clone();
-        spawn_local(async move {
-            match crate::reconcile::reconcile_plan(coms).await {
-                Ok(Some(plan)) => crate::reconcile::modal::open_modal(plan),
-                Ok(None) => {}
-                Err(e) => announce_verb_error(e),
-            }
-        });
+        spawn_verb(crate::reconcile::reconcile_plan(coms_reconcile.clone()));
     };
 
     view! {
@@ -109,7 +124,7 @@ fn StoppedSyncControls(coms: ComsHandleForClient) -> impl IntoView {
                 disabled=client_disabled
                 on_click=move |_| {
                     let coms = coms_adopt.clone();
-                    spawn_verb(crate::data_ops::adopt_local(coms));
+                    spawn_verb(crate::ui_ops::adopt_local(coms));
                 }
             />
             <CustomButton
@@ -117,7 +132,7 @@ fn StoppedSyncControls(coms: ComsHandleForClient) -> impl IntoView {
                 disabled=client_disabled
                 on_click=move |_| {
                     let coms = coms_adopt_wipe.clone();
-                    spawn_verb(crate::data_ops::adopt_local(coms));
+                    spawn_verb(crate::ui_ops::adopt_local(coms));
                 }
             />
             <CustomButton
@@ -125,13 +140,12 @@ fn StoppedSyncControls(coms: ComsHandleForClient) -> impl IntoView {
                 disabled=client_disabled
                 on_click=move |_| {
                     let coms = coms_wipe_local.clone();
-                    spawn_verb(crate::data_ops::wipe_local_and_pull_from_server(coms));
+                    spawn_verb(crate::ui_ops::wipe_local_and_pull_from_server(coms));
                 }
             />
         </ControlsSection>
     }
 }
-
 
 #[component]
 fn ServerControls(coms: ComsHandleForClient) -> impl IntoView {
@@ -142,8 +156,8 @@ fn ServerControls(coms: ComsHandleForClient) -> impl IntoView {
     let coms_push = coms;
     let next_letter_id = RwSignal::new(1i64);
     let client_disabled = Signal::derive(move || !crate::client::client_started_signal().get());
-    let powered_off = crate::server::power::powered_signal();
-    let powered_on = crate::server::power::powered_signal();
+    let powered_off = crate::shared_owners::power::powered_signal();
+    let powered_on = crate::shared_owners::power::powered_signal();
     let server_off = Signal::derive(move || !powered_off.get());
     let server_on = Signal::derive(move || powered_on.get());
 
@@ -164,7 +178,7 @@ fn ServerControls(coms: ComsHandleForClient) -> impl IntoView {
                 disabled=client_disabled
                 on_click=move |_| {
                     let coms = coms_wipe.clone();
-                    spawn_verb(crate::data_ops::wipe_server(coms));
+                    spawn_verb(crate::ui_ops::wipe_server(coms));
                 }
             />
             <CustomButton
@@ -193,7 +207,7 @@ fn OtherClientControls(coms: ComsHandleForClient) -> impl IntoView {
     let coms_wipe = coms.clone();
     let coms_reconcile = coms.clone();
     let coms_start_over = coms;
-    let server_off = Signal::derive(move || !crate::server::power::powered_signal().get());
+    let server_off = Signal::derive(move || !crate::shared_owners::power::powered_signal().get());
 
     view! {
         <ControlsSection title="Another client did this">
@@ -216,35 +230,13 @@ fn OtherClientControls(coms: ComsHandleForClient) -> impl IntoView {
     }
 }
 
-#[component]
-pub fn Controls(coms: ComsHandleForClient, server_coms: ComsHandleForServer) -> impl IntoView {
-    let _ = server_coms;
-    let coms_client = coms.clone();
-    let coms_stopped = coms.clone();
-    let coms_server = coms.clone();
-    let coms_other_client = coms;
-
-    // The stopped-sync buttons are only usable in lonewolf: socket is up
-    // and login succeeded, but sync is gated. Below that (offline) you
-    // can't reach the server at all, above it (Connected, not gated)
-    // you're not stopped so there's nothing to pick. Tracked reactively
-    // so the group appears the moment the client goes lonewolf and
-    // disappears the moment it stops being lonewolf.
-    let show_stopped = Signal::derive(move || {
-        crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get()
-            == crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
-            && crate::sync_mode::sync_mode_signal().get()
-                == crate::sync_mode::SyncMode::NeedsReconcile
+fn spawn_verb<F>(fut: F)
+where
+    F: std::future::Future<Output = Result<(), VerbError>> + 'static,
+{
+    spawn_local(async move {
+        if let Err(e) = fut.await {
+            announce_verb_error(e);
+        }
     });
-
-    view! {
-        <div class="controls">
-            <ClientControls coms=coms_client />
-            <Show when=move || show_stopped.get()>
-                <StoppedSyncControls coms=coms_stopped.clone() />
-            </Show>
-            <ServerControls coms=coms_server />
-            <OtherClientControls coms=coms_other_client />
-        </div>
-    }
 }

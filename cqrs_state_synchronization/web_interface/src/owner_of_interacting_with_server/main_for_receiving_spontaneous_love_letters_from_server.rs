@@ -21,7 +21,7 @@ use web_internal_db::db_helper;
 
 use crate::db::batcher::BatcherHandle;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
-use crate::db::reads::pages::page_exists;
+use crate::db::reads_wrapper::pages::page_exists;
 use crate::leptos_components::small_components::popup::create_popup;
 use crate::page_state::OpenPages;
 

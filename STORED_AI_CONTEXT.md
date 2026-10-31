@@ -271,9 +271,9 @@ As of 2026-10-29 the work order has been implemented. Files:
 - protocol.rs - Payload types and LoveLetter, small copy of the real server protocol. Canned page ids.
 - sync_mode.rs - SyncMode enum (Connected / Paused / NeedsReconcile), static SYNC_MODE, is_gated, set_sync_mode (only writer). Persistence is a placeholder comment.
 - owner_of_interacting_with_server.rs - ConnState (Offline / Connecting / FailedToConnect / Connected), generation and count signals, restart_sync_stack (soft restart, no page reload), receive_letter (gated), pending queue with main_send_unsent_love_letters (gated, drain re-checks per send), pull_unsent, start_over_fresh, check_login_generation (canned), clear_seen_everywhere (no-op).
-- data_ops.rs - pause (refused in NeedsReconcile), resume, wipe_server, adopt_local, DATASET_OP_BUSY, with_busy, read_local_pages_placeholder.
-- reconcile.rs - ConflictChoice, ReconcileDecisions, PageDiffSummary, ReconcilePlan, RECONCILE_PLAN/RECONCILE_ERROR signals, a session holding previous_mode + apply_attempted + plan, and the three verbs (plan / apply / cancel). classify_pages_placeholder branches on whether the server returned any pages.
-- overlays.rs - FullScreenBlocker, BusyOverlay, ReconcileModal (with inner ReconcileModalBody, reads plan once untracked so state resets per open).
+- ui_ops.rs - pause (refused in NeedsReconcile), resume, wipe_server, adopt_local, DATASET_OP_BUSY, with_busy, read_local_pages_placeholder.
+- reconcile.rs - at the time this was written: ConflictChoice, ReconcileDecisions, PageDiffSummary, ReconcilePlan, RECONCILE_PLAN/RECONCILE_ERROR signals, a session holding previous_mode + apply_attempted + plan, and the three verbs (plan / apply / cancel). classify_pages_placeholder branched on whether the server returned any pages. Superseded 2026-10-31 — see the "reconcile rework" update.
+- overlays.rs - FullScreenBlocker, BusyOverlay, ReconcileModal. At this point ReconcileModal had an inner ReconcileModalBody that read the plan once untracked. Now it reads `local_pages` and mocks the process — see the 2026-10-31 update.
 - cool_popup.rs - Toast stack with click-to-modal, hover-freeze, per-kind lifetime. show_popup(String) and show_popup_as(PopupKind, String). Replaces a separate popup.rs.
 - server.rs - fake server with dataset_generation (starting at 1) and seed_pages, implements every request. Wipe bumps generation and clears pages. Adopt bumps generation and replaces pages. SendLetter logs and replies Ok. GetMyUnsentLetters returns empty. The "kick other sockets / stamp generation / guard SendLoveLetter on stale stamp" is not representable with one client and is a comment in Login. ServerPanel readout and ServerReadout context.
 - client.rs - BorderComponent now takes BorderState (Offline / Paused / Connected), not a bool. ClientPanel shows mode, conn, pending, applied, both generations, and two pretend-edit buttons. ServerMessageReceiver passes pushed letters to receive_letter.
@@ -307,7 +307,7 @@ What changed since the shape-only build:
 - Status line at the top of ClientPanel. Single derivation, nine rows in the plan, first matching wins.
 - Border states: Offline / Connecting / Failed / Connected / NeedsReconcile / Lonewolf. `border-needs-reconcile` amber `#e8b060` (gated + not connected), `border-lonewolf` violet `#a78bfa` (gated + connected — the "connected but disconnected" case), `border-failed` red, `border-pulse` animation over any state while work is in flight, dashed-border fallback under reduced motion. "Lonewolf" is the name for the gated-but-connected state; `owner_of_interacting_with_server::is_lonewolf()` is the predicate. It is not a `SyncMode` variant.
 - `CustomButton` gained `#[prop(optional, into)] disabled: Signal<bool>`. Controls button policy: client-section + Wipe disabled until client started; server power controls disabled when the appropriate polarity; everything else stays enabled and refuses with a popup (test bench).
-- `VerbError` enum in `data_ops` (Refused → Warning popup, Failed → Error popup). `spawn_verb` splits. `reconcile_plan` returns `Result<Option<ReconcilePlan>, VerbError>`; "already in progress" is an Info no-op not an error.
+- `VerbError` enum in `ui_ops` (Refused → Warning popup, Failed → Error popup). `spawn_verb` splits. `reconcile_plan` returns `Result<Option<ReconcilePlan>, VerbError>`; "already in progress" is an Info no-op not an error.
 - Popup coalescing: `show_popup_as` resets the timer of a live toast with same kind and message instead of stacking.
 - Client panel gained reason suffix, ignored-while-stopped counter, and amber coloring when login ≠ stored generation.
 
@@ -317,7 +317,7 @@ Behaviour changes since the earlier update:
 - Mode and reason persist to localStorage and load on boot. Reload into paused stays paused. Connected resets to Connected (no persistence). Auto-connect on "Start client" fires unless mode is already NeedsReconcile.
 - `ModeReason` extended with `YouPaused`.
 - `CustomButton`, status line and border states all live in the client half; nothing on the server side invents behaviour.
-- The Reconcile-actions group has four buttons: Reconcile, Adopt my data, Wipe server & start from mine, Wipe mine & start from server. The last one is the new "client becomes the server's mirror" verb (`data_ops::wipe_local_and_pull_from_server`): fetches all pages, clears queue and seen, applies every server page locally (PLACEHOLDER — logs the count), records generation, sets Connected, restarts. `"Wipe server & start from mine"` still calls `adopt_local` — same behaviour as Adopt my data; if the human wants them distinct that is a plan question.
+- The Reconcile-actions group has four buttons: Reconcile, Adopt my data, Wipe server & start from mine, Wipe mine & start from server. The last one is the new "client becomes the server's mirror" verb (`ui_ops::wipe_local_and_pull_from_server`): fetches all pages, clears queue and seen, applies every server page locally (PLACEHOLDER — logs the count), records generation, sets Connected, restarts. `"Wipe server & start from mine"` still calls `adopt_local` — same behaviour as Adopt my data; if the human wants them distinct that is a plan question.
 
 Known deviations still in place:
 
@@ -325,6 +325,26 @@ Known deviations still in place:
 - "Wipe server & start from mine" duplicates Adopt.
 
 main.rs uses `connecting_to_server_template::app_main::AppMain`, matching the Cargo.toml [package] name. The old `connecting_to_server_example::` prefix was corrected at some point.
+
+### Update - 2026-10-31 (reconcile rework: process, not plan)
+
+Reconcile no longer computes a plan object. The old `reconcile/{plan, session, classify, modal}.rs` files are gone. The folder `reconcile/` is empty; the module is `reconcile.rs`.
+
+The real model (written down in `plan_for_general_data_management_ops.md` section 4): the client passes `local_pages` only. The server checks each page — "do you have this exactly as I do?" — and sends its full version of any page that doesn't match. The comparison happens live inside that exchange. Nothing is stored between layers.
+
+The template mocks this. `reconcile.rs` owns three verbs: `reconcile_plan` (sets `NeedsReconcile + Reconciling`, stores the previous mode/reason in a `Mutex`, opens the modal), `reconcile_apply` (mock — flips back to `Connected`, pops a success, restarts), `reconcile_cancel` (restores the stored mode/reason, closes the modal). No plan, no decisions map, no classify step.
+
+State lives in `reconcile.rs` as two `ArcRwSignal`s (`MODAL_OPEN: bool`, `MODAL_ERROR: Option<String>`) exposed as `open_signal()` / `error_signal()`, plus a `Mutex<Option<(SyncMode, Option<ModeReason>)>>` for what cancel restores.
+
+`overlays/reconcile_modal.rs` reads `local_pages` directly at render. Each page is a row; rows alternate between "server would send its version" and "matches, nothing to send", so both display shapes are visible. Confirm and Cancel take no arguments. No plan prop.
+
+`client/status_line.rs` reads `reconcile::open_signal().get()` (bool), not a plan.
+`client/components/controls.rs` reconcile button awaits `reconcile_plan`, no plan branch.
+`app_main.rs` derives two signals (`open_sig`, `error_sig` from the two getters) and passes them plus two no-arg callbacks. The `ReconcileDecisions` prop and the plan prop are gone.
+
+`css/reconcile_modal.css` dropped the summary grid, the conflict row styles, and the decisions styles. Kept card / head / body / note / error / page-row / page-state / foot / btn.
+
+`behaviour_decisions.md` "Not decisions" section rewritten to state the process model and that the template's reconcile is a mock, not an implementation.
 
 ## External: z_db - 2026-10-13
 
@@ -562,8 +582,8 @@ src/ layout now:
 - lib.rs  main.rs  app_main.rs  protocol.rs  client_server_coms.rs  custom_button.rs  local_pages.rs
 - sync_mode.rs + sync_mode/persistence.rs
 - owner_of_interacting_with_server.rs + owner_of_interacting_with_server/{conn_state, dataset_generation, pending_queue, sending, receiving, restart}.rs
-- data_ops.rs + data_ops/{verb_error, busy}.rs
-- reconcile.rs + reconcile/{plan, session, classify, modal}.rs
+- ui_ops.rs + ui_ops/{verb_error, busy}.rs
+- reconcile.rs + reconcile/{plan, session, classify, modal}.rs — superseded 2026-10-31; the folder is now empty and reconcile.rs owns the verbs and state directly.
 - client.rs + client/{border, server_messages, status_line, panel}.rs
 - server.rs + server/{power, latency, panel, border}.rs
 - controls.rs (one file, five components: ControlsSection, ClientControls, StoppedSyncControls, PopupControls, ServerControls)
@@ -573,7 +593,7 @@ src/ layout now:
 Conventions:
 - Parent file is `pub mod <child>;` lines only, plus its namesake item when it has one.
 - Call sites use full submodule paths (`owner_of_interacting_with_server::sending::main_send_unsent_love_letters`, not re-exported).
-- Only cool_popup keeps private submodules; reconcile has a small `pub use plan::{...}` to avoid touching every call site.
+- Only cool_popup keeps private submodules. (At 2026-10-30 reconcile also had a `pub use plan::{...}` shim; removed 2026-10-31 with the reconcile rework.)
 - Statics stay private to their owner file, accessed through function getters.
 
 Behaviour changes: none. Bugs and stale comments were preserved, not fixed.
@@ -582,7 +602,7 @@ Deviations from the plan:
 - cool_popup stayed one file, not a folder.
 - `.border-paused` deleted from sides.scss (dead after SyncMode collapse).
 - `.btn:disabled` moved from sides.scss to button.scss.
-- reconcile.rs has one re-export shim (`pub use plan::{ConflictChoice, PageDiffSummary, ReconcileDecisions, ReconcilePlan}`).
+- reconcile.rs had one re-export shim (`pub use plan::{...}`). Gone as of 2026-10-31 — there is no plan module.
 
 ## Plans at the repo root - 2026-10-30
 

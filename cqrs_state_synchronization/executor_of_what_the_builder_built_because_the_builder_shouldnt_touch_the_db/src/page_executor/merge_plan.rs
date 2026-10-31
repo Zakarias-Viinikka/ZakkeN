@@ -3,11 +3,11 @@ use data_builder_for_operations_that_need_to_be_correct::{
 };
 use error_stuff::CqrsErr;
 
-use super::table_writes::every_block::{
+use super::table_writes_internals::every_block::{
     delete_every_block_row, insert_block_row, mark_all_blocks_for_page_disabled,
     update_block_frac_position, update_every_block_content,
 };
-use super::table_writes::pages::{insert_into_pages, update_pages_blob, update_pages_status};
+use super::table_writes_internals::pages::{insert_into_pages, update_pages_blob, update_pages_status};
 use super::transaction::run_in_transaction;
 
 pub async fn apply_merge_plan(plan: MergePlan) -> Result<(), CqrsErr> {

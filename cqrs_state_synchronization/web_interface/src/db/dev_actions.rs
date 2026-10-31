@@ -13,7 +13,7 @@ use protocol::payload::DeleteAllRowsIn;
 use web_internal_db::db_helper;
 
 use crate::db::cached_ids::{current_session_id, current_user_id};
-use crate::db::reads::pages::get_yrs_unblobbed;
+use crate::db::reads_wrapper::pages::get_yrs_unblobbed;
 use crate::db::write_lock::WRITE_LOCK;
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;

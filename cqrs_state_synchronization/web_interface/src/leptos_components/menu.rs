@@ -1,6 +1,6 @@
 use crate::{
     shared_owners::LocalPages,
-    db::reads::menu::get_all_menu_pages,
+    db::reads_wrapper::menu::get_all_menu_pages,
     leptos_components::{
         action_buttons::{
             disable_page_button::DisablePageButton, edit_title_button::EditTitleButton,

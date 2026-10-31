@@ -1,15 +1,5 @@
 use leptos::prelude::*;
 
-#[derive(Clone)]
-pub struct ServerReadout {
-    pub powered: ArcRwSignal<bool>,
-    pub dataset_generation: RwSignal<i64>,
-    pub page_count: Signal<usize>,
-    pub backlog_count: Signal<usize>,
-    pub letters_received: RwSignal<usize>,
-    pub fault_armed: RwSignal<u32>,
-}
-
 #[component]
 pub fn ServerPanel() -> impl IntoView {
     let readout = expect_context::<ServerReadout>();
@@ -32,4 +22,14 @@ pub fn ServerPanel() -> impl IntoView {
             </div>
         </div>
     }
+}
+
+#[derive(Clone)]
+pub struct ServerReadout {
+    pub powered: ArcRwSignal<bool>,
+    pub dataset_generation: RwSignal<i64>,
+    pub page_count: Signal<usize>,
+    pub backlog_count: Signal<usize>,
+    pub letters_received: RwSignal<usize>,
+    pub fault_armed: RwSignal<u32>,
 }

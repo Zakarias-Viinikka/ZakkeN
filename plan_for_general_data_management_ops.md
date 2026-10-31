@@ -626,3 +626,27 @@ The mock needs three stale triggers, not just one. A reconnect after a
 kick logs in fresh and gets the new stamp, so the server guard only
 blocks sockets that stayed connected across the change. The mock's own
 client-side check is the only thing that catches the reconnect case.
+
+---
+
+## 4. Addendum: reconcile is a process, not a plan
+
+Overrides section 1 where it differs, and supersedes the shapes named in it.
+
+The model in section 1 — `classify_pages` returning a `ReconcilePlan`, a `ReconcileDecisions` map, `diff_page`, `build_client_wins_update`, a session holding the plan — was wrong. The real model:
+
+- Only `local_pages` is passed around.
+- The client hands `local_pages` to the server.
+- The server checks, page by page, whether it has that page exactly as the client does.
+- For a page the server does not have exactly, it sends its full version of that page.
+- For a page that matches, nothing is sent.
+- The comparison happens live inside that exchange. Nothing is computed up front and nothing is stored between layers.
+
+That means `ReconcilePlan`, `PageDiffSummary`, `ReconcileDecisions`, `classify_pages`, `diff_page`, and `build_client_wins_update` are placeholders that do not match the model and should not be built against. `reconcile_plan() -> ReconcilePlan` is the wrong signature. The two phases (plan then apply, around user input) were an artefact of the plan object; the real flow is one process that starts from the server-side check and runs to completion.
+
+Two shapes that remain correct and are not affected:
+
+- The `SendLoveLetter` generation guard (section 1, "SERVER CHANGES"): a letter from a stale socket is still refused.
+- The `CURRENT_LOGIN_GENERATION` write on reconcile finish (section 2, addendum item 1): still happens.
+
+The template in `connecting_to_server_template` mocks this — three verbs (`reconcile_plan`, `reconcile_apply`, `reconcile_cancel`), a modal that reads `local_pages` and pretends page-by-page, nothing stored in between. It is a stand-in for the model above, not an implementation of it. See `connecting_to_server_template/behaviour_decisions.md` "Not decisions — reconcile".

@@ -1,4 +1,4 @@
-use crate::data_ops::verb_error::VerbError;
+use crate::ui_ops::verb_error::VerbError;
 use leptos::prelude::*;
 use std::sync::LazyLock;
 

@@ -54,7 +54,7 @@ All three operations change server state regardless of whether the current clien
 
 ## Client: owner_of_interacting_with_server
 
-`restart_sync_stack` returns `RestartOutcome` — `Synced`, `AlreadyStopped`, `JustChanged`, `Failed(String)`. It never pops. `announce_connect_outcome` is the layer that turns the outcome into a popup. (`owner_of_interacting_with_server/restart.rs`, `data_ops.rs`)
+`restart_sync_stack` returns `RestartOutcome` — `Synced`, `AlreadyStopped`, `JustChanged`, `Failed(String)`. It never pops. `announce_connect_outcome` is the layer that turns the outcome into a popup. (`owner_of_interacting_with_server/restart.rs`, `ui_ops.rs`)
 
 `log_in` tries `Register` first, falls through to `Login` on `ERR_USER_ALREADY_EXISTS`. First connect registers. Every later connect logs in. The order is not "login then register" — the server rejects a login for an unknown user, so the first connect has to register before it can log in. (`owner_of_interacting_with_server/restart.rs`)
 
@@ -94,7 +94,7 @@ Server-off disables: power controls, Wipe server, Push pretend letter, Fail next
 
 ## Popups
 
-One popup per verb. Refusals first. If a verb refuses and also fails, the refusal is the popup — you never get both. (`data_ops/verb_error.rs`)
+One popup per verb. Refusals first. If a verb refuses and also fails, the refusal is the popup — you never get both. (`ui_ops/verb_error.rs`)
 
 `VerbError::Refused` becomes a `Warning` popup. `VerbError::Failed` becomes an `Error` popup. This split is enforced by `announce_verb_error`, not by each call site.
 
@@ -108,7 +108,11 @@ These look like decisions but they aren't. They're placeholders. If the AI keeps
 
 `local_pages.rs` reads from a placeholder, not a real local db. `apply_server_pages_locally` logs a count. `read_local_pages_placeholder` is a placeholder. `start_over_fresh` logs the page count and doesn't build pages.
 
-`classify_pages_placeholder` in `reconcile/classify.rs` classifies by whether the server returned any pages. The real classifier compares per-page state.
+Reconcile is a process, not a precomputed object. The client hands the server its `local_pages`. The server checks each page — "do you have this exactly as I do?" — and sends its full version of any page that doesn't match. For pages that match, nothing more is sent. The comparison happens live inside that exchange; nothing is stored between layers.
+
+`local_pages` is the only thing passed around. There is no `ReconcilePlan`, no `PageDiffSummary`, no `ReconcileDecisions`, no session object holding a comparison result. Those shapes are wrong and the template does not use them.
+
+The template's reconcile is a mock standing in for this model, not an implementation. The Reconcile button flips the sync mode to `Reconciling` and opens a modal that lists `local_pages` and pretends, page by page, that the server would either send its version or say "matches". Confirm closes the modal and flips back to `Connected`. Cancel restores the previous mode and reason. Nothing talks to the server; nothing is compared; nothing is stored.
 
 The pending queue is a `Vec<LoveLetter>` signal, not a persistent outbox. `pending_count_signal` counts it. Nothing survives a reload.
 
@@ -116,6 +120,6 @@ A diff is a string here, not a real `TextEdit`. The template has no years, no CR
 
 The data-ops verbs (pause, wipe_server, adopt_local, wipe_local_and_pull_from_server) do real state-machine work but touch the server through the mock. `pause()` returns `Result<(), String>` while every other verb returns `VerbError` — leftover from an earlier shape. The popup is the same Warning either way.
 
-`reconcile_cancel` restores the previous mode and reason from a session that holds them. If the previous mode was `NeedsReconcile` with no reason (possible after reload), the restore leaves the reason as `Reconciling`. This is a bug, preserved.
+`reconcile_cancel` restores the previous mode and reason from a small `Mutex` that holds them. If the previous mode was `NeedsReconcile` with no reason (possible after reload), the restore leaves the reason as `Reconciling`. This is a bug, preserved.
 
 `client_server_coms` is a pair of `mpsc` channels, not a socket. The `Router` in the real `shared_internals_for_server` crate is the actual socket layer; here the "connection" is the channel pair and `ConnectionLost` is just a message.

@@ -56,7 +56,7 @@ async fn delete_above_and_clear_row(
     session_id: String,
 ) {
     if let Err(e) =
-        crate::db::ui_actions::delete_block(batcher, boss, above_id.clone(), session_id).await
+        crate::db::ui_ops::delete_block(batcher, boss, above_id.clone(), session_id).await
     {
         leptos::logging::error!("merge: delete empty above failed: {:?}", e);
         create_popup(format!("merge: delete empty above failed: {e:?}"));
@@ -83,7 +83,7 @@ async fn append_into_above_and_delete_this(
     batcher.push_edit(boss.clone(), above_id.clone(), diff);
 
     if let Err(e) =
-        crate::db::ui_actions::delete_block(batcher, boss, block_id.clone(), session_id).await
+        crate::db::ui_ops::delete_block(batcher, boss, block_id.clone(), session_id).await
     {
         leptos::logging::error!("merge: delete current failed: {:?}", e);
         create_popup(format!("merge: delete current failed: {e:?}"));

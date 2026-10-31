@@ -14,7 +14,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<MoveEvent> {
         if ev.from_page_id == ev.to_page_id {
             let batcher = batcher.clone();
             spawn_local(async move {
-                if let Err(e) = crate::db::ui_actions::move_block(
+                if let Err(e) = crate::db::ui_ops::move_block(
                     batcher,
                     ev.to_page_id,
                     ev.moved_block_id,
@@ -48,7 +48,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<MoveEvent> {
 
         let batcher = batcher.clone();
         spawn_local(async move {
-            if let Err(e) = crate::db::ui_actions::move_block_to_another_page(
+            if let Err(e) = crate::db::ui_ops::move_block_to_another_page(
                 batcher,
                 old_boss,
                 new_boss,

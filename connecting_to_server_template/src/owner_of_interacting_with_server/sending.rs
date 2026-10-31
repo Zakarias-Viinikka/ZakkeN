@@ -1,11 +1,18 @@
 use leptos::prelude::*;
 use std::sync::LazyLock;
 
-static SENDING: LazyLock<ArcRwSignal<bool>> =
-    LazyLock::new(|| ArcRwSignal::new(false));
-
-static LAST_SEND_FAILED: LazyLock<ArcRwSignal<bool>> =
-    LazyLock::new(|| ArcRwSignal::new(false));
+pub fn main_send_unsent_love_letters(coms: crate::client_server_coms::ComsHandleForClient) {
+    if !sending_is_allowed_now() {
+        return;
+    }
+    if SENDING.get_untracked() {
+        return;
+    }
+    SENDING.set(true);
+    leptos::task::spawn_local(async move {
+        send_pending_letters_until_blocked(coms).await;
+    });
+}
 
 pub fn sending_signal() -> ArcRwSignal<bool> {
     SENDING.clone()
@@ -15,17 +22,17 @@ pub fn last_send_failed_signal() -> ArcRwSignal<bool> {
     LAST_SEND_FAILED.clone()
 }
 
+enum SendResult {
+    Sent,
+    TransportDied,
+    LockNow,
+}
+
 fn sending_is_allowed_now() -> bool {
     !crate::owner_of_interacting_with_server::locked::is_locked()
         && !crate::sync_mode::is_gated()
         && crate::owner_of_interacting_with_server::conn_state::current_conn_state()
             == crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
-}
-
-enum SendResult {
-    Sent,
-    TransportDied,
-    LockNow,
 }
 
 // One attempt plus one retry, but only for server errors. Transport
@@ -86,15 +93,8 @@ async fn send_pending_letters_until_blocked(
     SENDING.set(false);
 }
 
-pub fn main_send_unsent_love_letters(coms: crate::client_server_coms::ComsHandleForClient) {
-    if !sending_is_allowed_now() {
-        return;
-    }
-    if SENDING.get_untracked() {
-        return;
-    }
-    SENDING.set(true);
-    leptos::task::spawn_local(async move {
-        send_pending_letters_until_blocked(coms).await;
-    });
-}
+static SENDING: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));
+
+static LAST_SEND_FAILED: LazyLock<ArcRwSignal<bool>> =
+    LazyLock::new(|| ArcRwSignal::new(false));

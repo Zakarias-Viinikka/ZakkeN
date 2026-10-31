@@ -99,6 +99,12 @@ Bad: `letters_tx`, `reconnect_rx`. Good: `tx_give_love_letter_that_came_from_ser
 
 If the code doesn't have a good name, it goes in `core.rs` (see vocab).
 
+## file order
+
+The main entry method for a file goes at the top. Helpers and abstractions go at the bottom.
+
+The main entry method is the one callers reach for first. For a component file, it's the component that's called from outside. For a logic file, it's the function the rest of the codebase calls to do this file's thing. Everything else — helper functions, private components, support types — sits below it.
+
 ## shared_owner/
 
 When a signal (or any state) is created in one place and touched by many others, and you can only look at one file at a time, you can't infer "does anyone do X to this" or "what happens if I do Y".
@@ -156,3 +162,9 @@ Same `main` pattern as `receive`. From the caller's pov, calling into this means
 Takes one love letter and applies it locally. Merges the snapshot into yrs, reconciles the local db mirror, and refreshes the open page if the letter targeted it. If the letter targets a page that isn't open, it just writes to the db.
 
 It isn't "merge with active page" — the active page is only one case. The full job is applying the letter to the app. `main` for that.
+
+### turn_server_on_when_started → main_for_powering_the_server_when_the_user_starts_it
+
+`turn_server_on_when_started` names the mechanism. Internally it does call `turn_on_server()`. But the file exists because the user pressed Start server and something has to handle that. The caller doesn't know or care that the mechanism is a channel send.
+
+`main_for_powering_the_server_when_the_user_starts_it` names the caller's action. The user started the server, this file handles that. Same `main` pattern as the others.

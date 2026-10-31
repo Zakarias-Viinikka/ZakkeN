@@ -3,16 +3,6 @@ use std::collections::VecDeque;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
-static PENDING_QUEUE: LazyLock<Mutex<VecDeque<crate::protocol::LoveLetter>>> =
-    LazyLock::new(|| Mutex::new(VecDeque::new()));
-
-static PENDING_COUNT: LazyLock<ArcRwSignal<usize>> =
-    LazyLock::new(|| ArcRwSignal::new(0));
-
-pub fn pending_count_signal() -> ArcRwSignal<usize> {
-    PENDING_COUNT.clone()
-}
-
 pub fn queue_pretend_edit(
     coms: &crate::client_server_coms::ComsHandleForClient,
     page_id: impl Into<String>,
@@ -38,16 +28,8 @@ pub fn queue_create_page(
     );
 }
 
-fn enqueue(
-    coms: &crate::client_server_coms::ComsHandleForClient,
-    letter: crate::protocol::LoveLetter,
-) {
-    {
-        let mut q = PENDING_QUEUE.lock().expect("pending queue poisoned");
-        q.push_back(letter);
-        PENDING_COUNT.set(q.len());
-    }
-    crate::owner_of_interacting_with_server::sending::main_send_unsent_love_letters(coms.clone());
+pub fn pending_count_signal() -> ArcRwSignal<usize> {
+    PENDING_COUNT.clone()
 }
 
 pub fn clear_pending_letters() {
@@ -66,3 +48,21 @@ pub fn drop_front_pending_letter() {
     q.pop_front();
     PENDING_COUNT.set(q.len());
 }
+
+fn enqueue(
+    coms: &crate::client_server_coms::ComsHandleForClient,
+    letter: crate::protocol::LoveLetter,
+) {
+    {
+        let mut q = PENDING_QUEUE.lock().expect("pending queue poisoned");
+        q.push_back(letter);
+        PENDING_COUNT.set(q.len());
+    }
+    crate::owner_of_interacting_with_server::sending::main_send_unsent_love_letters(coms.clone());
+}
+
+static PENDING_QUEUE: LazyLock<Mutex<VecDeque<crate::protocol::LoveLetter>>> =
+    LazyLock::new(|| Mutex::new(VecDeque::new()));
+
+static PENDING_COUNT: LazyLock<ArcRwSignal<usize>> =
+    LazyLock::new(|| ArcRwSignal::new(0));

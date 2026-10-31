@@ -4,7 +4,7 @@ use leptos::reactive::spawn_local;
 use crate::{
     shared_owners::LocalPages,
     db::batcher::BatcherHandle,
-    db::ui_actions::disable_page,
+    db::ui_ops::disable_page,
     leptos_components::small_components::popup::create_popup,
 };
 

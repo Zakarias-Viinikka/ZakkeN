@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::time::Duration;
 
-use crate::server::power::POWERED;
+use crate::shared_owners::power::POWERED;
 
 pub const LATENCY_LIGHT_MS: u64 = 500;
 pub const LATENCY_HEAVY_MS: u64 = 900;

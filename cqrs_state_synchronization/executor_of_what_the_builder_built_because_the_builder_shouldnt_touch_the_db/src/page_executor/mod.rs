@@ -1,7 +1,7 @@
 mod transaction;
 mod merge_plan;
 mod operations;
-mod table_writes;
+mod table_writes_internals;
 
 pub use transaction::run_in_transaction;
 pub use merge_plan::apply_merge_plan;

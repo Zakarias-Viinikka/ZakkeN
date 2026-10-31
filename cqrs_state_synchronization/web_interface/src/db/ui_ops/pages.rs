@@ -9,7 +9,7 @@ use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db
 use crate::db::batcher::{run_exclusive, BatcherHandle};
 use crate::db::cached_ids::{current_session_id, current_user_id};
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
-use crate::db::reads::pages::{get_active_pages_blob, get_page_is_disabled, get_yrs_unblobbed};
+use crate::db::reads_wrapper::pages::{get_active_pages_blob, get_page_is_disabled, get_yrs_unblobbed};
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;
 
