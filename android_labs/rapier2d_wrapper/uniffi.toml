@@ -1,0 +1,6 @@
+[crate-roots]
+rapier2d_wrapper = "."
+
+[crates.rapier2d_wrapper.bindings.kotlin]
+package_name = "cascade"
+android = true

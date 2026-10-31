@@ -1,0 +1,15 @@
+[package]
+name = "rapier2d_wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+rapier2d = "0.35.3"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
