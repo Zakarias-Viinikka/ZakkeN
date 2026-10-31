@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::complicated_signal_flow::focus;
+use crate::shared_owners::focus;
 use crate::page_state::OpenPages;
 
 pub fn install(open: OpenPages) -> Callback<(String, bool)> {

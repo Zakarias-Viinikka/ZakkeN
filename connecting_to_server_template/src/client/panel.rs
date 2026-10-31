@@ -1,4 +1,4 @@
-use crate::client::status_line::{reason_label, status_line};
+use crate::client::status_line::status_line;
 use crate::client_server_coms::ComsHandleForClient;
 use crate::CustomButton;
 use leptos::prelude::*;
@@ -6,49 +6,65 @@ use leptos::prelude::*;
 #[component]
 pub fn ClientPanel() -> impl IntoView {
     let handle = expect_context::<ComsHandleForClient>();
-    let conn = crate::server_link::conn_state::conn_state_signal();
-    let mode = crate::sync_mode::sync_mode_signal();
-    let reason = crate::sync_mode::mode_reason_signal();
-    let pending = crate::server_link::pending_queue::pending_count_signal();
-    let applied = crate::server_link::receiving::applied_count_signal();
-    let ignored = crate::server_link::receiving::ignored_while_stopped_signal();
-    let curr_gen = crate::server_link::dataset_generation::current_generation_signal();
-    let stored_gen = crate::server_link::dataset_generation::stored_generation_signal();
+    let pending = crate::owner_of_interacting_with_server::pending_queue::pending_count_signal();
+    let applied = crate::owner_of_interacting_with_server::receiving::applied_count_signal();
+    let ignored = crate::owner_of_interacting_with_server::receiving::ignored_while_stopped_signal();
+    let curr_gen = crate::owner_of_interacting_with_server::dataset_generation::current_generation_signal();
+    let stored_gen = crate::owner_of_interacting_with_server::dataset_generation::stored_generation_signal();
     let status = status_line();
-    let handle_a = handle.clone();
-    let handle_b = handle;
+    let handle_add = handle.clone();
+    let handle_edit = handle;
+    let next_page_id = RwSignal::new(1i64);
 
-    let gen_mismatch = crate::server_link::dataset_generation::generations_differ_signal();
-    let gm1 = gen_mismatch.clone();
-    let gm2 = gen_mismatch.clone();
-    let curr_b = curr_gen.clone();
-    let stored_b = stored_gen.clone();
+    let gen_mismatch =
+        crate::owner_of_interacting_with_server::dataset_generation::generations_differ_signal();
+    let gen_style = move || {
+        if gen_mismatch.get() {
+            "font-size:0.85rem; color:#e8b060; margin:0;"
+        } else {
+            "font-size:0.85rem; color:#5a6270; margin:0;"
+        }
+    };
+    let gen_text = move || {
+        let c = curr_gen.get();
+        let s = stored_gen.get();
+        let fmt = |g: Option<i64>| match g {
+            Some(n) => n.to_string(),
+            None => "—".to_string(),
+        };
+        format!("gen {} → stored {}", fmt(c), fmt(s))
+    };
 
     view! {
-        <p style="font-weight:600; margin-bottom:0.75rem;">{move || status.get()}</p>
-        <p>"mode: " {move || format!("{:?}", mode.get())}
-            {move || reason.get().map(|r| format!(" ({})", reason_label(Some(r))))}
+        <p style="font-weight:600; margin:0;">{move || status.get()}</p>
+        <p style="font-size:0.9rem; color:#5a6270; margin:0;">
+            {move || format!(
+                "pending {} · applied {} · ignored {}",
+                pending.get(),
+                applied.get(),
+                ignored.get(),
+            )}
         </p>
-        <p>"conn: " {move || format!("{:?}", conn.get())}</p>
-        <p>"pending: " {move || pending.get()}</p>
-        <p>"applied: " {move || applied.get()}</p>
-        <p>"ignored while stopped: " {move || ignored.get()}</p>
-        <p style=move || if gm1.get() { "color:#e8b060;" } else { "" }>
-            "login gen: " {move || format!("{:?}", curr_b.get())}
-        </p>
-        <p style=move || if gm2.get() { "color:#e8b060;" } else { "" }>
-            "stored gen: " {move || format!("{:?}", stored_b.get())}
-        </p>
+        <p style=gen_style>{gen_text}</p>
         <CustomButton
-            label="Pretend edit page_a"
+            label="Pretend add page"
             on_click=move |_| {
-                crate::server_link::pending_queue::queue_pretend_edit(&handle_a, "page_a", "edited a");
+                let id = next_page_id.get_untracked();
+                next_page_id.set(id + 1);
+                crate::owner_of_interacting_with_server::pending_queue::queue_create_page(
+                    &handle_add,
+                    format!("pretend_page_{id}"),
+                );
             }
         />
         <CustomButton
-            label="Pretend edit page_b"
+            label="Pretend make edit"
             on_click=move |_| {
-                crate::server_link::pending_queue::queue_pretend_edit(&handle_b, "page_b", "edited b");
+                crate::owner_of_interacting_with_server::pending_queue::queue_pretend_edit(
+                    &handle_edit,
+                    "page_a",
+                    "edited",
+                );
             }
         />
     }

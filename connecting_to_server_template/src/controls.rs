@@ -42,13 +42,13 @@ fn ClientControls(coms: ComsHandleForClient) -> impl IntoView {
     let client_disabled = Signal::derive(move || !crate::client::client_started_signal().get());
 
     let connect = move |_| {
-        if crate::server_link::conn_state::current_conn_state()
-            == crate::server_link::conn_state::ConnState::Connected
+        if crate::owner_of_interacting_with_server::conn_state::current_conn_state()
+            == crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
         {
             crate::cool_popup::show_popup("Already connected.");
             return;
         }
-        if crate::server_link::restart::current_restart_in_flight() {
+        if crate::owner_of_interacting_with_server::restart::current_restart_in_flight() {
             crate::cool_popup::show_popup("Already connecting.");
             return;
         }
@@ -61,10 +61,23 @@ fn ClientControls(coms: ComsHandleForClient) -> impl IntoView {
         }
     };
 
+    let internet_on_a = crate::owner_of_interacting_with_server::internet_switch::internet_on_signal();
+    let internet_on_b = internet_on_a.clone();
+
     view! {
         <ControlsSection title="Client">
             <CustomButton label="Connect to server" disabled=client_disabled on_click=connect />
             <CustomButton label="Pause sync" disabled=client_disabled on_click=pause />
+            <CustomButton
+                label="Turn off internet"
+                disabled=Signal::derive(move || !internet_on_a.get() || client_disabled.get())
+                on_click=move |_| crate::owner_of_interacting_with_server::internet_switch::turn_internet_off()
+            />
+            <CustomButton
+                label="Turn on internet"
+                disabled=Signal::derive(move || internet_on_b.get() || client_disabled.get())
+                on_click=move |_| crate::owner_of_interacting_with_server::internet_switch::turn_internet_on()
+            />
         </ControlsSection>
     }
 }
@@ -218,8 +231,8 @@ pub fn Controls(coms: ComsHandleForClient, server_coms: ComsHandleForServer) -> 
     // so the group appears the moment the client goes lonewolf and
     // disappears the moment it stops being lonewolf.
     let show_stopped = Signal::derive(move || {
-        crate::server_link::conn_state::conn_state_signal().get()
-            == crate::server_link::conn_state::ConnState::Connected
+        crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get()
+            == crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
             && crate::sync_mode::sync_mode_signal().get()
                 == crate::sync_mode::SyncMode::NeedsReconcile
     });

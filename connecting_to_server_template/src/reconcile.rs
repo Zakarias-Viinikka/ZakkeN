@@ -9,7 +9,7 @@ pub mod session;
 
 use crate::client_server_coms::ComsHandleForClient;
 use crate::protocol::LoveLetter;
-use crate::server_link;
+use crate::owner_of_interacting_with_server;
 use crate::sync_mode::{self, SyncMode};
 use leptos::prelude::*;
 use session::{RestoreAction, ReconcileSession, SESSION};
@@ -26,8 +26,8 @@ pub async fn reconcile_plan(
         return Ok(None);
     }
     crate::data_ops::busy::with_busy("Fetching server pages…", async move {
-        if server_link::conn_state::current_conn_state()
-            != server_link::conn_state::ConnState::Connected
+        if owner_of_interacting_with_server::conn_state::current_conn_state()
+            != owner_of_interacting_with_server::conn_state::ConnState::Connected
         {
             return Err(VerbError::refused("Can't reconcile: not connected to the server"));
         }
@@ -78,7 +78,7 @@ pub async fn reconcile_apply(
     use crate::data_ops::verb_error::VerbError;
     use plan::ConflictChoice;
     crate::data_ops::busy::with_busy("Applying reconcile", async move {
-        if crate::server_link::restart::current_restart_in_flight() {
+        if crate::owner_of_interacting_with_server::restart::current_restart_in_flight() {
             return Err(VerbError::refused("Still connecting."));
         }
         let the_plan = {
@@ -103,7 +103,7 @@ pub async fn reconcile_apply(
             }
         }
 
-        let discarded = server_link::pending_queue::pending_count_signal().get_untracked();
+        let discarded = owner_of_interacting_with_server::pending_queue::pending_count_signal().get_untracked();
         let pushed = the_plan.push_to_server.len();
         let took = the_plan.take_from_server.len();
         let total_conflicts = the_plan.conflicts.len();
@@ -144,14 +144,14 @@ pub async fn reconcile_apply(
 
         // PLACEHOLDER: the real local phase rebuilds the local mirror from
         // the plan and the captured blobs, inside one transaction.
-        server_link::pending_queue::clear_pending_letters();
+        owner_of_interacting_with_server::pending_queue::clear_pending_letters();
 
-        if let Some(curr) = server_link::dataset_generation::current_generation() {
-            server_link::dataset_generation::record_new_generation(curr);
+        if let Some(curr) = owner_of_interacting_with_server::dataset_generation::current_generation() {
+            owner_of_interacting_with_server::dataset_generation::record_new_generation(curr);
         }
         sync_mode::set_sync_mode(SyncMode::Connected);
         *SESSION.lock().expect("session poisoned") = None;
-        let _ = server_link::restart::restart_sync_stack(coms).await;
+        let _ = owner_of_interacting_with_server::restart::restart_sync_stack(coms).await;
         crate::cool_popup::show_popup_as(
             crate::cool_popup::PopupKind::Success,
             format!(
@@ -184,7 +184,7 @@ pub async fn reconcile_cancel(
             }
             RestoreAction::NoSession => {}
         }
-        let _ = server_link::restart::restart_sync_stack(coms).await;
+        let _ = owner_of_interacting_with_server::restart::restart_sync_stack(coms).await;
         Ok(())
     })
     .await

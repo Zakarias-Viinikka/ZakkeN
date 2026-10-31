@@ -16,7 +16,7 @@ use super::layout::{
 use super::mouse::{handle_mouse_move, handle_mouse_up};
 use super::rapier_world::RapierWorld;
 use super::sync::{sync_from_props, SyncState};
-use crate::complicated_signal_flow::BlockRow;
+use crate::shared_owners::BlockRow;
 use super::types::{BlockRenderInput, MoveEvent, PageInput};
 
 #[component]

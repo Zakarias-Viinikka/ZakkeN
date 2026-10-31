@@ -1,5 +1,5 @@
-use crate::complicated_signal_flow::BlockInputEvent;
-use crate::complicated_signal_flow::{FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID};
+use crate::shared_owners::BlockInputEvent;
+use crate::shared_owners::{FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID};
 use crate::drag_reorder_container::BlockRenderInput;
 use leptos::ev;
 use leptos::html::Textarea;

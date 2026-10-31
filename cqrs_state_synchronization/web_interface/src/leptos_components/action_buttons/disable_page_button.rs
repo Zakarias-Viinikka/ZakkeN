@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos::reactive::spawn_local;
 
 use crate::{
-    complicated_signal_flow::LocalPages,
+    shared_owners::LocalPages,
     db::batcher::BatcherHandle,
     db::ui_actions::disable_page,
     leptos_components::small_components::popup::create_popup,

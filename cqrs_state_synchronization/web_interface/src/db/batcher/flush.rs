@@ -7,7 +7,7 @@ use my_yrs_lib::BossOfYrs;
 use text_diff::diff_batching::combine_list_of_getdiff_results::combine_getdiff_results;
 use text_diff::diff_logic::DiffResult;
 
-use crate::complicated_signal_flow::APP_LOCKED;
+use crate::shared_owners::APP_LOCKED;
 use crate::db::cached_ids::current_session_id;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::writes;

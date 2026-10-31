@@ -50,11 +50,13 @@ pub enum MessageToServer {
 pub enum MessageToClient {
     LoveLetterFromServer(UnsentLetter),
     // STAND-IN: the server replaced its dataset. Distinct from
-    // ConnectionLost so the client knows *why* the socket dies: another
-    // client wiped, or another client told the server to start over from
-    // its own version. The client reacts by going offline + NeedsReconcile
-    // + ServerChanged, so after reconnect + re-register the user has to
-    // pick reconcile or adopt.
+    // ConnectionLost so the client knows *why* it stopped syncing:
+    // another client wiped, or another client told the server to start
+    // over from its own version. The client does NOT go offline — the
+    // socket stays up. It sets NeedsReconcile + ServerChanged, clears
+    // seen letters and pending edits, pops one warning, then
+    // kick_lonewolf_retry re-registers on the same socket. The user
+    // then has to pick reconcile or adopt.
     ServerSaysYouAreNowLonewolf { what_happened: String },
     // STAND-IN: F3. Server signals the socket is gone.
     ConnectionLost,
@@ -100,6 +102,13 @@ impl ComsHandleForClient {
     }
 
     pub async fn is_server_online(&self) -> bool {
+        // The template's channel is always up, so "internet off" has to
+        // be checked before any request. Otherwise the offline retry
+        // loop would always see the server as reachable and reconnect
+        // instantly.
+        if !crate::owner_of_interacting_with_server::internet_switch::is_internet_on() {
+            return false;
+        }
         let (tx, rx) = oneshot::channel();
         if self
             .tx

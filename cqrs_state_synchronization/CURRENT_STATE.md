@@ -241,7 +241,7 @@ Shape:
   `src/socket_web.rs` / `src/socket_android.rs`; both expose
   `spawn(...)` and `spawn_dispatch(router)` so `Router::new` is
   identical for either.
-- `web_interface/src/server_link/` has the lifecycle: `core.rs`
+- `web_interface/src/owner_of_interacting_with_server/` has the lifecycle: `core.rs`
   (start + ConnStatus -> border), `identity.rs` (register/login, no
   auto-suffix — server "already taken" tells the user to pick a
   different name in /setup), `merge.rs` (one letter -> merge into
@@ -314,7 +314,7 @@ Where things live now:
 - `web_interface/src/db/` layered: reads, writes, batcher, ui_actions, kick_send.
 - `complicated_signal_flow/` = plain signal types (rows, block_input_event, ui_signals, focus). `OpenPages` in `page_state.rs`.
 - `main_content/callbacks/` per callback.
-- `server_link::receive::task_for_receiving_socket_messages` (was `run_worker`); `spawn_task_for_receiving_socket_messages` (was `spawn_worker`).
+- `owner_of_interacting_with_server::main_for_receiving_spontaneous_love_letters_from_server::task_for_receiving_socket_messages` (was `run_worker`); `spawn_task_for_receiving_socket_messages` (was `spawn_worker`).
 - `yrs_wrapper/` folder (types, keys, errors, apply_update, block_lookup, frac_position, text_edit, snapshots, boss).
 - `protocol/payload/` folder (create, read, update, delete, types).
 - `love_letter/src/` split into broken_heart, sketch, letter, build_a_love_letter, bytes.

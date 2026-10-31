@@ -18,13 +18,36 @@ pub fn queue_pretend_edit(
     page_id: impl Into<String>,
     text: impl Into<String>,
 ) {
-    let letter = crate::protocol::LoveLetter::pretend_edit(page_id, text);
+    enqueue(
+        coms,
+        crate::protocol::LoveLetter::pretend_edit(page_id, text),
+    );
+}
+
+pub fn queue_create_page(
+    coms: &crate::client_server_coms::ComsHandleForClient,
+    page_id: impl Into<String>,
+) {
+    enqueue(
+        coms,
+        crate::protocol::LoveLetter::CreateNewPage {
+            page_id: page_id.into(),
+            is_main_menu_page: true,
+            snapshot_of_edit: b"pretend".to_vec(),
+        },
+    );
+}
+
+fn enqueue(
+    coms: &crate::client_server_coms::ComsHandleForClient,
+    letter: crate::protocol::LoveLetter,
+) {
     {
         let mut q = PENDING_QUEUE.lock().expect("pending queue poisoned");
         q.push_back(letter);
         PENDING_COUNT.set(q.len());
     }
-    crate::server_link::sending::kick_send(coms.clone());
+    crate::owner_of_interacting_with_server::sending::main_send_unsent_love_letters(coms.clone());
 }
 
 pub fn clear_pending_letters() {

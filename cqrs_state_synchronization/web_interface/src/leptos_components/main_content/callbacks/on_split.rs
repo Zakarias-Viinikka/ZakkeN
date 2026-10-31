@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::complicated_signal_flow::{focus, BlockRow};
+use crate::shared_owners::{focus, BlockRow};
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
 use crate::leptos_components::small_components::popup::create_popup;

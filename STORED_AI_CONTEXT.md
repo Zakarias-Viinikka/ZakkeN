@@ -131,8 +131,9 @@ holds a shared crate that owns both the socket connection and the
 response router (`Router::new` opens the socket, spawns the dispatch
 and retry loops, returns a `RouterHandle`; per-target socket code lives
 in `socket_web.rs` / `socket_android.rs`).
-`web_interface/src/server_link/` owns the connection lifecycle
-(identity, start_over_fresh, receive worker, sender, write lock). Sync
+`web_interface/src/owner_of_interacting_with_server/` owns the
+connection lifecycle (main_for_login_and_registration,
+start_over_fresh, receive worker, sender, write lock). Sync
 has been observed end to end. The receive worker re-runs login on
 every reconnect, not just the first connect, because each new
 server-side socket starts with no user attached.
@@ -147,14 +148,14 @@ separate `pure_web_ui_components` crate; that was tried and folded
 back in.
 
 `leptos_components/main_content/` holds the page view.
-`complicated_signal_flow/` at the crate root (a folder; the bulk is
-`core.rs`) holds `Page` (one page's whole live state - id, yrs doc,
-blocks, load state, preload request/response), `PageLoadState`,
-`BlockRow`, `LocalPages`, `Batcher`, `BatcherHandle`, `OpenPages`,
-`BlockInputEvent`, `APP_LOCKED`, `FOCUS_BLOCK_ID`, and
-`FOCUS_BLOCK_AT_START`. The load sequence is two effects per page: one
-matching on load state and advancing one step, one watching the
-preload response.
+`page_state.rs` at the crate root holds `Page` (one page's whole live
+state - id, yrs doc, blocks, load state, preload request/response),
+`PageLoadState`, and `OpenPages`. `shared_owners/` at the crate root
+holds `BlockRow`, `LocalPages`, `BlockInputEvent`, `APP_LOCKED`,
+`FOCUS_BLOCK_ID`, and `FOCUS_BLOCK_AT_START`. `Batcher` and
+`BatcherHandle` live in `db/batcher/`. The load sequence is two effects
+per page: one matching on load state and advancing one step, one
+watching the preload response.
 
 Moving a block within a page works end to end on web, including after
 the frac rework. Cross-page move works on web. Back button still does
@@ -269,7 +270,7 @@ As of 2026-10-29 the work order has been implemented. Files:
 
 - protocol.rs - Payload types and LoveLetter, small copy of the real server protocol. Canned page ids.
 - sync_mode.rs - SyncMode enum (Connected / Paused / NeedsReconcile), static SYNC_MODE, is_gated, set_sync_mode (only writer). Persistence is a placeholder comment.
-- server_link.rs - ConnState (Offline / Connecting / FailedToConnect / Connected), generation and count signals, restart_sync_stack (soft restart, no page reload), receive_letter (gated), pending queue with kick_send (gated, drain re-checks per send), pull_unsent, start_over_fresh, check_login_generation (canned), clear_seen_everywhere (no-op).
+- owner_of_interacting_with_server.rs - ConnState (Offline / Connecting / FailedToConnect / Connected), generation and count signals, restart_sync_stack (soft restart, no page reload), receive_letter (gated), pending queue with main_send_unsent_love_letters (gated, drain re-checks per send), pull_unsent, start_over_fresh, check_login_generation (canned), clear_seen_everywhere (no-op).
 - data_ops.rs - pause (refused in NeedsReconcile), resume, wipe_server, adopt_local, DATASET_OP_BUSY, with_busy, read_local_pages_placeholder.
 - reconcile.rs - ConflictChoice, ReconcileDecisions, PageDiffSummary, ReconcilePlan, RECONCILE_PLAN/RECONCILE_ERROR signals, a session holding previous_mode + apply_attempted + plan, and the three verbs (plan / apply / cancel). classify_pages_placeholder branches on whether the server returned any pages.
 - overlays.rs - FullScreenBlocker, BusyOverlay, ReconcileModal (with inner ReconcileModalBody, reads plan once untracked so state resets per open).
@@ -304,7 +305,7 @@ What changed since the shape-only build:
 - `restart_sync_stack` returns `RestartOutcome` (Synced / AlreadyStopped / JustChanged / Failed), never pops. `announce_connect_outcome` is the popup layer. Single-flight via `RESTART_IN_FLIGHT`.
 - Drain loop gates on ConnState::Connected AND on `is_gated()`, and surfaces send failures as Error "Sending failed: ... N edits still queued" (server errors only; transport failures are silent because ConnectionLost already warned).
 - Status line at the top of ClientPanel. Single derivation, nine rows in the plan, first matching wins.
-- Border states: Offline / Connecting / Failed / Connected / NeedsReconcile / Lonewolf. `border-needs-reconcile` amber `#e8b060` (gated + not connected), `border-lonewolf` violet `#a78bfa` (gated + connected — the "connected but disconnected" case), `border-failed` red, `border-pulse` animation over any state while work is in flight, dashed-border fallback under reduced motion. "Lonewolf" is the name for the gated-but-connected state; `server_link::is_lonewolf()` is the predicate. It is not a `SyncMode` variant.
+- Border states: Offline / Connecting / Failed / Connected / NeedsReconcile / Lonewolf. `border-needs-reconcile` amber `#e8b060` (gated + not connected), `border-lonewolf` violet `#a78bfa` (gated + connected — the "connected but disconnected" case), `border-failed` red, `border-pulse` animation over any state while work is in flight, dashed-border fallback under reduced motion. "Lonewolf" is the name for the gated-but-connected state; `owner_of_interacting_with_server::is_lonewolf()` is the predicate. It is not a `SyncMode` variant.
 - `CustomButton` gained `#[prop(optional, into)] disabled: Signal<bool>`. Controls button policy: client-section + Wipe disabled until client started; server power controls disabled when the appropriate polarity; everything else stays enabled and refuses with a popup (test bench).
 - `VerbError` enum in `data_ops` (Refused → Warning popup, Failed → Error popup). `spawn_verb` splits. `reconcile_plan` returns `Result<Option<ReconcilePlan>, VerbError>`; "already in progress" is an Info no-op not an error.
 - Popup coalescing: `show_popup_as` resets the timer of a live toast with same kind and message instead of stacking.
@@ -323,7 +324,7 @@ Known deviations still in place:
 - Verb popups fire from inside `with_busy`, not strictly after the overlay clears. Both happen in the same tick and the popup sits above the overlay, so nothing is hidden.
 - "Wipe server & start from mine" duplicates Adopt.
 
-main.rs still says use connecting_to_server_example::app_main::AppMain. That is a compile error unless the package is renamed back to connecting_to_server_example. The Cargo.toml [package] name is connecting_to_server_template. Fix by editing main.rs, do not rename the package.
+main.rs uses `connecting_to_server_template::app_main::AppMain`, matching the Cargo.toml [package] name. The old `connecting_to_server_example::` prefix was corrected at some point.
 
 ## External: z_db - 2026-10-13
 
@@ -560,7 +561,7 @@ src/ layout now:
 
 - lib.rs  main.rs  app_main.rs  protocol.rs  client_server_coms.rs  custom_button.rs  local_pages.rs
 - sync_mode.rs + sync_mode/persistence.rs
-- server_link.rs + server_link/{conn_state, dataset_generation, pending_queue, sending, receiving, restart}.rs
+- owner_of_interacting_with_server.rs + owner_of_interacting_with_server/{conn_state, dataset_generation, pending_queue, sending, receiving, restart}.rs
 - data_ops.rs + data_ops/{verb_error, busy}.rs
 - reconcile.rs + reconcile/{plan, session, classify, modal}.rs
 - client.rs + client/{border, server_messages, status_line, panel}.rs
@@ -571,7 +572,7 @@ src/ layout now:
 
 Conventions:
 - Parent file is `pub mod <child>;` lines only, plus its namesake item when it has one.
-- Call sites use full submodule paths (`server_link::sending::kick_send`, not re-exported).
+- Call sites use full submodule paths (`owner_of_interacting_with_server::sending::main_send_unsent_love_letters`, not re-exported).
 - Only cool_popup keeps private submodules; reconcile has a small `pub use plan::{...}` to avoid touching every call site.
 - Statics stay private to their owner file, accessed through function getters.
 
@@ -597,7 +598,7 @@ The template grew the pieces needed to reason about re-registration and dataset 
 
 **Server no longer disconnects on dataset replacement.** Both the wipe and the start-over-from-its-version simulations bump generation, clear pages and users and backlog, and then — only if the client was live — send `MessageToClient::ServerSaysYouAreNowLonewolf { what_happened }`. The socket stays up. If the client was offline when it happened, the state change is silent and it learns about it on next reconnect via `log_in` seeing a new generation.
 
-**Client reacts by going lonewolf, not offline.** `handle_server_says_you_are_now_lonewolf` sets `NeedsReconcile` + `ServerChanged`, clears seen letters and pending edits, pops one warning naming what happened, then calls `server_link::restart::kick_lonewolf_retry`. That runs `restart_sync_stack` up to 3 times at 2s intervals to re-register. Silent on success. The socket is never lost, so `force_offline` is no longer called from this path.
+**Client reacts by going lonewolf, not offline.** `handle_server_says_you_are_now_lonewolf` sets `NeedsReconcile` + `ServerChanged`, clears seen letters and pending edits, pops one warning naming what happened, then calls `owner_of_interacting_with_server::restart::kick_lonewolf_retry`. That runs `restart_sync_stack` up to 3 times at 2s intervals to re-register. Silent on success. The socket is never lost, so `force_offline` is no longer called from this path.
 
 **Offline retry loop.** Separately, when the client is on and `ConnState` is `Offline` or `FailedToConnect`, `retry_reconnect_when_offline` (in `app_main.rs`) runs a 5s loop that pops "Trying to reconnect…" and calls `restart_sync_stack`. Exits on success (announcing via `announce_connect_outcome`, which correctly says "Server dataset changed…" if the reconnect discovers a wipe) or when the client is no longer offline.
 

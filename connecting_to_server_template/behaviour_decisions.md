@@ -16,7 +16,7 @@ There are two sync modes: `Connected` and `NeedsReconcile`. There is no `Paused`
 
 `NeedsReconcile` always has a reason set. The seven reasons are `YouPaused`, `YouWiped`, `ServerChanged`, `WipeIncomplete`, `AdoptIncomplete`, `Reconciling`, `ReconcileIncomplete`. Entering `NeedsReconcile` with no reason is a bug. (`sync_mode.rs`)
 
-"Lonewolf" is not a sync mode. It is `ConnState::Connected` combined with `SyncMode::NeedsReconcile`: the socket is up, login succeeded, sync is stopped. `is_lonewolf()` tests this combination and nothing else. (`server_link/conn_state.rs`)
+"Lonewolf" is not a sync mode. It is `ConnState::Connected` combined with `SyncMode::NeedsReconcile`: the socket is up, login succeeded, sync is stopped. `is_lonewolf()` tests this combination and nothing else. (`owner_of_interacting_with_server/conn_state.rs`)
 
 Mode and reason persist across reloads. If you were lonewolf when you reloaded, you come back lonewolf. `Connected` does not persist to localStorage; it's the in-memory default on boot. (`sync_mode/persistence.rs`)
 
@@ -24,7 +24,7 @@ Mode and reason persist across reloads. If you were lonewolf when you reloaded, 
 
 `is_gated()` reads `SyncMode != Connected`. It is the single predicate for "sync operations should not run". (`sync_mode.rs`)
 
-Four places read `is_gated()`. `receive_letter` refuses to apply anything while gated. `kick_send` refuses to start a send loop while gated. The per-send check inside `kick_send`'s drain loop refuses to send any single letter while gated. `restart_sync_stack` runs login but skips bootstrap and pull at the tail. (`server_link/receiving.rs`, `server_link/sending.rs`, `server_link/restart.rs`)
+Four places read `is_gated()`. `receive_letter` refuses to apply anything while gated. `main_send_unsent_love_letters` refuses to start a send loop while gated. The per-send check inside `main_send_unsent_love_letters`'s drain loop refuses to send any single letter while gated. `restart_sync_stack` runs login but skips bootstrap and pull at the tail. (`owner_of_interacting_with_server/receiving.rs`, `owner_of_interacting_with_server/sending.rs`, `owner_of_interacting_with_server/restart.rs`)
 
 The gate is not "offline". Gated means "connected and syncing is stopped". Login and re-registration still run while gated, because they're about talking to the server, not about syncing the dataset.
 
@@ -36,7 +36,7 @@ Two fake latencies: 500ms light, 900ms heavy. They are not uniform. `AreYouOnlin
 
 Replies are deferred. The server mutates state at the moment the message arrives, then delays the reply by the latency. If power drops during the delay, the reply is dropped — the client's caller hangs, matching a real network. State changes that already happened stay applied. (`server/latency.rs`, `server.rs`)
 
-"Fail next request" arms a one-shot. The next mutating request (`Register`, `Login`, `Send`, `Wipe`, `Adopt`) fails with a fault-armed message and clears the arm. The request after that succeeds. (`server.rs::take_armed_fault`)
+"Fail next request" arms two failures, not one. The client retries a failed send once before the hard lock can fire, so a single armed failure would be consumed by the retry and never reach the user. Two armed failures means the send path sees attempt 1 fail, retry fail, and locks. Each armed mutating request (`Register`, `Login`, `Send`, `Wipe`, `Adopt`) fails with a fault-armed message and decrements the count. (`server.rs::take_armed_fault`)
 
 `Register` and `Login` are distinct. `Register` refuses a name that's already taken with `ERR_USER_ALREADY_EXISTS`. `Login` refuses a name that isn't registered with `ERR_NO_SUCH_USER`. Those two strings are the contract; both sides match on them. (`protocol.rs`, `server.rs::register_user`, `server.rs::log_client_in`)
 
@@ -50,23 +50,27 @@ Neither `WipeDataset` nor `AdoptDataset` clears `registered_users`. Registered u
 
 "Told the server to start over from its version" has the same shape as "Wiped" — generation bumped, users cleared, pages replaced with `CANNED_PAGE_ID_C`, backlog cleared, lonewolf message sent — but the page set is populated, because the other client's data came with it. (`server.rs::simulate_other_client_starting_over_from_its_version`)
 
-All three operations change server state regardless of whether the current client is live. The lonewolf message only fires if the current client was live. An offline client learns about the wipe on its next reconnect, via `log_in` seeing a new generation and `stop_sync_if_dataset_changed` transitioning to `NeedsReconcile + ServerChanged`. (`server.rs`, `server_link/restart.rs`)
+All three operations change server state regardless of whether the current client is live. The lonewolf message only fires if the current client was live. An offline client learns about the wipe on its next reconnect, via `log_in` seeing a new generation and `stop_sync_if_dataset_changed` transitioning to `NeedsReconcile + ServerChanged`. (`server.rs`, `owner_of_interacting_with_server/restart.rs`)
 
-## Client: server_link
+## Client: owner_of_interacting_with_server
 
-`restart_sync_stack` returns `RestartOutcome` — `Synced`, `AlreadyStopped`, `JustChanged`, `Failed(String)`. It never pops. `announce_connect_outcome` is the layer that turns the outcome into a popup. (`server_link/restart.rs`, `data_ops.rs`)
+`restart_sync_stack` returns `RestartOutcome` — `Synced`, `AlreadyStopped`, `JustChanged`, `Failed(String)`. It never pops. `announce_connect_outcome` is the layer that turns the outcome into a popup. (`owner_of_interacting_with_server/restart.rs`, `data_ops.rs`)
 
-`log_in` tries `Register` first, falls through to `Login` on `ERR_USER_ALREADY_EXISTS`. First connect registers. Every later connect logs in. The order is not "login then register" — the server rejects a login for an unknown user, so the first connect has to register before it can log in. (`server_link/restart.rs`)
+`log_in` tries `Register` first, falls through to `Login` on `ERR_USER_ALREADY_EXISTS`. First connect registers. Every later connect logs in. The order is not "login then register" — the server rejects a login for an unknown user, so the first connect has to register before it can log in. (`owner_of_interacting_with_server/restart.rs`)
 
-On `ConnectionLost`, `go_offline_after_connection_lost` sets `ConnState::Offline`, clears the sending flag, and pops a "connection lost" warning only if the client was `Connected` at that moment. (`server_link/conn_state.rs`)
+On `ConnectionLost`, `go_offline_after_connection_lost` sets `ConnState::Offline`, clears the sending flag, and pops a "connection lost" warning only if the client was `Connected` at that moment. (`owner_of_interacting_with_server/conn_state.rs`)
 
 On `ServerSaysYouAreNowLonewolf`, the client does *not* go offline. It sets `NeedsReconcile + ServerChanged`, clears seen letters, clears pending edits, pops one warning naming what happened, and calls `kick_lonewolf_retry`. The socket stays up. (`client/server_messages.rs`)
 
-The drain loop inside `kick_send` re-checks `Connected` and `is_gated()` for every letter, not just at the start. A mid-send gate change stops the loop before the next letter. (`server_link/sending.rs`)
+The drain loop inside `main_send_unsent_love_letters` re-checks `Connected` and `is_gated()` for every letter, not just at the start. A mid-send gate change stops the loop before the next letter. (`owner_of_interacting_with_server/sending.rs`)
 
-Send failures split. Server errors pop a warning ("Sending failed: … N edits still queued"). Transport failures are silent, because `ConnectionLost` already popped a warning about the connection, and the second popup would be noise. (`server_link/sending.rs`)
+Send failures split. Server errors pop a warning ("Sending failed: … N edits still queued"). Transport failures are silent, because `ConnectionLost` already popped a warning about the connection, and the second popup would be noise. (`owner_of_interacting_with_server/sending.rs`)
 
-The receive order per letter is fixed: if gated, bump ignored-while-stopped and do not ack. If already seen, ack only. Otherwise apply, mark seen, bump applied, ack. (`server_link/receiving.rs`)
+The receive order per letter is fixed: if gated, bump ignored-while-stopped and do not ack. If already seen, ack only. Otherwise apply, mark seen, bump applied, ack. (`owner_of_interacting_with_server/receiving.rs`)
+
+## Internet switch (client test bench)
+
+The client has "Turn off internet" / "Turn on internet" buttons. They simulate the socket dying without touching the server. While off, `is_server_online` returns false and every message from the server is dropped by the receive loop. Turning the switch off calls the same `go_offline_after_connection_lost` path as a real disconnect, so the user sees the usual "connection lost" popup if they were connected and the offline retry loop takes over. Turning it back on lets the next retry iteration reconnect normally. Nothing goes through the server, and the server never learns the client went dark — so messages the server pushed during the window are missed and re-delivered on the next login if unacked.
 
 ## Retries
 
@@ -74,7 +78,7 @@ Two retries exist and they do not overlap. They fire on disjoint `ConnState` val
 
 The offline retry fires when `ConnState` is `Offline` or `FailedToConnect` and the client is on. It sleeps 5s, pops "Trying to reconnect…", calls `restart_sync_stack`, and either announces success via `announce_connect_outcome` and exits, or continues the loop. If a manual connect succeeds while the retry is sleeping, the retry's next iteration notices the state is no longer offline and exits silently. (`app_main.rs::retry_reconnect_when_offline`)
 
-The lonewolf retry fires when the client receives `ServerSaysYouAreNowLonewolf`. It sleeps 2s, calls `restart_sync_stack`, and either exits on success or tries again. Up to 3 attempts. Silent on success. Silent on failure too — the popup from `handle_server_says_you_are_now_lonewolf` is the only popup, and it already told the user what happened. (`server_link/restart.rs::kick_lonewolf_retry`)
+The lonewolf retry fires when the client receives `ServerSaysYouAreNowLonewolf`. It sleeps 2s, calls `restart_sync_stack`, and either exits on success or tries again. Up to 3 attempts. Silent on success. Silent on failure too — the popup from `handle_server_says_you_are_now_lonewolf` is the only popup, and it already told the user what happened. (`owner_of_interacting_with_server/restart.rs::kick_lonewolf_retry`)
 
 The two retries don't collide. Offline retry runs on `Offline` or `FailedToConnect`. Lonewolf retry runs on `Connected`. Those are mutually exclusive.
 
@@ -86,7 +90,7 @@ Stopped-sync buttons (Reconcile, Adopt my data, Wipe server & start from mine, W
 
 Server-off disables: power controls, Wipe server, Push pretend letter, Fail next request, and all three "Another client did this" buttons. Client-off disables: Connect to server, Pause sync, every button in the stopped-sync group, and Wipe server. Disabled, not "refused by popup".
 
-"Fail next request" is not disabled when it's already armed. Arming twice is a no-op (the arm stays armed). No "you already armed it" popup.
+"Fail next request" is not disabled when it's already armed. Arming again while armed is a no-op (the count stays at 2). No "you already armed it" popup.
 
 ## Popups
 

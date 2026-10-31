@@ -12,10 +12,10 @@ pub enum BorderState {
 
 pub fn current_border_state() -> Signal<BorderState> {
     Signal::derive(move || {
-        use crate::server_link::conn_state::ConnState;
+        use crate::owner_of_interacting_with_server::conn_state::ConnState;
         use crate::sync_mode::SyncMode;
         let mode = crate::sync_mode::sync_mode_signal().get();
-        let conn = crate::server_link::conn_state::conn_state_signal().get();
+        let conn = crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get();
         match mode {
             SyncMode::NeedsReconcile => match conn {
                 ConnState::Connected => BorderState::Lonewolf,
@@ -33,10 +33,10 @@ pub fn current_border_state() -> Signal<BorderState> {
 
 pub fn sync_work_in_flight() -> Signal<bool> {
     Signal::derive(move || {
-        use crate::server_link::conn_state::ConnState;
-        let conn = crate::server_link::conn_state::conn_state_signal().get();
-        let sending = crate::server_link::sending::sending_signal().get();
-        let restart = crate::server_link::restart::restart_in_flight_signal().get();
+        use crate::owner_of_interacting_with_server::conn_state::ConnState;
+        let conn = crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get();
+        let sending = crate::owner_of_interacting_with_server::sending::sending_signal().get();
+        let restart = crate::owner_of_interacting_with_server::restart::restart_in_flight_signal().get();
         conn == ConnState::Connecting || sending || restart
     })
 }

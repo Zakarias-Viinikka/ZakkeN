@@ -7,28 +7,28 @@ pub struct ServerReadout {
     pub page_count: Signal<usize>,
     pub backlog_count: Signal<usize>,
     pub letters_received: RwSignal<usize>,
-    pub fault_armed: RwSignal<bool>,
+    pub fault_armed: RwSignal<u32>,
 }
 
 #[component]
 pub fn ServerPanel() -> impl IntoView {
     let readout = expect_context::<ServerReadout>();
-    let powered = readout.powered;
-    let generation = readout.dataset_generation;
     let page_count = readout.page_count;
-    let backlog = readout.backlog_count;
     let letters = readout.letters_received;
-    let fault = readout.fault_armed;
     view! {
         <div class="side">
             <h2 class="side-title">"Server"</h2>
             <div class="side-content">
-                <p>"power: " {move || if powered.get() { "on" } else { "off" }}</p>
-                <p>"generation: " {move || generation.get()}</p>
-                <p>"pages: " {move || page_count.get()}</p>
-                <p>"unsent backlog: " {move || backlog.get()}</p>
-                <p>"letters received: " {move || letters.get()}</p>
-                <p>"fault armed: " {move || if fault.get() { "yes" } else { "no" }}</p>
+                <div style="display:flex; gap:3rem; justify-content:center; align-items:center;">
+                    <div style="text-align:center;">
+                        <div style="font-size:2.5rem; font-weight:600; line-height:1;">{move || page_count.get()}</div>
+                        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.12em; color:#5a6270; margin-top:0.4rem;">"pages"</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:2.5rem; font-weight:600; line-height:1;">{move || letters.get()}</div>
+                        <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.12em; color:#5a6270; margin-top:0.4rem;">"edits"</div>
+                    </div>
+                </div>
             </div>
         </div>
     }

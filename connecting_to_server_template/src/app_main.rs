@@ -33,15 +33,18 @@ fn connect_once_when_client_starts(coms: ComsHandleForClient) {
 }
 
 fn retry_reconnect_when_offline(coms: ComsHandleForClient) {
-    use crate::server_link::conn_state::ConnState;
+    use crate::owner_of_interacting_with_server::conn_state::ConnState;
     let retry_running = RwSignal::new(false);
     Effect::new(move |_| {
         let running = retry_running.get();
         if !crate::client::client_started_signal().get() {
             return;
         }
-        let conn = crate::server_link::conn_state::conn_state_signal().get();
-        let should_retry = conn == ConnState::Offline || conn == ConnState::FailedToConnect;
+        let conn = crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get();
+        let locked =
+            crate::owner_of_interacting_with_server::locked::hard_locked_signal().get();
+        let should_retry =
+            !locked && (conn == ConnState::Offline || conn == ConnState::FailedToConnect);
         if !should_retry || running {
             return;
         }
@@ -63,7 +66,10 @@ fn retry_reconnect_when_offline(coms: ComsHandleForClient) {
                 if !crate::client::client_started_signal().get_untracked() {
                     break;
                 }
-                let conn = crate::server_link::conn_state::conn_state_signal().get_untracked();
+                if crate::owner_of_interacting_with_server::locked::is_locked() {
+                    break;
+                }
+                let conn = crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get_untracked();
                 if conn != ConnState::Offline && conn != ConnState::FailedToConnect {
                     break;
                 }
@@ -71,9 +77,9 @@ fn retry_reconnect_when_offline(coms: ComsHandleForClient) {
                     crate::cool_popup::PopupKind::Warning,
                     "Trying to reconnect…",
                 );
-                let outcome = crate::server_link::restart::restart_sync_stack(coms.clone()).await;
+                let outcome = crate::owner_of_interacting_with_server::restart::restart_sync_stack(coms.clone()).await;
                 match outcome {
-                    crate::server_link::restart::RestartOutcome::Failed(_) => {
+                    crate::owner_of_interacting_with_server::restart::RestartOutcome::Failed(_) => {
                         // stay in the loop, retry again in 5s
                     }
                     other => {
@@ -93,10 +99,13 @@ fn retry_reconnect_when_offline(coms: ComsHandleForClient) {
 }
 
 fn client_title() -> Signal<String> {
-    use crate::server_link::conn_state::ConnState;
+    use crate::owner_of_interacting_with_server::conn_state::ConnState;
     use crate::sync_mode::SyncMode;
     Signal::derive(move || {
-        let conn = crate::server_link::conn_state::conn_state_signal().get();
+        if crate::owner_of_interacting_with_server::locked::hard_locked_signal().get() {
+            return "Client — Locked (restart)".to_string();
+        }
+        let conn = crate::owner_of_interacting_with_server::conn_state::conn_state_signal().get();
         let mode = crate::sync_mode::sync_mode_signal().get();
         let state = match (conn, mode) {
             (ConnState::Connected, SyncMode::NeedsReconcile) => "Lonewolf",

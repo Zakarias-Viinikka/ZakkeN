@@ -381,7 +381,7 @@ Put the plain line-protocol loop in `cli_gui/src/main_for_plain_line_mode.rs`, s
 - `test_config.rs` becomes `main_for_reading_and_remembering_test_world_settings.rs`. Its header comment is the map of who touches it: `main()` writes it once at startup; `build_ws_url` and the banner read it. If `web_interface/src/shared_owner/` exists, put it there. If it doesn't, don't create the folder, but keep the map in the header comment.
 - Put the banner in `leptos_components/small_components/banner_that_says_this_is_a_test_world.rs`. The component is `TestWorldBanner`.
 - If `CONN_STATE` already has a shared-owner map, add the banner as a reader.
-- `server_link/` and `identity.rs` are slated for renames in `coding_style.md` (`owner_of_interacting_with_server/`, `main_for_login_and_registration.rs`). Look at what's on disk and use those paths. Do not do the renames yourself.
+- `server_link/` and `identity.rs` were slated for renames in `coding_style.md` and have been applied — the current names are `owner_of_interacting_with_server/` and `main_for_login_and_registration.rs`. Look at what's on disk and use those paths. Do not re-do the renames yourself.
 
 ### 5. Harness: new files in the style
 

@@ -101,7 +101,7 @@ mock-client edit reached the web client via the server's push and was
 acked. The web client is a real second client now: the socket and
 router live in client_internals/shared_internals_for_server, and the
 connection lifecycle in
-cqrs_state_synchronization/web_interface/src/server_link/.
+cqrs_state_synchronization/web_interface/src/owner_of_interacting_with_server/.
 
 The mock client applies and acks pushes that arrive while it is waiting
 for a reply, and creates pages with is_main_menu_page = true, so the web

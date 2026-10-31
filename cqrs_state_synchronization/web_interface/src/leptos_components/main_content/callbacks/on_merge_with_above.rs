@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::complicated_signal_flow::focus;
+use crate::shared_owners::focus;
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
 use crate::leptos_components::small_components::popup::create_popup;

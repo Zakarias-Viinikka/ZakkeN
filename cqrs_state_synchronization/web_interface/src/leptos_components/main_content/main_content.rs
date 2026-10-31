@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::complicated_signal_flow::APP_LOCKED;
+use crate::shared_owners::APP_LOCKED;
 use crate::db::batcher::BatcherHandle;
 use crate::drag_reorder_container::{DragReorderContainer, PageInput};
 use crate::page_state::OpenPages;

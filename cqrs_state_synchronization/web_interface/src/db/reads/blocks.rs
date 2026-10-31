@@ -7,7 +7,7 @@ use protocol::payload::*;
 use protocol::row_col::{Col, Row};
 use web_internal_db::db_helper;
 
-use crate::complicated_signal_flow::BlockRow;
+use crate::shared_owners::BlockRow;
 use super::destruct::{
     destruct_block_id, destruct_frac_position, destruct_is_title, destruct_page_id, destruct_title,
 };

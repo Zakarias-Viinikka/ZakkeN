@@ -53,6 +53,10 @@ pub fn receive_letter(
     coms: &crate::client_server_coms::ComsHandleForClient,
     letter: crate::protocol::UnsentLetter,
 ) {
+    if crate::owner_of_interacting_with_server::locked::is_locked() {
+        IGNORED_WHILE_STOPPED.update(|n| *n += 1);
+        return;
+    }
     if crate::sync_mode::is_gated() {
         IGNORED_WHILE_STOPPED.update(|n| *n += 1);
         return;

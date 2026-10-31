@@ -27,7 +27,7 @@ pub struct ClientMessageReceiver {
     pages: RwSignal<Vec<PageRow>>,
     backlog: RwSignal<Vec<UnsentLetter>>,
     letters_received: RwSignal<usize>,
-    fault_armed: RwSignal<bool>,
+    fault_armed: RwSignal<u32>,
     socket_live: RwSignal<bool>,
     next_letter_id: RwSignal<i64>,
     registered_users: RwSignal<Vec<String>>,
@@ -94,15 +94,21 @@ impl ClientMessageReceiver {
         self.handle.send_connection_lost();
     }
 
+    // Arms two failures, not one. The client retries a failed send once
+    // before the lock can fire, so a single armed failure would be
+    // consumed by the retry and the user would never see the lock.
+    // Two armed failures means attempt 1 and attempt 2 both fail, which
+    // is exactly the shape the lock is meant to catch.
     fn arm_next_fault(&self) {
-        if !self.fault_armed.get_untracked() {
-            self.fault_armed.set(true);
+        if self.fault_armed.get_untracked() == 0 {
+            self.fault_armed.set(2);
         }
     }
 
     fn take_armed_fault(&self) -> bool {
-        if self.fault_armed.get_untracked() {
-            self.fault_armed.set(false);
+        let n = self.fault_armed.get_untracked();
+        if n > 0 {
+            self.fault_armed.set(n - 1);
             true
         } else {
             false
@@ -366,7 +372,7 @@ pub fn Server(
     let pages = RwSignal::new(seed_pages());
     let backlog = RwSignal::new(Vec::<UnsentLetter>::new());
     let letters_received = RwSignal::new(0usize);
-    let fault_armed = RwSignal::new(false);
+    let fault_armed = RwSignal::new(0u32);
     let socket_live = RwSignal::new(false);
     let next_letter_id = RwSignal::new(1i64);
     let registered_users = RwSignal::new(Vec::<String>::new());

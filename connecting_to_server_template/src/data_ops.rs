@@ -29,27 +29,27 @@ pub async fn wipe_local_and_pull_from_server(
     coms: ComsHandleForClient,
 ) -> Result<(), VerbError> {
     with_busy("Wiping local & pulling from server", async move {
-        if crate::server_link::conn_state::current_conn_state()
-            != crate::server_link::conn_state::ConnState::Connected
+        if crate::owner_of_interacting_with_server::conn_state::current_conn_state()
+            != crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
         {
             return Err(VerbError::refused(
                 "Can't wipe local: not connected to the server",
             ));
         }
-        let queued_before = crate::server_link::pending_queue::pending_count_signal().get_untracked();
+        let queued_before = crate::owner_of_interacting_with_server::pending_queue::pending_count_signal().get_untracked();
         let payload = coms
             .get_all_pages()
             .await
             .map_err(|e| VerbError::failed(e.to_string()))?;
         let page_count = payload.pages.len();
-        crate::server_link::pending_queue::clear_pending_letters();
-        crate::server_link::receiving::clear_seen_everywhere();
+        crate::owner_of_interacting_with_server::pending_queue::clear_pending_letters();
+        crate::owner_of_interacting_with_server::receiving::clear_seen_everywhere();
         crate::local_pages::apply_server_pages_locally(&payload.pages);
-        if let Some(curr) = crate::server_link::dataset_generation::current_generation() {
-            crate::server_link::dataset_generation::record_new_generation(curr);
+        if let Some(curr) = crate::owner_of_interacting_with_server::dataset_generation::current_generation() {
+            crate::owner_of_interacting_with_server::dataset_generation::record_new_generation(curr);
         }
         crate::sync_mode::set_sync_mode(SyncMode::Connected);
-        let restart = crate::server_link::restart::restart_sync_stack(coms).await;
+        let restart = crate::owner_of_interacting_with_server::restart::restart_sync_stack(coms).await;
         crate::cool_popup::show_popup_as(
             crate::cool_popup::PopupKind::Success,
             format!(
@@ -57,7 +57,7 @@ pub async fn wipe_local_and_pull_from_server(
                 page_count, queued_before,
             ),
         );
-        if let crate::server_link::restart::RestartOutcome::Failed(e) = restart {
+        if let crate::owner_of_interacting_with_server::restart::RestartOutcome::Failed(e) = restart {
             crate::cool_popup::show_popup_as(
                 crate::cool_popup::PopupKind::Warning,
                 format!("Wiped local, but couldn't reconnect: {e}"),
@@ -68,9 +68,9 @@ pub async fn wipe_local_and_pull_from_server(
     .await
 }
 
-pub fn announce_connect_outcome(outcome: crate::server_link::restart::RestartOutcome) {
+pub fn announce_connect_outcome(outcome: crate::owner_of_interacting_with_server::restart::RestartOutcome) {
     use crate::cool_popup::{show_popup_as, PopupKind};
-    use crate::server_link::restart::RestartOutcome;
+    use crate::owner_of_interacting_with_server::restart::RestartOutcome;
     match outcome {
         RestartOutcome::Synced => {}
         RestartOutcome::AlreadyStopped => {
@@ -90,20 +90,20 @@ pub fn announce_connect_outcome(outcome: crate::server_link::restart::RestartOut
 
 pub async fn wipe_server(coms: ComsHandleForClient) -> Result<(), VerbError> {
     with_busy("Wiping server", async move {
-        if crate::server_link::conn_state::current_conn_state()
-            != crate::server_link::conn_state::ConnState::Connected
+        if crate::owner_of_interacting_with_server::conn_state::current_conn_state()
+            != crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
         {
             return Err(VerbError::refused("Can't wipe: not connected to the server"));
         }
-        let queued_before = crate::server_link::pending_queue::pending_count_signal().get_untracked();
+        let queued_before = crate::owner_of_interacting_with_server::pending_queue::pending_count_signal().get_untracked();
         sync_mode::set_sync_mode(SyncMode::NeedsReconcile);
         sync_mode::set_mode_reason(sync_mode::ModeReason::YouWiped);
         let result = coms.wipe_dataset().await;
         match result {
             Ok(payload) => {
-                crate::server_link::dataset_generation::record_new_generation(payload.dataset_generation);
-                crate::server_link::pending_queue::clear_pending_letters();
-                crate::server_link::receiving::clear_seen_everywhere();
+                crate::owner_of_interacting_with_server::dataset_generation::record_new_generation(payload.dataset_generation);
+                crate::owner_of_interacting_with_server::pending_queue::clear_pending_letters();
+                crate::owner_of_interacting_with_server::receiving::clear_seen_everywhere();
                 crate::cool_popup::show_popup_as(
                     crate::cool_popup::PopupKind::Warning,
                     format!(
@@ -126,24 +126,25 @@ pub async fn wipe_server(coms: ComsHandleForClient) -> Result<(), VerbError> {
 
 pub async fn adopt_local(coms: ComsHandleForClient) -> Result<(), VerbError> {
     with_busy("Adopting local data", async move {
-        if crate::server_link::conn_state::current_conn_state()
-            != crate::server_link::conn_state::ConnState::Connected
+        if crate::owner_of_interacting_with_server::conn_state::current_conn_state()
+            != crate::owner_of_interacting_with_server::conn_state::ConnState::Connected
         {
             return Err(VerbError::refused("Can't adopt: not connected to the server"));
         }
-        let queued_before = crate::server_link::pending_queue::pending_count_signal().get_untracked();
+        let queued_before = crate::owner_of_interacting_with_server::pending_queue::pending_count_signal().get_untracked();
         let pages = crate::local_pages::read_local_pages_placeholder();
         let page_count = pages.len();
         let was_stopped = sync_mode::current_mode() != SyncMode::Connected;
         sync_mode::set_sync_mode(SyncMode::NeedsReconcile);
+        sync_mode::set_mode_reason(sync_mode::ModeReason::AdoptIncomplete);
         let result = coms.adopt_dataset(pages).await;
         match result {
             Ok(payload) => {
-                crate::server_link::dataset_generation::record_new_generation(payload.dataset_generation);
-                crate::server_link::pending_queue::clear_pending_letters();
-                crate::server_link::receiving::clear_seen_everywhere();
+                crate::owner_of_interacting_with_server::dataset_generation::record_new_generation(payload.dataset_generation);
+                crate::owner_of_interacting_with_server::pending_queue::clear_pending_letters();
+                crate::owner_of_interacting_with_server::receiving::clear_seen_everywhere();
                 sync_mode::set_sync_mode(SyncMode::Connected);
-                let restart = crate::server_link::restart::restart_sync_stack(coms).await;
+                let restart = crate::owner_of_interacting_with_server::restart::restart_sync_stack(coms).await;
                 let mut msg = format!(
                     "Adopted: the server now holds this client's {} pages (generation {}). {} queued edits discarded.",
                     page_count, payload.dataset_generation, queued_before,
@@ -152,7 +153,7 @@ pub async fn adopt_local(coms: ComsHandleForClient) -> Result<(), VerbError> {
                     msg.push_str(" Sync resumed.");
                 }
                 crate::cool_popup::show_popup_as(crate::cool_popup::PopupKind::Success, msg);
-                if let crate::server_link::restart::RestartOutcome::Failed(e) = restart {
+                if let crate::owner_of_interacting_with_server::restart::RestartOutcome::Failed(e) = restart {
                     crate::cool_popup::show_popup_as(
                         crate::cool_popup::PopupKind::Warning,
                         format!("Adopted, but couldn't reconnect: {e}"),
@@ -173,7 +174,7 @@ pub async fn adopt_local(coms: ComsHandleForClient) -> Result<(), VerbError> {
 
 pub fn connect_to_server_and_announce(coms: ComsHandleForClient) {
     leptos::task::spawn_local(async move {
-        let outcome = crate::server_link::restart::restart_sync_stack(coms).await;
+        let outcome = crate::owner_of_interacting_with_server::restart::restart_sync_stack(coms).await;
         announce_connect_outcome(outcome);
     });
 }

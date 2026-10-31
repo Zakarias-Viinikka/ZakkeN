@@ -14,15 +14,22 @@ impl ServerMessageReceiver {
     }
 
     fn handle(&self, msg: MessageToClient) {
+        // While internet is off, drop everything from the server. This
+        // matches a real socket death: nothing arrives, anything the
+        // server pushed is missed, and unacked rows are re-delivered on
+        // the next successful login.
+        if !crate::owner_of_interacting_with_server::internet_switch::is_internet_on() {
+            return;
+        }
         match msg {
             MessageToClient::LoveLetterFromServer(letter) => {
-                crate::server_link::receiving::receive_letter(&self.handle, letter);
+                crate::owner_of_interacting_with_server::receiving::receive_letter(&self.handle, letter);
             }
             MessageToClient::ServerSaysYouAreNowLonewolf { what_happened } => {
                 self.handle_server_says_you_are_now_lonewolf(&what_happened);
             }
             MessageToClient::ConnectionLost => {
-                crate::server_link::conn_state::go_offline_after_connection_lost();
+                crate::owner_of_interacting_with_server::conn_state::go_offline_after_connection_lost();
             }
         }
     }
@@ -36,15 +43,15 @@ impl ServerMessageReceiver {
     fn handle_server_says_you_are_now_lonewolf(&self, what_happened: &str) {
         crate::sync_mode::set_sync_mode(crate::sync_mode::SyncMode::NeedsReconcile);
         crate::sync_mode::set_mode_reason(crate::sync_mode::ModeReason::ServerChanged);
-        crate::server_link::receiving::clear_seen_everywhere();
-        crate::server_link::pending_queue::clear_pending_letters();
+        crate::owner_of_interacting_with_server::receiving::clear_seen_everywhere();
+        crate::owner_of_interacting_with_server::pending_queue::clear_pending_letters();
         crate::cool_popup::show_popup_as(
             crate::cool_popup::PopupKind::Warning,
             format!(
                 "{what_happened}. You are now lonewolf — sync is stopped until you reconcile or adopt."
             ),
         );
-        crate::server_link::restart::kick_lonewolf_retry(self.handle.clone());
+        crate::owner_of_interacting_with_server::restart::kick_lonewolf_retry(self.handle.clone());
     }
 }
 

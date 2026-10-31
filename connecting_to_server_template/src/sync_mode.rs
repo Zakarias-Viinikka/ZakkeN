@@ -5,7 +5,8 @@
 //! Lonewolf = the socket is up and login succeeded but sync is gated.
 //! ConnState::Connected with SyncMode::NeedsReconcile. Distinct from Offline
 //! (socket down) and Connected (syncing normally). Not a SyncMode variant —
-//! see `server_link::is_lonewolf` and `client::BorderState::Lonewolf`.
+//! see `owner_of_interacting_with_server::conn_state::is_lonewolf` and
+//! `client::border::BorderState::Lonewolf`.
 
 pub mod persistence;
 

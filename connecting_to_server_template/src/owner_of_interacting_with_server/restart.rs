@@ -2,8 +2,8 @@ use leptos::prelude::*;
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::server_link::conn_state::ConnState;
-use crate::server_link::dataset_generation::{check_login_generation, GenerationCheck};
+use crate::owner_of_interacting_with_server::conn_state::ConnState;
+use crate::owner_of_interacting_with_server::dataset_generation::{check_login_generation, GenerationCheck};
 
 static RESTART_IN_FLIGHT: LazyLock<ArcRwSignal<bool>> =
     LazyLock::new(|| ArcRwSignal::new(false));
@@ -39,12 +39,12 @@ pub async fn restart_sync_stack(
 async fn reach_server(
     coms: &crate::client_server_coms::ComsHandleForClient,
 ) -> Result<(), String> {
-    crate::server_link::conn_state::conn_state_signal().set(ConnState::Connecting);
+    crate::owner_of_interacting_with_server::conn_state::conn_state_signal().set(ConnState::Connecting);
     if !coms.is_server_online().await {
-        crate::server_link::conn_state::conn_state_signal().set(ConnState::FailedToConnect);
+        crate::owner_of_interacting_with_server::conn_state::conn_state_signal().set(ConnState::FailedToConnect);
         return Err("the server is offline".into());
     }
-    crate::server_link::conn_state::conn_state_signal().set(ConnState::Connected);
+    crate::owner_of_interacting_with_server::conn_state::conn_state_signal().set(ConnState::Connected);
     Ok(())
 }
 
@@ -60,20 +60,20 @@ async fn log_in(
         Err(crate::client_server_coms::ComsError::Server(msg))
             if msg == crate::protocol::ERR_USER_ALREADY_EXISTS => {}
         Err(e) => {
-            crate::server_link::conn_state::conn_state_signal().set(ConnState::FailedToConnect);
-            crate::server_link::dataset_generation::current_generation_signal().set(None);
+            crate::owner_of_interacting_with_server::conn_state::conn_state_signal().set(ConnState::FailedToConnect);
+            crate::owner_of_interacting_with_server::dataset_generation::current_generation_signal().set(None);
             return Err(format!("register failed: {e}"));
         }
     }
     let login = match coms.login(TEMPLATE_USER_NAME).await {
         Ok(p) => p,
         Err(e) => {
-            crate::server_link::conn_state::conn_state_signal().set(ConnState::FailedToConnect);
-            crate::server_link::dataset_generation::current_generation_signal().set(None);
+            crate::owner_of_interacting_with_server::conn_state::conn_state_signal().set(ConnState::FailedToConnect);
+            crate::owner_of_interacting_with_server::dataset_generation::current_generation_signal().set(None);
             return Err(format!("login failed: {e}"));
         }
     };
-    crate::server_link::dataset_generation::current_generation_signal()
+    crate::owner_of_interacting_with_server::dataset_generation::current_generation_signal()
         .set(Some(login.dataset_generation));
     Ok(login.dataset_generation)
 }
@@ -82,7 +82,7 @@ fn stop_sync_if_dataset_changed(generation: i64) -> bool {
     let mut just_changed = false;
     match check_login_generation(generation) {
         GenerationCheck::FirstTime => {
-            crate::server_link::dataset_generation::stored_generation_signal()
+            crate::owner_of_interacting_with_server::dataset_generation::stored_generation_signal()
                 .set(Some(generation));
         }
         GenerationCheck::Same => {}
@@ -91,7 +91,7 @@ fn stop_sync_if_dataset_changed(generation: i64) -> bool {
                 == crate::sync_mode::SyncMode::NeedsReconcile;
             crate::sync_mode::set_sync_mode(crate::sync_mode::SyncMode::NeedsReconcile);
             crate::sync_mode::set_mode_reason(crate::sync_mode::ModeReason::ServerChanged);
-            crate::server_link::receiving::clear_seen_everywhere();
+            crate::owner_of_interacting_with_server::receiving::clear_seen_everywhere();
             just_changed = !was_already;
         }
     }
@@ -108,7 +108,10 @@ pub async fn start_over_fresh(
     // PLACEHOLDER: the real `start_over_fresh` refuses to run if the local
     // db already has pages, then builds new local pages from every row.
     // Here it only logs the row count.
-    leptos::logging::log!("server_link: start_over_fresh got {} pages", payload.pages.len());
+    leptos::logging::log!(
+        "owner_of_interacting_with_server: start_over_fresh got {} pages",
+        payload.pages.len()
+    );
     Ok(())
 }
 
@@ -124,6 +127,9 @@ async fn start_over_fresh_on_first_connect(
 async fn run_restart(
     coms: crate::client_server_coms::ComsHandleForClient,
 ) -> RestartOutcome {
+    if crate::owner_of_interacting_with_server::locked::is_locked() {
+        return RestartOutcome::Failed("sync locked until restart".into());
+    }
     if let Err(e) = reach_server(&coms).await {
         return RestartOutcome::Failed(e);
     }
@@ -140,11 +146,14 @@ async fn run_restart(
             RestartOutcome::AlreadyStopped
         };
     }
-    crate::server_link::sending::kick_send(coms.clone());
+    crate::owner_of_interacting_with_server::sending::main_send_unsent_love_letters(coms.clone());
+    if crate::owner_of_interacting_with_server::locked::is_locked() {
+        return RestartOutcome::Failed("sync locked mid-restart".into());
+    }
     if let Err(e) = start_over_fresh_on_first_connect(&coms).await {
         return RestartOutcome::Failed(format!("bootstrap failed: {e}"));
     }
-    if let Err(e) = crate::server_link::receiving::pull_unsent(&coms).await {
+    if let Err(e) = crate::owner_of_interacting_with_server::receiving::pull_unsent(&coms).await {
         return RestartOutcome::Failed(format!("pull failed: {e}"));
     }
     RestartOutcome::Synced

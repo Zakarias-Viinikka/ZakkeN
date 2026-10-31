@@ -24,7 +24,7 @@ pub fn require_server() -> Result<i64, String> {
     if CONN_STATE.get_untracked() != ConnState::Connected {
         return Err("server not connected".into());
     }
-    match crate::server_link::dataset_generation::current_generation() {
+    match crate::owner_of_interacting_with_server::dataset_generation::current_generation() {
         Some(g) => Ok(g),
         None => Err("not logged in yet".into()),
     }
@@ -40,11 +40,11 @@ pub fn is_lonewolf() -> bool {
 /// second "connection lost" popup would just be noise.
 pub fn force_offline() {
     CONN_STATE.set(ConnState::Offline);
-    crate::server_link::sending::sending_signal().set(false);
+    crate::owner_of_interacting_with_server::sending::sending_signal().set(false);
 }
 
 pub fn go_offline_after_connection_lost() {
-    if crate::server_link::restart::restart_in_flight_signal().get_untracked() {
+    if crate::owner_of_interacting_with_server::restart::restart_in_flight_signal().get_untracked() {
         return;
     }
     let was_connected = CONN_STATE.get_untracked() == ConnState::Connected;

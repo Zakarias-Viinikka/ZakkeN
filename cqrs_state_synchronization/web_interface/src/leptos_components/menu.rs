@@ -1,5 +1,5 @@
 use crate::{
-    complicated_signal_flow::LocalPages,
+    shared_owners::LocalPages,
     db::reads::menu::get_all_menu_pages,
     leptos_components::{
         action_buttons::{

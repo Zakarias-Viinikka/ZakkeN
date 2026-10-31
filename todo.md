@@ -25,13 +25,6 @@ deleted, the edit currently gets dropped. Instead: hold it, and later
 surface it to the user as "we synced this edit but its block was gone,
 want to look?". Way down the line. Not started.
 
-## server: edits that arrive for a block that's already deleted
-
-If a client sends a love letter for a block the server has already seen
-deleted, the edit currently gets dropped. Instead: hold it, and later
-surface it to the user as "we synced this edit but its block was gone,
-want to look?". Way down the line. Not started.
-
 ## planned
 
 ### Automated e2e testing from the template
@@ -43,6 +36,14 @@ Shape: run the server, run the web app, click "Start tests" in the app, and let 
 Then a shell script (or something similar) on the computer that runs the whole thing headlessly — start trunk serve, start the server, launch Playwright or similar, trigger the in-app test runner, wait, read the result, print pass/fail plus what went wrong for each failure.
 
 Not started. Questions to work out later: where the test data lives, how tests reset between cases (reload? a reset endpoint on the fake server?), what "run the same tests on the real web_interface + zakken_server" looks like — presumably the same tests with different drivers, which is why the template has to have well-defined states in the first place.
+
+### E2E web harness for web_interface + zakken_server
+
+The Playwright-based plan in `e2e_webapp_server_mock.md`. Spawns a fresh test-mode server per test, drives the real Leptos client in Chromium with a websocket guard, asserts through the mock client. Covers the small production changes to `zakken_server` and `web_interface` needed to make it testable. Not started.
+
+### Android port of feel_labs
+
+The plan in `android_app/docs/android_port_of_feel_labs.md`. A Kotlin + Compose port of `messing_around/feel_labs`, plus a `cascade_physics` Rust crate that owns the cascade stepper and layout for all three modes and drag-reorder. UniFFI, JNI-free, Build glue in Gradle. Not started.
 
 Visual effect labs: see writing_effects_lab.md and new_page_popup.md.
 

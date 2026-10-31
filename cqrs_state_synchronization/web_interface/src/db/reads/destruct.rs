@@ -7,7 +7,7 @@ use protocol::{
     schema_helper::DestructDbReturnCol,
 };
 
-use crate::complicated_signal_flow::LocalPages;
+use crate::shared_owners::LocalPages;
 
 pub fn destruct_entire_get_all_menu_pages(row: Row) -> Result<LocalPages, DbError> {
     let mut iter = row.cols.into_iter();

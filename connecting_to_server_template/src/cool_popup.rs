@@ -18,7 +18,7 @@ const ICON_WARNING: &str = r#"<svg viewBox="0 0 24 24" fill="none" stroke="curre
 const ICON_ERROR: &str = r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>"#;
 
 const CSS: &str = r#"
-.pp-stack { position: fixed; right: 20px; bottom: 20px; width: min(360px, calc(100vw - 40px)); display: flex; flex-direction: column; z-index: 90; pointer-events: none; }
+.pp-stack { position: fixed; left: 20px; bottom: 20px; width: min(360px, calc(100vw - 40px)); display: flex; flex-direction: column; z-index: 90; pointer-events: none; }
 .pp-row { display: grid; grid-template-rows: 1fr; pointer-events: auto; animation: pp-row-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards; transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1) 140ms; }
 .pp-row.leaving { grid-template-rows: 0fr; pointer-events: none; animation: none; }
 .pp-row.consumed { grid-template-rows: 0fr; pointer-events: none; animation: none; transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1) 0ms; }
@@ -30,10 +30,10 @@ const CSS: &str = r#"
 .pp-toast-success { border-left-color: #8ab4ff; }
 .pp-toast-warning { border-left-color: #f2b45a; }
 .pp-toast-error { border-left-color: #ff6b6b; }
-@keyframes pp-toast-enter { from { transform: translateX(28px) scale(0.97); } to { transform: translateX(0) scale(1); } }
+@keyframes pp-toast-enter { from { transform: translateX(-28px) scale(0.97); } to { transform: translateX(0) scale(1); } }
 @keyframes pp-fade-enter { from { opacity: 0; } to { opacity: 1; } }
 .pp-row.leaving .pp-toast { animation: pp-leave 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-@keyframes pp-leave { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(32px); } }
+@keyframes pp-leave { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-32px); } }
 .pp-row.consumed .pp-toast { animation: pp-consume 90ms linear forwards; }
 @keyframes pp-consume { to { opacity: 0; } }
 .pp-toast-main { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px 12px; background: transparent; border: none; text-align: left; font: inherit; width: 100%; color: inherit; cursor: pointer; }
