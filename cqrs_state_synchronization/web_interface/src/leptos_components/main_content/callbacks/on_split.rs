@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use crate::shared_owners::{focus, BlockRow};
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::new_local_block_id::new_local_block_id;
 use crate::page_state::OpenPages;
 
@@ -11,7 +11,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<(String, Str
     Callback::new(move |(block_id, before, after): (String, String, String)| {
         let Some((boss, page)) = open.page_and_boss_for_block(&block_id) else {
             leptos::logging::error!("on_split: no page/boss for block {}", block_id);
-            create_popup(format!("split failed: no open page has block {block_id}"));
+            show_popup(format!("split failed: no open page has block {block_id}"));
             return;
         };
 

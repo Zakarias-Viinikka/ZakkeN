@@ -4,7 +4,7 @@ use leptos::task::spawn_local;
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
 use crate::drag_reorder_container::MoveEvent;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
 pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<MoveEvent> {
@@ -25,7 +25,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<MoveEvent> {
                 .await
                 {
                     leptos::logging::error!("move block failed: {:?}", e);
-                    create_popup(format!("move block failed: {e:?}"));
+                    show_popup(format!("move block failed: {e:?}"));
                 }
             });
             return;
@@ -39,7 +39,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<MoveEvent> {
                 ev.from_page_id,
                 ev.to_page_id,
             );
-            create_popup(format!(
+            show_popup(format!(
                 "cross-page move failed: no open page with id {} or {}",
                 ev.from_page_id, ev.to_page_id
             ));
@@ -60,7 +60,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<MoveEvent> {
             .await
             {
                 leptos::logging::error!("move block to another page failed: {:?}", e);
-                create_popup(format!("move block to another page failed: {e:?}"));
+                show_popup(format!("move block to another page failed: {e:?}"));
             }
         });
     })

@@ -5,7 +5,7 @@ use server_protocol::{LoginPayload, RegisterPayload, Request};
 use shared_internals_for_server::RouterHandle;
 
 use crate::db::{cached_ids, key_value_storage_db_actions};
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 
 const SERVER_NAME_KEY: &str = "server_user_name";
 const USER_ID_KEY: &str = "user_id";
@@ -43,7 +43,7 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
             }
         }
         RegisterOutcome::AlreadyRegistered => {
-            create_popup(format!(
+            show_popup(format!(
                 "Server says '{}' is already taken. Open /setup to pick a different name (like '{}-1'), then reload the page.",
                 setup_name, setup_name
             ));

@@ -10,7 +10,7 @@ use leptos::prelude::*;
 use leptos::logging::log;
 
 use crate::db::cached_ids;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use protocol::{new_table::ColumnDef, payload::*};
 use web_internal_db;
 
@@ -41,12 +41,12 @@ pub async fn init_all() {
 
     if let Err(e) = init_session_id().await {
         log!("init session_id failed: {:?}", e);
-        create_popup(format!("init session_id failed: {e:?}"));
+        show_popup(format!("init session_id failed: {e:?}"));
     }
 
     if let Err(e) = init_user_id().await {
         log!("init user_id failed: {:?}", e);
-        create_popup(format!("init user_id failed: {e:?}"));
+        show_popup(format!("init user_id failed: {e:?}"));
     }
 }
 
@@ -93,7 +93,7 @@ async fn create_each_table_one_by_one(
         if let Err(e) = result {
             log!("result: {:?}", e);
             if !e.to_string().contains("Table already exists") {
-                create_popup(format!("create table {table_name}: {e}"));
+                show_popup(format!("create table {table_name}: {e}"));
             }
         }
 

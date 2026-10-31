@@ -5,10 +5,12 @@ use leptos_router::path;
 
 use web_interface::db::batcher::BatcherHandle;
 use web_interface::db::{cached_ids, init};
+use web_interface::expose_methods_for_testing;
+use web_interface::expose_methods_main;
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::setup_page::SetupPage;
-use web_interface::leptos_components::small_components::popup::PopupContainer;
+use web_interface::leptos_components::small_components::popup::CoolPopup;
 use web_interface::page_state::{OpenPages, Page, PageLoadState};
 
 use web_internal_db::db_gui::db_gui_main;
@@ -40,7 +42,12 @@ fn App() -> impl IntoView {
         });
     });
 
-    web_interface::owner_of_interacting_with_server::start_server_link(batcher_for_link, open_pages);
+    web_interface::owner_of_interacting_with_server::start_server_link(
+        batcher_for_link,
+        open_pages,
+    );
+
+    expose_methods_main!();
 
     view! {
         {move || {
@@ -58,9 +65,7 @@ fn App() -> impl IntoView {
                             <Route path=path!("/setup") view=SetupPage/>
                         </Routes>
                         <SetupGuard/>
-                        <div style="position: absolute; top: 0; right: 0; z-index: 9999;">
-                            <PopupContainer />
-                        </div>
+                        <CoolPopup/>
                     </main>
                 </Router>
             }.into_any()

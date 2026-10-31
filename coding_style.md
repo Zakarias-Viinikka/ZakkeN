@@ -6,6 +6,8 @@
 
 **wrapper** — similar to handle. If there is code that "does something", then `something_doer_wrapper` means "this is what the caller interacts with to abstract away the internals for doing something".
 
+**facade** — a wrapper around a wrapper. If you already have `db_wrapper` and a caller wants to put their own wrapper in front of it, that's a facade. `db_wrapper_facade` reads as "the front-facing layer, with the real db_wrapper behind it." Use it when "wrapper" would be ambiguous because there's already a wrapper in the chain.
+
 **core** — don't want code inside `lib.rs` or `mod.rs`. If there is no good description for the code, call it `core.rs` and `pub mod` and `pub use` it in `lib.rs` or `mod.rs`.
 
 **main** — the universal word for "this is the entry point for x". If all the db setup is in one file, a good name for that file is `db_main.rs`.

@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::shared_owners::BlockInputEvent;
 use crate::db::batcher::BatcherHandle;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
 pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<BlockInputEvent> {
@@ -10,7 +10,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<BlockInputEv
         let block_id = evt.block_id.clone();
         let Some((boss, page)) = open.page_and_boss_for_block(&block_id) else {
             leptos::logging::error!("on_block_input: no page/boss for block {}", block_id);
-            create_popup(format!("edit failed: no open page has block {block_id}"));
+            show_popup(format!("edit failed: no open page has block {block_id}"));
             return;
         };
 

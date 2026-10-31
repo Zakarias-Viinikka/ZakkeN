@@ -103,7 +103,7 @@ async fn write_edit_run(
 fn lock_app_after_failed_flush() {
     if !APP_LOCKED.get_untracked() {
         APP_LOCKED.set(true);
-        crate::leptos_components::small_components::popup::create_popup(
+        crate::leptos_components::small_components::popup::show_popup(
             "Data corrupted. Copy any recent changes you need, then refresh the page.".to_string(),
         );
     }

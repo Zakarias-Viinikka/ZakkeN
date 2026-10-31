@@ -17,5 +17,3 @@
 .cxx/
 .externalNativeBuild/
 **/*ip.kt
-
-Cargo.lock

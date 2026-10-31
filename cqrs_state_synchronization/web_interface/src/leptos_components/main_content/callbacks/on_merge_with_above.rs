@@ -4,7 +4,7 @@ use leptos::task::spawn_local;
 use crate::shared_owners::focus;
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
 use super::on_delete_request::block_above;
@@ -59,7 +59,7 @@ async fn delete_above_and_clear_row(
         crate::db::ui_ops::delete_block(batcher, boss, above_id.clone(), session_id).await
     {
         leptos::logging::error!("merge: delete empty above failed: {:?}", e);
-        create_popup(format!("merge: delete empty above failed: {e:?}"));
+        show_popup(format!("merge: delete empty above failed: {e:?}"));
         return;
     }
     page.blocks.update(|rows| {
@@ -86,7 +86,7 @@ async fn append_into_above_and_delete_this(
         crate::db::ui_ops::delete_block(batcher, boss, block_id.clone(), session_id).await
     {
         leptos::logging::error!("merge: delete current failed: {:?}", e);
-        create_popup(format!("merge: delete current failed: {e:?}"));
+        show_popup(format!("merge: delete current failed: {e:?}"));
         return;
     }
 

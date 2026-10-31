@@ -20,18 +20,6 @@ pub fn setup_db() -> Option<Arc<Mutex<LiveForever>>> {
             return None;
         }
     };
-    if let Err(e) = personal_db_wrapper::create_table_if_not_exist(&liver) {
-        log(
-            "server",
-            format!("failed to create socket_testing_table: {e:?}"),
-        );
-    }
-    if let Err(e) = personal_db_wrapper::create_data_if_not_exist(&liver) {
-        log(
-            "server",
-            format!("failed to create socket_testing_table data: {e:?}"),
-        );
-    }
     if let Err(e) = user_registration::create_table_if_not_exist(&liver) {
         log(
             "server",

@@ -22,7 +22,7 @@ use web_internal_db::db_helper;
 use crate::db::batcher::BatcherHandle;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads_wrapper::pages::page_exists;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
 use super::main_for_applying_love_letter_from_server_to_app::{apply_letter, ApplyError};
@@ -98,7 +98,7 @@ async fn task_for_receiving_socket_messages(
             futures_util::future::Either::Right((_, _)) => {
                 if let Err(e) = super::main_for_login_and_registration::login(&router).await {
                     leptos::logging::error!("login: {e}");
-                    create_popup(format!("login failed: {e}"));
+                    show_popup(format!("login failed: {e}"));
                     continue;
                 }
                 main_send_unsent_love_letters();
@@ -107,7 +107,7 @@ async fn task_for_receiving_socket_messages(
                         Ok(()) => STARTED_FRESH.set(true),
                         Err(e) => {
                             leptos::logging::error!("start_over_fresh failed: {e:?}");
-                            create_popup(format!("start_over_fresh failed: {e:?}"));
+                            show_popup(format!("start_over_fresh failed: {e:?}"));
                         }
                     }
                 }
@@ -301,7 +301,7 @@ async fn handle_one(
         }
         Err(ApplyError::Fatal(e)) => {
             leptos::logging::error!("apply letter {}: {e:?}", item.letter_id);
-            create_popup(
+            show_popup(
                 "Data problem while receiving an edit. Copy anything you're afraid of losing, then reload."
                     .to_string(),
             );

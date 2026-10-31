@@ -399,3 +399,96 @@ Every new comment is written in the author's voice: plain prose, conversational,
 ### 7. Report back
 
 Add one item to the final report: any place where `coding_style.md` and this plan disagreed, and which you followed.
+
+---
+
+## Addendum: an alternative shape was tried (2026-10-31)
+
+Before starting this plan, a smaller e2e harness was built end to end in `rust_practice/e2e_template_for_web_with_server/` to work out the layer split. It works. It is not the same as this plan, and this plan is still the target for the real `web_interface` + `zakken_server` harness. But it's worth knowing about because it changes what "orchestrator" means.
+
+The template's split is three layers, not two:
+
+- **orchestrator** — a Rust binary. Owns lifecycle only: builds, spawns the server, serves the web app's `dist/`, runs pytest, tears everything down. Never opens a browser.
+- **tester** — pytest + Playwright. Owns driving only: launches Chromium, navigates, calls `window.e2e.*` (or dispatches `CustomEvent`s), asserts. Never spawns a process.
+- **web app + server** — the things under test.
+
+In this plan's shape, pytest fixtures do both jobs — they spawn the server and serve `dist/` *and* drive the browser. The template separates those jobs. The tradeoff:
+
+- This plan: fewer moving parts, everything in one language for the test, matches the Android harness where pytest fixtures do the same double duty.
+- Template: cleaner concept boundary (process life is not the tester's business), one language for lifecycle, but the orchestrator is a new thing to maintain and pytest has to be told what URLs are already running.
+
+Everything else in this plan is orthogonal to that choice. The production changes to `zakken_server` and `web_interface` (test-mode flags, `test_config.rs`, indicator, websocket guard) are needed either way.
+
+The template also demonstrates two things worth lifting:
+
+- **Port passing via query string.** The orchestrator picks free ports, constructs `http://127.0.0.1:<static_port>/?server_port=<server_port>`, and the web app reads `server_port` at boot. Works whether pytest or the orchestrator constructs the URL. Cheap, small, useful.
+- **Trunk freshness check.** `trunk build` re-runs wasm-bindgen on every invocation even when no source changed; the template skips it when `dist/index.html` is newer than all inputs. Saves seconds per run in a fast iteration loop.
+
+Nothing in this addendum replaces this plan. If the real harness ends up wanting an orchestrator too, this is the reference.
+
+---
+
+## Addendum: two browsers instead of a mock client, and the audit list as test material (2026-10-31)
+
+Two decisions that reshape this plan without changing its core.
+
+### Drop the mock client; use a second browser as the other client
+
+The `mock_client` / `cli_gui --plain` section is gone. What was the mock client is now a second Chromium window driven by the same Playwright test, pointed at the same test server. Two independent Playwright-launched browsers are two independent clients from the server's point of view: separate OPFS, separate `user_id`, separate `session_id`, separate socket, separate login name. Nothing about the server has to change.
+
+Concretely, in the plan:
+
+- Section 3 ("Mock client plan") is dropped.
+- Section 5's `support/mock_client.py` is dropped. `pytest` gets a second `page`-shaped fixture (working name `other_page` or `client_b`) that launches its own browser.
+- Section 6's "Mock client sees it" step becomes "Client B sees it" — the same assertion, but the observer is a real web client's UI rather than a JSON dump.
+- Section 7's "Checkpoint: cli_gui" is dropped.
+- Section 8's Risk 3 ("Mock never sees the page") is dropped.
+- The `MOCK_CLIENT_BIN` env var and the `mock_<test>.log` artifact go away.
+
+Two browsers, not two contexts of one browser. Browsers are more isolated — separate process, separate profile, separate storage partition. The reason to prefer this over `browser.new_context()`: the two-tab guard. Whether it's fixed or not, its blast radius needs to be bounded. Two contexts of one Chromium might share enough (a `BroadcastChannel` is per-origin, storage partitions aside) that a working guard fires across them. Two separate browser processes do not. Whichever way the guard lands, two browsers is the right isolation unit for a cross-client test.
+
+User names: assign a distinct name per test client (`web_e2e_a`, `web_e2e_b`, or generated). Server-side registered users are per name, and login attaches the name to the socket. Two clients with the same name is a scenario the server has undefined behaviour for (see the audit); avoid accidentally triggering it.
+
+### The audit findings become test material, not fixes
+
+`2026_10_31_cqrs_and_server_audit_findings.md` is the list of known bugs. The plan is to leave those bugs in place and write e2e tests for the user-visible entries. A passing test after the harness is up means the harness doesn't detect the bug; a failing test means it does. Either result tells you whether the harness is working, without needing a separate "is the harness correct" meta-test.
+
+Which entries translate to e2e tests is a per-entry judgment. Rough split from the audit's shortlist:
+
+- Text offsets (Insert / Delete / Replace across multi-byte characters): testable. Type a block with å/ä/ö, place the cursor after the multi-byte character, type more. Reload. If the text survived, the bug is gone or never fired.
+- `get_diff` losing text on length-changing selection replace: testable. Type "abXYcd", select "XY", type "Z". Reload. If the block shows "abXYcd" or "abZcd" with the wrong characters, the bug fired.
+- `Delete` combine position semantics: harder to fire deterministically (requires two non-adjacent deletes within 500 ms). May need scripted rapid input events rather than real key presses.
+- First-run server link never starting: testable. Fresh browser, complete setup, wait for `data-conn=connected` without reloading. If it never connects, the bug is present.
+- Drag / stale `page.blocks`: testable. Drag block A above block B, then type a character into block B. Reload. If the order reverted, the bug fired.
+- `apply_blob` `changed = false` for non-open pages, so menu titles don't refresh: testable with two browsers. Client A opens the menu (no page open). Client B edits a page title. Client A's menu should show the new title. If it doesn't, the bug fired.
+- A failed transaction commit leaving the transaction open: not reachable without injecting a failure, which the harness can't do from outside. Skip.
+- A rejected letter permanently blocking the send queue: testable with two browsers plus a server wipe. Client A has queued edits. Server DB is wiped out from under it. Client A's queue should recover, or at least not silently drop edits after the first. Needs a way for the harness to wipe the server DB mid-test, which the current plan doesn't provide.
+
+The entries that turn out to be non-testable through the UI are the ones that stay as code fixes later. The plan is not to fix them now.
+
+### What stays in this plan
+
+Server `--test-mode` / `--db-path` / `--port` / `--ping-timeout` flags. Web client `test_config.rs` with `?test_mode=1&server_port=N` pinned in sessionStorage. The `#e2e-test-world` indicator and its `data-conn` attribute. The websocket guard against unexpected connections. The ping route. The static web app server. The basic happy-path test (open app, complete setup, create a page, verify a second client sees it). The `run-ui-tests.sh` shape. `coding_style.md` naming for new files.
+
+---
+
+## Addendum: server assertions by reading the db file after the run (2026-10-31)
+
+The earlier addendum says "did the server store this?" is answered by reading through a second browser client. That works, but it isn't the plan anymore.
+
+The simpler shape: after the tests finish, the orchestrator kills the server, then opens the sqlite file (`/tmp/zakken_e2e_world.sqlite` — the file it already passes via `zzpath`) and reads whatever it needs to verify. The server's handle is closed so there's no lock contention. No second browser, no test-only server endpoint, no new protocol.
+
+What this catches: "did the server actually write the letter / the page row / the seen-letter row". It doesn't catch "does the server serve that data correctly to another client". That's a different test — one browser is enough to prove the UI works end to end; the db read proves the server actually persisted what the client said it persisted.
+
+The two-browser approach isn't dropped from the plan, just deprioritized. A cross-client test — two real browsers against the same test server — is still the way to test "client B sees what client A did". That's a different question from "did the server write it to disk", and both are useful. Add the second `page` fixture when the first cross-client test actually needs it.
+
+Where this sits in the harness:
+
+- orchestrator spawns the server (existing)
+- orchestrator runs pytest (existing)
+- orchestrator kills the server (existing)
+- orchestrator reads the db file and asserts (new step)
+
+The db read step happens after pytest exits, so its failures are additional to pytest's failures, not mixed in. Exit code is pytest's, and if the db read fails, exit non-zero anyway with a clear message.
+
+The db read is Rust-side (`rusqlite`), not Python. The orchestrator is already a Rust program with the sqlite path in hand; adding `rusqlite` to its `Cargo.toml` is one dependency. No need to add Python sqlite code or pass a `DB_PATH` env var into pytest.

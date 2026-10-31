@@ -26,7 +26,7 @@ use web_internal_db::db_helper;
 
 use crate::db::main_send_unsent_love_letters::install_kick_sender;
 use crate::db::write_lock::WRITE_LOCK;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 
 pub static PENDING_COUNT: LazyLock<ArcRwSignal<usize>> = LazyLock::new(|| ArcRwSignal::new(0));
 
@@ -75,7 +75,7 @@ async fn run_sender(router: RouterHandle, mut rx: UnboundedReceiver<()>) {
                     consecutive_failures += 1;
                     if consecutive_failures >= 3 && !popped_this_streak {
                         popped_this_streak = true;
-                        create_popup(format!(
+                        show_popup(format!(
                             "Server rejected a change (letter {}): {e:?}. Will keep retrying on the next edit or reconnect. If it doesn't clear, copy anything you're afraid of losing, then reload.",
                             row.id
                         ));

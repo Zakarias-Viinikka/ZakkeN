@@ -606,7 +606,9 @@ Deviations from the plan:
 
 ## Plans at the repo root - 2026-10-30
 
-`e2e_webapp_server_mock.md` — the implementation plan for the web E2E harness (`e2e_web_tests/`). Covers server `--test-mode` / `--db-path` / `--port` / `--ping-timeout` flags, mock client `--plain` mode, web client `test_config.rs` with `?test_mode=1&server_port=N` pinned in sessionStorage, the Python + Playwright harness layout, and one happy-path test. Not started.
+`e2e_webapp_server_mock.md` — the implementation plan for the web E2E harness (`e2e_web_tests/`). Covers server `--test-mode` / `--db-path` / `--port` / `--ping-timeout` flags, web client `test_config.rs` with `?test_mode=1&server_port=N` pinned in sessionStorage, the Python + Playwright harness layout, and one happy-path test. The mock client is dropped in favour of a second real browser as the other client. Not started. The plan's addendum states the two-browser choice and how the audit list in `2026_10_31_cqrs_and_server_audit_findings.md` becomes harness test material rather than immediate fixes.
+
+A smaller proof-of-shape lives at `rust_practice/e2e_template_for_web_with_server/` (built 2026-10-31). Three layers instead of two: a Rust `orchestrator` binary owns process lifecycle and spawns pytest; the `tester` (Python + pytest + Playwright) only drives the browser; the `web_app` (Leptos CSR) and `server` (axum) are under test. Two passing tests: one checks the app reaches "connected", one dispatches `window` CustomEvents to drive Rust methods and asserts the page updates. What's not built: test reports beyond pytest stdout, artifact collection, CI integration, a fresh server per test, a state endpoint on the server. Its `STORED_AI_CONTEXT.md` is the reference. The plan doc in `e2e_webapp_server_mock.md` has an addendum naming the difference (fixtures vs orchestrator as the split point) and stating that the plan is still the target for the real harness.
 
 ### Update - 2026-10-30 (register flow, lonewolf message, retries, test-bench restructure)
 

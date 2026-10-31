@@ -3,7 +3,7 @@ use leptos::task::spawn_local;
 use leptos_router::hooks::use_navigate;
 
 use crate::db::key_value_storage_db_actions::set_user_id;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 
 #[component]
 pub fn SetupPage() -> impl IntoView {
@@ -21,7 +21,7 @@ pub fn SetupPage() -> impl IntoView {
                 Ok(()) => navigate("/Menu", Default::default()),
                 Err(e) => {
                     leptos::logging::error!("set_user_id failed: {:?}", e);
-                    create_popup(format!("save username failed: {e:?}"));
+                    show_popup(format!("save username failed: {e:?}"));
                 }
             }
         });

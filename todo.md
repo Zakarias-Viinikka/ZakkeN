@@ -18,6 +18,23 @@ suite. Re-add it once this is fixed.
 
 ## audit code and refactor
 
+### cqrs and server audit findings (2026-10-31)
+
+Three-pass audit by a separate AI, covering `web_interface/src/`, the drag black box, `yrs`, the builder and executor crates, `zakken_server`, `text_diff`, `smart_frac_index`, `love_letter`, and `client_table_blueprints`. Full findings in `2026_10_31_cqrs_and_server_audit_findings.md`.
+
+Some fixes are required. The audit's suggested shortlist, in priority order:
+
+1. `get_diff` loses text when a selection is replaced by text of a different length (third pass — not in any existing docs)
+2. `Delete` combine position semantics are wrong (third pass — rare trigger, corrupting when it hits)
+3. Text offsets: `Insert.position` is affected too, not just `Delete`/`Replace` (confirmed worse than the todo said)
+4. First-run server link never starting
+5. Drag / stale `page.blocks`
+6. `apply_blob` returning `changed = false` for non-open pages, so menu titles don't refresh
+7. A failed transaction commit leaving the transaction open
+8. A rejected letter permanently blocking the send queue
+
+The list in the doc is longer. Nothing acted on yet, and deliberately: the plan is to leave these bugs in place and write e2e tests for the user-visible entries, so that once the harness is set up, its first run failing on this list is proof the harness works. See the addendum in `e2e_webapp_server_mock.md` for which entries are testable that way. Non-testable entries get fixed later, on their own.
+
 ## server: edits that arrive for a block that's already deleted
 
 If a client sends a love letter for a block the server has already seen
@@ -39,7 +56,9 @@ Not started. Questions to work out later: where the test data lives, how tests r
 
 ### E2E web harness for web_interface + zakken_server
 
-The Playwright-based plan in `e2e_webapp_server_mock.md`. Spawns a fresh test-mode server per test, drives the real Leptos client in Chromium with a websocket guard, asserts through the mock client. Covers the small production changes to `zakken_server` and `web_interface` needed to make it testable. Not started.
+The Playwright-based plan in `e2e_webapp_server_mock.md`. Spawns a fresh test-mode server per test, drives the real Leptos client in Chromium with a websocket guard. Two independent browser processes act as the two clients — the mock client is dropped (see the plan's addendum). Covers the small production changes to `zakken_server` and `web_interface` needed to make it testable. Once running, the harness is meant to fail on the user-visible entries from `2026_10_31_cqrs_and_server_audit_findings.md`, which is how we'll know the harness itself is working. Not started.
+
+A smaller proof-of-shape exists at `rust_practice/e2e_template_for_web_with_server/` (2026-10-31). Three layers instead of two: a Rust `orchestrator` owns process lifecycle and spawns `pytest`; the `tester` (pytest + Playwright) only drives the browser; the `web_app` (Leptos) + `server` (axum) are under test. Working, with two passing tests. See its `STORED_AI_CONTEXT.md` and the addendum in `e2e_webapp_server_mock.md`.
 
 ### Android port of feel_labs
 

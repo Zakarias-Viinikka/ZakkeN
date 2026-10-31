@@ -88,11 +88,12 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
 }
 
 fn build_ws_url() -> String {
+    let port = read_server_port_from_url().unwrap_or(3000);
     let Some(window) = web_sys::window() else {
-        return "ws://127.0.0.1:3000/ws".to_string();
+        return format!("ws://127.0.0.1:{port}/ws");
     };
     let Ok(loc) = js_sys::Reflect::get(window.as_ref(), &JsValue::from_str("location")) else {
-        return "ws://127.0.0.1:3000/ws".to_string();
+        return format!("ws://127.0.0.1:{port}/ws");
     };
     let protocol = js_sys::Reflect::get(&loc, &JsValue::from_str("protocol"))
         .ok()
@@ -103,7 +104,24 @@ fn build_ws_url() -> String {
         .and_then(|v| v.as_string())
         .unwrap_or_else(|| "127.0.0.1".to_string());
     let scheme = if protocol == "https:" { "wss" } else { "ws" };
-    format!("{scheme}://{hostname}:3000/ws")
+    format!("{scheme}://{hostname}:{port}/ws")
+}
+
+fn read_server_port_from_url() -> Option<u16> {
+    let window = web_sys::window()?;
+    let loc = js_sys::Reflect::get(window.as_ref(), &JsValue::from_str("location")).ok()?;
+    let search = js_sys::Reflect::get(&loc, &JsValue::from_str("search"))
+        .ok()?
+        .as_string()?;
+    let trimmed = search.strip_prefix('?')?;
+    for pair in trimmed.split('&') {
+        if let Some(value) = pair.strip_prefix("server_port=") {
+            if let Ok(port) = value.parse::<u16>() {
+                return Some(port);
+            }
+        }
+    }
+    None
 }
 
 fn install_check_if_internet_connection_is_lost_and_set_conn_state_to_offline() {

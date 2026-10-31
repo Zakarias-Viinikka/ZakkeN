@@ -174,7 +174,7 @@ async fn apply_disable(
     .await?;
 
     if open.page1.page_id.get_untracked() == page_id {
-        crate::leptos_components::small_components::popup::create_popup(
+        crate::leptos_components::small_components::popup::show_popup(
             "This page was disabled from another client. You can keep working on it, but it won't appear in the menu anymore."
                 .to_string(),
         );

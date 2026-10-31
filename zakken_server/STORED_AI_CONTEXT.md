@@ -61,7 +61,7 @@ at the root of zakken_server.
 
 Schemas in db/src/db/schema/, one file per table, tbl_ prefix:
 tbl_registered_users, tbl_love_letters_from_clients,
-tbl_unsent_love_letters, tbl_socket_testing_table. There is no tbl_pages
+tbl_unsent_love_letters. There is no tbl_pages
 here - db_core depends on client_table_blueprints and uses its tbl_pages,
 so the client and server share one definition of that table. The logs and
 key_value_storage tables also come from client_table_blueprints.

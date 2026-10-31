@@ -6,7 +6,7 @@ use crate::{
             disable_page_button::DisablePageButton, edit_title_button::EditTitleButton,
         },
         dev_panel::sidebar::SidebarContainer,
-        small_components::popup::create_popup,
+        small_components::popup::show_popup,
     },
     owner_of_interacting_with_server::MENU_TICK,
 };
@@ -68,7 +68,7 @@ fn create_local_pages() -> (ReadSignal<Vec<LocalPages>>, WriteSignal<Vec<LocalPa
                 }
                 Err(e) => {
                     log!("get_all_menu_pages failed: {:?}", e);
-                    create_popup(format!("get_all_menu_pages failed: {:?}", e));
+                    show_popup(format!("get_all_menu_pages failed: {:?}", e));
                 }
             }
         });

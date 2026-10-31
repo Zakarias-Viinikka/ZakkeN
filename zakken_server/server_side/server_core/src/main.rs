@@ -61,11 +61,26 @@ async fn main() {
         .with_state(app_state)
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let port = read_port_from_args();
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
     let local = listener
         .local_addr()
         .map(|a| a.to_string())
-        .unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+        .unwrap_or_else(|_| format!("0.0.0.0:{port}"));
     log("server", format!("listening on {local}"));
     axum::serve(listener, app).await.unwrap();
+}
+
+fn read_port_from_args() -> u16 {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let Some(position) = args.iter().position(|a| a == "zzport") else {
+        return 3000;
+    };
+    let Some(value) = args.get(position + 1) else {
+        panic!("zzport needs a value");
+    };
+    match value.parse::<u16>() {
+        Ok(port) => port,
+        Err(e) => panic!("zzport value '{value}' is not a valid port: {e}"),
+    }
 }

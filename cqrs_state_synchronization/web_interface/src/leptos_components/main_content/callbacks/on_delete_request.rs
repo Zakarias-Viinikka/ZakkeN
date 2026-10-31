@@ -4,7 +4,7 @@ use leptos::task::spawn_local;
 use crate::shared_owners::{focus, BlockRow};
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
 pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<String> {
@@ -28,7 +28,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<String> {
                     .await
             {
                 leptos::logging::error!("delete block failed: {:?}", e);
-                create_popup(format!("delete block failed: {e:?}"));
+                show_popup(format!("delete block failed: {e:?}"));
                 return;
             }
             page.blocks.update(|rows| {

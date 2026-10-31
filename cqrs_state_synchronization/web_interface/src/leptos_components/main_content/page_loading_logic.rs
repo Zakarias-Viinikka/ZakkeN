@@ -4,7 +4,7 @@ use leptos::task::spawn_local;
 use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_user_id;
 use crate::db::reads_wrapper::{blocks as reads_blocks, pages as reads_pages};
-use crate::leptos_components::small_components::popup::create_popup;
+use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::{Page, PageLoadState};
 
 pub fn install_load_effects(page1: Page, batcher: BatcherHandle) {
@@ -64,7 +64,7 @@ pub async fn load_offline(page: Page, batcher: BatcherHandle) {
         Ok(b) => b,
         Err(e) => {
             leptos::logging::error!("load boss failed: {:?}", e);
-            create_popup(format!("load page failed: {e:?}"));
+            show_popup(format!("load page failed: {e:?}"));
             page.page_state.set(PageLoadState::LoadFailed);
             return;
         }
@@ -78,7 +78,7 @@ pub async fn load_offline(page: Page, batcher: BatcherHandle) {
         }
         Err(e) => {
             leptos::logging::error!("load blocks failed: {:?}", e);
-            create_popup(format!("load blocks failed: {e:?}"));
+            show_popup(format!("load blocks failed: {e:?}"));
             page.page_state.set(PageLoadState::LoadFailed);
         }
     }
