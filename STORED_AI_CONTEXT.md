@@ -390,6 +390,16 @@ ZakkeN apps import z_db's protocol and web_internal_db; the app never
 touches rusqlite directly. The server imports protocol and
 db_wrapper's android_mascot.
 
+## External: web_diff_viewer - 2026-11-01
+
+~/ProgStuff/ZakkeN/web_diff_viewer - a Leptos CSR diff viewer component, being built as a port/reference of zap's egui diff viewer (`/home/zakke/ProgStuff/egui/zap/zapgui/every_page_ever/src/ReusableComponents/diff_viewer/`). Not part of ZakkeN; lives alongside z_db under ProgStuff.
+
+Currently a bare scaffold (Leptos + leptos_router + trunk serve via local_cargo.sh). The plan is to make it a workspace: the component in its own crate as a reusable library, an example app driving it. Takes two `Vec<String>` (left page, right page) and a signal the component clears at start and writes the current right side to on finish.
+
+Key differences from zap's viewer, per the human's spec: gap-collapsing for insert/delete pairs (stack them into shared rows, keep edits aligned with a gap when collapsing would break the alignment), no syntax highlighting (input is blocks, not code), no wrap markers, editable right-side blocks with a per-block "edited" indicator, per-block reset / undo-reset buttons, left-side markers (delete red, insert green, edit blue, move purple). The full preplan exists in the conversation it was written in; not yet implemented.
+
+Eventual use: reconcile UI in the real web app. Immediate use: reusable demo.
+
 ## server_template_3 - 2026-10-15
 
 ~/ProgStuff/rust_practice/server_template_3 - the reference for how

@@ -74,6 +74,12 @@ I want to make a project that uses my zap egui project as a reference for how to
 
 Basically I want to create a demo for: "create a menu system for reversing a yrs action and displaying the change in the same way zapgui does"
 
+## diff viewer component (web_diff_viewer)
+
+A Leptos CSR port of zap's egui diff viewer, living at `~/ProgStuff/ZakkeN/web_diff_viewer/`. Standalone project, not part of ZakkeN; worked on as a reusable component. Two pages in (lists of strings), editable right side, per-block reset/undo-reset, marker on the left, gap collapsing per a specific spec. Eventually the reconcile UI in the web app could use it.
+
+Currently a bare Leptos scaffold. Preplan exists in the conversation it was written in; implementation not started. See the "External: web_diff_viewer" section in `STORED_AI_CONTEXT.md`.
+
 ## export / import / wipe / adopt / reconcile
 
 User-triggered sync recovery. Plan in
