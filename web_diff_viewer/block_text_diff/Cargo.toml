@@ -1,0 +1,7 @@
+[package]
+name = "block_text_diff"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+similar = "2"

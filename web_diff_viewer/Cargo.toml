@@ -1,9 +1,12 @@
-[package]
-name = "web_diff_viewer"
+[workspace]
+resolver = "3"
+members = ["block_text_diff", "block_diff_viewer_leptos", "example_app"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-console_error_panic_hook = "0.1.7"
+[workspace.dependencies]
 leptos = { version = "0.8.22", features = ["csr"] }
 leptos_router = "0.8.17"
+console_error_panic_hook = "0.1.7"

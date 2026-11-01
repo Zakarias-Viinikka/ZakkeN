@@ -1,3 +1,15 @@
+**STATUS: Implemented 2026-11-01.** The workspace exists (`block_text_diff` + `block_diff_viewer_leptos` + `example_app`) and everything below is built, with a few deviations worth knowing:
+
+- Moved blocks are a single `Relationship::Moved` row, with a purple strip only on the left (via CSS) plus the blue edit bar when the move also edited the text. The right side of a moved row has no bar (pure move) or the edit bar (move + edit). Replaces the plan's "extra purple bar next to the standard delete/insert bar".
+- Inline highlights narrow but never grow. Typing outside a highlight does not create a new one; typing inside shrinks it; deleting the whole highlight removes it.
+- "Show original" toggle per header reverts to a clean frozen side-by-side view with no diff artifacts.
+- Toolbar with legend and a live "N blocks edited by you" counter.
+- Not built: scroll-to-first-change on mount (the plan's last polish item).
+
+For the current state of the code and the caller contract, see the "External: web_diff_viewer" section in `ZakkeN/STORED_AI_CONTEXT.md`.
+
+---
+
 The drag work is integrated below. It's the same plan with drag slotted in, plus a few knock-on edits where drag touched other sections.
 
 What changed, and what to veto before pasting:

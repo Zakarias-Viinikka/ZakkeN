@@ -1,0 +1,10 @@
+[package]
+name = "example_app"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+block_diff_viewer_leptos = { path = "../block_diff_viewer_leptos" }
+console_error_panic_hook.workspace = true
+leptos.workspace = true
+leptos_router.workspace = true

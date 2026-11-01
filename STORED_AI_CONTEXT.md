@@ -392,11 +392,44 @@ db_wrapper's android_mascot.
 
 ## External: web_diff_viewer - 2026-11-01
 
-~/ProgStuff/ZakkeN/web_diff_viewer - a Leptos CSR diff viewer component, being built as a port/reference of zap's egui diff viewer (`/home/zakke/ProgStuff/egui/zap/zapgui/every_page_ever/src/ReusableComponents/diff_viewer/`). Not part of ZakkeN; lives alongside z_db under ProgStuff.
+~/ProgStuff/ZakkeN/web_diff_viewer - a Leptos CSR diff viewer, ported from zap's egui diff viewer (`/home/zakke/ProgStuff/egui/zap/zapgui/every_page_ever/src/ReusableComponents/diff_viewer/`). Not part of ZakkeN; lives alongside z_db under ProgStuff. Workspace with three crates:
 
-Currently a bare scaffold (Leptos + leptos_router + trunk serve via local_cargo.sh). The plan is to make it a workspace: the component in its own crate as a reusable library, an example app driving it. Takes two `Vec<String>` (left page, right page) and a signal the component clears at start and writes the current right side to on finish.
+- `block_text_diff` - pure logic. Entry: `rows_for_two_pages(left: &[String], right: &[String]) -> Vec<Row>`. `Row` has `left/right: Option<Slot>` (index into the caller's input), `relationship` (Equal / Edit / CollapsedDeleteAndInsert / LeftOnly / RightOnly / Moved), `hunk_index: Option<usize>`, and `left_marker` / `right_marker` (Unchanged / Deleted / Edited / MovedAway on the left; Unchanged / Inserted / Edited / MovedHere on the right). Similarity tuning in `similarity_between_two_blocks_of_text.rs`: short-block fallback for one-word edits (edit-distance-based so "color"/"colour" pairs), dice-prefiltered for long blocks, all thresholds in named constants at the top. Diff pipeline: `similar::capture_diff_slices` for the hunk spine, weighted alignment DP inside each hunk, collapse-rule for stacks of dels/inses, then a moves post-pass that swaps markers to MovedAway / MovedHere, then `merge_moves_into_single_rows` collapses a matched pair into one `Moved` row at the landed position.
 
-Key differences from zap's viewer, per the human's spec: gap-collapsing for insert/delete pairs (stack them into shared rows, keep edits aligned with a gap when collapsing would break the alignment), no syntax highlighting (input is blocks, not code), no wrap markers, editable right-side blocks with a per-block "edited" indicator, per-block reset / undo-reset buttons, left-side markers (delete red, insert green, edit blue, move purple). The full preplan exists in the conversation it was written in; not yet implemented.
+- `block_diff_viewer_leptos` - the component plus pure helpers. `DiffViewer` is the caller's entry. `BlockEditState` holds one block's edit + live highlight tracking. `map_caret_across_edit` is UTF-16 caret preservation across external text changes. `reorder_rows_by_drag_math` is pure drag slot/event math. `segs_for_highlighting` is the pure segmenter. Stylesheet at `css/block_diff_viewer.scss`, scoped under `.dv-root`, `--dv-*` custom properties for theming.
+
+- `example_app` - the trunk demo. Three screens: pair buttons across the top with plain side-by-side panes below (PickerAndPreview), the diff viewer itself, and a result view with an "Open again" button. Sample pairs in `sample_pages.rs` cover mixed edit + move, code refactor, pure reorder, total rewrite.
+
+Caller contract: `DiffViewer` takes `left_page: Signal<Vec<String>>`, `right_page: Signal<Vec<String>>`, `output: WriteSignal<Vec<String>>`, `handle: FinishHandle`, and optional `on_finished: Callback<()>`. Caller creates a `FinishHandle` with `FinishHandle::new()`, passes it in, and calls `handle.finish_and_write_the_result()` from any button anywhere. Viewer writes the current right-side blocks in visual order to `output`, then fires `on_finished`. Caller links `block_diff_viewer_leptos/css/block_diff_viewer.scss` in `index.html` - that is the only required wiring. Changing either input signal remounts the inner viewer; all per-row state is fresh.
+
+What the viewer does:
+
+- Computes the diff once on mount, freezes it. No re-diff on typing or dragging.
+- Renders rows through a keyed `<For>` over `visual_row_order: RwSignal<Vec<usize>>`. Dragging writes to this signal; nothing else does.
+- Right-side cells are editable textareas with a mirror + textarea overlay for inline highlights. Per-row edit state is a `BlockEditState` signal created once at mount (survives drags).
+- Highlights shrink but never grow. Typing outside a highlight leaves it put; typing inside shrinks it; deleting a whole highlight removes it. No new highlights ever appear. The initial highlights are computed from `inline_spans(left, right)` on the frozen original texts.
+- Reset stashes current text and reverts to original; undo-reset restores the stash. Only one button shows at a time, chosen by state (`can_reset` vs `can_undo_reset`, which are mutually exclusive).
+- Editing a block turns both its bars yellow (`dv-bar-edited-by-you`). Reset reverts them to whatever the diff assigned.
+- Dragging by the six-dot grip in the right gutter. Row lifts with `translateY` applied inline to the two cells (the row wrapper is `display: contents`, so the transform has to go on the cells). Blue inset box-shadow drop indicator. Escape or window blur cancels without a report. Drag only starts past 4px of movement. Autoscroll driven by mousemove, not a timer.
+- "Show original" toggle in either header reverts to a clean side-by-side view of the frozen left and right pages, no diff artifacts. Toggle again to return to current state with all edits and drags intact.
+- Toolbar (when not in original view) has a legend plus a live "N blocks edited by you" counter.
+
+Row semantics beyond zap's model: `Relationship::Moved` is a single row with both slots filled - the moved block appears once, at its landed position. Left side of a moved row always has a purple strip (`dv-cell-left[data-kind="moved"]::after`), plus the blue edit bar when the move also edited the text. Right side of a moved row has either no bar (pure move) or the blue edit bar (move + edit) - a moved block is not a "new" insert. This breaks the "left slots in original order" invariant on purpose; the right slots stay in original order.
+
+Accepted trade-offs (deliberate, don't fix silently):
+
+- Dragging changes visual order but not the markers. Markers are frozen from the initial diff, so an "unchanged" row that gets dragged still shows "unchanged".
+- The left gutter numbers are what stay truthful after a drag - the left column no longer reads in original order.
+- Collapsed delete+insert rows carry unrelated texts when dragged; the plan's "split at drag start" fix was not built.
+- The plan's "extra purple bar next to the standard delete/insert bar" was replaced by a single `Moved` relationship, purple strip only on the left. The user explicitly asked for this shape.
+
+Deviations from plan.md worth knowing:
+
+- Moved rows are a single row with a left-only purple strip, not "LeftOnly + RightOnly with an extra purple bar on each".
+- Highlights narrow but never grow, on purpose. The plan implied highlights disappear entirely once the user starts typing; that felt wrong.
+- Scroll-to-first-change on mount is not built (last polish item in the plan).
+
+Build/test/run: workspace root. `c t` for native tests (local_cargo.sh forces the host target because the global cargo config defaults to wasm32). `c r` to serve the example app. `cargo build` for a plain build.
 
 Eventual use: reconcile UI in the real web app. Immediate use: reusable demo.
 

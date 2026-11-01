@@ -1,0 +1,22 @@
+[package]
+name = "block_diff_viewer_leptos"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+leptos.workspace = true
+block_text_diff = { path = "../block_text_diff" }
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+    "Document",
+    "DomRect",
+    "Element",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "KeyboardEvent",
+    "MouseEvent",
+    "NodeList",
+    "Window",
+]

@@ -76,9 +76,11 @@ Basically I want to create a demo for: "create a menu system for reversing a yrs
 
 ## diff viewer component (web_diff_viewer)
 
-A Leptos CSR port of zap's egui diff viewer, living at `~/ProgStuff/ZakkeN/web_diff_viewer/`. Standalone project, not part of ZakkeN; worked on as a reusable component. Two pages in (lists of strings), editable right side, per-block reset/undo-reset, marker on the left, gap collapsing per a specific spec. Eventually the reconcile UI in the web app could use it.
+A Leptos CSR port of zap's egui diff viewer, living at `~/ProgStuff/ZakkeN/web_diff_viewer/`. Standalone project, not part of ZakkeN; worked on as a reusable component. Eventually the reconcile UI in the web app could use it.
 
-Currently a bare Leptos scaffold. Preplan exists in the conversation it was written in; implementation not started. See the "External: web_diff_viewer" section in `STORED_AI_CONTEXT.md`.
+Built. Workspace with three crates: `block_text_diff` (pure logic), `block_diff_viewer_leptos` (the `DiffViewer` component + pure helpers), `example_app` (trunk demo with four sample pairs). Native tests via `c t` at workspace root. `c r` serves the demo.
+
+See the "External: web_diff_viewer" section in `STORED_AI_CONTEXT.md` for the caller contract, what the viewer does, and the deliberate deviations from the original plan.
 
 ## export / import / wipe / adopt / reconcile
 
