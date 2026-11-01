@@ -13,5 +13,7 @@
 macro_rules! expose_methods_main {
     () => {
         $crate::method_show_popup!();
+        $crate::method_set_port!();
+        $crate::method_connect_to_socket!();
     };
 }

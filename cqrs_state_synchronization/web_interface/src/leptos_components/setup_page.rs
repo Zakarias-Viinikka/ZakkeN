@@ -43,11 +43,12 @@ pub fn SetupPage() -> impl IntoView {
             <p>"username represents what this client calls itself when interacting with server, you can pick anything, picking an existing username has error handling so no need to worry about remembering yourself"</p>
             <input
                 type="text"
+                data-testid="username_input"
                 prop:value=move || name.get()
                 on:input=move |ev| set_name.set(event_target_value(&ev))
                 on:keydown=on_keydown
             />
-            <button on:click=move |_| save.run(())>"Finish setup"</button>
+            <button data-testid="finish_setup_button" on:click=move |_| save.run(())>"Finish setup"</button>
             <button on:click=randomize>"Random username"</button>
         </div>
     }

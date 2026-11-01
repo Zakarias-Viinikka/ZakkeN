@@ -43,7 +43,7 @@ pub fn timestamp() -> String {
 }
 
 pub fn log(label: &str, msg: impl std::fmt::Display) {
-    println!("[{}] {}: {}", timestamp(), label, msg);
+    println!("[{}] [server] {}: {}", timestamp(), label, msg);
 }
 
 /// Report an error. Prints it with every field it carries, and also sends
@@ -54,7 +54,7 @@ pub fn log(label: &str, msg: impl std::fmt::Display) {
 /// error, so the err_msg/file/method don't get lost in a formatted string.
 pub fn log_error(label: &str, category: LogCategory, details: &ErrorDetails) {
     print!(
-        "[{}] {}: ERROR in {}::{}: {}",
+        "[{}] [server] {}: ERROR in {}::{}: {}",
         timestamp(),
         label,
         details.file,

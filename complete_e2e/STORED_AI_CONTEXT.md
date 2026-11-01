@@ -4,49 +4,81 @@ Written 2026-11-01. Fresh AI: this file gives you the e2e picture. The human wil
 
 ## What complete_e2e is
 
-Three-layer harness for testing `cqrs_state_synchronization/web_interface` against `zakken_server`, plus the test material that verifies the harness is actually worth something.
+Three-layer harness for testing `cqrs_state_synchronization/web_interface` against `zakken_server`, plus the test material that verifies the harness is worth something.
 
-The three layers:
+- **Orchestrator** (Rust, `orchestrator/`). Builds the server, builds the web app with trunk, picks free ports, wipes the temp db, spawns the server, serves `web_interface/dist` over HTTP, opens the browser at `/custom_port_setting_page`, runs pytest (passing `WEB_APP_URL` and `SERVER_PORT` as env vars), kills the server, exits with pytest's exit code. Never asserts domain facts.
+- **Tester** (`tester/`, Python + pytest + Playwright). Drives the browser. Owns all assertions.
+- **Web app + server** — the real ones, not mocks. The server reads `zzpath` / `zzport` from args; the web app learns the port from an exposed method (below).
 
-- **Orchestrator** (Rust binary in `orchestrator/`). Builds the server, builds the web app with trunk, picks free ports, spawns the server with a fresh temp db, serves `web_interface/dist` over HTTP, opens the browser at `?server_port=N`, runs pytest, kills the server, exits with pytest's exit code. Never opens a browser directly, never asserts domain facts.
-- **Tester** (`tester/`, Python + pytest + Playwright). Drives the browser. Owns all assertions. Doesn't spawn anything.
-- **Web app + server** — the real `web_interface` and `zakken_server`, not mocks. Their inputs come from `zzpath` / `zzport` args (server) and the `?server_port=N` query string (web app).
+`c r` runs everything. `local_cargo.sh` prepends `.venv/bin` to PATH so pytest finds the right Python. Do NOT `source .venv/bin/activate` — a copied venv's activate script points at the original folder's Python, which causes headed `TargetClosedError` flakes while headless passes.
 
-`c r` from `complete_e2e/` runs everything. `local_cargo.sh` prepends `.venv/bin` to PATH so pytest finds the right Python. Do NOT `source .venv/bin/activate` — a copied venv's activate script points at the original folder's Python, which caused real flaking earlier (headed mode `TargetClosedError`, headless passed).
+## How the port flows
+
+The orchestrator picks a free port so `c r` can run twice without "port in use". The port is not in the URL.
+
+The app boots at `/custom_port_setting_page` — a marker route that doesn't auto-redirect. Py fires the exposed `set_port` event with the port number. That writes sessionStorage and flips the connect gate to `AllowedToConnect`. Py then fires the exposed `navigate` event to `/` (SPA route change, no reload). `SetupGuard` redirects to `/setup`. Registration runs. Once `USER_ID` exists, the connect effect fires.
+
+The connect effect in `main.rs` waits for four things: `INIT_DONE`, `SESSION_ID`, `USER_ID`, and the gate being `AllowedToConnect`. All are read with `.get()`. An untracked read means the effect fires once and never re-runs — that was a real bug: on a fresh run `USER_ID` becomes `Some` *after* navigation, so the effect never re-fired, and the socket only started on the next full page load.
+
+Why not the URL: the router drops `?server_port=N` on the first in-app navigation. Anything reading the port later sees only the default (3000). That also "worked" in tests only because every test reloaded with the query string intact — masking both the port bug and the connect-on-fresh-run bug above.
 
 ## What was changed to make it work
 
-In `zakken_server`:
-
-- `personal_db_wrapper.rs` reads `zzpath <path>` from args, falls back to `zakken.sqlite` (renamed from `test_db.sqlite`). Panics if the flag is present without a value.
-- `server_core/main.rs` reads `zzport <port>` from args, falls back to 3000. Panics on missing value or non-numeric.
-- `socket_testing_table` scaffolding deleted (unused after the real server became the target).
-
-No test-mode flag. The guard against touching real data is that the orchestrator always passes `zzpath /tmp/zakken_e2e_world.sqlite` and wipes it before spawning. Same effect, less surface.
+In `zakken_server`: `personal_db_wrapper.rs` reads `zzpath <path>`; `server_core/main.rs` reads `zzport <port>`. Both panic on malformed flags. No test-mode flag — the orchestrator always passes `zzpath /tmp/zakken_e2e_world.sqlite` and wipes it (plus `-wal` and `-shm`) before spawning. Server log lines are prefixed `[server]`.
 
 In `web_interface`:
 
-- `build_ws_url` reads `server_port` from the URL query string, falls back to 3000.
-- `expose_methods_for_testing/` — folder with `core.rs` (has `expose_methods_main!()` macro), `method_show_popup.rs` (`method_show_popup!()` macro). Called once from `App` component body. Each `method_*` sets up a `window` CustomEvent listener torn down by `on_cleanup`. Currently one method: `show_popup` fires a popup with the event's `detail`. Intended as the pattern for exposing more Rust methods to the tester.
-- Popup swapped to CoolPopup from `connecting_to_server_template` (`cool_popup.rs`). `create_popup` renamed to `show_popup` via astgrep across the crate. `PopupContainer` replaced by `CoolPopup` in main.rs.
+- `owner_of_interacting_with_server/server_port.rs` — `get_port() -> Option<u16>`, `set_port(n)` writing sessionStorage and flipping the gate.
+- `owner_of_interacting_with_server/connecting_gate.rs` — `Blocked` / `AllowedToConnect`, starts blocked (or allowed if sessionStorage already had a port, so reloads don't reset).
+- `owner_of_interacting_with_server/core.rs` — `connect_to_socket()` guards on the four conditions and `LINK_STARTED`; callable from the connect effect and from the exposed method.
+- `leptos_components/custom_port_setting_page.rs` — the marker route.
+- `leptos_components/setup_guard.rs` — redirect-to-setup component, with `PATHS_THAT_SKIP_SETUP`.
+- `expose_methods_for_testing/` — four `method_*!()` macros: `show_popup`, `set_port`, `connect_to_socket`, `navigate`. Invoked once from `App`'s component body.
+- `setup_page.rs` — `username_input` and `finish_setup_button` testids.
 
-In `complete_e2e/orchestrator/` (all of this was written this session):
+In `complete_e2e/orchestrator/`: build server, build web app (skipped if `dist/` up to date), pick free ports, wipe temp db, spawn server, axum static serve, run pytest with `WEB_APP_URL` + `SERVER_PORT`. `main.rs` wires it.
 
-- `main_for_building_the_server_binary.rs` — `cargo build -p server_core` in `zakken_server/`.
-- `main_for_building_the_web_app_build.rs` — `trunk build` in `web_interface/`, skipped if `dist/index.html` is newer than all inputs.
-- `main_for_starting_the_server_process.rs` — spawns `zakken_server/target/debug/zakken_server` with `zzport N zzpath /tmp/zakken_e2e_world.sqlite`, waits until the port answers TCP.
-- `main_for_serving_the_web_app_build.rs` — axum static serve of `web_interface/dist`, SPA fallback to `index.html`.
-- `main.rs` — glues the above, picks free ports, builds the browser URL with `?server_port=N`.
+## Tester layout
 
-`complete_e2e/Cargo.toml` is `members = ["orchestrator"]` only. The real server and web app are reached via path dependencies / shell commands, not workspace members.
+    tester/
+      conftest.py      # fixtures
+      pytest.ini       # testpaths = tests
+      run_tests.sh     # prepends venv to PATH, runs pytest
+      tests/           # test_*.py, numbered test_000_, test_001_, ...
+      support/         # helpers, no test_ prefix
+        db.py
+        popup.py
+        seconds.py
+        setup_page.py
 
-Tester currently has two tests: `test_web_app_loads_without_js_error` (page loads, no JS errors) and `test_show_popup` (fires the `show_popup` event, checks `.pp-toast-title` gets the text). The `page` fixture is session-scoped — one window for the whole run, not one per test (per-test was opening a window each time and looked like duplicate launches). Tests each navigate themselves.
+Fixtures in `conftest.py`:
+
+- `browser` — Chromium, headless if `HEADLESS=1`.
+- `page` — session-scoped, one window for the run. Attaches `load` / `framenavigated` / `console` / `pageerror` listeners and accumulates `js_errors`.
+- `web_app` — session-scoped. `goto(/custom_port_setting_page)`, fire `set_port`, fire `navigate` to `/`, fire a popup. Returns the page.
+- `web_app_url` — from `WEB_APP_URL` env var.
+- `pause` — no-op when `HEADLESS=1`.
+- `_no_js_errors_per_test` — autouse. Fails the current test if new JS errors appeared during it. Without this, pytest hides stdout of passing tests, so a panic during a passing test is invisible until a later test fails on the accumulated list.
+
+`support/db.py` reads `/tmp/zakken_e2e_world.sqlite` directly: `get_path`, `connect_readonly`, `list_tables`, `query`. Read-while-running works.
+
+`support/seconds.py` — `seconds(n)` converts to Playwright's millisecond timeouts.
+
+`support/setup_page.py` — `on_setup_page`, `setup_page_register(page, name)`.
+
+`support/popup.py` — `popup(page, message)`.
+
+## Existing tests
+
+- `test_000_register_if_necessary.py` — if on `/setup`, registers a fresh random name and asserts the row in `registered_users`. Skips if already past setup.
+- `test_001_web_app_connects_to_server.py` — `test_show_popup` fires the `show_popup` event and checks `.pp-toast-title` (last) gets the text.
+- `test_002_read_db_while_server_running.py` — opens the db read-only mid-run, lists tables, fires a popup with the count.
 
 ## Decisions made
 
 Assertions live in pytest. The orchestrator never decides pass or fail on a domain fact. It builds, spawns, serves, runs pytest, tears down. Anything that says "this should be true" is in Python.
 
-Server state comes from reading the db file, not a query endpoint. After pytest exits and the server is killed, open /tmp/zakken_e2e_world.sqlite and read whatever the test wants to check. Blobs need Rust to deserialize, so the shape is: Rust reads the db and returns flat JSON, Python asserts on the JSON. Plain columns can be read directly in Python. No new server endpoint needed. Not built yet.
+Server state comes from reading the db file, not a query endpoint. After pytest exits and the server is killed, open /tmp/zakken_e2e_world.sqlite and read whatever the test wants to check. Blobs need Rust to deserialize, so the shape is: Rust reads the db and returns flat JSON, Python asserts on the JSON. Plain columns can be read directly in Python. No new server endpoint needed. Partly built: plain-column reads work via `support/db.py`. Blob reads not built yet.
 
 Raw SQL in Python tests is fine. The query is a snapshot of what the test author assumed the schema was. If the schema drifts, the test fails loudly and you investigate. The one drift raw SQL won't catch is a column being added — old queries still work, new data is invisible. Accepted.
 
@@ -56,18 +88,15 @@ Two browsers, not a mock client. Drop zakken_server/mock_client/ from the plan e
 
 ## What's pending
 
-In rough order of "unblocks the most":
-
-1. **Second browser fixture.** Add to `tester/conftest.py`, probably session-scoped like `page`. Used by cross-client tests. Nothing exists yet.
-2. **First e2e test against the audit findings.** Highest-priority candidate: `get_diff` losing text on length-changing selection replace (`text_diff` finding #1). Single-client, provable, would answer "is the harness good enough" in one test. Other candidates: first-run server link never starting, drag / stale `page.blocks`, `apply_blob` `changed=false` for non-open pages (this one needs two browsers).
-3. **Db-reading step in the orchestrator.** After pytest exits and the server is killed, read the sqlite file. Two ways: Rust side with `rusqlite` for blob-shaped data (returns JSON), or Python `sqlite3` for plain columns. Not built yet.
-4. **Block-id helpers for tests.** Web app blocks live in the drag black box, so DOM order isn't the visual order. First attempt: sort DOM elements with `data-block-id` by `bounding_box().y` in the test. If the black box virtualizes (some blocks not in the DOM), fall back to exposing a read method from the box.
-5. **Data-testids on elements.** Tests currently reference `.pp-toast-title` and similar. Adding `data-testid` attributes to the elements that tests need makes selectors survive UI changes. Tests should target model things (block ids, page ids, "does this block exist") not presentation (button text, colour, layout position) — the UI will change and presentation-bound tests will all have to be rewritten.
+1. **Second browser fixture.** Add to `tester/conftest.py`, session-scoped like `page`. Cross-client tests use it.
+2. **First e2e test against the audit findings.** Candidate: `get_diff` losing text on length-changing selection replace (`text_diff` finding #1). Single-client, provable, would answer "is the harness good enough" in one test.
+3. **Blob-shaped db read.** Rust side with `rusqlite` reading `blobbed_page` / `love_letter_sketch`, returning JSON for pytest. Plain-column reads already work.
+4. **Block-id helpers.** Web app blocks live in the drag black box, so DOM order isn't visual order. Sort DOM elements with `data-block-id` by `bounding_box().y`, or expose a read method from the box.
+5. **Data-testids on elements.** Tests reference `.pp-toast-title`. Adding testids to the elements tests need makes selectors survive UI changes. Test the model (block ids, page ids), not presentation (button text, colour).
 
 ## Related docs
 
-- `2026_10_31_cqrs_and_server_audit_findings.md` at ZakkeN root — the test-material list.
-- `todo.md` at ZakkeN root — "cqrs and server audit findings" section names the priority shortlist.
-- `e2e_webapp_server_mock.md` at ZakkeN root — the larger plan for a production e2e harness. `complete_e2e` is a smaller proof-of-shape; the plan doc has an addendum noting the difference (fixtures vs orchestrator split) and the two-browser choice.
-- `rust_practice/e2e_template_for_web_with_server/` — the template `complete_e2e` was copied from. Both share the same `local_cargo.sh` PATH-prepend trick. The template's `STORED_AI_CONTEXT.md` explains the venv trap.
-- `STORED_AI_CONTEXT.md` at ZakkeN root — mentions both the plan and the proof-of-shape.
+- `/home/zakke/ProgStuff/ZakkeN/2026_10_31_cqrs_and_server_audit_findings.md` — the test-material list.
+- `/home/zakke/ProgStuff/ZakkeN/todo.md` — "cqrs and server audit findings" section.
+- `/home/zakke/ProgStuff/ZakkeN/e2e_webapp_server_mock.md` — larger plan for a production e2e harness.
+- `/home/zakke/ProgStuff/rust_practice/e2e_template_for_web_with_server/` — the template. Its `GOTCHAS.md` lists the cost-time issues.

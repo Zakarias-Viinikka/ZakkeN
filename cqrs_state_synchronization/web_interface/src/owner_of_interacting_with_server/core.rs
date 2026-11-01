@@ -1,4 +1,5 @@
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -21,21 +22,28 @@ pub enum ConnState {
 pub static CONN_STATE: LazyLock<ArcRwSignal<ConnState>> =
     LazyLock::new(|| ArcRwSignal::new(ConnState::Offline));
 
-pub fn start_server_link(batcher: BatcherHandle, open: OpenPages) {
-    Effect::new(move |_| {
-        if !cached_ids::INIT_DONE.get() {
-            return;
-        }
-        if cached_ids::SESSION_ID.get_untracked().is_none() {
-            return;
-        }
-        if cached_ids::USER_ID.get_untracked().is_none() {
-            return;
-        }
-        let batcher_clone = batcher.clone();
-        spawn_local(async move {
-            start_link(batcher_clone, open).await;
-        });
+static LINK_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Connect to the server. Called from the auto-connect effect in
+/// `main.rs` and from the exposed `connect_to_socket` method. Idempotent:
+/// subsequent calls after the first successful start do nothing.
+pub fn connect_to_socket(batcher: BatcherHandle, open: OpenPages) {
+    let init_done = cached_ids::INIT_DONE.get_untracked();
+    let session = cached_ids::SESSION_ID.get_untracked();
+    let user = cached_ids::USER_ID.get_untracked();
+    if !init_done || session.is_none() || user.is_none() {
+        return;
+    }
+    if super::connecting_gate::CONNECTING_GATE.get_untracked()
+        != super::connecting_gate::ConnectingGate::AllowedToConnect
+    {
+        return;
+    }
+    if LINK_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    spawn_local(async move {
+        start_link(batcher, open).await;
     });
 }
 
@@ -88,7 +96,8 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
 }
 
 fn build_ws_url() -> String {
-    let port = read_server_port_from_url().unwrap_or(3000);
+    let port = super::server_port::get_port()
+        .expect("failing to get port by now is a logic error");
     let Some(window) = web_sys::window() else {
         return format!("ws://127.0.0.1:{port}/ws");
     };
@@ -105,23 +114,6 @@ fn build_ws_url() -> String {
         .unwrap_or_else(|| "127.0.0.1".to_string());
     let scheme = if protocol == "https:" { "wss" } else { "ws" };
     format!("{scheme}://{hostname}:{port}/ws")
-}
-
-fn read_server_port_from_url() -> Option<u16> {
-    let window = web_sys::window()?;
-    let loc = js_sys::Reflect::get(window.as_ref(), &JsValue::from_str("location")).ok()?;
-    let search = js_sys::Reflect::get(&loc, &JsValue::from_str("search"))
-        .ok()?
-        .as_string()?;
-    let trimmed = search.strip_prefix('?')?;
-    for pair in trimmed.split('&') {
-        if let Some(value) = pair.strip_prefix("server_port=") {
-            if let Ok(port) = value.parse::<u16>() {
-                return Some(port);
-            }
-        }
-    }
-    None
 }
 
 fn install_check_if_internet_connection_is_lost_and_set_conn_state_to_offline() {

@@ -17,6 +17,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_for_building_the_server_binary()?;
     main_for_building_the_web_app_build()?;
 
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("/tmp/zakken_e2e_world.sqlite{suffix}"));
+    }
+
     let server_port = main_for_finding_a_free_port()?;
     let mut server = main_for_starting_the_server_process(server_port).await?;
     println!("[orchestrator] server websocket at ws://127.0.0.1:{server_port}/ws");
@@ -27,10 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| format!("could not bind static listener: {e}"))?;
     let static_handle = tokio::spawn(main_for_serving_the_web_app_build(static_listener));
 
-    let web_app_url = format!("http://127.0.0.1:{static_port}/?server_port={server_port}");
+    let web_app_url = format!("http://127.0.0.1:{static_port}/custom_port_setting_page");
     println!("[orchestrator] web app at {web_app_url}");
 
-    let exit_code = main_for_running_the_tester(web_app_url).await?;
+    let exit_code = main_for_running_the_tester(web_app_url, server_port).await?;
     println!("[orchestrator] tester finished with exit code {exit_code}");
 
     let _ = server.child.kill().await;

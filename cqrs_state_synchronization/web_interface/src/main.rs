@@ -5,10 +5,11 @@ use leptos_router::path;
 
 use web_interface::db::batcher::BatcherHandle;
 use web_interface::db::{cached_ids, init};
-use web_interface::expose_methods_for_testing;
 use web_interface::expose_methods_main;
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
+use web_interface::leptos_components::custom_port_setting_page::CustomPortSettingPage;
+use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
 use web_interface::leptos_components::small_components::popup::CoolPopup;
 use web_interface::page_state::{OpenPages, Page, PageLoadState};
@@ -42,10 +43,17 @@ fn App() -> impl IntoView {
         });
     });
 
-    web_interface::owner_of_interacting_with_server::start_server_link(
-        batcher_for_link,
-        open_pages,
-    );
+    let batcher_for_connect = batcher_for_link.clone();
+    Effect::new(move |_| {
+        let _ = cached_ids::INIT_DONE.get();
+        let _ = cached_ids::SESSION_ID.get();
+        let _ = cached_ids::USER_ID.get();
+        let _ = web_interface::owner_of_interacting_with_server::CONNECTING_GATE.get();
+        web_interface::owner_of_interacting_with_server::connect_to_socket(
+            batcher_for_connect.clone(),
+            open_pages,
+        );
+    });
 
     expose_methods_main!();
 
@@ -63,9 +71,11 @@ fn App() -> impl IntoView {
                             <Route path=path!("/DbGui") view=db_gui_main::DbGui/>
                             <Route path=path!("/MainContent/:page_id") view=MainContentRoute/>
                             <Route path=path!("/setup") view=SetupPage/>
+                            <Route path=path!("/custom_port_setting_page") view=CustomPortSettingPage/>
                         </Routes>
                         <SetupGuard/>
                         <CoolPopup/>
+                        <MainForNavigatingFromTheTester/>
                     </main>
                 </Router>
             }.into_any()
@@ -73,18 +83,11 @@ fn App() -> impl IntoView {
     }
 }
 
+
+
 #[component]
-fn SetupGuard() -> impl IntoView {
-    let navigate = leptos_router::hooks::use_navigate();
-    let location = leptos_router::hooks::use_location();
-
-    Effect::new(move |_| {
-        let path = location.pathname.get();
-        if cached_ids::USER_ID.get_untracked().is_none() && path != "/setup" {
-            navigate("/setup", Default::default());
-        }
-    });
-
+fn MainForNavigatingFromTheTester() -> impl IntoView {
+    web_interface::method_navigate!();
     ()
 }
 
