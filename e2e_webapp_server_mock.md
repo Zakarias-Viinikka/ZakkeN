@@ -62,7 +62,7 @@ A world is a process. The server only needs to learn four things: which DB file,
 Files touched (paths under zakken_server/server_side/):
 
 db/src/personal_db_wrapper.rs:
-Make the default path a public constant, value unchanged (test_db.sqlite).
+Make the default path a public constant, value unchanged (zakken.sqlite).
 Add a variant of new_liver that takes a path.
 Keep new_liver() working by delegating to it, since other callers may exist (grep).
 server_core/src/setup.rs: setup_db takes the db path and passes it through. Grep for other callers and fix them.
@@ -72,11 +72,11 @@ server_core/src/lib.rs: declare the two new modules.
 server_core/src/main.rs: wiring.
 server_core/Cargo.toml: only if something is missing, for example tokio’s time feature for the watchdog’s sleep. Don’t add clap unless the zakken_server workspace already uses it. Four flags are easy to hand-parse.
 
-Arguments. They are parsed in config.rs, called first thing in main, before the DB is opened. The flags are --db-path, --port, --ping-timeout (integer seconds), and --test-mode. Defaults reproduce today’s behaviour exactly: test_db.sqlite relative to cwd, port 3000, bind 0.0.0.0. Rules:
+Arguments. They are parsed in config.rs, called first thing in main, before the DB is opened. The flags are --db-path, --port, --ping-timeout (integer seconds), and --test-mode. Defaults reproduce today’s behaviour exactly: zakken.sqlite relative to cwd, port 3000, bind 0.0.0.0. Rules:
 
 An unknown flag, a missing value, or an unparsable number prints the problem and a usage line to stderr and exits with code 2.
 --ping-timeout without --test-mode exits 2. It must be at least 1, and defaults to 10 when test mode is on.
---test-mode exits 2 unless --db-path and --port were both given explicitly. It also exits 2 if the port is 3000 or the db path’s file name is test_db.sqlite. This makes it structurally impossible for a harness bug to point a test world at real data. The harness therefore names its file world.sqlite.
+--test-mode exits 2 unless --db-path and --port were both given explicitly. It also exits 2 if the port is 3000 or the db path’s file name is zakken.sqlite. This makes it structurally impossible for a harness bug to point a test world at real data. The harness therefore names its file world.sqlite.
 Parsing returns a plain config value, with nothing global.
 Add unit tests in the same file for defaults, each error, and the test-mode guards.
 
@@ -273,7 +273,7 @@ Server.
 Run it by hand with --test-mode --db-path /tmp/x/world.sqlite --port 3101.
 Hit /__test/ping, then stop pinging. It must exit with code 42 about 10 s later.
 Missing or default args must exit 2.
-With no args it must behave as before: 0.0.0.0:3000, test_db.sqlite, and 404 on the ping route.
+With no args it must behave as before: 0.0.0.0:3000, zakken.sqlite, and 404 on the ping route.
 cargo test passes for config.rs.
 cli_gui.
 Pipe sync, pages, and quit into --plain against the hand-run server.
@@ -288,7 +288,7 @@ Harness proper and the test.
 Rules of the road:
 
 Always use 127.0.0.1, never localhost. The server binds IPv4 only, and OPFS needs a secure context, which 127.0.0.1 is.
-Nothing in the harness may touch port 3000 or test_db.sqlite, and no test may assume a server exists on 3000.
+Nothing in the harness may touch port 3000 or zakken.sqlite, and no test may assume a server exists on 3000.
 Keep Android’s -x and -k behaviour, and the reserved __AI_AUTOTEST__ title prefix.
 
 Debug map:
@@ -306,7 +306,7 @@ Definition of done:
 -k filtering works.
 Temporarily breaking the final assertion produces a failing run. The browser stays about 5 s, then closes, and report.md shows the failing step with console, server, and mock tails.
 kill -9 on pytest mid-test leaves no server_core or cli_gui process after about 15 s.
-The real world is untouched. test_db.sqlite’s mtime is unchanged and nothing connected to 3000.
+The real world is untouched. zakken.sqlite’s mtime is unchanged and nothing connected to 3000.
 Both cargo workspaces and the web build still compile.
 
 Report back, briefly:
@@ -350,7 +350,7 @@ New files in `server_core/src/`:
 - `test_mode_guard.rs` — `TestModeGuard` sits in front of "start as a test world". Holds every combination rule from Section 2:
   - `--ping-timeout` is legal only with `--test-mode`, and must be at least 1.
   - `--db-path` and `--port` must both be explicit.
-  - Port can't be 3000; db file name can't be `test_db.sqlite`.
+  - Port can't be 3000; db file name can't be `zakken.sqlite`.
   - On any rule failing, refuses with a message and exit 2.
 
 The name says what it guards. The conditions live in the code. `lib.rs` stays plumbing only.

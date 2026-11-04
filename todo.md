@@ -2,7 +2,7 @@
 
 ## status
 
-2026-11-04: preplan came back and was amended with the human's answers. Lives at ZakkeN/combining_connecting_template_with_cqrs_and_server.md.
+2026-11-04: preplan came back and was amended with the human's answers. Lives at ZakkeN/combining_connecting_template_with_cqrs_and_server.md. Started implementing: new `drift_guard_and_ops/` workspace at the repo root, first member `client/`, holding `ConnectionStatus`. Decisions made during the port are in `connecting_to_server_template/decisions_made_when_implementing_in_real_project.md`.
 
 ## immediate
 

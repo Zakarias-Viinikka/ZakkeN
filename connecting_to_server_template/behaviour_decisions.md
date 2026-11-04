@@ -1,5 +1,14 @@
 # Behaviour decisions
 
+> **Note (2026-11-04):** This file describes what the *template* does.
+> Some shapes have changed for the real project. See
+> `decisions_made_when_implementing_in_real_project.md` for what the
+> real client and server actually do. In particular: the hard lock is
+> dropped, `NeedsReconcile` is renamed `LoneWolfAndOffline`, and
+> lonewolf and hard lock were the same thing from the client's point of
+> view. Where the two files disagree, the decisions file wins for the
+> real project.
+
 This file exists so that at the end of a refactor, or when handing the template to a new AI, there's one list of what the template is supposed to do. Each paragraph below is a claim. "Claim" means: if a change makes the code stop doing this, either the change is wrong or the claim has changed and the paragraph needs updating.
 
 ## How to use it as a quiz

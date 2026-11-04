@@ -270,7 +270,7 @@ The db crate is named db_core (package) even though its directory is db/,
 because z_db also has a crate named db and the lockfile can't hold two.
 
 The db file path is relative to the directory the server is launched from
-(personal_db_wrapper uses "test_db.sqlite"). Do not change the launch
+(personal_db_wrapper uses "zakken.sqlite"). Do not change the launch
 directory, or the server silently opens a fresh empty database.
 
 Never hold the db lock across an .await. If axum complains that the

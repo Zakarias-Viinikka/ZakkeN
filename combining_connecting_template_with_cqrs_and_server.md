@@ -33,6 +33,23 @@ the end. Steps that depend on them say "check X first".
 
 ---
 
+## Naming and location (updated 2026-11-04)
+
+- Wherever this plan says `NeedsReconcile`, read `LoneWolfAndOffline`.
+  The template called "sync is off, socket down" `NeedsReconcile`; the
+  real project calls it `LoneWolfAndOffline`. `Lonewolf` (socket up,
+  sync off) keeps its name.
+- Step 1's "create a folder in `web_interface/src/`" is wrong. The sync
+  state and recovery code is a crate at the repo root,
+  `drift_guard_and_ops/`, with the client half in
+  `drift_guard_and_ops/client/`.
+- The hard lock (step 4) is dropped.
+- The `ConnectionStatus` enum in the client crate is the client's full
+  status (socket + sync mode), not just the socket.
+
+See `connecting_to_server_template/decisions_made_when_implementing_in_real_project.md`
+for the reasoning.
+
 ## Background you will keep coming back to
 
 **Dataset, blobs, lineage.** The dataset is everything the user owns:
@@ -118,9 +135,10 @@ implementer should read the real signatures before writing step 5.
 ## Step 1 — Sync mode, reason, persistence, and one gate predicate
 
 **What and why.** Everything else reads this state, so it comes first.
-Create a new folder `owner_of_sync_state_and_recovery/` in
-`web_interface/src/` (register it in `lib.rs`). It contains a sync-mode
-file, a persistence file and, later, the hard lock and busy files.
+The code lives in `drift_guard_and_ops/client/`, a crate of the
+root-level `drift_guard_and_ops/` workspace. It contains a sync-mode
+file, a persistence file and, later, the busy file (the hard lock from
+the template is dropped).
 
 The mode and reason live in static signals, like the template's
 `sync_mode.rs`. They persist to localStorage using the template's
@@ -130,8 +148,7 @@ Use namespaced key names. Leaving `NeedsReconcile` clears the reason.
 `Connected` isn't persisted.
 
 Add a single predicate, `sync_may_run()`. It is true only when the mode
-is `Connected`, the hard lock (step 4) is off, and — from step 8 — the
-current socket is session-ready. `restart_sync_stack()` writes the
+is `Connected` and — from step 8 — the current socket is session-ready. `restart_sync_stack()` writes the
 persisted mode and then calls `location.reload()`; the in-memory signal
 is not updated, so the gate stays closed. Also add `is_lonewolf()`
 (connected and gated), as in the template's `conn_state.rs`.
@@ -237,39 +254,39 @@ and the new page would wrongly report `TwoTabs`.
 **Done when.** The page opens from the menu, and a stub verb button
 shows a busy state and refuses when pressed twice.
 
-## Step 4 — Hard lock
+## Step 4 — Hard lock (dropped)
 
-**What and why.** A one-way, in-memory stop. If the same letter is
-rejected by the server twice in a row while the socket is up, retrying
-won't help, so all sync stops until the page is reloaded. Distinct from
-`NeedsReconcile` (recoverable via verbs) and from offline (recoverable
-by reconnecting). Add a locked signal and `lock_and_announce()` (sets
-the flag, then calls one placeholder announce hook for the human) in the
-new folder, and include the flag in `sync_may_run()`. Reload clears it.
-Export is the only verb that still works while locked, and wipe, adopt,
-reconcile and import refuse until reload.
+**Dropped.** The template's hard lock is gone. From the client's point
+of view, the hard lock and lonewolf are the same thing: connected to the
+server, sync stopped, popup shown, the user has to act. The differences
+the template had (socket forced down, no recovery except reload) aren't
+needed. Reconciling is not retrying the rejected letter, so a client
+that just got two rejections can still reconcile its way out.
 
-In `send_unsent_love_letters_to_server_if_there_are_any.rs`, change
-`run_sender`'s server-error branch. Today a failure breaks out and waits
-for the next kick, with a popup at three failures. New behaviour: on the
-first server rejection of a letter, retry that same letter once
-immediately. A second rejection locks. Remove the three-failure popup.
-Transport errors stay as they are (stop the loop and leave the row), and
-don't count.
+What replaces it: on the first server rejection of a letter, retry that
+same letter once immediately. If the retry is also rejected, call
+`enter_lonewolf` (the same path step 2 and step 8 use). No separate
+locked signal, no separate flag in `sync_may_run()`, no forced offline,
+no reload required. The sender stops on the transport errors as it does
+today.
 
 **Classify rejections before counting.** "Not logged in" doesn't count.
 It triggers `establish_session` instead. The "dataset changed" rejection
-from step 8 doesn't count either. It means `enter_lonewolf`. Put both
-message strings in shared constants in `server_protocol`, like the
-template's `ERR_*` strings, and have both sides use them. The client
-currently matches `msg.contains("no such user")` by hand, so that is the
-style to improve on.
+from step 8 doesn't count either. It means `enter_lonewolf`. The
+"retried and rejected twice" case also means `enter_lonewolf`, and the
+reason recorded is a new `RejectedTwice` mode reason rather than
+`ServerChanged` (so the popup and any UI can say what happened).
+
+Put the "not logged in" and "dataset changed" message strings in shared
+constants in `server_protocol`, like the template's `ERR_*` strings, and
+have both sides use them. The client currently matches
+`msg.contains("no such user")` by hand, so that is the style to improve
+on.
 
 **Done when.** Temporarily make the server reject one specific letter.
-The client retries once, then locks and the sender stops. A second
-client's letters are no longer applied, and a reload unlocks it (and
-locks again if the rejection persists). A reconnect-time "not logged in"
-rejection does not lock.
+The client retries once, then enters lonewolf with a `RejectedTwice`
+reason, the sender stops, a second client's letters are no longer
+applied, and reconcile / adopt / wipe still work to get out.
 
 ## Step 5 — Wrapping freeze_doc and the read-back into pure builders
 

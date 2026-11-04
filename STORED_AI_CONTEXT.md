@@ -689,3 +689,26 @@ supersedes the older `plan_for_general_data_management_ops.md` where
 they disagree; no pause/resume, no classify_pages/diff_page/
 build_client_wins_update. Its step 8 (server dataset generation) is a
 design discussion with the human, not a settled design.
+
+## drift_guard_and_ops - 2026-11-04
+
+A new crate at the repo root, `drift_guard_and_ops/`, structured as a
+workspace. It holds the client-side sync state and data-management
+logic: the client's `ConnectionStatus` enum (Offline, Connecting,
+FailedToConnect, Connected, LoneWolfAndOffline, Lonewolf), the sync
+modes, the gating predicate, and the verbs (export, import, wipe,
+adopt, reconcile). The first member is `client/` (package name
+`drift_guard_client`).
+
+Name means: the thing that guards against drift, plus the operations
+that resolve drift. Drift is when the client's and server's copies can
+no longer merge (different lineage in yrs).
+
+Decisions made during the port are recorded in
+`connecting_to_server_template/decisions_made_when_implementing_in_real_project.md`.
+Notable: the hard lock from the template is dropped (lonewolf and hard
+lock were the same thing from the client's point of view), and the
+template's `NeedsReconcile` is renamed `LoneWolfAndOffline`. The port
+plan (`combining_connecting_template_with_cqrs_and_server.md`) is the
+current target; its step 8 (dataset generation) is a design discussion,
+not a settled design.
