@@ -10,4 +10,7 @@ pub use crate::anti_deadlock::*;
 pub use crate::yrs_active_pages::YrsActivePages;
 pub use crate::yrs_backlinks::YrsBacklinks;
 pub use crate::yrs_error::YrsError;
-pub use crate::yrs_wrapper::{Block, BossOfYrs, EditTarget, TextEdit, doc_from_snapshot};
+pub use crate::yrs_wrapper::{
+    Block, BossOfYrs, EditTarget, FreezeDocInput, FrozenBlock, TextEdit, doc_from_snapshot,
+    freeze_doc, freeze_doc_builder,
+};

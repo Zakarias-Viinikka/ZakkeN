@@ -59,6 +59,7 @@ fn insert_block_into_doc(
     Ok(())
 }
 
+
 #[uniffi::export]
 impl BossOfYrs {
     #[uniffi::constructor]
@@ -334,3 +335,4 @@ impl BossOfYrs {
         })
     }
 }
+

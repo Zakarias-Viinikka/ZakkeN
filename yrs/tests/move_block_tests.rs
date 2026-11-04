@@ -9,9 +9,9 @@ mod macros;
 #[test]
 fn concurrent_moves_of_same_block_land_it_once() {
     let (author, block_ids) = make_page!(
-        "author",
-        "1000",
-        ["block 0", "block 1", "block 2", "block 3", "block 4"]
+        user: "author",
+        time: "1000",
+        texts: ["block 0", "block 1", "block 2", "block 3", "block 4"]
     );
     let snapshot = snapshot_boss(SnapshotBoss { boss: &author });
 
@@ -57,7 +57,7 @@ fn concurrent_moves_of_same_block_land_it_once() {
 
 #[test]
 fn move_to_middle_and_back_restores_original_order() {
-    let (boss, block_ids) = make_page!("u", "1000", ["0", "1", "2"]);
+    let (boss, block_ids) = make_page!(user: "u", time: "1000", texts: ["0", "1", "2"]);
 
     move_block(MoveBlock {
         boss: &boss,
@@ -82,7 +82,7 @@ fn move_to_middle_and_back_restores_original_order() {
 
 #[test]
 fn move_block_to_last_then_to_first() {
-    let (boss, block_ids) = make_page!("u", "1000", ["0", "1", "2"]);
+    let (boss, block_ids) = make_page!(user: "u", time: "1000", texts: ["0", "1", "2"]);
 
     move_block(MoveBlock {
         boss: &boss,

@@ -670,3 +670,22 @@ The template grew the pieces needed to reason about re-registration and dataset 
 **Title + visibility changes.** The Client box title now reflects state: `Client — Offline / Connecting / Failed to connect / Connected / Lonewolf`. "Lonewolf" is the `Connected + NeedsReconcile` combination. The stopped-sync buttons are wrapped in `<Show when=move || show_stopped.get()>` and only visible in that state — before this they were always rendered.
 
 **Behaviour to expect when walking through it.** Connect → Connected. Click "Wiped the server" → one popup naming what happened, client stays Connected, title goes "Client — Lonewolf", stopped-sync buttons appear, ~2s later the retry re-registers silently. Then Reconcile / Adopt / Wipe-local-and-pull exit lonewolf back to Connected.
+
+## freeze_doc and the port plan - 2026-11-04
+
+`yrs` grew two functions for the import/adopt/reconcile work.
+`freeze_doc(input: FreezeDocInput) -> BossOfYrs` builds a fresh doc from
+a plain block list (`FrozenBlock`: block_id, content, meta — no frac).
+`freeze_doc_builder(boss: Arc<BossOfYrs>) -> FreezeDocInput` reads a
+live doc back into one. File order is the order; fracs come from the
+rebuilt doc. They live in `yrs/src/yrs_wrapper/freeze_doc_main/` and
+are re-exported from `lib.rs`. There is a test in
+`yrs/tests/freeze_doc_tests.rs`.
+
+The port plan for bringing the connecting template's sync recovery and
+data management into the real client and server is
+`ZakkeN/combining_connecting_template_with_cqrs_and_server.md`. It
+supersedes the older `plan_for_general_data_management_ops.md` where
+they disagree; no pause/resume, no classify_pages/diff_page/
+build_client_wins_update. Its step 8 (server dataset generation) is a
+design discussion with the human, not a settled design.

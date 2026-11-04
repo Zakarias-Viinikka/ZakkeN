@@ -1,5 +1,5 @@
 macro_rules! make_page {
-    ($user:expr, $time:expr, [$($content:expr),* $(,)?]) => {{
+    (user: $user:expr, time: $time:expr, texts: [$($content:expr),* $(,)?]) => {{
         let boss = Arc::new(BossOfYrs::new($user.to_string(), $time.to_string()));
         let mut block_ids: Vec<String> = Vec::new();
         $(

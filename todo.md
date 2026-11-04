@@ -1,5 +1,9 @@
 # TODO
 
+## status
+
+2026-11-04: preplan came back and was amended with the human's answers. Lives at ZakkeN/combining_connecting_template_with_cqrs_and_server.md.
+
 ## immediate
 
 
