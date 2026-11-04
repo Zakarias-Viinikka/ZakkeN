@@ -18,3 +18,4 @@
 .externalNativeBuild/
 **/*ip.kt
 android_app_backup_20261019/
+zakken_server/zakken.sqlite
