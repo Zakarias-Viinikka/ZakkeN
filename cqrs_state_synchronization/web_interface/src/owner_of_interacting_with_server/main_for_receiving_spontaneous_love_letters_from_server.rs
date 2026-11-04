@@ -16,7 +16,7 @@ use protocol::serialization::Convert;
 use server_protocol::{
     AckPayload, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, PageRow, Request, UnsentLetter,
 };
-use shared_internals_for_server::RouterHandle;
+use shared_internals::RouterHandle;
 use web_internal_db::db_helper;
 
 use crate::db::batcher::BatcherHandle;

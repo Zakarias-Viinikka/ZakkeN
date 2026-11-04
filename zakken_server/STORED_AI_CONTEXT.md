@@ -40,7 +40,7 @@ mock_client/ holds the mock client, at the top level:
 - cli_gui - the mock client's REPL.
 
 client_internals/ holds how a client talks to the server:
-- shared_internals_for_server - owns the socket connection AND the
+- shared_internals - owns the socket connection AND the
   response router. `Router::new(url, on_love_letters, on_conn_status)`
   opens the socket, spawns the dispatch loop and the retry loop, and
   returns a `RouterHandle`. The `Router` struct never escapes; callers
@@ -51,7 +51,7 @@ client_internals/ holds how a client talks to the server:
   on_conn_status)` and `spawn_dispatch(router)`, so `Router::new` is
   identical for both targets. `ConnStatus` (Connecting / Connected /
   Failed) is passed to `on_conn_status` on every change.
-- web - stub. The browser socket moved into shared_internals_for_server.
+- web - stub. The browser socket moved into shared_internals.
 - android - stub.
 
 The prose version of the client's side is guide_to_interacting_with_server.md

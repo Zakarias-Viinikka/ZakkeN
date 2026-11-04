@@ -2,7 +2,7 @@ use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{LoginPayload, RegisterPayload, Request};
-use shared_internals_for_server::RouterHandle;
+use shared_internals::RouterHandle;
 
 use crate::db::{cached_ids, key_value_storage_db_actions};
 use crate::leptos_components::small_components::popup::show_popup;

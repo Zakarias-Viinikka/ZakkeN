@@ -103,5 +103,6 @@ pub fn request_name(r: &Request) -> &'static str {
         Request::GetAllYrsPages => "asked for all pages",
         Request::Ack => "acknowledged a letter",
         Request::GetMyUnsentLetters => "asked for its unsent letters",
+        Request::WipeDataset => "asked to wipe the dataset",
     }
 }

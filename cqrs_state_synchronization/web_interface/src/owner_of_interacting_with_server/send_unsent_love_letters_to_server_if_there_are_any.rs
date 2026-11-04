@@ -21,7 +21,7 @@ use protocol::payload::*;
 use protocol::schema_helper::DestructDbReturnCol;
 use protocol::serialization::Convert;
 use server_protocol::{Request, SendLoveLetterPayload};
-use shared_internals_for_server::RouterHandle;
+use shared_internals::RouterHandle;
 use web_internal_db::db_helper;
 
 use crate::db::main_send_unsent_love_letters::install_kick_sender;

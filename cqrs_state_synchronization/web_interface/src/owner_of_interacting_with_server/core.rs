@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use shared_internals_for_server::{ConnStatus, Router};
+use shared_internals::{ConnStatus, Router};
 use wasm_bindgen::prelude::*;
 
 use crate::db::batcher::BatcherHandle;
@@ -33,6 +33,9 @@ pub fn connect_to_socket(batcher: BatcherHandle, open: OpenPages) {
     let user = cached_ids::USER_ID.get_untracked();
     if !init_done || session.is_none() || user.is_none() {
         return;
+    }
+    if super::server_port::get_port().is_none() && not_on_the_custom_port_page() {
+        super::server_port::set_port(3000);
     }
     if super::connecting_gate::CONNECTING_GATE.get_untracked()
         != super::connecting_gate::ConnectingGate::AllowedToConnect
@@ -85,6 +88,8 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
 
     let router = Router::new(url, on_love_letter_from_server, on_conn_status_change);
 
+    crate::shared_owners::router_handle::set(router.clone());
+
     super::spawn_sender(router.clone());
     super::spawn_task_for_receiving_socket_messages(
         router,
@@ -93,6 +98,16 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
         batcher,
         open,
     );
+}
+
+fn not_on_the_custom_port_page() -> bool {
+    let Some(window) = web_sys::window() else {
+        return true;
+    };
+    let Ok(pathname) = window.location().pathname() else {
+        return true;
+    };
+    pathname != "/custom_port_setting_page"
 }
 
 fn build_ws_url() -> String {

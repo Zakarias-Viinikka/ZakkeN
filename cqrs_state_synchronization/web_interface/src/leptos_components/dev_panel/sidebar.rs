@@ -2,7 +2,7 @@ use leptos::{logging::log, prelude::*};
 use stylist::style;
 
 use crate::leptos_components::dev_panel::sidebar_buttons::{
-    DeleteEverythingButton, InsertThreePagesButton, ResetEverythingButton,
+    DeleteEverythingButton, InsertThreePagesButton, ResetEverythingButton, WipeServerButton,
 };
 
 const SIDEBAR_TOGGLE_BUTTON_WIDTH: i32 = 32;
@@ -217,6 +217,7 @@ pub fn SidebarContainer() -> impl IntoView {
 fn SidebarContent() -> impl IntoView {
     view! {
         <DeleteEverythingButton />
+        <WipeServerButton />
         <InsertThreePagesButton />
         <ResetEverythingButton />
     }

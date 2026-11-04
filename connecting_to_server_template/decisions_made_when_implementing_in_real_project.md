@@ -110,3 +110,15 @@ real corruption.
 are `freeze_doc` and `freeze_doc_builder` in the real code. A frozen
 block carries id, content and meta — no frac. File order is the order;
 mirror-row fracs come from the rebuilt doc.
+
+## Request building for out-of-worker callers
+
+Client commands that need the socket but aren't spawned from `start_link` (the wipe button, later reconcile/adopt/export/import) send through a small layer. The command is an enum (`ClientCommand`) with one variant per verb. The mapping from that enum to what the server expects (a `Request` plus its payload) lives in `shared_internals::request_builder`, one `build_*_request` function per command plus one `build_request` that dispatches. `web_interface`'s `router_handle` only holds the handle and sends; it doesn't know what a `WipeDataset` is. Adding a new command is a variant, a builder function, and one match arm.
+
+## Default port fallback
+
+The connecting gate starts closed on a fresh tab, because nothing has stored a port yet. To make a plain load connect without visiting the custom-port page, `connect_to_socket` sets the port to 3000 on any page except `/custom_port_setting_page`. That page needs the gate to stay closed until the tester fires `set_port`. This is a stopgap for the port-plan's `test_config.rs` work (`?test_mode=1&server_port=N` pinned in sessionStorage), which will replace it.
+
+## Wipe
+
+The wipe button is live and verified. Pressing it from the dev panel sends `WipeDataset` to the server; the server deletes every row from all six tables (pages, love letters from clients, unsent letters, registered users, logs, key_value_storage); a sqlite query after the click confirmed all six at zero. Because users are wiped too, the next client login fails with "no such user", clears the saved name, and re-registers. That's the expected flow for "start over completely", not a bug.

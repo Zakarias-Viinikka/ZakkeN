@@ -113,7 +113,7 @@ reconcile/adopt instead.
 
 Cleanup: removed `client_internals/web` and
 `client_internals/android`. Both were orphaned after the socket halves
-moved into `shared_internals_for_server` as `socket_web.rs` /
+moved into `shared_internals` as `socket_web.rs` /
 `socket_android.rs`; nothing depended on them and both were
 workspace-excluded. `local_cargo.sh` no longer cds into them.
 `Router`'s host-target dead_code warnings got a `cfg_attr(not(any(
@@ -125,7 +125,7 @@ Wednesday, 28 October 2026 (web client talks to server)
 ========================================================
 
 The web client now talks to `zakken_server`. `client_internals/`
-got a real shape: `shared_internals_for_server` owns both the socket
+got a real shape: `shared_internals` owns both the socket
 connection and the response router. `Router::new(url, on_love_letters,
 on_conn_status)` opens the socket, spawns the dispatch loop and the
 retry loop, returns a `RouterHandle`. `Router` is a private struct

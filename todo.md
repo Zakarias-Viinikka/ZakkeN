@@ -156,3 +156,5 @@ clients while test mode is on.
 Depends on: nothing yet, but the shape of "server-side transaction I
 can hold open" is the same primitive the export/import/reconcile flow
 needs, so worth designing both together when either lands.
+
+- **db needs one owner.** Right now every caller reaches into the global `db_helper` functions directly. Nothing owns the db. Fix it with the owner+handle pattern from `coding_style.md`: a task owns it, callers get a handle.

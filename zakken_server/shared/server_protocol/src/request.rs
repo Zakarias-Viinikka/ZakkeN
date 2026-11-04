@@ -10,6 +10,8 @@ pub enum Request {
     Ack,
     /// client -> server: give me every love letter I haven't received yet.
     GetMyUnsentLetters,
+    /// client -> server: delete every page and every stored love letter.
+    WipeDataset,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

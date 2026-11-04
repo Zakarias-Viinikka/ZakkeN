@@ -36,4 +36,4 @@ rapier2d = "0.35.3"
 # server link
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
 server_protocol.path = "/home/zakke/ProgStuff/ZakkeN/zakken_server/shared/server_protocol"
-shared_internals_for_server.path = "/home/zakke/ProgStuff/ZakkeN/zakken_server/client_internals/shared_internals_for_server"
+shared_internals.path = "/home/zakke/ProgStuff/ZakkeN/zakken_server/client_internals/shared_internals"

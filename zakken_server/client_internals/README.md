@@ -2,7 +2,7 @@
 
 How a client talks to `zakken_server`. One crate:
 
-- `shared_internals_for_server` — everything the client needs to hold
+- `shared_internals` — everything the client needs to hold
   a connection. The response router assigns each request a fresh id
   and routes the reply back to whoever is waiting. The per-target
   socket halves live inside it as `src/socket_web.rs` and

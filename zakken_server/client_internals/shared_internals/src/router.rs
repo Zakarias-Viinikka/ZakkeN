@@ -17,7 +17,7 @@ use futures::channel::oneshot;
 use protocol::serialization::Base64Bytes;
 use server_protocol::{Message, Request, Response, UnsentLetter};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
@@ -33,6 +33,7 @@ struct Shared {
     pending: Mutex<HashMap<usize, oneshot::Sender<Vec<u8>>>>,
     next_request_id: AtomicUsize,
     outgoing_tx: UnboundedSender<Message>,
+    connected: AtomicBool,
 }
 
 #[cfg_attr(
@@ -65,6 +66,7 @@ impl Router {
             pending: Mutex::new(HashMap::new()),
             next_request_id: AtomicUsize::new(1),
             outgoing_tx,
+            connected: AtomicBool::new(false),
         });
 
         let dispatch = Router {
@@ -81,6 +83,14 @@ impl Router {
         let shared_for_disconnect = Arc::clone(&shared);
         let on_disconnect = move || {
             shared_for_disconnect.pending.lock().unwrap().clear();
+        };
+        let shared_for_conn = Arc::clone(&shared);
+        let mut on_conn_status_from_caller = on_conn_status;
+        let on_conn_status = move |status: ConnStatus| {
+            shared_for_conn
+                .connected
+                .store(matches!(status, ConnStatus::Connected), Ordering::SeqCst);
+            on_conn_status_from_caller(status);
         };
         socket::spawn(
             url,
@@ -135,6 +145,14 @@ impl RouterHandle {
         request: Request,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>, ServErr> {
+        if !self.shared.connected.load(Ordering::SeqCst) {
+            return Err(ServErr::ServerError(ErrorDetails {
+                err_msg: "not connected to the server".to_string(),
+                file: file!().to_string(),
+                method: "send_request".to_string(),
+                probable_cause: "the socket isn't open".to_string(),
+            }));
+        }
         let id = self.shared.next_request_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
 
@@ -204,6 +222,7 @@ mod tests {
             pending: Mutex::new(HashMap::new()),
             next_request_id: AtomicUsize::new(1),
             outgoing_tx,
+            connected: AtomicBool::new(true),
         });
         let dispatch = Router {
             shared: Arc::clone(&shared),

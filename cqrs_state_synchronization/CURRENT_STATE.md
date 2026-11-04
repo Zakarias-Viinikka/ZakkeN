@@ -234,7 +234,7 @@ edit reaches the web client via the server's push and is acked.
 
 Shape:
 
-- `client_internals/shared_internals_for_server` owns both the socket
+- `client_internals/shared_internals` owns both the socket
   and the router. `Router::new(url, on_love_letters, on_conn_status)`
   returns a `RouterHandle`. `Router` itself is private; callers only
   see `RouterHandle`. Per-target socket code lives in
@@ -295,7 +295,7 @@ Anything with local pages has to go through reconcile/adopt.
 
 Cleanup: removed `client_internals/web` and `client_internals/android`.
 Both were orphaned after the socket halves moved into
-`shared_internals_for_server` as `socket_web.rs` / `socket_android.rs`;
+`shared_internals` as `socket_web.rs` / `socket_android.rs`;
 nothing depended on them and both were workspace-excluded.
 `local_cargo.sh` no longer cds into them. `Router`'s host-target
 dead_code warnings got a `cfg_attr(not(any(wasm32, android)),

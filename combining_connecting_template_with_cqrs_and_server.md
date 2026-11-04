@@ -189,7 +189,7 @@ connects once the db and ids are ready, `core.rs` signals
 re-runs login each time, because each new server-side socket starts with
 no user attached.
 
-First, check the `Router` in `shared_internals_for_server`, which the
+First, check the `Router` in `shared_internals`, which the
 planning AI couldn't see. If it already retries a dead socket forever,
 the offline retry (fires only while `Offline` or `FailedToConnect`)
 already exists. Add nothing, and verify it by killing and restarting
@@ -456,16 +456,19 @@ doesn't count for the lock is enough on its own.
 everything first (adopt decodes every snapshot and returns an error
 before mutating anything), mint the generation, notify or close other
 sockets (after dropping the std mutex guard, never hold it across an
-await), wipe the three tables, then for adopt insert each page through
+await), wipe the six tables, then for adopt insert each page through
 the existing `apply_letter` `CreateNewPage` path so the server stores
 the client's bytes as given. Wipe the tables with the existing
 `delete_all_rows`, never `delete_row_where` with All, which the builder
-refuses. Order: unsent letters, letters from clients, pages. Keep
-registered users and `key_value_storage`. Requests are serialized by the
-queue executor, so these are atomic against other requests. Use a
-transaction if the db wrapper supports it. If not, partial failure is
-recoverable, because adopt starts with a wipe and the client still has
-everything.
+refuses. All six tables go, in order: unsent letters, letters from
+clients, pages, registered users, logs, key_value_storage. That is
+deliberate — this is the "start over completely" wipe, not a
+keep-your-account wipe. Because users are wiped too, the next client
+login gets "no such user", clears its saved name, and re-registers.
+Requests are serialized by the queue executor, so these are atomic
+against other requests. Use a transaction if the db wrapper supports it.
+If not, partial failure is recoverable, because adopt starts with a wipe
+and the client still has everything.
 
 **What does the client do on a mismatch?** Recommendation, inside
 `establish_session`: after a successful login, compare with the stored
@@ -741,7 +744,7 @@ don't fix it as part of this.
 
 ## What the planning AI couldn't see and would want to
 
-- `shared_internals_for_server` (the Router, `socket_web.rs`): retry
+- `shared_internals` (the Router, `socket_web.rs`): retry
   behaviour and where the new callback goes.
 - `Telephone` `commands.rs` and `task.rs`.
 - `db/main_send_unsent_love_letters.rs`, `db/write_lock.rs`, and the
@@ -855,3 +858,52 @@ isn't covered by the plan.
    "Use server for all" bypasses the viewer. "Use mine for all" is the
    untouched right side. Flag to the human that a per-row "take left"
    action may be needed in the viewer.
+
+---
+
+## What's already built and deviates from this plan (2026-11-04)
+
+### Request building for out-of-worker callers
+
+The wipe button is the first thing that needed to send to the server
+without being spawned from the connect function, so it couldn't be
+handed the router handle directly. The shape that landed:
+
+- A `ClientCommand` enum in `shared_internals::request_builder`, one
+  variant per verb.
+- One `build_*_request` function per command, plus
+  `build_request(ClientCommand) -> (Request, Vec<u8>)` that dispatches.
+- `web_interface`'s `router_handle` only holds the handle in a
+  `OnceLock` and calls `send_request`. It doesn't know what a command
+  means; the command-to-wire mapping lives in `request_builder`.
+- Adding a command is: a variant, a builder function, one match arm.
+  Nothing in `router_handle` changes.
+
+The handle's `send()` returns `Err` if it hasn't been set yet ("not
+connected to the server") or if the socket is currently down (that check
+is inside `RouterHandle::send_request`, via a `connected: AtomicBool`
+that the socket half updates on every `ConnStatus` change).
+
+### Raw wipe is already shipped
+
+`Request::WipeDataset` exists, the server's `allowed_requests` matches
+it, and `operations_dataset::wipe_dataset_tables` deletes all six
+tables. The dev-panel button was clicked against a running server and a
+sqlite query confirmed every table at zero. This is the raw request, not
+the full step 9 flow — it doesn't set `NeedsReconcile` client-side,
+doesn't clear seen letters, doesn't mint or store a dataset generation.
+Step 9 layers that on top of what already works.
+
+### Default port fallback (stopgap)
+
+The connecting gate starts closed on a fresh tab because no port is
+stored. To make a plain load connect without visiting the
+custom-port page, the connect function sets port 3000 whenever it's
+unset and the page isn't `/custom_port_setting_page`. That page needs
+the gate closed so the tester can fire `set_port`. This is a stopgap —
+step 8's `test_config.rs` work replaces it.
+
+### Naming
+
+`shared_internals_for_server` was renamed to `shared_internals`. The
+crate is client code, and the old name implied server code.

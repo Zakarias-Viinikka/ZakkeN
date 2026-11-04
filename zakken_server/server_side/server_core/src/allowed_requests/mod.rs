@@ -5,5 +5,6 @@ pub mod get_my_unsent_letters;
 pub mod login;
 pub mod register;
 pub mod send_love_letter;
+pub mod wipe_dataset;
 
 pub use core::{do_request, err_bytes};

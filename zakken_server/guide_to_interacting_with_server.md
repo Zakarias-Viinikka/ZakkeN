@@ -18,6 +18,6 @@ The client builds a request out of three things. The message id, which is the cl
 
 What replies deserialize into can be found at `zakken_server/shared/server_protocol/src/responses.rs`.
 
-The client doesn't touch the socket itself. It calls `send_request(request, payload)` on the `RouterHandle` from `shared_internals_for_server` and awaits the payload that comes back. `Router::new(url, on_letters, on_conn_status)` creates the socket connection and returns that handle.
+The client doesn't touch the socket itself. It calls `send_request(request, payload)` on the `RouterHandle` from `shared_internals` and awaits the payload that comes back. `Router::new(url, on_letters, on_conn_status)` creates the socket connection and returns that handle.
 
 Spontaneous messages from the server are a separate thing on the wire — `Response::LoveLetterFromServer`, which carries one letter and no message id. The router doesn't know what to do with them, so it hands each one to a callback the app supplies when it builds the router.

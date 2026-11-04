@@ -6,7 +6,9 @@ use protocol::serialization::Convert;
 use server_protocol::{Request, UnsentLetter};
 use std::sync::{Arc, Mutex};
 
-use super::{ack, get_all_yrs_pages, get_my_unsent_letters, login, register, send_love_letter};
+use super::{
+    ack, get_all_yrs_pages, get_my_unsent_letters, login, register, send_love_letter, wipe_dataset,
+};
 
 pub fn err_bytes(e: DbError) -> Vec<u8> {
     let wrapped: Result<(), DbError> = Err(e);
@@ -68,6 +70,10 @@ pub async fn do_request(
         Request::Login => login::log_in(msg_content, state, telephone, socket_id).await,
         Request::SendLoveLetter => {
             send_love_letter::accept_letter(msg_content, state, telephone, sender).await
+        }
+        Request::WipeDataset => {
+            let locked = state.lock().unwrap();
+            wipe_dataset::wipe_dataset(msg_content, &locked)
         }
     }
 }

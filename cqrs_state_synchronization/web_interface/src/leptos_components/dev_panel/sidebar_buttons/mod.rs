@@ -1,10 +1,12 @@
 pub mod delete_everything;
 pub mod insert_three_pages;
 pub mod reset_everything;
+pub mod wipe_server;
 
 pub use delete_everything::DeleteEverythingButton;
 pub use insert_three_pages::InsertThreePagesButton;
 pub use reset_everything::ResetEverythingButton;
+pub use wipe_server::WipeServerButton;
 
 use leptos::logging::log;
 
