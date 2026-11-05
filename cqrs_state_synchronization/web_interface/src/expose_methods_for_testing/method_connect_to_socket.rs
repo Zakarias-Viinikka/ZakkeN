@@ -8,17 +8,12 @@
 #[macro_export]
 macro_rules! method_connect_to_socket {
     () => {
-        let batcher_for_event =
-            leptos::prelude::expect_context::<$crate::db::batcher::BatcherHandle>();
         let open_for_event =
             leptos::prelude::expect_context::<$crate::page_state::OpenPages>();
         let handle = leptos::prelude::window_event_listener_untyped(
             "connect_to_socket",
             move |_| {
-                $crate::owner_of_interacting_with_server::connect_to_socket(
-                    batcher_for_event.clone(),
-                    open_for_event,
-                );
+                $crate::owner_of_interacting_with_server::connect_to_socket(open_for_event);
             },
         );
         leptos::prelude::on_cleanup(move || {

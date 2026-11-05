@@ -1,3 +1,4 @@
+pub mod batcher_handle;
 pub mod block_input_event;
 pub mod focus;
 pub mod rows;

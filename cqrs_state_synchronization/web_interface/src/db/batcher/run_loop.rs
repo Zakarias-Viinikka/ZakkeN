@@ -1,17 +1,8 @@
-use error_stuff::CqrsErr;
 use futures_channel::mpsc::UnboundedReceiver;
-use futures_channel::oneshot;
 use futures_util::StreamExt;
 
 use super::flush::flush_pending_writes;
-use super::handle::PendingWrite;
-
-pub(crate) enum BatcherMsg {
-    Push(PendingWrite),
-    Flush {
-        reply: oneshot::Sender<Result<(), CqrsErr>>,
-    },
-}
+use super::types::{BatcherMsg, PendingWrite};
 
 enum TimerOrMessage {
     TimerExpired,

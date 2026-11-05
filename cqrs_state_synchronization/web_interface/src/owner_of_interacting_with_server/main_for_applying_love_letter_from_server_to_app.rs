@@ -10,8 +10,7 @@ use love_letter::LoveLetter;
 use my_yrs_lib::BossOfYrs;
 use protocol::error::DbError;
 
-use crate::shared_owners::BlockRow;
-use crate::db::batcher::{run_exclusive, BatcherHandle};
+use crate::shared_owners::{batcher_handle, BlockRow};
 use crate::db::cached_ids::{self, try_current_user_id};
 use crate::db::reads_wrapper::{blocks as reads_blocks, pages as reads_pages};
 use crate::page_state::OpenPages;
@@ -39,7 +38,6 @@ pub struct ApplyOutcome {
 }
 
 pub async fn apply_letter(
-    batcher: &BatcherHandle,
     open: OpenPages,
     letter: LoveLetter,
 ) -> Result<ApplyOutcome, ApplyError> {
@@ -51,9 +49,9 @@ pub async fn apply_letter(
         } => {
             let exists = reads_pages::page_exists(page_id.clone()).await?;
             if exists {
-                apply_blob(batcher, open, page_id, snapshot_of_edit).await
+                apply_blob(open, page_id, snapshot_of_edit).await
             } else {
-                apply_new_page(batcher, open, page_id, is_main_menu_page, snapshot_of_edit).await
+                apply_new_page(open, page_id, is_main_menu_page, snapshot_of_edit).await
             }
         }
         LoveLetter::EditBlock {
@@ -80,16 +78,15 @@ pub async fn apply_letter(
             target_page_id,
             snapshot_of_edit,
             ..
-        } => apply_blob(batcher, open, target_page_id, snapshot_of_edit).await,
+        } => apply_blob(open, target_page_id, snapshot_of_edit).await,
         LoveLetter::DisablePage {
             page_id,
             snapshot_of_edit,
-        } => apply_disable(batcher, open, page_id, snapshot_of_edit).await,
+        } => apply_disable(open, page_id, snapshot_of_edit).await,
     }
 }
 
 async fn apply_blob(
-    batcher: &BatcherHandle,
     open: OpenPages,
     page_id: String,
     snapshot_of_edit: Vec<u8>,
@@ -104,7 +101,7 @@ async fn apply_blob(
 
     let pid_for_plan = page_id.clone();
     let pid_for_refresh = page_id.clone();
-    let changed = run_exclusive(batcher, move || async move {
+    let changed = batcher_handle::run_exclusive(move || async move {
         let plan = build_merge_blob(
             pid_for_plan,
             snapshot_of_edit,
@@ -122,7 +119,6 @@ async fn apply_blob(
 }
 
 async fn apply_new_page(
-    batcher: &BatcherHandle,
     open: OpenPages,
     page_id: String,
     is_main_menu_page: bool,
@@ -132,7 +128,7 @@ async fn apply_new_page(
     let time = crate::get_time();
 
     let pid_for_plan = page_id.clone();
-    let final_blocks = run_exclusive(batcher, move || async move {
+    let final_blocks = batcher_handle::run_exclusive(move || async move {
         let plan = build_merge_new_page(
             pid_for_plan,
             is_main_menu_page,
@@ -154,7 +150,6 @@ async fn apply_new_page(
 }
 
 async fn apply_disable(
-    batcher: &BatcherHandle,
     open: OpenPages,
     page_id: String,
     snapshot_of_edit: Vec<u8>,
@@ -167,7 +162,7 @@ async fn apply_disable(
     let status = reads_pages::get_active_pages_blob(page_id.clone()).await?;
 
     let pid_for_plan = page_id.clone();
-    run_exclusive(batcher, move || async move {
+    batcher_handle::run_exclusive(move || async move {
         let plan = build_merge_disable(pid_for_plan, snapshot_of_edit, status)?;
         apply_merge_plan(plan).await
     })

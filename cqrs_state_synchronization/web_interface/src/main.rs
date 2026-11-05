@@ -3,7 +3,6 @@ use leptos::task::spawn_local;
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
-use web_interface::db::batcher::BatcherHandle;
 use web_interface::db::{cached_ids, init};
 use web_interface::expose_methods_main;
 use web_interface::leptos_components::main_content::MainContent;
@@ -13,6 +12,7 @@ use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
 use web_interface::leptos_components::small_components::popup::CoolPopup;
 use web_interface::page_state::{OpenPages, Page, PageLoadState};
+use web_interface::shared_owners::batcher_handle;
 
 
 use web_internal_db::db_gui::db_gui_main;
@@ -22,13 +22,21 @@ fn main() {
     mount_to_body(App);
 }
 
+fn connection_refresh_guard(open_pages: OpenPages) {
+    Effect::new(move |_| {
+        let _ = cached_ids::INIT_DONE.get();
+        let _ = cached_ids::SESSION_ID.get_untracked();
+        let _ = cached_ids::USER_ID.get();
+        let _ = web_interface::owner_of_interacting_with_server::CONNECTING_GATE.get();
+        web_interface::owner_of_interacting_with_server::connect_to_socket(open_pages);
+    });
+}
+
 #[component]
 fn App() -> impl IntoView {
     let tables_ready = RwSignal::new(false);
 
-    let batcher_handle = BatcherHandle::spawn_task_and_get_handle();
-    let batcher_for_link = batcher_handle.clone();
-    provide_context(batcher_handle);
+    batcher_handle::init();
 
     let open_pages = OpenPages {
         page1: Page::new(String::new()),
@@ -44,17 +52,7 @@ fn App() -> impl IntoView {
         });
     });
 
-    let batcher_for_connect = batcher_for_link.clone();
-    Effect::new(move |_| {
-        let _ = cached_ids::INIT_DONE.get();
-        let _ = cached_ids::SESSION_ID.get();
-        let _ = cached_ids::USER_ID.get();
-        let _ = web_interface::owner_of_interacting_with_server::CONNECTING_GATE.get();
-        web_interface::owner_of_interacting_with_server::connect_to_socket(
-            batcher_for_connect.clone(),
-            open_pages,
-        );
-    });
+    connection_refresh_guard(open_pages);
 
     expose_methods_main!();
 

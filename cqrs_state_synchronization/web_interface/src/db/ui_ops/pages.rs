@@ -6,15 +6,15 @@ use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db
     disabled_page_requires_three_db_actions, insert_page_requires_three_db_inserts,
 };
 
-use crate::db::batcher::{run_exclusive, BatcherHandle};
+use crate::shared_owners::batcher_handle;
 use crate::db::cached_ids::{current_session_id, current_user_id};
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads_wrapper::pages::{get_active_pages_blob, get_page_is_disabled, get_yrs_unblobbed};
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;
 
-pub async fn create_new_page(batcher: BatcherHandle) -> Result<(), CqrsErr> {
-    run_exclusive(&batcher, || async move {
+pub async fn create_new_page() -> Result<(), CqrsErr> {
+    batcher_handle::run_exclusive(|| async move {
         let session_id = current_session_id();
         let everything = create_page(true, session_id.clone())?;
         let title_block_id = everything
@@ -35,11 +35,10 @@ pub async fn create_new_page(batcher: BatcherHandle) -> Result<(), CqrsErr> {
 }
 
 pub async fn disable_page(
-    batcher: BatcherHandle,
     page_id: String,
     session_id: String,
 ) -> Result<(), CqrsErr> {
-    let should_kick = run_exclusive(&batcher, || async move {
+    let should_kick = batcher_handle::run_exclusive(|| async move {
         if get_page_is_disabled(page_id.clone()).await? {
             return Ok(false);
         }

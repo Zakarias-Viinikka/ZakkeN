@@ -1709,7 +1709,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared_internals_for_server"
+name = "shared_internals"
 version = "0.1.0"
 dependencies = [
  "futures",

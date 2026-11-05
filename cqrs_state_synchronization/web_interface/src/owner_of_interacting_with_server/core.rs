@@ -6,7 +6,6 @@ use leptos::task::spawn_local;
 use shared_internals::{ConnStatus, Router};
 use wasm_bindgen::prelude::*;
 
-use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids;
 use crate::page_state::OpenPages;
 
@@ -27,7 +26,7 @@ static LINK_STARTED: AtomicBool = AtomicBool::new(false);
 /// Connect to the server. Called from the auto-connect effect in
 /// `main.rs` and from the exposed `connect_to_socket` method. Idempotent:
 /// subsequent calls after the first successful start do nothing.
-pub fn connect_to_socket(batcher: BatcherHandle, open: OpenPages) {
+pub fn connect_to_socket(open: OpenPages) {
     let init_done = cached_ids::INIT_DONE.get_untracked();
     let session = cached_ids::SESSION_ID.get_untracked();
     let user = cached_ids::USER_ID.get_untracked();
@@ -46,11 +45,11 @@ pub fn connect_to_socket(batcher: BatcherHandle, open: OpenPages) {
         return;
     }
     spawn_local(async move {
-        start_link(batcher, open).await;
+        connect_to_socket_on_startup(open).await;
     });
 }
 
-async fn start_link(batcher: BatcherHandle, open: OpenPages) {
+async fn connect_to_socket_on_startup(open: OpenPages) {
     if !super::two_tab_guard::acquire().await {
         CONN_STATE.set(ConnState::TwoTabs);
         return;
@@ -95,7 +94,6 @@ async fn start_link(batcher: BatcherHandle, open: OpenPages) {
         router,
         rx_take_love_letter_from_server_and_process_it,
         rx_hear_that_socket_reconnected_so_we_can_relogin,
-        batcher,
         open,
     );
 }

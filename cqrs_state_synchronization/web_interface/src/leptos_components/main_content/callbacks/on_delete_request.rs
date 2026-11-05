@@ -2,12 +2,11 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use crate::shared_owners::{focus, BlockRow};
-use crate::db::batcher::BatcherHandle;
 use crate::db::cached_ids::current_session_id;
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
-pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<String> {
+pub fn install(open: OpenPages) -> Callback<String> {
     Callback::new(move |block_id: String| {
         let page = open.page1;
         let blocks = page.blocks.get_untracked();
@@ -20,12 +19,10 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<String> {
             leptos::logging::error!("on_delete_request: no boss for block {}", block_id);
             return;
         };
-        let batcher = batcher.clone();
         let session_id = current_session_id();
         spawn_local(async move {
             if let Err(e) =
-                crate::db::ui_ops::delete_block(batcher, boss, block_id.clone(), session_id)
-                    .await
+                crate::db::ui_ops::delete_block(boss, block_id.clone(), session_id).await
             {
                 leptos::logging::error!("delete block failed: {:?}", e);
                 show_popup(format!("delete block failed: {e:?}"));

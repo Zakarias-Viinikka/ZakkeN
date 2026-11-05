@@ -1,11 +1,10 @@
 use leptos::prelude::*;
 
-use crate::shared_owners::BlockInputEvent;
-use crate::db::batcher::BatcherHandle;
+use crate::shared_owners::{batcher_handle, BlockInputEvent};
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
-pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<BlockInputEvent> {
+pub fn install(open: OpenPages) -> Callback<BlockInputEvent> {
     Callback::new(move |evt: BlockInputEvent| {
         let block_id = evt.block_id.clone();
         let Some((boss, page)) = open.page_and_boss_for_block(&block_id) else {
@@ -17,7 +16,7 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<BlockInputEv
         let diff = text_diff::diff_logic::get_diff(&evt.old_text, &evt.new_text);
 
         let new_text = evt.new_text.clone();
-        batcher.push_edit(boss, block_id.clone(), diff);
+        batcher_handle::push_edit(boss, block_id.clone(), diff);
         page.blocks.update(|rows| {
             if let Some(b) = rows.iter_mut().find(|b| b.block_id == block_id) {
                 b.content = new_text;

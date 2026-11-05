@@ -1,7 +1,7 @@
-mod exclusive;
 mod flush;
-mod handle;
 mod run_loop;
+mod types;
 
-pub use exclusive::run_exclusive;
-pub use handle::{BatcherHandle, PendingWrite};
+pub use types::PendingWrite;
+pub(crate) use run_loop::run_batcher_task;
+pub(crate) use types::BatcherMsg;

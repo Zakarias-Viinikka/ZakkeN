@@ -11,7 +11,7 @@ use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db
 };
 use my_yrs_lib::{yrs_wrapper::PositionToInsert, BossOfYrs};
 
-use crate::db::batcher::{run_exclusive, BatcherHandle};
+use crate::shared_owners::batcher_handle;
 use crate::db::cached_ids::current_user_id;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads_wrapper::pages::{get_yrs_unblobbed, is_main_menu_page};
@@ -19,14 +19,13 @@ use crate::db::yrs_errors::yrs_error_at;
 use crate::get_time;
 
 pub async fn move_block(
-    batcher: BatcherHandle,
     page_id: String,
     block_id: String,
     block_id_of_above: Option<String>,
     block_id_of_below: Option<String>,
     session_id: String,
 ) -> Result<(), CqrsErr> {
-    run_exclusive(&batcher, || async move {
+    batcher_handle::run_exclusive(|| async move {
         let yrs = get_yrs_unblobbed(page_id, current_user_id(), get_time()).await?;
         let ctx =
             build_move_block(yrs, block_id, block_id_of_above, block_id_of_below, session_id)?;
@@ -39,7 +38,6 @@ pub async fn move_block(
 }
 
 pub async fn move_block_to_another_page(
-    batcher: BatcherHandle,
     old_boss: Arc<BossOfYrs>,
     new_boss: Arc<BossOfYrs>,
     block_id: String,
@@ -47,7 +45,7 @@ pub async fn move_block_to_another_page(
     new_block_below_id: Option<String>,
     session_id: String,
 ) -> Result<(), CqrsErr> {
-    run_exclusive(&batcher, || async move {
+    batcher_handle::run_exclusive(|| async move {
         let content = old_boss
             .clone()
             .read_block(block_id.clone())?

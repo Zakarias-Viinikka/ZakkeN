@@ -1,15 +1,14 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::shared_owners::focus;
-use crate::db::batcher::BatcherHandle;
+use crate::shared_owners::{batcher_handle, focus};
 use crate::db::cached_ids::current_session_id;
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
 use super::on_delete_request::block_above;
 
-pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<(String, String)> {
+pub fn install(open: OpenPages) -> Callback<(String, String)> {
     Callback::new(move |(block_id, current_text): (String, String)| {
         let page = open.page1;
         let blocks = page.blocks.get_untracked();
@@ -25,16 +24,14 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<(String, Str
             leptos::logging::error!("on_merge_with_above: no boss for block {}", block_id);
             return;
         };
-        let batcher = batcher.clone();
         let session_id = current_session_id();
 
         spawn_local(async move {
             if above_content.is_empty() {
-                delete_above_and_clear_row(batcher, boss, above_id, page, session_id).await;
+                delete_above_and_clear_row(boss, above_id, page, session_id).await;
                 return;
             }
             append_into_above_and_delete_this(
-                batcher,
                 boss,
                 above_id,
                 above_content,
@@ -49,14 +46,13 @@ pub fn install(batcher: BatcherHandle, open: OpenPages) -> Callback<(String, Str
 }
 
 async fn delete_above_and_clear_row(
-    batcher: BatcherHandle,
     boss: std::sync::Arc<my_yrs_lib::BossOfYrs>,
     above_id: String,
     page: crate::page_state::Page,
     session_id: String,
 ) {
     if let Err(e) =
-        crate::db::ui_ops::delete_block(batcher, boss, above_id.clone(), session_id).await
+        crate::db::ui_ops::delete_block(boss, above_id.clone(), session_id).await
     {
         leptos::logging::error!("merge: delete empty above failed: {:?}", e);
         show_popup(format!("merge: delete empty above failed: {e:?}"));
@@ -69,7 +65,6 @@ async fn delete_above_and_clear_row(
 
 #[allow(clippy::too_many_arguments)]
 async fn append_into_above_and_delete_this(
-    batcher: BatcherHandle,
     boss: std::sync::Arc<my_yrs_lib::BossOfYrs>,
     above_id: String,
     above_content: String,
@@ -80,10 +75,10 @@ async fn append_into_above_and_delete_this(
 ) {
     let new_above = format!("{}{}", above_content, current_text);
     let diff = text_diff::diff_logic::get_diff(&above_content, &new_above);
-    batcher.push_edit(boss.clone(), above_id.clone(), diff);
+    batcher_handle::push_edit(boss.clone(), above_id.clone(), diff);
 
     if let Err(e) =
-        crate::db::ui_ops::delete_block(batcher, boss, block_id.clone(), session_id).await
+        crate::db::ui_ops::delete_block(boss, block_id.clone(), session_id).await
     {
         leptos::logging::error!("merge: delete current failed: {:?}", e);
         show_popup(format!("merge: delete current failed: {e:?}"));

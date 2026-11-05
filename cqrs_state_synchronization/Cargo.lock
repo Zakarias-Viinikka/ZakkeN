@@ -2426,7 +2426,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared_internals_for_server"
+name = "shared_internals"
 version = "0.1.0"
 dependencies = [
  "futures",
@@ -3213,7 +3213,7 @@ dependencies = [
  "protocol",
  "rapier2d",
  "server_protocol",
- "shared_internals_for_server",
+ "shared_internals",
  "stylist",
  "text_diff",
  "wasm-bindgen",

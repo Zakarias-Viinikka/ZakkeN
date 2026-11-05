@@ -19,7 +19,6 @@ use server_protocol::{
 use shared_internals::RouterHandle;
 use web_internal_db::db_helper;
 
-use crate::db::batcher::BatcherHandle;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads_wrapper::pages::page_exists;
 use crate::leptos_components::small_components::popup::show_popup;
@@ -42,7 +41,6 @@ pub fn spawn_task_for_receiving_socket_messages(
     router: RouterHandle,
     rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<UnsentLetter>,
     rx_hear_that_socket_reconnected_so_we_can_relogin: UnboundedReceiver<()>,
-    batcher: BatcherHandle,
     open: OpenPages,
 ) {
     spawn_local(async move {
@@ -50,7 +48,6 @@ pub fn spawn_task_for_receiving_socket_messages(
             router,
             rx_take_love_letter_from_server_and_process_it,
             rx_hear_that_socket_reconnected_so_we_can_relogin,
-            batcher,
             open,
         )
         .await;
@@ -76,7 +73,6 @@ async fn task_for_receiving_socket_messages(
     router: RouterHandle,
     mut rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<UnsentLetter>,
     mut rx_hear_that_socket_reconnected_so_we_can_relogin: UnboundedReceiver<()>,
-    batcher: BatcherHandle,
     open: OpenPages,
 ) {
     if let Err(e) = load_seen_from_db().await {
@@ -89,7 +85,7 @@ async fn task_for_receiving_socket_messages(
         match futures_util::future::select(next_item, next_reconnect).await {
             futures_util::future::Either::Left((item, _)) => match item {
                 Some(i) => {
-                    if !handle_one(&batcher, open, &router, i).await {
+                    if !handle_one(open, &router, i).await {
                         return;
                     }
                 }
@@ -103,7 +99,7 @@ async fn task_for_receiving_socket_messages(
                 }
                 main_send_unsent_love_letters();
                 if !START_OVER_FRESH_ATTEMPTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                    match start_over_fresh(&router, &batcher, open).await {
+                    match start_over_fresh(&router, open).await {
                         Ok(()) => STARTED_FRESH.set(true),
                         Err(e) => {
                             leptos::logging::error!("start_over_fresh failed: {e:?}");
@@ -114,7 +110,7 @@ async fn task_for_receiving_socket_messages(
                 match pull_unsent(&router).await {
                     Ok(letters) => {
                         for item in letters {
-                            if !handle_one(&batcher, open, &router, item).await {
+                            if !handle_one(open, &router, item).await {
                                 return;
                             }
                         }
@@ -129,7 +125,6 @@ async fn task_for_receiving_socket_messages(
 
 async fn start_over_fresh(
     router: &RouterHandle,
-    batcher: &BatcherHandle,
     open: OpenPages,
 ) -> Result<(), DbError> {
     if local_db_has_pages().await? {
@@ -148,13 +143,12 @@ async fn start_over_fresh(
     let payload = payload?;
 
     for row in payload.pages {
-        apply_bootstrap_row(batcher, open, row).await?;
+        apply_bootstrap_row(open, row).await?;
     }
     Ok(())
 }
 
 async fn apply_bootstrap_row(
-    batcher: &BatcherHandle,
     open: OpenPages,
     row: PageRow,
 ) -> Result<(), DbError> {
@@ -168,7 +162,7 @@ async fn apply_bootstrap_row(
             is_main_menu_page: row.is_main_menu_page == "true",
             snapshot_of_edit: row.blobbed_page,
         };
-        apply_letter(batcher, open, letter)
+        apply_letter(open, letter)
             .await
             .map_err(apply_error_to_db_error)?;
         if is_disabled {
@@ -176,7 +170,7 @@ async fn apply_bootstrap_row(
                 page_id: row.page_id.clone(),
                 snapshot_of_edit: row.page_status,
             };
-            apply_letter(batcher, open, letter)
+            apply_letter(open, letter)
                 .await
                 .map_err(apply_error_to_db_error)?;
         }
@@ -191,7 +185,7 @@ async fn apply_bootstrap_row(
             block_id: String::new(),
             snapshot_of_edit: row.blobbed_page,
         };
-        apply_letter(batcher, open, letter)
+        apply_letter(open, letter)
             .await
             .map_err(apply_error_to_db_error)?;
         if is_disabled {
@@ -199,7 +193,7 @@ async fn apply_bootstrap_row(
                 page_id: row.page_id.clone(),
                 snapshot_of_edit: row.page_status,
             };
-            apply_letter(batcher, open, letter)
+            apply_letter(open, letter)
                 .await
                 .map_err(apply_error_to_db_error)?;
         }
@@ -250,7 +244,6 @@ async fn pull_unsent(router: &RouterHandle) -> Result<Vec<UnsentLetter>, DbError
 }
 
 async fn handle_one(
-    batcher: &BatcherHandle,
     open: OpenPages,
     router: &RouterHandle,
     item: UnsentLetter,
@@ -271,7 +264,7 @@ async fn handle_one(
 
     let created_new_page = matches!(letter, love_letter::LoveLetter::CreateNewPage { .. });
 
-    match apply_letter(batcher, open, letter).await {
+    match apply_letter(open, letter).await {
         Ok(outcome) => {
             if let Err(e) = persist_seen(item.letter_id).await {
                 leptos::logging::warn!("persist_seen {}: {e:?}", item.letter_id);
@@ -283,7 +276,7 @@ async fn handle_one(
             if created_new_page {
                 if let Ok(more) = pull_unsent(router).await {
                     for extra in more {
-                        if !Box::pin(handle_one(batcher, open, router, extra)).await {
+                        if !Box::pin(handle_one(open, router, extra)).await {
                             return false;
                         }
                     }

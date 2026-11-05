@@ -1,13 +1,13 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::db::batcher::BatcherHandle;
+use crate::shared_owners::batcher_handle;
 use crate::db::cached_ids::current_user_id;
 use crate::db::reads_wrapper::{blocks as reads_blocks, pages as reads_pages};
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::{Page, PageLoadState};
 
-pub fn install_load_effects(page1: Page, batcher: BatcherHandle) {
+pub fn install_load_effects(page1: Page) {
     Effect::new(move |_| {
         if page1.page_id.get().is_empty() {
             return;
@@ -15,9 +15,8 @@ pub fn install_load_effects(page1: Page, batcher: BatcherHandle) {
         match page1.page_state.get() {
             PageLoadState::Loading => preload_pages(page1),
             PageLoadState::PreloadLoaded(_) => {
-                let batcher = batcher.clone();
                 spawn_local(async move {
-                    load_offline(page1, batcher).await;
+                    load_offline(page1).await;
                 });
             }
             PageLoadState::Loaded => {
@@ -47,8 +46,8 @@ pub fn preload_pages(page: Page) {
     page.preload_response.set(Some(Vec::new()));
 }
 
-pub async fn load_offline(page: Page, batcher: BatcherHandle) {
-    if let Err(e) = batcher.flush_now().await {
+pub async fn load_offline(page: Page) {
+    if let Err(e) = batcher_handle::flush_now().await {
         leptos::logging::error!("flush before load_offline failed: {:?}", e);
     }
 

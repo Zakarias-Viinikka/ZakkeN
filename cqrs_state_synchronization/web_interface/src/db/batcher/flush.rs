@@ -12,7 +12,7 @@ use crate::db::cached_ids::current_session_id;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::writes;
 
-use super::handle::PendingWrite;
+use super::types::PendingWrite;
 
 pub(crate) async fn flush_pending_writes(
     pending: &mut Vec<PendingWrite>,
