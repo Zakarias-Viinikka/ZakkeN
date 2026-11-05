@@ -32,3 +32,14 @@ def query(sql: str, params: tuple = ()) -> list[tuple]:
         return conn.execute(sql, params).fetchall()
     finally:
         conn.close()
+
+def wait_until_server_has_pages(count: int, timeout_secs: float = 5.0) -> None:
+    import time
+    deadline = time.time() + timeout_secs
+    while time.time() < deadline:
+        rows = query("SELECT page_id FROM pages")
+        if len(rows) == count:
+            return
+        time.sleep(0.2)
+    rows = query("SELECT page_id FROM pages")
+    raise AssertionError(f"server pages count is {len(rows)}, wanted {count}")

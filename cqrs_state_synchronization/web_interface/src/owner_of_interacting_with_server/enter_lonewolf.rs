@@ -12,7 +12,7 @@ use super::core::{ConnState, CONN_STATE};
 /// the reason (or a generic message) only if it's still true.
 pub fn enter_lonewolf(reason: Option<String>) {
     let next = match CONN_STATE.get_untracked() {
-        ConnState::Connected => ConnState::Lonewolf,
+        ConnState::Connected | ConnState::Lonewolf => ConnState::Lonewolf,
         _ => ConnState::LoneWolfAndOffline,
     };
     CONN_STATE.set(next);
@@ -23,7 +23,11 @@ pub fn enter_lonewolf(reason: Option<String>) {
         if !should {
             return;
         }
-        show_popup(reason.unwrap_or_else(|| "out of sync with server".to_string()));
+        let message = match reason {
+            Some(r) => format!("out of sync with server: {r}"),
+            None => "out of sync with server".to_string(),
+        };
+        show_popup(message);
         if let Err(e) = key_value_storage_db_actions::set_should_i_drift_popup(false).await {
             leptos::logging::warn!("set_should_i_drift_popup(false): {e:?}");
         }

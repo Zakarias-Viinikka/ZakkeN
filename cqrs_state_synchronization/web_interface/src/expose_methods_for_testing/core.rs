@@ -17,5 +17,10 @@ macro_rules! expose_methods_main {
         $crate::method_connect_to_socket!();
         $crate::method_wipe_local_and_pull_from_server!();
         $crate::method_bump_local_drift_version_and_reload!();
+        $crate::method_reset_everything!();
+        $crate::method_insert_three_pages!();
+        $crate::method_wipe_server!();
+        $crate::method_read_titles!();
+        $crate::method_read_client_state!();
     };
 }

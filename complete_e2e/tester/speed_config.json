@@ -1,0 +1,6 @@
+{
+    "test_000_register_if_necessary": 0.3,
+    "test_001_web_app_connects_to_server": 0.3,
+    "test_002_read_db_while_server_running": 0.3,
+    "test_two_clients_after_wipe": 2.0
+}

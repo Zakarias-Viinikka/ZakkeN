@@ -4,6 +4,7 @@ use client_table_blueprints::{
 };
 use data_builder_for_operations_that_need_to_be_correct::{add_block, create_page};
 use error_stuff::CqrsErr;
+use leptos::prelude::Update;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     add_block_requires_three_db_actions, insert_page_requires_three_db_inserts,
     run_in_transaction,
@@ -94,7 +95,10 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
         }
         Ok(())
     })
-    .await
+    .await?;
+    crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters();
+    crate::owner_of_interacting_with_server::MENU_TICK.update(|n| *n = n.wrapping_add(1));
+    Ok(())
 }
 
 pub async fn delete_everything() -> Result<(), CqrsErr> {

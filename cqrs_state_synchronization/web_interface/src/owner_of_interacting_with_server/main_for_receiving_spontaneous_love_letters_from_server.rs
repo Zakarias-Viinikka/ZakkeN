@@ -98,14 +98,9 @@ async fn task_for_receiving_socket_messages(
                     continue;
                 }
                 main_send_unsent_love_letters();
-                if !START_OVER_FRESH_ATTEMPTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                    match start_over_fresh(&router, open).await {
-                        Ok(()) => STARTED_FRESH.set(true),
-                        Err(e) => {
-                            leptos::logging::error!("start_over_fresh failed: {e:?}");
-                            show_popup(format!("start_over_fresh failed: {e:?}"));
-                        }
-                    }
+                if let Err(e) = start_over_fresh_guard(&router, open).await {
+                    leptos::logging::error!("start_over_fresh failed: {e:?}");
+                    show_popup(format!("start_over_fresh failed: {e:?}"));
                 }
                 match pull_unsent(&router).await {
                     Ok(letters) => {
@@ -123,20 +118,35 @@ async fn task_for_receiving_socket_messages(
     leptos::logging::warn!("receive worker exiting: socket channel closed");
 }
 
+async fn start_over_fresh_guard(
+    router: &RouterHandle,
+    open: OpenPages,
+) -> Result<(), DbError> {
+    use std::sync::atomic::Ordering;
+
+    if START_OVER_FRESH_ATTEMPTED.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+    if !super::sync_may_run() {
+        // Gated: don't burn the flag, try again next reconnect.
+        return Ok(());
+    }
+    if local_db_has_pages().await? {
+        // Already have data on this page session; nothing to do.
+        START_OVER_FRESH_ATTEMPTED.store(true, Ordering::Relaxed);
+        return Ok(());
+    }
+
+    start_over_fresh(router, open).await?;
+    START_OVER_FRESH_ATTEMPTED.store(true, Ordering::Relaxed);
+    STARTED_FRESH.set(true);
+    Ok(())
+}
+
 async fn start_over_fresh(
     router: &RouterHandle,
     open: OpenPages,
 ) -> Result<(), DbError> {
-    if !super::sync_may_run() {
-        return Ok(());
-    }
-    if local_db_has_pages().await? {
-        return Err(DbError::IllegalInput(
-            "start_over_fresh refused: local db already has pages. Wipe locally, or use reconcile/adopt."
-                .to_string(),
-        ));
-    }
-
     let bytes = router
         .send_request(Request::GetAllYrsPages, Vec::new())
         .await
@@ -277,9 +287,8 @@ async fn handle_one(
                 leptos::logging::warn!("persist_seen {}: {e:?}", item.letter_id);
             }
             send_ack(router, item.letter_id).await;
-            if outcome.changed {
-                MENU_TICK.update(|n| *n = n.wrapping_add(1));
-            }
+            let _ = outcome.changed;
+            MENU_TICK.update(|n| *n = n.wrapping_add(1));
             if created_new_page {
                 if let Ok(more) = pull_unsent(router).await {
                     for extra in more {

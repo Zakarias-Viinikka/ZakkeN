@@ -13,6 +13,12 @@ use crate::db::schema::tbl_drift_version;
 
 const DRIFT_VERSION_ID: &str = "drift_version_id";
 
+#[derive(Clone, Debug)]
+pub struct DriftVersion {
+    pub version: String,
+    pub reason: String,
+}
+
 pub fn create_table_if_not_exist(liver: &LiveForever) -> Result<(), DbError> {
     let list = liver.list_tables()?;
     if !list
@@ -29,7 +35,7 @@ pub fn create_table_if_not_exist(liver: &LiveForever) -> Result<(), DbError> {
 }
 
 /// Read the current (version, reason) pair, or None if none has been minted.
-pub fn get_current(liver: &LiveForever) -> Result<Option<(String, String)>, DbError> {
+pub fn get_current(liver: &LiveForever) -> Result<Option<DriftVersion>, DbError> {
     let Some(id_str) = operations_key_value::get_value(liver, DRIFT_VERSION_ID)? else {
         return Ok(None);
     };
@@ -60,12 +66,12 @@ pub fn get_current(liver: &LiveForever) -> Result<Option<(String, String)>, DbEr
         })?)
         .map_err(DbError::BadCode)?
         .ok_or_else(|| DbError::BadCode("drift_version reason was null".to_string()))?;
-    Ok(Some((version, reason)))
+    Ok(Some(DriftVersion { version, reason }))
 }
 
 /// Mint a new drift version row and point key_value_storage at it.
 /// Returns (version, reason). Old rows are kept as history.
-pub fn bump(liver: &LiveForever, reason: &str) -> Result<(String, String), DbError> {
+pub fn bump(liver: &LiveForever, reason: &str) -> Result<DriftVersion, DbError> {
     let version = new_server_drift_version();
     let row = vec![
         ColumnValue {
@@ -126,11 +132,14 @@ pub fn bump(liver: &LiveForever, reason: &str) -> Result<(String, String), DbErr
         values: kv_row,
     })?;
 
-    Ok((version, reason.to_string()))
+    Ok(DriftVersion {
+        version,
+        reason: reason.to_string(),
+    })
 }
 
 /// Mint at startup if no drift version exists yet. Returns the current one.
-pub fn ensure_minted(liver: &LiveForever) -> Result<(String, String), DbError> {
+pub fn ensure_minted(liver: &LiveForever) -> Result<DriftVersion, DbError> {
     if let Some(curr) = get_current(liver)? {
         return Ok(curr);
     }

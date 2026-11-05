@@ -51,8 +51,8 @@ pub fn setup_db() -> Option<Arc<Mutex<LiveForever>>> {
         );
     }
     match db_core::db::operations_drift_version::ensure_minted(&liver) {
-        Ok((version, _reason)) => {
-            log("server", format!("drift_version: {version}"));
+        Ok(dv) => {
+            log("server", format!("drift_version: {}", dv.version));
         }
         Err(e) => {
             log("server", format!("couldn't mint drift_version: {e:?}"));

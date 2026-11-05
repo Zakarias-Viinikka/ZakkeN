@@ -7,10 +7,10 @@ use server_protocol::LoginReply;
 pub fn wipe_dataset(_msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
     let result: Result<LoginReply, DbError> = (|| {
         operations_dataset::wipe_dataset_tables(state)?;
-        let (version, reason) = operations_drift_version::bump(state, "another client wiped")?;
+        let dv = operations_drift_version::bump(state, "another client wiped")?;
         Ok(LoginReply {
-            drift_version: version,
-            drift_reason: reason,
+            drift_version: dv.version,
+            drift_reason: dv.reason,
         })
     })();
     result.to_payload()

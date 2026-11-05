@@ -111,9 +111,8 @@ by each crate's build script; committed to the repo.
 Most of the earlier near-term list is built now. `add_block`,
 `edit_block`, `delete_block`, `move_block`, and
 `move_block_to_another_page` all have a builder, an executor, and a
-`ui_actions` entry point. `text_diff` is a dependency. The batcher is
-live in `complicated_signal_flow/core.rs`, owned by `main.rs` and put
-in context as `BatcherHandle`. Every write entry point flushes first.
+`ui_actions` entry point. `text_diff` is a dependency. Every write entry
+point flushes first.
 Page-inside-page and the special menu (z+space opens, esc or space
 again closes, down arrow selects) are designed but not started. The
 loading system - preload, then offline, then server - is described in
@@ -196,7 +195,7 @@ A workspace in four folders, shaped like rust_practice/server_template_3:
   shared/        error_stuff, server_protocol
   server_side/   db (package db_core), server_core, love_letter_parser,
                  queue
-  mock_client/   mock_client_core, cli_gui
+
   client_internals/ shared_internals_for_server
 
 db_core - schemas and db operations, nothing else. Schemas in
@@ -255,10 +254,6 @@ registered its channel at birth, so login attaches the name to the
 socket id and notifies that socket once. The rows stay until acked, so
 a dropped connection gets the letter again on reconnect and the client
 dedups by letter_id.
-
-mock_client/ is a workspace inside a workspace. mock_client_core owns
-the connection and the operations, no printing. cli_gui is the REPL.
-mock_client_core decodes every response as Result<T, DbError>.
 
 plan.md at ZakkeN/plan.md describes this server's current state.
 
@@ -588,33 +583,9 @@ two.
 local_cargo.sh is a per-directory wrapper around cargo. It sets
 RUSTFLAGS for mold and then forwards to cargo. Each package that needs
 a default binary puts one at its own root: zakken_server/local_cargo.sh
-runs zakken_server (and `c t` there runs `cargo test --workspace`),
-mock_client/local_cargo.sh runs cli_gui. A lookup walks up from the
-current directory, so a directory with no local_cargo.sh of its own
+runs zakken_server (and `c t` there runs `cargo test --workspace`).
+A lookup walks up from the current directory, so a directory with no local_cargo.sh of its own
 finds the nearest one above it.
-
-## E2E Android testing - 2026-10-17
-
-e2e_android_tests/ - an external Python/Appium UI test harness for the
-Android app. Not part of any Cargo workspace; not part of the Android
-build. Drives the already-installed app on a physical phone over adb,
-from the terminal on the PC. The phone is connected via wireless
-debugging; `ip.env` holds the current `PHONE_IP:PHONE_PORT`.
-
-Run with `~/ProgStuff/ZakkeN/e2e_android_tests/run-ui-tests.sh`. Rebuild
-the app first if app code changed (`android_app/build_and_install.sh`).
-Artifacts go to `e2e_android_tests/artifacts/<timestamp>/` - diagnostic
-detail for the human, not for the Android AI.
-
-App-side debug hooks (`android_app/app/src/debug/`):
-`TestTransactionReceiver` opens a DB transaction that spans the whole
-test run and rolls it back at teardown, so tests cannot leave user data
-modified. `TestNotificationReceiver` posts a silent "Tests done"
-notification on the phone. Actions and details in
-`android_app/docs/AI_READ_THIS.md`.
-
-The Android AI runs the suite itself, reads the terminal output, fixes
-what it reports. Never edits anything under `e2e_android_tests/`.
 
 ### Update - 2026-10-30 (structural refactor)
 
@@ -752,3 +723,19 @@ Not implemented: session-ready flag (a send can slip through between login
 return and the comparison), adopt bumping the version, the SendLoveLetter
 guard against stale senders, and the verbs that would let a gated client
 reconcile or adopt instead of wipe-and-reload.
+
+## E2E harness growth - 2026-11-05
+
+`complete_e2e/` grew a two-browser stage (`support/two_browser_stage.py`),
+a set of general helpers (`support/client_db.py`, `support/test_events.py`,
+`support/speed.py`), and the first cross-client test
+(`test_003_two_clients_after_wipe.py`, passing). See
+`complete_e2e/STORED_AI_CONTEXT.md` for the current shape.
+
+Rules for future test-writing live in
+`complete_e2e/how_to_write_tests.md`. Two rules matter most: don't pad
+waits just in case; expose a read method before inferring state.
+
+Orchestrator's web-app build check is now content-based (hash marker at
+`dist/.source_fingerprint`) instead of mtime-based. mtime was missing
+real changes and silently leaving stale wasm served to the tester.

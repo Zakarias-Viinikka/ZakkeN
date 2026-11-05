@@ -155,8 +155,13 @@ pub fn show_popup(message: impl Into<String>) {
     show_popup_as(PopupKind::Info, message);
 }
 
+pub fn show_error(message: impl Into<String>) {
+    show_popup_as(PopupKind::Error, message);
+}
+
 pub fn show_popup_as(kind: PopupKind, message: impl Into<String>) {
     let message: String = message.into();
+    log_popup_to_window(kind, &message);
     let mut coalesced = false;
     POPUPS.update(|v| {
         for p in v.iter_mut() {
@@ -468,4 +473,36 @@ fn render_modal(
             </div>
         </div>
     }.into_any()
+}
+
+fn log_popup_to_window(kind: PopupKind, message: &str) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let existing = js_sys::Reflect::get(&window, &wasm_bindgen::JsValue::from_str("__popup_log__"))
+        .ok();
+    let arr: js_sys::Array = match existing {
+        Some(v) if v.is_array() => v.unchecked_into(),
+        _ => {
+            let a = js_sys::Array::new();
+            let _ = js_sys::Reflect::set(
+                &window,
+                &wasm_bindgen::JsValue::from_str("__popup_log__"),
+                &a,
+            );
+            a
+        }
+    };
+    let entry = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(
+        &entry,
+        &wasm_bindgen::JsValue::from_str("kind"),
+        &wasm_bindgen::JsValue::from_str(kind.class()),
+    );
+    let _ = js_sys::Reflect::set(
+        &entry,
+        &wasm_bindgen::JsValue::from_str("message"),
+        &wasm_bindgen::JsValue::from_str(message),
+    );
+    arr.push(&entry);
 }

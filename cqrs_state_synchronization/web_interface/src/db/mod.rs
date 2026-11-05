@@ -9,3 +9,4 @@ pub mod ui_ops;
 pub mod write_lock;
 pub mod writes;
 pub mod yrs_errors;
+pub mod test_ops_for_db;

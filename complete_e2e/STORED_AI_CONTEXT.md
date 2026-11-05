@@ -100,3 +100,102 @@ Two browsers, not a mock client. Drop zakken_server/mock_client/ from the plan e
 - `/home/zakke/ProgStuff/ZakkeN/todo.md` — "cqrs and server audit findings" section.
 - `/home/zakke/ProgStuff/ZakkeN/e2e_webapp_server_mock.md` — larger plan for a production e2e harness.
 - `/home/zakke/ProgStuff/rust_practice/e2e_template_for_web_with_server/` — the template. Its `GOTCHAS.md` lists the cost-time issues.
+
+## Update - 2026-11-05
+
+Two browser fixture, drift gating, and the first cross-client test are in.
+Everything below works. Test 003 passes end to end.
+
+### Two browser stage
+
+`support/two_browser_stage.py` — `TwoBrowserStage.launch(playwright, url)`.
+Takes the shared Playwright instance (never starts its own; the sync API
+forbids two). Launches two Chromium browsers (two OS windows, two OPFS,
+two user_ids). Paints a coloured corner label on each ("BRAVE" blue,
+"EDGE" red, top-right). Methods `make_brave_big`, `make_edge_big`,
+`share_screen_with_edge_and_brave` reposition via CDP
+(`Browser.setWindowBounds`). Test code uses `stage.brave` / `stage.edge`
+as ordinary Playwright Pages.
+
+Fixture in conftest: `two_browser_stage`. Registers both browsers via
+`bring_up_registered` (below). Does NOT close on teardown, so the human
+can inspect after the test.
+
+### New helpers
+
+`support/setup_page.py` — `bring_up_registered(page, port, name_prefix)`.
+Handles three entry states: `/custom_port_setting_page` (fresh), `/setup`
+(after reset_everything), `/Menu` (already registered). Waits for any
+in-flight reload before deciding which state it is.
+
+`support/client_db.py` — `read_titles(page)` (fires `read_titles` window
+event, polls `window.__read_titles__`), `read_client_state(page)` (fires
+`read_client_state` event, returns `{url, user_id, server_name,
+drift_version, port, page_count}`).
+
+`support/test_events.py` — `wipe_server`, `reset_everything`,
+`insert_three_pages`. Fire the matching window events.
+
+`support/popup.py` — `popup(page, msg)` (fires show_popup),
+`assert_no_error_popups(page)` (reads `window.__popup_log__`, fails if
+any entry has `kind == "error"`), `clear_popup_log(page)`.
+
+`support/db.py` — adds `wait_until_server_has_pages(count)`.
+
+`support/speed.py` + `speed_config.json` at `tester/` root — per-test
+speed multiplier. Wait calls (`pause`, `speed.sleep`, `speed.budget`)
+scale. Playwright timeout calls (`seconds()`) do NOT scale; timeouts are
+failure detection, not pacing. See `how_to_write_tests.md`.
+
+### New expose methods (web app)
+
+In `expose_methods_for_testing/`:
+- `wipe_server`
+- `reset_everything`
+- `insert_three_pages`
+- `read_titles` → `window.__read_titles__`
+- `read_client_state` → `window.__client_state__`
+
+All registered in `expose_methods_main!()`.
+
+`leptos_components/small_components/popup.rs` grew `show_error(msg)` and
+a `log_popup_to_window` that appends `{kind, message}` to
+`window.__popup_log__` on every popup. This is what
+`assert_no_error_popups` reads.
+
+### Bug fixes landing with test 003
+
+- `dev_actions::insert_three_pages` now bumps `MENU_TICK` (previously
+  went via reload to refresh the menu; the window-event path didn't).
+- `handle_one` in the receiving worker bumps `MENU_TICK` on every
+  successful apply (was gated on `outcome.changed`, which is false for
+  pages that aren't currently open).
+- `menu.rs` `For` key is `(db_id, title)` — was `db_id` alone, so a
+  title going from `""` to `"Grocery list"` didn't re-render.
+- `bring_up_registered` waits for the reload that `reset_everything`
+  triggers before checking which entry state it's in.
+
+### Orchestrator build check
+
+`main_for_building_the_web_app_build` is now content-based, not
+mtime-based. Hash of every tracked input lives in
+`dist/.source_fingerprint`. If the hash matches, skip trunk. If not,
+rebuild. mtime comparison was silently missing changes (atomic writes,
+or a second `trunk serve` touching dist).
+
+### How test 003 works
+
+`tests/test_003_two_clients/test_two_clients_after_wipe.py`:
+1. Brave wipes the server (both still on /Menu, both get kicked to
+   /setup on next reload).
+2. Brave resets, registers a new name. Edge resets, registers a new
+   name. Both bootstrap from the empty server dataset.
+3. Brave inserts three pages. Waits for the server to have 3.
+4. Edge should receive them. Asserts `read_titles(edge)` returns
+   `["Grocery list", "Work notes", "Ideas"]`.
+5. No error popups fired on either side.
+6. Clicks the "Grocery list" button on Edge, asserts the page opens
+   with 6 `textarea.ps-content` blocks.
+
+Popups are fired via `both(stage, msg)` at every numbered step
+(`0/7` … `7/7`) so a watching human can follow along.

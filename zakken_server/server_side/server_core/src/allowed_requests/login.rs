@@ -38,7 +38,7 @@ pub async fn log_in(
             Err(e) => return err_bytes(e),
         }
         match operations_drift_version::get_current(&locked) {
-            Ok(Some(pair)) => pair,
+            Ok(Some(dv)) => dv,
             Ok(None) => {
                 return err_bytes(DbError::BadCode(
                     "server has no drift_version row".to_string(),
@@ -65,9 +65,9 @@ pub async fn log_in(
         );
     }
 
-    let reply = LoginReply {
-        drift_version: drift.0,
-        drift_reason: drift.1,
-    };
+    let reply: Result<LoginReply, DbError> = Ok(LoginReply {
+        drift_version: drift.version,
+        drift_reason: drift.reason,
+    });
     reply.to_payload()
 }

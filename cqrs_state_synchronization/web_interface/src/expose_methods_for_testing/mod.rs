@@ -5,3 +5,8 @@ pub mod method_set_port;
 pub mod method_show_popup;
 pub mod method_wipe_local_and_pull_from_server;
 pub mod method_bump_local_drift_version_and_reload;
+pub mod method_reset_everything;
+pub mod method_insert_three_pages;
+pub mod method_wipe_server;
+pub mod method_read_titles;
+pub mod method_read_client_state;

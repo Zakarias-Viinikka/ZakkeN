@@ -29,7 +29,7 @@ pub fn Menu() -> impl IntoView {
         <div id="menu_container">
             <For
                 each=move || local_pages.get().into_iter().filter(|p| !p.is_disabled)
-                key=|list_item| list_item.db_id.clone()
+                key=|list_item| (list_item.db_id.clone(), list_item.title.clone())
                 let(list_item)
             >
                 <div class="select_page_to_go_to" style="display: flex; align-items: center; gap: 8px;">

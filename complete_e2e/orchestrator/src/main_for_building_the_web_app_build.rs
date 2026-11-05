@@ -1,12 +1,16 @@
-//! Runs `trunk build` in web_interface when the build is stale.
+//! Runs `trunk build` in web_interface when the sources have changed.
 //!
-//! Cargo is smart enough to skip the server build when nothing changed;
-//! trunk is not. It re-runs wasm-bindgen on every call even when no source
-//! changed, so we do the freshness check ourselves: `dist/index.html` must
-//! exist and be newer than every tracked input.
+//! Freshness is content-based, not mtime-based. mtime comparison was
+//! missing changes: coarse timestamps, atomic writes and a second
+//! `trunk serve` touching dist can all leave dist newer than a source
+//! that has actually changed.
+//!
+//! A marker file `web_interface/dist/.source_fingerprint` stores a hash
+//! of every tracked input after a successful trunk build. Next run
+//! recomputes the hash and compares. Different → rebuild. Same →
+//! skip. No marker → rebuild.
 
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 pub fn main_for_building_the_web_app_build() -> Result<(), String> {
     let web_app = web_interface_folder()?;
@@ -24,6 +28,7 @@ pub fn main_for_building_the_web_app_build() -> Result<(), String> {
     if !status.success() {
         return Err(format!("trunk build failed: {status}"));
     }
+    mark_build_fresh(&web_app)?;
     Ok(())
 }
 
@@ -36,24 +41,35 @@ pub fn web_interface_folder() -> Result<PathBuf, String> {
 }
 
 fn the_existing_build_is_still_fresh(web_app: &Path) -> Result<bool, String> {
-    let built_index = web_app.join("dist/index.html");
-    let Ok(built_at) = std::fs::metadata(&built_index).and_then(|m| m.modified()) else {
+    if !web_app.join("dist/index.html").exists() {
         return Ok(false);
-    };
+    }
+    let marker = web_app.join("dist/.source_fingerprint");
+    let stored = std::fs::read_to_string(&marker)
+        .ok()
+        .map(|s| s.trim().to_string());
+    let current = source_fingerprint(web_app)?;
+    Ok(stored.as_deref() == Some(current.as_str()))
+}
 
-    let mut newest_input: Option<SystemTime> = None;
-    for input in tracked_inputs(web_app) {
-        let Ok(modified) = std::fs::metadata(&input).and_then(|m| m.modified()) else {
-            continue;
-        };
-        if newest_input.map_or(true, |t| modified > t) {
-            newest_input = Some(modified);
+fn mark_build_fresh(web_app: &Path) -> Result<(), String> {
+    let marker = web_app.join("dist/.source_fingerprint");
+    let current = source_fingerprint(web_app)?;
+    std::fs::write(&marker, current).map_err(|e| format!("could not write marker: {e}"))
+}
+
+fn source_fingerprint(web_app: &Path) -> Result<String, String> {
+    let mut paths = tracked_inputs(web_app);
+    paths.sort();
+    let mut total: u64 = 0;
+    for path in paths {
+        if let Ok(bytes) = std::fs::read(&path) {
+            for &b in &bytes {
+                total = total.wrapping_mul(31).wrapping_add(b as u64);
+            }
         }
     }
-    Ok(match newest_input {
-        Some(t) => t <= built_at,
-        None => true,
-    })
+    Ok(format!("{:x}", total))
 }
 
 fn tracked_inputs(web_app: &Path) -> Vec<PathBuf> {
