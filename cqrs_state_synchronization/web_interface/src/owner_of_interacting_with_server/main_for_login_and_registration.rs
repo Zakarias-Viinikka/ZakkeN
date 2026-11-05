@@ -1,7 +1,7 @@
 use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
-use server_protocol::{LoginPayload, RegisterPayload, Request};
+use server_protocol::{LoginPayload, LoginReply, RegisterPayload, Request};
 use shared_internals::RouterHandle;
 
 use crate::db::{cached_ids, key_value_storage_db_actions};
@@ -20,7 +20,10 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
 
     if let Some(saved) = read_saved_name().await? {
         match try_login(router, &saved).await? {
-            LoginOutcome::Ok => return Ok(()),
+            LoginOutcome::Ok(reply) => {
+                compare_drift_and_maybe_enter_lonewolf(&reply).await;
+                return Ok(());
+            }
             LoginOutcome::NoSuchUser => {
                 leptos::logging::warn!(
                     "saved server name {saved:?} doesn't exist on server; clearing and re-registering"
@@ -38,7 +41,10 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
         RegisterOutcome::Ok => {
             save_name(&setup_name).await?;
             match try_login(router, &setup_name).await? {
-                LoginOutcome::Ok => Ok(()),
+                LoginOutcome::Ok(reply) => {
+                    compare_drift_and_maybe_enter_lonewolf(&reply).await;
+                    Ok(())
+                }
                 other => Err(format!("login after register failed: {other:?}")),
             }
         }
@@ -59,7 +65,7 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
 
 #[derive(Debug)]
 enum LoginOutcome {
-    Ok,
+    Ok(LoginReply),
     NoSuchUser,
     Other(String),
 }
@@ -72,10 +78,10 @@ async fn try_login(router: &RouterHandle, name: &str) -> Result<LoginOutcome, St
         .send_request(Request::Login, payload.to_payload())
         .await
         .map_err(|e| format!("login request: {e:?}"))?;
-    let result: Result<(), DbError> = Convert::un_payloadify(&bytes)
+    let result: Result<LoginReply, DbError> = Convert::un_payloadify(&bytes)
         .map_err(|e| format!("decode login reply: {e:?}"))?;
     match result {
-        Ok(()) => Ok(LoginOutcome::Ok),
+        Ok(reply) => Ok(LoginOutcome::Ok(reply)),
         Err(DbError::IllegalInput(msg)) if msg.contains("no such user") => {
             Ok(LoginOutcome::NoSuchUser)
         }
@@ -106,6 +112,40 @@ async fn try_register(router: &RouterHandle, name: &str) -> Result<RegisterOutco
             Ok(RegisterOutcome::AlreadyRegistered)
         }
         Err(e) => Ok(RegisterOutcome::Other(format!("register failed: {e:?}"))),
+    }
+}
+
+async fn compare_drift_and_maybe_enter_lonewolf(reply: &LoginReply) {
+    let stored = match key_value_storage_db_actions::get_client_drift_version().await {
+        Ok(v) => v,
+        Err(e) => {
+            leptos::logging::warn!("get_client_drift_version: {e:?}");
+            return;
+        }
+    };
+
+    match stored {
+        None => {
+            if let Err(e) = key_value_storage_db_actions::set_client_drift_version(
+                &reply.drift_version,
+            )
+            .await
+            {
+                leptos::logging::warn!("set_client_drift_version: {e:?}");
+            }
+            let _ = key_value_storage_db_actions::set_should_i_drift_popup(true).await;
+        }
+        Some(v) if v == reply.drift_version => {
+            let _ = key_value_storage_db_actions::set_should_i_drift_popup(true).await;
+        }
+        Some(_) => {
+            let reason = if reply.drift_reason.is_empty() {
+                None
+            } else {
+                Some(reply.drift_reason.clone())
+            };
+            super::enter_lonewolf(reason);
+        }
     }
 }
 

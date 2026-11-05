@@ -9,17 +9,15 @@ use wasm_bindgen::prelude::*;
 use crate::db::cached_ids;
 use crate::page_state::OpenPages;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConnState {
-    Offline,
-    Connecting,
-    FailedToConnect,
-    Connected,
-    TwoTabs,
-}
+pub use drift_guard_client::connection_status::ConnectionStatus as ConnState;
 
 pub static CONN_STATE: LazyLock<ArcRwSignal<ConnState>> =
     LazyLock::new(|| ArcRwSignal::new(ConnState::Offline));
+
+/// True only when sync is allowed to run. Reads the status, nothing else.
+pub fn sync_may_run() -> bool {
+    CONN_STATE.get_untracked() == ConnState::Connected
+}
 
 static LINK_STARTED: AtomicBool = AtomicBool::new(false);
 

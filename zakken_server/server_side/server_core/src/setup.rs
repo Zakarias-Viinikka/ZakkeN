@@ -44,6 +44,20 @@ pub fn setup_db() -> Option<Arc<Mutex<LiveForever>>> {
             format!("failed to create key_value_storage: {e:?}"),
         );
     }
+    if let Err(e) = db_core::db::operations_drift_version::create_table_if_not_exist(&liver) {
+        log(
+            "server",
+            format!("failed to create drift_version: {e:?}"),
+        );
+    }
+    match db_core::db::operations_drift_version::ensure_minted(&liver) {
+        Ok((version, _reason)) => {
+            log("server", format!("drift_version: {version}"));
+        }
+        Err(e) => {
+            log("server", format!("couldn't mint drift_version: {e:?}"));
+        }
+    }
 
     // Bump the session id before anything else runs, so every log row
     // written this run carries it.

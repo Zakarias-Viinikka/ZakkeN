@@ -15,5 +15,7 @@ macro_rules! expose_methods_main {
         $crate::method_show_popup!();
         $crate::method_set_port!();
         $crate::method_connect_to_socket!();
+        $crate::method_wipe_local_and_pull_from_server!();
+        $crate::method_bump_local_drift_version_and_reload!();
     };
 }

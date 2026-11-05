@@ -6,8 +6,7 @@ members = [
     "server_side/love_letter_parser",
     "server_side/queue",
     "shared/server_protocol",
-    "mock_client/mock_client_core",
-    "mock_client/cli_gui",
+
     "client_internals/shared_internals",
 ]
 

@@ -63,6 +63,10 @@ async fn run_sender(router: RouterHandle, mut rx: UnboundedReceiver<()>) {
                 popped_this_streak = false;
             }
 
+            if !crate::owner_of_interacting_with_server::sync_may_run() {
+                break;
+            }
+
             match send_one(&router, &row).await {
                 SendResult::Ok => {
                     delete_row(row.id).await;

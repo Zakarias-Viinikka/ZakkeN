@@ -11,3 +11,5 @@ pub use request::{AckPayload, LoginPayload, RegisterPayload, Request, SendLoveLe
 pub use responses::{
     GetAllYrsPagesPayload, GetMyUnsentLettersPayload, PageRow, UnsentLetter,
 };
+pub mod login_reply;
+pub use login_reply::LoginReply;

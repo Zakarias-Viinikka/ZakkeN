@@ -17,6 +17,7 @@ use crate::page_state::OpenPages;
 
 pub enum ApplyError {
     UnknownPage(String),
+    Gated,
     Fatal(CqrsErr),
 }
 
@@ -41,6 +42,9 @@ pub async fn apply_letter(
     open: OpenPages,
     letter: LoveLetter,
 ) -> Result<ApplyOutcome, ApplyError> {
+    if !crate::owner_of_interacting_with_server::sync_may_run() {
+        return Err(ApplyError::Gated);
+    }
     match letter {
         LoveLetter::CreateNewPage {
             page_id,
@@ -101,7 +105,10 @@ async fn apply_blob(
 
     let pid_for_plan = page_id.clone();
     let pid_for_refresh = page_id.clone();
-    let changed = batcher_handle::run_exclusive(move || async move {
+    let changed_opt = batcher_handle::run_exclusive(move || async move {
+        if !crate::owner_of_interacting_with_server::sync_may_run() {
+            return Ok(None);
+        }
         let plan = build_merge_blob(
             pid_for_plan,
             snapshot_of_edit,
@@ -111,10 +118,13 @@ async fn apply_blob(
         )?;
         let final_out = plan.final_blocks.clone();
         apply_merge_plan(plan).await?;
-        Ok(refresh_open_page_if_matches(open, &pid_for_refresh, final_out))
+        Ok(Some(refresh_open_page_if_matches(open, &pid_for_refresh, final_out)))
     })
     .await?;
 
+    let Some(changed) = changed_opt else {
+        return Err(ApplyError::Gated);
+    };
     Ok(ApplyOutcome { page_id, changed })
 }
 
@@ -128,7 +138,10 @@ async fn apply_new_page(
     let time = crate::get_time();
 
     let pid_for_plan = page_id.clone();
-    let final_blocks = batcher_handle::run_exclusive(move || async move {
+    let final_blocks_opt = batcher_handle::run_exclusive(move || async move {
+        if !crate::owner_of_interacting_with_server::sync_may_run() {
+            return Ok(None);
+        }
         let plan = build_merge_new_page(
             pid_for_plan,
             is_main_menu_page,
@@ -138,10 +151,13 @@ async fn apply_new_page(
         )?;
         let final_out = plan.final_blocks.clone();
         apply_merge_plan(plan).await?;
-        Ok(final_out)
+        Ok(Some(final_out))
     })
     .await?;
 
+    let Some(final_blocks) = final_blocks_opt else {
+        return Err(ApplyError::Gated);
+    };
     let _ = refresh_open_page_if_matches(open, &page_id, final_blocks);
     Ok(ApplyOutcome {
         page_id,
@@ -162,11 +178,18 @@ async fn apply_disable(
     let status = reads_pages::get_active_pages_blob(page_id.clone()).await?;
 
     let pid_for_plan = page_id.clone();
-    batcher_handle::run_exclusive(move || async move {
+    let result = batcher_handle::run_exclusive(move || async move {
+        if !crate::owner_of_interacting_with_server::sync_may_run() {
+            return Ok(None);
+        }
         let plan = build_merge_disable(pid_for_plan, snapshot_of_edit, status)?;
-        apply_merge_plan(plan).await
+        apply_merge_plan(plan).await?;
+        Ok(Some(()))
     })
     .await?;
+    if result.is_none() {
+        return Err(ApplyError::Gated);
+    }
 
     if open.page1.page_id.get_untracked() == page_id {
         crate::leptos_components::small_components::popup::show_popup(

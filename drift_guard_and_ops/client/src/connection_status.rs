@@ -6,6 +6,8 @@ pub enum ConnectionStatus {
     /// failing to connect in general. But it's also the state for when the client
     /// tries to log in with x username and it fails for whatever reason.
     FailedToConnect,
+    /// Currently no support for the same browser having two tabs connected to server at once, would be complicated to fix
+    TwoTabs,
     Connected,
     LoneWolfAndOffline,
     /// Means connected to the server, but sync is disabled for whatever reason.

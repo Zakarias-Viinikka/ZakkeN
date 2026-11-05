@@ -71,3 +71,42 @@ pub async fn set_user_id(name: String) -> Result<(), CqrsErr> {
     cached_ids::USER_ID.set(Some(name));
     Ok(())
 }
+
+const DRIFT_VERSION_KEY: &str = "drift_version";
+const SHOULD_I_DRIFT_POPUP_KEY: &str = "should_i_drift_popup";
+
+pub async fn get_client_drift_version() -> Result<Option<String>, CqrsErr> {
+    read_key_value_from_db(DRIFT_VERSION_KEY).await
+}
+
+pub async fn set_client_drift_version(version: &str) -> Result<(), CqrsErr> {
+    write_key_value_to_db(DRIFT_VERSION_KEY, version).await
+}
+
+pub async fn get_should_i_drift_popup() -> Result<bool, CqrsErr> {
+    match read_key_value_from_db(SHOULD_I_DRIFT_POPUP_KEY).await? {
+        Some(s) => Ok(s != "false"),
+        None => Ok(true),
+    }
+}
+
+pub async fn set_should_i_drift_popup(should_popup: bool) -> Result<(), CqrsErr> {
+    let value = if should_popup { "true" } else { "false" };
+    write_key_value_to_db(SHOULD_I_DRIFT_POPUP_KEY, value).await
+}
+
+pub async fn delete_key_from_db(key: &str) -> Result<(), CqrsErr> {
+    db_helper::delete_row_where(DeleteRowWhereIn {
+        table_name: tbl_key_value_storage::TABLE_NAME.to_string(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_key_value_storage::KEY.name.to_string(),
+            y: key.to_string(),
+        }),
+    })
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_client_drift_version() -> Result<(), CqrsErr> {
+    delete_key_from_db(DRIFT_VERSION_KEY).await
+}

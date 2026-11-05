@@ -712,3 +712,43 @@ template's `NeedsReconcile` is renamed `LoneWolfAndOffline`. The port
 plan (`combining_connecting_template_with_cqrs_and_server.md`) is the
 current target; its step 8 (dataset generation) is a design discussion,
 not a settled design.
+
+## Drift version + gating - 2026-11-05
+
+Implemented on both sides.
+
+Server: a `drift_version` table (id, version, reason). `key_value_storage`
+holds which row is current under the key `drift_version_id`. Minted at
+startup if absent (`server-<unix_micros>`). Wipe mints a new one with
+reason "another client wiped". Login reply changed from `Ok(())` to
+`LoginReply { drift_version, drift_reason }`; wipe reply carries the same.
+Adopt does not bump yet.
+
+Client: two keys in `key_value_storage` — `drift_version` and
+`should_i_drift_popup`. On login, the client compares its stored version
+against the server's. Mismatch calls `enter_lonewolf(reason)`, which flips
+`CONN_STATE` to `Lonewolf` (or `LoneWolfAndOffline` if socket down) and
+shows a popup once per mismatch. `sync_may_run()` is the single gate
+predicate: `CONN_STATE.get_untracked() == ConnState::Connected`. Wired into
+four sites: `main_send_unsent_love_letters`, the sender loop, `handle_one`,
+and the apply closures. The only way out is `wipe_local_and_pull_from_server`
+(a test method): deletes local pages/letters/seen and the stored
+drift_version, then reloads. On reload the `None` branch of the comparison
+writes the server's version.
+
+`ConnectionStatus` in the drift crate now includes `TwoTabs`, `Lonewolf`,
+`LoneWolfAndOffline`. The web app's `ConnState` is a `pub use` of it.
+
+`BatcherHandle` moved to `shared_owners/batcher_handle.rs`, now a `OnceLock`
+static with free functions (`init`, `push_edit`, `push_add_block`,
+`flush_now`, `run_exclusive`). No caller passes a batcher around anymore.
+`db/batcher/handle.rs` and `db/batcher/exclusive.rs` are gone;
+`db/batcher/types.rs` holds `PendingWrite` and `BatcherMsg`. The connection
+effect was extracted from `App` into `connection_refresh_guard(open_pages)`.
+`start_link` was renamed `connect_to_socket_on_startup`. `mock_client` was
+deleted from `zakken_server`.
+
+Not implemented: session-ready flag (a send can slip through between login
+return and the comparison), adopt bumping the version, the SendLoveLetter
+guard against stale senders, and the verbs that would let a gated client
+reconcile or adopt instead of wipe-and-reload.

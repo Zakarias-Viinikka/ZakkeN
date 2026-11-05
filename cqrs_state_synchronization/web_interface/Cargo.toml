@@ -30,6 +30,7 @@ stylist = "0.15.1"
 futures-channel = "0.3"
 futures-util = "0.3"
 error_stuff = { path = "../error_stuff" }
+drift_guard_client.path = "/home/zakke/ProgStuff/ZakkeN/drift_guard_and_ops/client"
 text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"
 rapier2d = "0.35.3"
 

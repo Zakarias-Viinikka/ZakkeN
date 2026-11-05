@@ -122,3 +122,43 @@ The connecting gate starts closed on a fresh tab, because nothing has stored a p
 ## Wipe
 
 The wipe button is live and verified. Pressing it from the dev panel sends `WipeDataset` to the server; the server deletes every row from all six tables (pages, love letters from clients, unsent letters, registered users, logs, key_value_storage); a sqlite query after the click confirmed all six at zero. Because users are wiped too, the next client login fails with "no such user", clears the saved name, and re-registers. That's the expected flow for "start over completely", not a bug.
+
+## Sync mode (replaced 2026-11-05)
+
+The plan's sync mode — a separate persisted mode with a reason enum — is
+dropped. It doesn't fit the ConnectionStatus model.
+
+What replaces it: a single drift version number.
+
+- The server stores a drift version, and a reason string when the
+  version was bumped by a server-side action (wipe, adopt).
+- The client stores its own drift version in key_value_storage.
+- On login the client sends its version. Mismatch either way puts the
+  client in Lonewolf.
+- Import bumps the client's version locally. Wipe and adopt bump the
+  server's. Same check catches both.
+- No reason is stored on the client. When the client is the cause
+  (import), a popup fires at the moment of the action — the user already
+  knows why.
+- After a reload with a mismatch, the popup says "out of sync with
+  server", plus the server's reason if there is one.
+
+Popup-once flag in key_value_storage: true when a connection completes
+without being in Lonewolf, false when the mismatch popup is shown. If
+false, don't re-show.
+
+## Dataset generation (settled 2026-11-05)
+
+The drift version is the plan's dataset generation. Server side: a
+decimal string (unix microseconds) minted at startup if absent, re-minted
+by wipe and adopt. Login reply carries it plus the optional reason.
+Wipe and adopt replies carry it too. The session-ready flag from the
+plan is kept as-is.
+
+## What got built (2026-11-05)
+
+The drift version landed on both sides. Server: table, mint at startup, bump on wipe, login and wipe replies carry version + reason. Client: stored version + popup-once flag, login comparison, `enter_lonewolf`, `sync_may_run()` wired into four gate sites. The web app's `ConnState` is now a `pub use` of the drift crate's `ConnectionStatus`, which grew `TwoTabs`, `Lonewolf`, `LoneWolfAndOffline`.
+
+The batcher handle refactor also landed: `OnceLock` static in `shared_owners/batcher_handle.rs`, free functions instead of method calls on a handle passed through props.
+
+Not built: adopt bumping the version, the SendLoveLetter guard, the session-ready flag, and every verb that would let a gated client reconcile or adopt. The only exit from lonewolf is a test-only wipe-and-reload.

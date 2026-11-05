@@ -127,6 +127,9 @@ async fn start_over_fresh(
     router: &RouterHandle,
     open: OpenPages,
 ) -> Result<(), DbError> {
+    if !super::sync_may_run() {
+        return Ok(());
+    }
     if local_db_has_pages().await? {
         return Err(DbError::IllegalInput(
             "start_over_fresh refused: local db already has pages. Wipe locally, or use reconcile/adopt."
@@ -219,6 +222,7 @@ fn apply_error_to_db_error(e: ApplyError) -> DbError {
         ApplyError::UnknownPage(p) => {
             DbError::IllegalInput(format!("start_over_fresh: unknown page {p}"))
         }
+        ApplyError::Gated => DbError::BadCode("start_over_fresh: gated".to_string()),
         ApplyError::Fatal(c) => DbError::BadCode(format!("start_over_fresh apply: {c:?}")),
     }
 }
@@ -248,6 +252,9 @@ async fn handle_one(
     router: &RouterHandle,
     item: UnsentLetter,
 ) -> bool {
+    if !super::sync_may_run() {
+        return true;
+    }
     if SEEN_IDS.lock().unwrap().contains(&item.letter_id) {
         send_ack(router, item.letter_id).await;
         return true;
@@ -289,6 +296,10 @@ async fn handle_one(
                 "letter {} targets unknown page {pid}; leaving unacked",
                 item.letter_id
             );
+            SEEN_IDS.lock().unwrap().remove(&item.letter_id);
+            true
+        }
+        Err(ApplyError::Gated) => {
             SEEN_IDS.lock().unwrap().remove(&item.letter_id);
             true
         }

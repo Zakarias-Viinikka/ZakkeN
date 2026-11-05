@@ -129,3 +129,24 @@ async fn wipe_tables(tables: &[&str]) -> Result<(), CqrsErr> {
     }
     Ok(())
 }
+
+pub async fn wipe_local_and_pull_from_server() -> Result<(), CqrsErr> {
+    let _guard = WRITE_LOCK.acquire().await;
+    wipe_tables(&[
+        tbl_pages::TABLE_NAME,
+        tbl_every_block_in_existence::TABLE_NAME,
+        tbl_client_love_letter::TABLE_NAME,
+        tbl_seen_server_letters::TABLE_NAME,
+    ])
+    .await?;
+    crate::db::key_value_storage_db_actions::delete_client_drift_version().await?;
+    Ok(())
+}
+
+pub async fn bump_local_drift_version_for_testing() -> Result<(), CqrsErr> {
+    let _guard = WRITE_LOCK.acquire().await;
+    let now = js_sys::Date::now();
+    let fake = format!("local-test-{}", now as u64);
+    crate::db::key_value_storage_db_actions::set_client_drift_version(&fake).await?;
+    Ok(())
+}

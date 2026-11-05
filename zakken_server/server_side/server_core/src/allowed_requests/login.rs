@@ -1,11 +1,11 @@
 use crate::logging::log_error;
 use crate::telephone::Telephone;
-use db_core::db::user_registration;
+use db_core::db::{operations_drift_version, user_registration};
 use db_wrapper::android_mascot::LiveForever;
 use error_stuff::{ErrorDetails, LogCategory};
 use protocol::error::DbError;
-use protocol::serialization::{Convert, ok_serialized};
-use server_protocol::LoginPayload;
+use protocol::serialization::Convert;
+use server_protocol::{LoginPayload, LoginReply};
 use std::sync::{Arc, Mutex};
 
 use super::core::err_bytes;
@@ -25,27 +25,33 @@ pub async fn log_in(
         }
     };
 
-    let exists = {
+    let drift = {
         let locked = state.lock().unwrap();
         match user_registration::user_exists(&locked, &payload.user_name) {
-            Ok(b) => b,
+            Ok(false) => {
+                return err_bytes(DbError::IllegalInput(format!(
+                    "no such user: '{}'",
+                    payload.user_name
+                )));
+            }
+            Ok(true) => {}
+            Err(e) => return err_bytes(e),
+        }
+        match operations_drift_version::get_current(&locked) {
+            Ok(Some(pair)) => pair,
+            Ok(None) => {
+                return err_bytes(DbError::BadCode(
+                    "server has no drift_version row".to_string(),
+                ));
+            }
             Err(e) => return err_bytes(e),
         }
     };
-
-    if !exists {
-        return err_bytes(DbError::IllegalInput(format!(
-            "no such user: '{}'",
-            payload.user_name
-        )));
-    }
 
     telephone
         .attach_name(socket_id, payload.user_name.clone())
         .await;
 
-    // Tell this socket to pull its backlog. The socket does the pull
-    // through the queue; the reply to the login itself is just Ok.
     if let Err(e) = telephone.notify_socket(socket_id).await {
         log_error(
             &payload.user_name,
@@ -59,5 +65,9 @@ pub async fn log_in(
         );
     }
 
-    ok_serialized()
+    let reply = LoginReply {
+        drift_version: drift.0,
+        drift_reason: drift.1,
+    };
+    reply.to_payload()
 }

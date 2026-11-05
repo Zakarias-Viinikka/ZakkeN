@@ -14,6 +14,8 @@ pub fn ConnectionIndicator() -> impl IntoView {
             ConnState::Connected if pending > 0 => "#aa8800",
             ConnState::Connected => "#227722",
             ConnState::TwoTabs => "#444",
+            ConnState::Lonewolf => "#aa8800",
+            ConnState::LoneWolfAndOffline => "#444",
         }
     };
     let label = move || {
@@ -26,6 +28,8 @@ pub fn ConnectionIndicator() -> impl IntoView {
             ConnState::Connected if pending > 0 => format!("Syncing ({pending})"),
             ConnState::Connected => "Connected".to_string(),
             ConnState::TwoTabs => "Another tab is connected".to_string(),
+            ConnState::Lonewolf => "Sync stopped".to_string(),
+            ConnState::LoneWolfAndOffline => "Offline, sync stopped".to_string(),
         }
     };
     view! {
