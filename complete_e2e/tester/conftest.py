@@ -121,15 +121,17 @@ def two_browser_stage(web_app_url, playwright_instance, request):
     # Popups are fired AFTER each page has settled (navigation wipes toasts,
     # so firing before a navigate is wasted). Numbered so the sequence is
     # obvious when several stack.
+    from support import speed
+
     bring_up_registered(stage.brave, port, "e2e_brave")
-    popup(stage.brave, "1/2: brave ready - registering edge")
-    popup(stage.edge, "1/2: brave ready - registering edge")
-    _t.sleep(1.5)
+    popup(stage.brave, "Step 1 of 2: Brave is signed in, now signing in Edge")
+    popup(stage.edge, "Step 1 of 2: Brave is signed in, now signing in Edge")
+    speed.sleep(1.0)
 
     bring_up_registered(stage.edge, port, "e2e_edge")
-    popup(stage.brave, "2/2: both ready - starting test")
-    popup(stage.edge, "2/2: both ready - starting test")
-    _t.sleep(1.5)
+    popup(stage.brave, "Step 2 of 2: Edge is signed in too, both browsers ready")
+    popup(stage.edge, "Step 2 of 2: Edge is signed in too, both browsers ready")
+    speed.sleep(1.0)
 
     yield stage
     # deliberately not closing: leave both browsers open for inspection

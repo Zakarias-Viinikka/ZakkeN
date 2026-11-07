@@ -161,3 +161,5 @@ needs, so worth designing both together when either lands.
 - If I wipe server, then reset the web app. The server shouldn't give error "registered name already taken".
 - If I have an empty web app, and another client pushes changes. It shouldn't give a "start over fresh" error.
 - Planned e2e tests are in `complete_e2e/tests_to_write.md`.
+- Update `connecting_to_server_template` to match the current vision. It should get rid of `ConnState` (or whatever the connection-status enum was called there).
+- Update the py tester in `rust_practice/`. Probably move `py_lab` there too.

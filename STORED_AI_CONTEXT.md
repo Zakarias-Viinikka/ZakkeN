@@ -739,3 +739,7 @@ waits just in case; expose a read method before inferring state.
 Orchestrator's web-app build check is now content-based (hash marker at
 `dist/.source_fingerprint`) instead of mtime-based. mtime was missing
 real changes and silently leaving stale wasm served to the tester.
+
+## E2E audit-bug tests - 2026-11-07
+
+`complete_e2e` now has tests aimed at the audit list. Two fail on purpose: typing over a selection loses the typed text (audit #1), and an edit after Swedish letters panics yrs and kills the page (audit #3). A third, remote title edit shows in another client's menu (audit #6), passes. A menu crash caused by a disposed signal in `menu.rs` was fixed along the way. Details, helpers, and the narration and speed conventions are in `complete_e2e/STORED_AI_CONTEXT.md`.

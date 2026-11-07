@@ -25,7 +25,7 @@ def test_register_if_necessary(web_app, pause):
     expect(web_app).to_have_url(re.compile(r"/Menu$"))
 
     from support import speed
-    deadline = time.time() + speed.budget(1)
+    deadline = time.time() + 3
     while time.time() < deadline:
         rows = db.query("SELECT * FROM registered_users")
         if any(name in [str(v) for v in row] for row in rows):
@@ -33,4 +33,4 @@ def test_register_if_necessary(web_app, pause):
             pause(2)
             return
         time.sleep(0.1)
-    raise AssertionError(f"{name} not in server's registered_users after 1s")
+    raise AssertionError(f"{name} not in server's registered_users after 3s")

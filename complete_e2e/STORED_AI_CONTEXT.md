@@ -199,3 +199,38 @@ or a second `trunk serve` touching dist).
 
 Popups are fired via `both(stage, msg)` at every numbered step
 (`0/7` … `7/7`) so a watching human can follow along.
+
+## Update - 2026-11-07
+
+Audit-bug tests written, plus helpers, narration and speed changes.
+
+### Tests and what they showed
+
+- `tests/test_004_text_sync.py` has two tests. Both use the two-browser stage, even though only Brave edits, because the stage fixture closes the shared `page`.
+  - Select `il` in "Milk", type `X`, reload, expect `MXk`. FAILS: the block comes back as `Mk`. Confirms audit #1 (`get_diff` loses text on a length-changing selection replace).
+  - Type `åäö` at the end of "Milk", wait for sync, type `X` after it, reload, expect `MilkåäöX`. FAILS: the page dies with a yrs panic ("attempt to subtract with overflow", yrs-0.27.4 block.rs:1613) and the X never reaches the server. Confirms audit #3 (chars vs bytes vs UTF-16). Worse than lost text: the wasm instance is killed.
+- `tests/test_005_remote_title_edit.py`: Edge stays on /Menu, Brave appends " v2" to the title block of "Grocery list", Edge's menu must show it without a reload. PASSES. Audit #6 is fixed. It is a regression test now.
+- The two 004 tests are expected to keep failing until audit #1 and #3 are fixed. They are the bugs, not harness problems.
+- Renaming from the menu isn't testable: the pen button has no click handler yet, so tests rename by typing in the title block of the open page.
+
+### New helpers (tester/support)
+
+- `fresh_world.py`: `fresh_world_with_three_pages(stage)` wipes the server, resets and re-registers both browsers, has Brave insert the three seed pages, waits for Edge to receive them, waits for the letter count to settle, then clears both popup logs. Also server-side waits that watch the db instead of sleeping: `count_letters`, `wait_for_new_letter(before, page, timeout_secs)` (table is `love_letters_from_clients`), `wait_until_letters_settle`, `wait_until_titles`, `count_users`, `wait_until_users_drop_below`.
+- `blocks.py`: find blocks by text, never by position (`block_values`, `block_with_value`, `wait_for_value_in_blocks`), plus `open_page_from_menu`, `reload_and_wait_for_blocks`, `select_range`, `caret_to_end`. `watch_js_errors(page)` collects page errors and wasm panics for stage pages (the shared `page` fixture does this only for itself). `report_js_errors_on_failure` prefixes a plain sentence ("The app crashed (...)") to any failure when errors were seen.
+- `narrate.py`: `say`, `say_both` (popup, then hold scaled by speed), `announce_result(stage)` (wrap the whole test; puts TEST PASSED or TEST FAILED: reason on both screens so a failure is never silent), `app_said(page)` (popups the app itself showed, appended to failure messages).
+- Narration messages must start with a digit, "Setup", "Step" or "TEST". `app_said` uses that to tell them apart from app popups. Keep it when adding new narration.
+- Popup text is plain language, no technical terms. The human asked for this. Test 003 still has its old popups and does not use `announce_result`.
+- Stage tests call `stage.close()` as their last line, so browsers close on a pass and stay open on a failure for inspection.
+
+### Speed
+
+- `speed_config.json`: 000/001/002 at 0.1, 003 at 0.5, 004/005 at 1.5. The two-browser fixture's sleeps now go through `speed.sleep`. `test_000`'s db-poll deadline is a fixed 3 s: timeouts must not scale with pacing.
+
+### App fix that landed with these tests
+
+- `menu.rs` `create_local_pages` panicked when the Menu unmounted while a menu read was in flight (a disposed signal read after the async await). Now uses `try_get_untracked` and `try_set`. A disposed signal there means nobody is waiting for the result, so this isn't hiding errors. Other `spawn_local` tasks that touch component signals after an await may have the same issue; the JS-error check should flag them.
+
+### Not done
+
+- Drift-gating tests #10 and #11 were skipped: the web app doesn't use the lonewolf state yet. The deferred ones (4 to 8) still wait on reconcile.
+- Next candidates: audit #2 (`Delete` combine), drag-then-edit snap-back (needs mouse-drag helpers), the rejected-letter queue block.

@@ -62,8 +62,8 @@ fn create_local_pages() -> (ReadSignal<Vec<LocalPages>>, WriteSignal<Vec<LocalPa
         spawn_local(async move {
             match get_all_menu_pages().await {
                 Ok(pages) => {
-                    if latest.get_untracked() == my_token {
-                        local_pages_set.set(pages);
+                    if latest.try_get_untracked() == Some(my_token) {
+                        let _ = local_pages_set.try_set(pages);
                     }
                 }
                 Err(e) => {
