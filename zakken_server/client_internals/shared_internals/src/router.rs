@@ -43,7 +43,7 @@ struct Shared {
 pub struct Router {
     shared: Arc<Shared>,
     incoming_responses_rx: UnboundedReceiver<Response>,
-    on_love_letters: Box<dyn FnMut(UnsentLetter)>,
+    on_love_letters: Box<dyn FnMut(UnsentLetter, String)>,
 }
 
 impl Router {
@@ -56,7 +56,7 @@ impl Router {
     #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     pub fn new<L, S>(url: String, on_love_letters: L, on_conn_status: S) -> RouterHandle
     where
-        L: FnMut(UnsentLetter) + 'static,
+        L: FnMut(UnsentLetter, String) + 'static,
         S: FnMut(ConnStatus) + 'static,
     {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
@@ -122,8 +122,17 @@ impl Router {
                         let _ = tx.send(payload.0);
                     }
                 }
-                Response::LoveLetterFromServer(letter) => {
-                    (self.on_love_letters)(letter);
+                Response::LoveLetterFromServer {
+                    letter,
+                    drift_version,
+                } => {
+                    (self.on_love_letters)(letter, drift_version);
+                }
+                Response::TheDriftVersionChanged {
+                    drift_version: _,
+                    drift_reason: _,
+                } => {
+                    todo!("router doesn't hand TheDriftVersionChanged to the app yet")
                 }
             }
         }
@@ -215,7 +224,7 @@ mod tests {
         UnboundedReceiver<Message>,
     )
     where
-        L: FnMut(UnsentLetter) + 'static,
+        L: FnMut(UnsentLetter, String) + 'static,
     {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
         let (incoming_tx, incoming_rx) = unbounded::<Response>();
@@ -235,7 +244,7 @@ mod tests {
 
     #[test]
     fn a_reply_goes_to_the_caller_that_asked() {
-        let (handle, dispatch, incoming_tx, mut outgoing_rx) = make(|_| {});
+        let (handle, dispatch, incoming_tx, mut outgoing_rx) = make(|_, _| {});
 
         block_on(async move {
             let call = handle.send_request(Request::Ack, Vec::new());
@@ -259,7 +268,7 @@ mod tests {
     fn a_love_letter_from_server_goes_to_the_callback() {
         let received: Arc<Mutex<Vec<UnsentLetter>>> = Arc::new(Mutex::new(Vec::new()));
         let received_clone = Arc::clone(&received);
-        let on_letters = move |letter: UnsentLetter| {
+        let on_letters = move |letter: UnsentLetter, _drift_version: String| {
             received_clone.lock().unwrap().push(letter);
         };
 
@@ -272,7 +281,10 @@ mod tests {
         block_on(async move {
             let run = dispatch.run();
             incoming_tx
-                .unbounded_send(Response::LoveLetterFromServer(letter))
+                .unbounded_send(Response::LoveLetterFromServer {
+                    letter,
+                    drift_version: "test".to_string(),
+                })
                 .expect("feed a push");
             drop(incoming_tx);
             run.await;

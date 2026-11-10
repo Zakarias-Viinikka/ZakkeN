@@ -163,3 +163,29 @@ needs, so worth designing both together when either lands.
 - Planned e2e tests are in `complete_e2e/tests_to_write.md`.
 - Update `connecting_to_server_template` to match the current vision. It should get rid of `ConnState` (or whatever the connection-status enum was called there).
 - Update the py tester in `rust_practice/`. Probably move `py_lab` there too.
+
+## adopt racing with concurrent edits
+
+Adopt replaces the server's dataset with the caller's. Other clients
+may be sending edits at the same moment. The queue is serialized, so
+that's not the problem — the problem is that a queued edit can be
+acked and then wiped by an adopt that runs after it.
+
+Concrete case: client A sends an edit, the server accepts it and
+acks it, A deletes its local pending row. Then client B adopts.
+Adopt wipes every table and installs B's data. A's edit is gone from
+the server, but A thinks it's synced. A reconnects, sees the drift
+version changed, goes to lonewolf. The only lonewolf exit today is
+wipe_local_and_pull_from_server, which throws away A's local data,
+so A's edit is lost.
+
+The other ordering is fine. If the adopt runs first, A's letter hits
+the drift check and is refused with DriftVersionMismatch, so it never
+gets acked. A keeps the edit in its queue.
+
+The fix is A's side, not the server's. Once reconcile exists, A
+reconnects and reconciles its pages against the new dataset, keeping
+the edit. Until then, the first ordering is data loss.
+
+Not urgent until adopt is built. Written down so the adopt plan
+accounts for it.

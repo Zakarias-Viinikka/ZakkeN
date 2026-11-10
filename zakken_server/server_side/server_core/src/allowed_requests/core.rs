@@ -1,5 +1,5 @@
 use crate::telephone::Telephone;
-use db_core::db::{operations_drift_version, operations_love_letters, operations_pages};
+use db_core::db::{db_actions_for_drift, operations_love_letters, operations_pages};
 use error_stuff::{ErrorDetails, ServErr};
 use queue::WhereTheRequestCameFrom;
 use db_wrapper::android_mascot::LiveForever;
@@ -57,7 +57,7 @@ fn refuse_if_the_client_is_on_a_stale_drift_version(
     };
     let current = {
         let db_wrapper = state.lock().unwrap();
-        match operations_drift_version::get_current(&db_wrapper) {
+        match db_actions_for_drift::get_current(&db_wrapper) {
             Ok(Some(dv)) => dv.version,
             Ok(None) => {
                 return Some(ServErr::ServerError(ErrorDetails {
@@ -121,8 +121,7 @@ pub async fn do_request(
             send_love_letter::accept_letter(msg_content, state, telephone, sender).await
         }
         Request::WipeDataset => {
-            let db_wrapper = state.lock().unwrap();
-            wipe_dataset::wipe_dataset(msg_content, &db_wrapper)
+            wipe_dataset::wipe_dataset(msg_content, state, telephone, socket_id).await
         }
         Request::GetCurrentDrift => {
             let locked = state.lock().unwrap();

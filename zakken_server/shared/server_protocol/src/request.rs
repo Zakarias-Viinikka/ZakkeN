@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::drift_solution::DriftSolution;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Register,
@@ -36,4 +38,9 @@ pub struct SendLoveLetterPayload {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct AckPayload {
     pub letter_id: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct WipeDatasetPayload {
+    pub drift_solution: Option<DriftSolution>,
 }

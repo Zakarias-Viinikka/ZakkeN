@@ -7,6 +7,7 @@ use protocol::payload::{
 };
 use protocol::row_col::Col;
 use protocol::schema_helper::DestructDbReturnCol;
+use server_protocol::DriftSolution;
 
 use crate::db::operations_key_value;
 use crate::db::schema::tbl_drift_version;
@@ -17,6 +18,7 @@ const DRIFT_VERSION_ID: &str = "drift_version_id";
 pub struct DriftVersion {
     pub version: String,
     pub reason: String,
+    pub drift_solution: Option<DriftSolution>,
 }
 
 pub fn create_table_if_not_exist(liver: &LiveForever) -> Result<(), DbError> {
@@ -48,6 +50,7 @@ pub fn get_current(liver: &LiveForever) -> Result<Option<DriftVersion>, DbError>
         columns_to_read: vec![
             tbl_drift_version::VERSION.name.to_string(),
             tbl_drift_version::REASON.name.to_string(),
+            tbl_drift_version::DRIFT_SOLUTION.name.to_string(),
         ],
     })?;
     let Some(row) = out.rows.into_iter().next() else {
@@ -66,14 +69,28 @@ pub fn get_current(liver: &LiveForever) -> Result<Option<DriftVersion>, DbError>
         })?)
         .map_err(DbError::BadCode)?
         .ok_or_else(|| DbError::BadCode("drift_version reason was null".to_string()))?;
-    Ok(Some(DriftVersion { version, reason }))
+    let drift_solution = tbl_drift_version::DRIFT_SOLUTION
+        .try_destruct_db_col(cols.next().ok_or_else(|| {
+            DbError::BadCode("drift_version row missing drift_solution col".to_string())
+        })?)
+        .map_err(DbError::BadCode)?
+        .and_then(|s| serde_json::from_str::<DriftSolution>(&s).ok());
+    Ok(Some(DriftVersion {
+        version,
+        reason,
+        drift_solution,
+    }))
 }
 
 /// Mint a new drift version row and point key_value_storage at it.
-/// Returns (version, reason). Old rows are kept as history.
-pub fn bump(liver: &LiveForever, reason: &str) -> Result<DriftVersion, DbError> {
+/// Old rows are kept as history.
+pub fn enter_new_drift_version(
+    liver: &LiveForever,
+    reason: &str,
+    drift_solution: Option<DriftSolution>,
+) -> Result<DriftVersion, DbError> {
     let version = new_server_drift_version();
-    let row = vec![
+    let mut row = vec![
         ColumnValue {
             column_name: tbl_drift_version::VERSION.name.to_string(),
             value: Col::Text(version.clone()),
@@ -83,6 +100,14 @@ pub fn bump(liver: &LiveForever, reason: &str) -> Result<DriftVersion, DbError> 
             value: Col::Text(reason.to_string()),
         },
     ];
+    if let Some(solution) = &drift_solution {
+        let encoded = serde_json::to_string(solution)
+            .map_err(|e| DbError::BadCode(format!("drift_solution encode: {e}")))?;
+        row.push(ColumnValue {
+            column_name: tbl_drift_version::DRIFT_SOLUTION.name.to_string(),
+            value: Col::Text(encoded),
+        });
+    }
     liver.insert_data(InsertDataIn {
         table_name: tbl_drift_version::TABLE_NAME.to_string(),
         values: row,
@@ -135,6 +160,7 @@ pub fn bump(liver: &LiveForever, reason: &str) -> Result<DriftVersion, DbError> 
     Ok(DriftVersion {
         version,
         reason: reason.to_string(),
+        drift_solution,
     })
 }
 
@@ -143,7 +169,7 @@ pub fn ensure_minted(liver: &LiveForever) -> Result<DriftVersion, DbError> {
     if let Some(curr) = get_current(liver)? {
         return Ok(curr);
     }
-    bump(liver, "")
+    enter_new_drift_version(liver, "", None)
 }
 
 fn new_server_drift_version() -> String {

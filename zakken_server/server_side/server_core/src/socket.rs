@@ -1,13 +1,13 @@
 use crate::logging::{log, log_error, request_name};
 use crate::reply::{craft_response, send_message};
-use crate::telephone::Telephone;
+use crate::telephone::{Telephone, TelephoneCommand};
 use axum::extract::ws::{Message, WebSocket};
 use error_stuff::{ErrorDetails, LogCategory, ServErr};
-use protocol::error::DbError;
+
 use protocol::serialization::Convert;
 use queue::{Priority, QueueManager, WhereTheRequestCameFrom};
 use server_protocol::{
-    GetMyUnsentLettersPayload, Request, Response, UnsentLetter, json_str_to_message,
+    GetMyUnsentLettersPayload, LoginReply, Request, Response, json_str_to_message,
     response_to_json_str,
 };
 use std::net::SocketAddr;
@@ -29,9 +29,10 @@ struct SocketState {
     /// Who this socket is, for log lines. The address until login renames it.
     label: String,
     /// Created at birth, handed to the telephone at birth. Never moves.
-    /// The telephone writes `()` here; on receipt, the socket pulls its
-    /// unsent letters and pushes each one to the client.
-    notify: UnboundedReceiver<()>,
+    /// The telephone writes a `TelephoneCommand` here; on receipt, the
+    /// socket acts on it (pull, or send a drift-changed message and
+    /// close).
+    notify: UnboundedReceiver<TelephoneCommand>,
 }
 
 impl SocketState {
@@ -39,7 +40,7 @@ impl SocketState {
         socket: WebSocket,
         socket_id: u64,
         addr: SocketAddr,
-        notify: UnboundedReceiver<()>,
+        notify: UnboundedReceiver<TelephoneCommand>,
     ) -> Self {
         SocketState {
             socket,
@@ -87,13 +88,20 @@ impl SocketState {
                 }
 
                 notified = self.notify.recv() => {
-                    if notified.is_none() {
-                        // The telephone's task ended; no more notifications
-                        // will come. Stop this socket too.
-                        break;
-                    }
-                    if !self.pull_and_push(queue).await {
-                        break;
+                    let Some(command) = notified else {
+                        panic!("the telephone's task ended while sockets are still connected");
+                    };
+                    match command {
+                        TelephoneCommand::GoPullYourUnsentLetters => {
+                            if !self.pull_and_push(queue).await {
+                                break;
+                            }
+                        }
+                        TelephoneCommand::TellTheClientTheDriftVersionChangedThenClose => {
+                            self.tell_the_client_the_drift_version_changed_then_close(queue)
+                                .await;
+                            break;
+                        }
                     }
                 }
             }
@@ -102,20 +110,21 @@ impl SocketState {
         log(&self.label, "disconnected");
     }
 
-    /// The socket was told "go pull". Submit GetMyUnsentLetters through
-    /// the queue for this socket's user, then send each letter back to
-    /// the client as its own `LoveLetterFromServer` message, so each one
-    /// can be applied and acked on its own.
-    ///
-    /// Returns true if the socket is still usable. A failed pull (queue
-    /// closed, decode error) is logged and treated as "try again next
-    /// time"; the letters are still rowed server-side.
-    async fn pull_and_push(&mut self, queue: &QueueManager) -> bool {
-        // message_id 0 for the internal pull: nothing on the client side
+    /// Submit a request to the queue on the socket's own behalf (not for
+    /// a client), await the reply, and hand back the raw bytes. Logs on
+    /// either failure. `log_prefix` shows up in the log lines so callers
+    /// are tellable apart.
+    async fn make_request_from_the_socket_directly_and_await_reply(
+        &mut self,
+        request: Request,
+        queue: &QueueManager,
+        log_prefix: &str,
+    ) -> Option<Vec<u8>> {
+        // message_id 0 for internal requests: nothing on the client side
         // matches it, and it never reaches the client.
         let reply_rx = match queue.submit(
             0,
-            Request::GetMyUnsentLetters,
+            request,
             Vec::new(),
             self.socket_id,
             WhereTheRequestCameFrom::FromTheServer,
@@ -127,31 +136,54 @@ impl SocketState {
                     &self.label,
                     LogCategory::Queue,
                     &ErrorDetails {
-                        err_msg: format!("pull: couldn't queue: {e}"),
+                        err_msg: format!("{log_prefix}: couldn't queue: {e}"),
                         file: file!().to_string(),
-                        method: "SocketState::pull_and_push".to_string(),
+                        method: "SocketState::make_request_from_the_socket_directly_and_await_reply"
+                            .to_string(),
                         probable_cause: "the queue executor isn't running".to_string(),
                     },
                 );
-                return true;
+                return None;
             }
         };
 
-        let bytes = match reply_rx.await {
-            Ok(b) => b,
+        match reply_rx.await {
+            Ok(bytes) => Some(bytes),
             Err(_) => {
                 log_error(
                     &self.label,
                     LogCategory::Queue,
                     &ErrorDetails {
-                        err_msg: "pull: queue dropped the reply".to_string(),
+                        err_msg: format!("{log_prefix}: queue dropped the reply"),
                         file: file!().to_string(),
-                        method: "SocketState::pull_and_push".to_string(),
+                        method: "SocketState::make_request_from_the_socket_directly_and_await_reply"
+                            .to_string(),
                         probable_cause: "the executor task ended".to_string(),
                     },
                 );
-                return true;
+                None
             }
+        }
+    }
+
+    /// The socket was told "go pull". Submit GetMyUnsentLetters through
+    /// the queue for this socket's user, then send each letter back to
+    /// the client as its own `LoveLetterFromServer` message, so each one
+    /// can be applied and acked on its own.
+    ///
+    /// Returns true if the socket is still usable. A failed pull (queue
+    /// closed, decode error) is logged and treated as "try again next
+    /// time"; the letters are still rowed server-side.
+    async fn pull_and_push(&mut self, queue: &QueueManager) -> bool {
+        let Some(bytes) = self
+            .make_request_from_the_socket_directly_and_await_reply(
+                Request::GetMyUnsentLetters,
+                queue,
+                "pull",
+            )
+            .await
+        else {
+            return true;
         };
 
         let outer: Result<GetMyUnsentLettersPayload, ServErr> =
@@ -190,11 +222,79 @@ impl SocketState {
         };
 
         for letter in payload.letters {
-            if !self.send_love_letters(letter).await {
+            let response = Response::LoveLetterFromServer {
+                letter,
+                drift_version: payload.drift_version.clone(),
+            };
+            if !self.send_response_to_client(response, "push").await {
                 return false;
             }
         }
         true
+    }
+
+    /// The telephone told this socket its drift version is stale. Ask
+    /// the executor what the current one is, send the client a message
+    /// saying so, and return. The caller breaks the loop, which closes
+    /// the websocket.
+    async fn tell_the_client_the_drift_version_changed_then_close(
+        &mut self,
+        queue: &QueueManager,
+    ) {
+        let Some(bytes) = self
+            .make_request_from_the_socket_directly_and_await_reply(
+                Request::GetCurrentDrift,
+                queue,
+                "drift-changed",
+            )
+            .await
+        else {
+            return;
+        };
+
+        let outer: Result<LoginReply, ServErr> = match Convert::un_payloadify(&bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::LetterDelivery,
+                    &ErrorDetails {
+                        err_msg: format!("drift-changed: couldn't decode payload: {e:?}"),
+                        file: file!().to_string(),
+                        method:
+                            "SocketState::tell_the_client_the_drift_version_changed_then_close"
+                                .to_string(),
+                        probable_cause: String::new(),
+                    },
+                );
+                return;
+            }
+        };
+
+        let reply = match outer {
+            Ok(r) => r,
+            Err(e) => {
+                log_error(
+                    &self.label,
+                    LogCategory::LetterDelivery,
+                    &ErrorDetails {
+                        err_msg: format!("drift-changed: server returned error: {e:?}"),
+                        file: file!().to_string(),
+                        method:
+                            "SocketState::tell_the_client_the_drift_version_changed_then_close"
+                                .to_string(),
+                        probable_cause: String::new(),
+                    },
+                );
+                return;
+            }
+        };
+
+        let response = Response::TheDriftVersionChanged {
+            drift_version: reply.drift_version,
+            drift_reason: reply.drift_reason,
+        };
+        let _ = self.send_response_to_client(response, "drift-changed").await;
     }
 
     async fn next_request(socket: &mut WebSocket) -> NextRequest {
@@ -298,8 +398,12 @@ impl SocketState {
         }
     }
 
-    async fn send_love_letters(&mut self, letter: UnsentLetter) -> bool {
-        let response = Response::LoveLetterFromServer(letter);
+    /// Serialize one response and send it to the client. Logs on either
+    /// failure. `log_prefix` shows up in every log line so "push" and
+    /// "drift-changed" are tellable apart. Returns false only if the
+    /// socket send itself failed; a serialize failure isn't a reason to
+    /// drop the connection.
+    async fn send_response_to_client(&mut self, response: Response, log_prefix: &str) -> bool {
         let json = match response_to_json_str(&response) {
             Ok(j) => j,
             Err(e) => {
@@ -307,9 +411,9 @@ impl SocketState {
                     &self.label,
                     LogCategory::LetterDelivery,
                     &ErrorDetails {
-                        err_msg: format!("push: serialize failed: {e}"),
+                        err_msg: format!("{log_prefix}: serialize failed: {e}"),
                         file: file!().to_string(),
-                        method: "SocketState::send_love_letters".to_string(),
+                        method: "SocketState::send_response_to_client".to_string(),
                         probable_cause: String::new(),
                     },
                 );
@@ -324,9 +428,9 @@ impl SocketState {
                     &self.label,
                     LogCategory::LetterDelivery,
                     &ErrorDetails {
-                        err_msg: format!("push: send failed: {e}"),
+                        err_msg: format!("{log_prefix}: send failed: {e}"),
                         file: file!().to_string(),
-                        method: "SocketState::send_love_letters".to_string(),
+                        method: "SocketState::send_response_to_client".to_string(),
                         probable_cause: "the client's socket closed".to_string(),
                     },
                 );

@@ -1,6 +1,6 @@
 use crate::logging::log_error;
 use crate::telephone::Telephone;
-use db_core::db::{operations_drift_version, user_registration};
+use db_core::db::{db_actions_for_drift, user_registration};
 use db_wrapper::android_mascot::LiveForever;
 use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use protocol::error::DbError;
@@ -37,7 +37,7 @@ pub async fn log_in(
             Ok(true) => {}
             Err(e) => return err_bytes(ServErr::DbErrorContainer(e)),
         }
-        match operations_drift_version::get_current(&locked) {
+        match db_actions_for_drift::get_current(&locked) {
             Ok(Some(dv)) => dv,
             Ok(None) => {
                 return err_bytes(ServErr::ServerError(ErrorDetails {
@@ -71,6 +71,7 @@ pub async fn log_in(
     let reply: Result<LoginReply, DbError> = Ok(LoginReply {
         drift_version: drift.version,
         drift_reason: drift.reason,
+        drift_solution: drift.drift_solution,
     });
     reply.to_payload()
 }

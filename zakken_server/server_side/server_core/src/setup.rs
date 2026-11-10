@@ -44,13 +44,13 @@ pub fn setup_db() -> Option<Arc<Mutex<LiveForever>>> {
             format!("failed to create key_value_storage: {e:?}"),
         );
     }
-    if let Err(e) = db_core::db::operations_drift_version::create_table_if_not_exist(&liver) {
+    if let Err(e) = db_core::db::db_actions_for_drift::create_table_if_not_exist(&liver) {
         log(
             "server",
             format!("failed to create drift_version: {e:?}"),
         );
     }
-    match db_core::db::operations_drift_version::ensure_minted(&liver) {
+    match db_core::db::db_actions_for_drift::ensure_minted(&liver) {
         Ok(dv) => {
             log("server", format!("drift_version: {}", dv.version));
         }

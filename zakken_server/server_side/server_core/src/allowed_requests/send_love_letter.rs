@@ -6,7 +6,7 @@ use db_wrapper::android_mascot::LiveForever;
 use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use love_letter::deserialize_love_letter;
 use love_letter_parser::get_target_page_id_from_letter;
-use protocol::error::DbError;
+
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::SendLoveLetterPayload;
 use std::sync::{Arc, Mutex};

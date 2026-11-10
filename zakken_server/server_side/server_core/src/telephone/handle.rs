@@ -36,7 +36,7 @@ impl Telephone {
     /// Register a socket at birth. The sender is stored under the socket
     /// id; the socket already holds the receiver and starts listening
     /// right away.
-    pub fn register_socket(&self, socket_id: u64, sender: mpsc::UnboundedSender<()>) {
+    pub fn register_socket(&self, socket_id: u64, sender: mpsc::UnboundedSender<super::telephone_command::TelephoneCommand>) {
         let _ = self
             .alert_telephone_manager_to_nudge_tx
             .send(Command::RegisterSocket { socket_id, sender });
@@ -123,6 +123,25 @@ impl Telephone {
         })
     }
 
+    /// Tell every logged-in socket except the one whose id is given
+    /// that the drift version changed. Each will ask the executor for
+    /// the new version, tell its client, and close. Returns how many
+    /// were told.
+    pub async fn notify_drift(&self, dont_notify_socket_with_id: Option<u64>) -> usize {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .alert_telephone_manager_to_nudge_tx
+            .send(Command::NotifyDrift {
+                dont_notify_socket_with_id,
+                reply: reply_tx,
+            })
+            .is_err()
+        {
+            return 0;
+        }
+        reply_rx.await.unwrap_or(0)
+    }
+
     pub async fn is_connected(&self, user_name: String) -> bool {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -163,9 +182,14 @@ fn task_gone(method: &str) -> ServErr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::telephone::TelephoneCommand;
     use tokio::sync::mpsc::UnboundedReceiver;
 
-    async fn add(telephone: &Telephone, socket_id: u64, name: &str) -> UnboundedReceiver<()> {
+    async fn add(
+        telephone: &Telephone,
+        socket_id: u64,
+        name: &str,
+    ) -> UnboundedReceiver<crate::telephone::TelephoneCommand> {
         let (tx, rx) = mpsc::unbounded_channel();
         telephone.register_socket(socket_id, tx);
         telephone.attach_name(socket_id, name.to_string()).await;
@@ -187,8 +211,14 @@ mod tests {
         assert_eq!(reached, vec!["bob".to_string(), "carol".to_string()]);
         assert!(report.dropped.is_empty());
         assert_eq!(alice.try_recv().ok(), None);
-        assert_eq!(bob.try_recv().ok(), Some(()));
-        assert_eq!(carol.try_recv().ok(), Some(()));
+        assert_eq!(
+            bob.try_recv().ok(),
+            Some(TelephoneCommand::GoPullYourUnsentLetters)
+        );
+        assert_eq!(
+            carol.try_recv().ok(),
+            Some(TelephoneCommand::GoPullYourUnsentLetters)
+        );
     }
 
     #[tokio::test]

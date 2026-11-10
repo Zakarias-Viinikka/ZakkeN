@@ -21,8 +21,15 @@ pub enum Response {
         payload: Base64Bytes,
     },
     /// The server handing over one love letter. Carries no request id;
-    /// the client acks it individually.
-    LoveLetterFromServer(UnsentLetter),
+    /// the client acks it individually. Carries the drift version the
+    /// server is currently on: the client compares it against its own
+    /// stored version and throws the letter away on mismatch, since a
+    /// letter from a dataset the client isn't on is an edit to
+    /// different data.
+    LoveLetterFromServer {
+        letter: UnsentLetter,
+        drift_version: String,
+    },
     /// The server telling a connected client its dataset is no longer
     /// current. Sent once, right before the socket is closed. The
     /// client reconnects, logs in fresh, and reacts to the reason.

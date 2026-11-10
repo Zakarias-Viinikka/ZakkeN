@@ -117,22 +117,27 @@ GetMyUnsentLetters, WipeDataset, GetCurrentDrift. Ack carries an
 AckPayload { letter_id: i64 } - the client saying it has applied that
 letter, so the server can delete that user's unsent row.
 GetMyUnsentLetters carries no payload and returns a
-GetMyUnsentLettersPayload { letters: Vec<UnsentLetter> }, where each
-UnsentLetter is { letter_id: i64, love_letter: Vec<u8> }. WipeDataset
-carries no payload, wipes the dataset, mints a new drift version, and
-returns that version. GetCurrentDrift carries no payload and returns
-the current drift version + reason; it's exempt from the drift check
-because asking is how you find out you were stale.
+GetMyUnsentLettersPayload { letters: Vec<UnsentLetter>, drift_version:
+String }, where each UnsentLetter is { letter_id: i64, love_letter:
+Vec<u8> } and drift_version is the server's current one, stamped onto
+every push the socket makes from this pull. WipeDataset carries a
+WipeDatasetPayload { drift_solution: Option<DriftSolution> }, wipes the
+dataset, mints a new drift version carrying that solution, notifies
+every other connected socket to close after telling its client, and
+returns the new version. GetCurrentDrift carries no payload and returns
+the current drift version + reason + solution; it's exempt from the
+drift check because asking is how you find out you were stale.
 
 Response is its own enum now, not a reuse of Request. `Response::Reply {
 message_id, request, payload }` is a reply to a specific client request;
 `message_id` matches the request the client sent.
-`Response::LoveLetterFromServer(UnsentLetter)` is a server push: one
-letter, no request id, applied and acked by the client.
-`Response::TheDriftVersionChanged { drift_version, drift_reason }` is
-the message the server will use to tell a connected client its dataset
-was replaced. It exists on the wire but nothing sends it yet — the
-socket-side piece that reacts to a bump is not wired.
+`Response::LoveLetterFromServer { letter, drift_version }` is a server
+push: one letter plus the drift version the server is on, no request
+id, applied and acked by the client on a matching version, dropped
+otherwise. `Response::TheDriftVersionChanged { drift_version,
+drift_reason }` is the message the server sends a connected client just
+before closing its socket, because the dataset was replaced. The
+client reconnects and re-logs-in from there.
 
 Every response payload is a bincode-encoded Result<T, ServErr>. ServErr
 is error_stuff's own type, and wraps the db's DbError when the failure
@@ -204,13 +209,19 @@ id, a log label, and a notify receiver. Its loop selects on two things:
 the websocket and its notify channel. The channel is created at birth and
 handed to the telephone at birth, so the socket listens from the moment
 it exists - login changes nothing about the channel, it only gives the
-telephone a name to reach it by. A () arriving on the channel means the
-telephone wants this client to pull. The socket submits
+telephone a name to reach it by. A `TelephoneCommand` arriving on the
+channel tells the socket what the telephone wants. Two values:
+`GoPullYourUnsentLetters` means pull; the socket submits
 GetMyUnsentLetters through the queue for itself (message_id 0, which
 never reaches the client), then pushes each letter back to the client as
-its own `Response::LoveLetterFromServer(vec![letter])` message, one letter
-per message, so each is acked on its own. A client that misses a push
-still pulls on the next notify, because the unsent rows stay until acked.
+its own `Response::LoveLetterFromServer { letter, drift_version }`
+message, one letter per message, so each is acked on its own. A client
+that misses a push still pulls on the next notify, because the unsent
+rows stay until acked. `TellTheClientTheDriftVersionChangedThenClose`
+means the socket is stale: it submits GetCurrentDrift through the queue
+for itself, sends the client `Response::TheDriftVersionChanged {
+drift_version, drift_reason }`, and breaks out of its loop, which closes
+the websocket.
 
 After a Login reply comes back, the socket asks the telephone who it is
 (user_of(socket_id)) and uses that name as its log label. If the login
@@ -229,13 +240,14 @@ The per-socket channel carries a `TelephoneCommand` enum, not `()`:
 `GoPullYourUnsentLetters` means "you have something to pull", and
 `TellTheClientTheDriftVersionChangedThenClose` means "the drift version
 just changed and you're stale; ask the executor for the current one,
-tell the client, close". The second variant exists on the wire and in
-the enum but nothing sends it yet — Command::NotifyDrift is defined as
-a variant of the telephone's own command enum, but the task doesn't
-match on it and no method calls it. The telephone carries no letters;
-the letters stay in the db as unsent rows. Every method sends a Command
-to the task; the task is the only thing that touches the map, and it
-runs on tokio, draining one channel.
+tell the client, close". `notify_drift(Some(socket_id))` sends it to
+every logged-in socket except the one with that id; wipe calls it after
+minting a new drift version, so its own caller stays connected and
+everyone else is told and closed. Sockets whose channel is already gone
+are dropped from the map and logged, same as `notify_all`. The
+telephone carries no letters; the letters stay in the db as unsent rows.
+Every method sends a Command to the task; the task is the only thing
+that touches the map, and it runs on tokio, draining one channel.
 
 Telephone is Clone. register_socket and remove_socket are sync and
 fire-and-forget: a socket registers at birth and removes itself at
@@ -287,11 +299,17 @@ The client is expected to dedup by letter_id, because a duplicate is
 possible: the server nudged, the connection dropped before the ack, and
 on reconnect the row is still there and shows up in the next pull.
 
-The push wire format is `Response::LoveLetterFromServer(UnsentLetter)`,
-one message per letter. The pull wire format is a Message with request =
-GetMyUnsentLetters and no payload; the reply carries a bincode of
-Result<GetMyUnsentLettersPayload, ServErr>. The pull is what the socket
-uses internally on a notify; the client never sends it directly.
+The push wire format is `Response::LoveLetterFromServer { letter,
+drift_version }`, one message per letter, carrying the current drift
+version so the client can throw away a letter built on a dataset it
+isn't on. The drift-changed push is `Response::TheDriftVersionChanged {
+drift_version, drift_reason }`, sent just before the socket closes. The
+pull wire format is a Message with request = GetMyUnsentLetters and no
+payload; the reply carries a bincode of
+Result<GetMyUnsentLettersPayload, ServErr>, and the payload itself
+carries the current drift version alongside the letters. The pull is
+what the socket uses internally on a notify; the client never sends it
+directly.
 
 ## Gotchas - 2026-10-22
 

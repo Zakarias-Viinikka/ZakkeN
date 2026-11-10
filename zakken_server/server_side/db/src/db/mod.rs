@@ -6,4 +6,4 @@ pub mod operations_pages;
 pub mod schema;
 pub mod user_registration;
 pub mod operations_dataset;
-pub mod operations_drift_version;
+pub mod db_actions_for_drift;

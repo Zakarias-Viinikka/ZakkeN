@@ -23,4 +23,9 @@ pub struct UnsentLetter {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct GetMyUnsentLettersPayload {
     pub letters: Vec<UnsentLetter>,
+    /// The drift version the server is on right now. The socket stamps
+    /// this onto each LoveLetterFromServer it pushes to the client, so
+    /// a stale client can compare on receive and throw away anything
+    /// from a dataset it isn't on.
+    pub drift_version: String,
 }

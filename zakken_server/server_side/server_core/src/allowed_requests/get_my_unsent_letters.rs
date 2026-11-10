@@ -1,4 +1,5 @@
 use super::core::unsent_letters_for_user;
+use db_core::db::db_actions_for_drift;
 use db_wrapper::android_mascot::LiveForever;
 use error_stuff::ServErr;
 use protocol::serialization::Convert;
@@ -19,16 +20,32 @@ pub fn send_unsent_letters(
         return wrapped.to_payload();
     };
 
-    match unsent_letters_for_user(state, user_name) {
-        Ok(letters) => {
+    let letters = match unsent_letters_for_user(state, user_name) {
+        Ok(letters) => letters,
+        Err(e) => {
             let wrapped: Result<GetMyUnsentLettersPayload, ServErr> =
-                Ok(GetMyUnsentLettersPayload { letters });
-            wrapped.to_payload()
+                Err(ServErr::DbErrorContainer(e));
+            return wrapped.to_payload();
+        }
+    };
+
+    let drift_version = match db_actions_for_drift::get_current(state) {
+        Ok(Some(dv)) => dv.version,
+        Ok(None) => {
+            let wrapped: Result<GetMyUnsentLettersPayload, ServErr> =
+                Err(ServErr::BadCode("server has no drift_version row".to_string()));
+            return wrapped.to_payload();
         }
         Err(e) => {
             let wrapped: Result<GetMyUnsentLettersPayload, ServErr> =
                 Err(ServErr::DbErrorContainer(e));
-            wrapped.to_payload()
+            return wrapped.to_payload();
         }
-    }
+    };
+
+    let wrapped: Result<GetMyUnsentLettersPayload, ServErr> = Ok(GetMyUnsentLettersPayload {
+        letters,
+        drift_version,
+    });
+    wrapped.to_payload()
 }

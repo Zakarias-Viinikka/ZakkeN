@@ -457,6 +457,8 @@ dependencies = [
  "db_wrapper",
  "love_letter",
  "protocol",
+ "serde_json",
+ "server_protocol",
  "yrs 0.1.0",
 ]
 

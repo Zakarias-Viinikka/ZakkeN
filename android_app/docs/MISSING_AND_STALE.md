@@ -15,13 +15,15 @@ Today Android is local-only. Nothing syncs. The one function that exists to trig
 
 Nothing calls a server. The full list of what a working sync would need, in roughly the order it depends on itself:
 
-- A socket layer. Reference: `cqrs_state_synchronization/web_interface/src/owner_of_interacting_with_server/` and `zakken_server/client_internals/shared_internals_for_server/`.
+- A socket layer. Reference: `cqrs_state_synchronization/web_interface/src/owner_of_interacting_with_server/` and `zakken_server/client_internals/shared_internals/`.
 - Login/register handshake. Same reference.
 - A send loop that drains `client_love_letter` rows and posts them as love letters. Reference: web's `send_unsent_love_letters_to_server_if_there_are_any.rs`.
 - A receive loop that pulls unsent letters and applies them to the local docs. Reference: web's `main_for_receiving_spontaneous_love_letters_from_server.rs` and `main_for_applying_love_letter_from_server_to_app.rs`.
-- Sync mode (`Connected` / `NeedsReconcile`, with the seven reasons) and the gate every sync-touching path reads. Reference: web's `sync_mode.rs`, template's `shared_owners/client_status.rs`.
-- Dataset-generation check on login, and the lonewolf transition when it changes.
-- Reconcile and the other data-management verbs (pause, wipe server, adopt). Reference: web's `owner_of_sync_state_and_recovery/`, template's same.
+- Sync mode and the gate every sync-touching path reads. Reference: web's `sync_mode.rs`, template's `shared_owners/client_status.rs`.
+- Drift version handling. Every message sent to the server carries the client's current drift version, taken from a stored value that only the recovery verbs update. The server refuses any request whose version doesn't match the current one; register, login and GetCurrentDrift are exempt because they're how a client learns the version. Login's reply carries the current version, the reason it changed, and an optional solution picked by whoever caused the drift (wipe-and-adopt-server, reconcile, or absent meaning the user picks). On mismatch at login, the client transitions to lonewolf.
+- Every spontaneous love letter from the server carries the drift version the server is on. The client checks it against its own and throws the letter away on mismatch, so a letter built on old data never lands.
+- A server push saying the drift version changed, sent just before the server closes the socket. On receipt the client reconnects and re-logs-in, which is where it learns the new version.
+- Reconcile and the other data-management verbs (wipe server, adopt). Reference: web's `owner_of_sync_state_and_recovery/`, template's same.
 - A client-status derivation for the page title and any UI state that depends on connectivity.
 
 None of that exists. When the first piece lands, several below become "obviously follow from this", so start at the top.
