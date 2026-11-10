@@ -15,6 +15,7 @@ use futures_channel::mpsc::{unbounded, UnboundedReceiver};
 use futures_util::StreamExt;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use error_stuff::ServErr;
 use love_letter::{build_a_love_letter, deserialize_sketch, love_letter_to_bytes};
 use protocol::error::DbError;
 use protocol::payload::*;
@@ -144,21 +145,21 @@ async fn next_pending_row() -> Result<Option<PendingRow>, DbError> {
 enum SendResult {
     Ok,
     Transport,
-    ServerErr(DbError),
+    ServerErr(ServErr),
 }
 
 async fn send_one(router: &RouterHandle, row: &PendingRow) -> SendResult {
     let sketch = match deserialize_sketch(row.love_letter_sketch.clone()) {
         Ok(s) => s,
         Err(e) => {
-            return SendResult::ServerErr(DbError::BadCode(format!("deserialize sketch: {e}")));
+            return SendResult::ServerErr(ServErr::BadCode(format!("deserialize sketch: {e}")));
         }
     };
     let letter = build_a_love_letter(sketch, row.snapshot_of_edit.clone());
     let bytes = match love_letter_to_bytes(&letter) {
         Ok(b) => b,
         Err(e) => {
-            return SendResult::ServerErr(DbError::BadCode(format!("serialize letter: {e}")));
+            return SendResult::ServerErr(ServErr::BadCode(format!("serialize letter: {e}")));
         }
     };
 
@@ -171,10 +172,10 @@ async fn send_one(router: &RouterHandle, row: &PendingRow) -> SendResult {
         Ok(b) => b,
         Err(_) => return SendResult::Transport,
     };
-    let result: Result<(), DbError> = match Convert::un_payloadify(&reply_bytes) {
+    let result: Result<(), ServErr> = match Convert::un_payloadify(&reply_bytes) {
         Ok(r) => r,
         Err(e) => {
-            return SendResult::ServerErr(DbError::BadCode(format!("decode reply: {e:?}")));
+            return SendResult::ServerErr(ServErr::BadCode(format!("decode reply: {e:?}")));
         }
     };
     match result {

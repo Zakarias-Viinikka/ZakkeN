@@ -3,7 +3,7 @@ use crate::telephone::Telephone;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::{ErrorDetails, LogCategory};
+use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use love_letter::deserialize_love_letter;
 use love_letter_parser::get_target_page_id_from_letter;
 use protocol::error::DbError;
@@ -32,7 +32,7 @@ pub async fn accept_letter(
                     probable_cause: String::new(),
                 },
             );
-            return err_bytes(e);
+            return err_bytes(ServErr::DbErrorContainer(e));
         }
     };
 
@@ -49,7 +49,7 @@ pub async fn accept_letter(
                     probable_cause: String::new(),
                 },
             );
-            return err_bytes(DbError::BadCode(e.to_string()));
+            return err_bytes(ServErr::BadCode(e.to_string()));
         }
     };
 
@@ -73,7 +73,7 @@ pub async fn accept_letter(
                     probable_cause: "another transaction is already open".to_string(),
                 },
             );
-            return err_bytes(e);
+            return err_bytes(ServErr::DbErrorContainer(e));
         }
 
         if let Err(e) = apply_letter(&locked, letter) {
@@ -88,7 +88,7 @@ pub async fn accept_letter(
                 },
             );
             let _ = locked.regret_everything();
-            return err_bytes(e);
+            return err_bytes(ServErr::DbErrorContainer(e));
         }
         log("server", format!("updated its copy of page {target_page}"));
 
@@ -106,7 +106,7 @@ pub async fn accept_letter(
                     },
                 );
                 let _ = locked.regret_everything();
-                return err_bytes(e);
+                return err_bytes(ServErr::DbErrorContainer(e));
             }
         };
         log("server", format!("saved the letter ({id})"));
@@ -128,7 +128,7 @@ pub async fn accept_letter(
                     },
                 );
                 let _ = locked.regret_everything();
-                return err_bytes(e);
+                return err_bytes(ServErr::DbErrorContainer(e));
             }
         };
 
@@ -148,7 +148,7 @@ pub async fn accept_letter(
                     },
                 );
                 let _ = locked.regret_everything();
-                return err_bytes(e);
+                return err_bytes(ServErr::DbErrorContainer(e));
             }
         }
 
@@ -163,7 +163,7 @@ pub async fn accept_letter(
                     probable_cause: "sqlite rejected the commit".to_string(),
                 },
             );
-            return err_bytes(e);
+            return err_bytes(ServErr::DbErrorContainer(e));
         }
 
         id

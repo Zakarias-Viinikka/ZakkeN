@@ -2,7 +2,7 @@ use crate::logging::log_error;
 use crate::telephone::Telephone;
 use db_core::db::{operations_drift_version, user_registration};
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::{ErrorDetails, LogCategory};
+use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{LoginPayload, LoginReply};
@@ -19,7 +19,7 @@ pub async fn log_in(
     let payload = match LoginPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
         Err(e) => {
-            return err_bytes(DbError::BadCode(format!(
+            return err_bytes(ServErr::BadCode(format!(
                 "couldn't read login payload: {e:?}"
             )));
         }
@@ -29,22 +29,25 @@ pub async fn log_in(
         let locked = state.lock().unwrap();
         match user_registration::user_exists(&locked, &payload.user_name) {
             Ok(false) => {
-                return err_bytes(DbError::IllegalInput(format!(
+                return err_bytes(ServErr::DbErrorContainer(DbError::IllegalInput(format!(
                     "no such user: '{}'",
                     payload.user_name
-                )));
+                ))));
             }
             Ok(true) => {}
-            Err(e) => return err_bytes(e),
+            Err(e) => return err_bytes(ServErr::DbErrorContainer(e)),
         }
         match operations_drift_version::get_current(&locked) {
             Ok(Some(dv)) => dv,
             Ok(None) => {
-                return err_bytes(DbError::BadCode(
-                    "server has no drift_version row".to_string(),
-                ));
+                return err_bytes(ServErr::ServerError(ErrorDetails {
+                    err_msg: "server has no drift_version row".to_string(),
+                    file: file!().to_string(),
+                    method: "login::log_in".to_string(),
+                    probable_cause: "ensure_minted didn't run at startup".to_string(),
+                }));
             }
-            Err(e) => return err_bytes(e),
+            Err(e) => return err_bytes(ServErr::DbErrorContainer(e)),
         }
     };
 

@@ -1,6 +1,6 @@
 use db_core::db::operations_pages;
 use db_wrapper::android_mascot::LiveForever;
-use protocol::error::DbError;
+use error_stuff::ServErr;
 use protocol::serialization::Convert;
 use server_protocol::{GetAllYrsPagesPayload, PageRow};
 
@@ -8,7 +8,8 @@ pub fn send_all_pages(_msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
     let stored = match operations_pages::get_all_pages(state) {
         Ok(p) => p,
         Err(e) => {
-            let wrapped: Result<GetAllYrsPagesPayload, DbError> = Err(e);
+            let wrapped: Result<GetAllYrsPagesPayload, ServErr> =
+                Err(ServErr::DbErrorContainer(e));
             return wrapped.to_payload();
         }
     };
@@ -24,7 +25,7 @@ pub fn send_all_pages(_msg_content: Vec<u8>, state: &LiveForever) -> Vec<u8> {
         })
         .collect();
 
-    let wrapped: Result<GetAllYrsPagesPayload, DbError> =
+    let wrapped: Result<GetAllYrsPagesPayload, ServErr> =
         Ok(GetAllYrsPagesPayload { pages });
     wrapped.to_payload()
 }

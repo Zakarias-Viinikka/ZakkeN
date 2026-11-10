@@ -1,6 +1,6 @@
 use db_core::db::operations_love_letters;
 use db_wrapper::android_mascot::LiveForever;
-use protocol::error::DbError;
+use error_stuff::ServErr;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::AckPayload;
 
@@ -12,24 +12,22 @@ pub fn acknowledge_letter(
     let payload = match AckPayload::un_payloadify(&msg_content) {
         Ok(p) => p,
         Err(e) => {
-            let wrapped: Result<(), DbError> = Err(DbError::BadCode(format!(
-                "couldn't read ack payload: {e:?}"
-            )));
+            let wrapped: Result<(), ServErr> =
+                Err(ServErr::BadCode(format!("couldn't read ack payload: {e:?}")));
             return wrapped.to_payload();
         }
     };
 
     let Some(user_name) = sender else {
-        let wrapped: Result<(), DbError> = Err(DbError::IllegalInput(
-            "ack without a logged-in user".to_string(),
-        ));
+        let wrapped: Result<(), ServErr> =
+            Err(ServErr::RejectedBecause("ack without a logged-in user".to_string()));
         return wrapped.to_payload();
     };
 
     match operations_love_letters::delete_unsent_row(state, user_name, payload.letter_id) {
         Ok(()) => ok_serialized(),
         Err(e) => {
-            let wrapped: Result<(), DbError> = Err(e);
+            let wrapped: Result<(), ServErr> = Err(ServErr::DbErrorContainer(e));
             wrapped.to_payload()
         }
     }

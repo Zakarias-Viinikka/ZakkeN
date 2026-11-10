@@ -1,5 +1,7 @@
 use crate::telephone::Telephone;
-use db_core::db::{operations_love_letters, operations_pages};
+use db_core::db::{operations_drift_version, operations_love_letters, operations_pages};
+use error_stuff::{ErrorDetails, ServErr};
+use queue::WhereTheRequestCameFrom;
 use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
@@ -7,11 +9,12 @@ use server_protocol::{Request, UnsentLetter};
 use std::sync::{Arc, Mutex};
 
 use super::{
-    ack, get_all_yrs_pages, get_my_unsent_letters, login, register, send_love_letter, wipe_dataset,
+    ack, get_all_yrs_pages, get_current_drift, get_my_unsent_letters, login, register,
+    send_love_letter, wipe_dataset,
 };
 
-pub fn err_bytes(e: DbError) -> Vec<u8> {
-    let wrapped: Result<(), DbError> = Err(e);
+pub fn err_bytes(e: ServErr) -> Vec<u8> {
+    let wrapped: Result<(), ServErr> = Err(e);
     wrapped.to_payload()
 }
 
@@ -34,46 +37,96 @@ pub fn unsent_letters_for_user(
     Ok(letters)
 }
 
+/// Register and login are how a client learns the current drift version,
+/// so they can't be checked against one. A request the socket submits on
+/// its own behalf (the internal pull) has no client and no version to
+/// check. Everything else must match or be refused.
+fn refuse_if_the_client_is_on_a_stale_drift_version(
+    msg_request: &Request,
+    where_the_request_came_from: &WhereTheRequestCameFrom,
+    state: &Arc<Mutex<LiveForever>>,
+) -> Option<ServErr> {
+    if matches!(
+        msg_request,
+        Request::Register | Request::Login | Request::GetCurrentDrift
+    ) {
+        return None;
+    }
+    let WhereTheRequestCameFrom::FromAClient(client_version) = where_the_request_came_from else {
+        return None;
+    };
+    let current = {
+        let db_wrapper = state.lock().unwrap();
+        match operations_drift_version::get_current(&db_wrapper) {
+            Ok(Some(dv)) => dv.version,
+            Ok(None) => {
+                return Some(ServErr::ServerError(ErrorDetails {
+                    err_msg: "server has no drift_version row".to_string(),
+                    file: file!().to_string(),
+                    method: "core::refuse_if_the_client_is_on_a_stale_drift_version".to_string(),
+                    probable_cause: "ensure_minted didn't run at startup".to_string(),
+                }));
+            }
+            Err(e) => return Some(ServErr::DbErrorContainer(e)),
+        }
+    };
+    if client_version != &current {
+        return Some(ServErr::DriftVersionMismatch);
+    }
+    None
+}
+
 pub async fn do_request(
     msg_request: &Request,
     msg_content: Vec<u8>,
     state: &Arc<Mutex<LiveForever>>,
     telephone: &Telephone,
     socket_id: u64,
+    where_the_request_came_from: WhereTheRequestCameFrom,
 ) -> Vec<u8> {
     let user_name = telephone.user_of(socket_id).await;
     let logged_in = user_name.is_some();
 
     if !logged_in && !matches!(msg_request, Request::Register | Request::Login) {
-        return err_bytes(DbError::IllegalInput("not logged in".to_string()));
+        return err_bytes(ServErr::RejectedBecause("not logged in".to_string()));
+    }
+
+    if let Some(e) =
+        refuse_if_the_client_is_on_a_stale_drift_version(msg_request, &where_the_request_came_from, state)
+    {
+        return err_bytes(e);
     }
 
     let sender = user_name.as_deref();
 
     match msg_request {
         Request::Register => {
-            let locked = state.lock().unwrap();
-            register::register_user(msg_content, &locked)
+            let db_wrapper = state.lock().unwrap();
+            register::register_user(msg_content, &db_wrapper)
         }
         Request::GetAllYrsPages => {
-            let locked = state.lock().unwrap();
-            get_all_yrs_pages::send_all_pages(msg_content, &locked)
+            let db_wrapper = state.lock().unwrap();
+            get_all_yrs_pages::send_all_pages(msg_content, &db_wrapper)
         }
         Request::Ack => {
-            let locked = state.lock().unwrap();
-            ack::acknowledge_letter(msg_content, &locked, sender)
+            let db_wrapper = state.lock().unwrap();
+            ack::acknowledge_letter(msg_content, &db_wrapper, sender)
         }
         Request::GetMyUnsentLetters => {
-            let locked = state.lock().unwrap();
-            get_my_unsent_letters::send_unsent_letters(msg_content, &locked, sender)
+            let db_wrapper = state.lock().unwrap();
+            get_my_unsent_letters::send_unsent_letters(msg_content, &db_wrapper, sender)
         }
         Request::Login => login::log_in(msg_content, state, telephone, socket_id).await,
         Request::SendLoveLetter => {
             send_love_letter::accept_letter(msg_content, state, telephone, sender).await
         }
         Request::WipeDataset => {
+            let db_wrapper = state.lock().unwrap();
+            wipe_dataset::wipe_dataset(msg_content, &db_wrapper)
+        }
+        Request::GetCurrentDrift => {
             let locked = state.lock().unwrap();
-            wipe_dataset::wipe_dataset(msg_content, &locked)
+            get_current_drift::get_current_drift(msg_content, &locked)
         }
     }
 }

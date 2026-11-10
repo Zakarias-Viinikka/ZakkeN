@@ -1,4 +1,4 @@
-use crate::job::{Job, Priority};
+use crate::job::{Job, Priority, WhereTheRequestCameFrom};
 use server_protocol::Request;
 use tokio::sync::{mpsc, oneshot};
 
@@ -25,6 +25,7 @@ impl QueueManager {
         request: Request,
         payload: Vec<u8>,
         socket_id: u64,
+        where_the_request_came_from: WhereTheRequestCameFrom,
         priority: Priority,
     ) -> Result<oneshot::Receiver<Vec<u8>>, String> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -34,6 +35,7 @@ impl QueueManager {
             payload,
             socket_id,
             reply: reply_tx,
+            where_the_request_came_from,
         };
 
         let tx = match priority {

@@ -100,33 +100,50 @@ builds its own doc, edit_block wants a DiffResult the server never has, so
 neither is reachable for the incoming-letter path. The builder is
 reference, not a dependency.
 
-## server_protocol - 2026-10-22
+## server_protocol - 2026-11-10
 
 The server's own Message, Response, Request and payload structs. Its
 lib.rs is pure re-exports; message.rs, request.rs and builders.rs hold the
 definitions.
 
+Message is { message_id, request, payload, drift_version }. The drift
+version is the client's claim about what the server's is; the executor
+compares it against the current row and refuses mismatches. Register,
+Login and GetCurrentDrift are exempt, and so are the socket's own
+internal pulls (which travel the queue with no client on either end).
+
 Request variants: Register, Login, SendLoveLetter, GetAllYrsPages, Ack,
-GetMyUnsentLetters. Ack carries an AckPayload { letter_id: i64 } - the
-client saying it has applied that letter, so the server can delete that
-user's unsent row. GetMyUnsentLetters carries no payload and returns a
+GetMyUnsentLetters, WipeDataset, GetCurrentDrift. Ack carries an
+AckPayload { letter_id: i64 } - the client saying it has applied that
+letter, so the server can delete that user's unsent row.
+GetMyUnsentLetters carries no payload and returns a
 GetMyUnsentLettersPayload { letters: Vec<UnsentLetter> }, where each
-UnsentLetter is { letter_id: i64, love_letter: Vec<u8> }.
+UnsentLetter is { letter_id: i64, love_letter: Vec<u8> }. WipeDataset
+carries no payload, wipes the dataset, mints a new drift version, and
+returns that version. GetCurrentDrift carries no payload and returns
+the current drift version + reason; it's exempt from the drift check
+because asking is how you find out you were stale.
 
 Response is its own enum now, not a reuse of Request. `Response::Reply {
 message_id, request, payload }` is a reply to a specific client request;
-`message_id` matches the request the client sent. `Response::LoveLetterFromServer(Vec<UnsentLetter>)`
-is a server push: it carries the letters themselves, has no request id,
-and a client applies and acks each letter in it.
+`message_id` matches the request the client sent.
+`Response::LoveLetterFromServer(UnsentLetter)` is a server push: one
+letter, no request id, applied and acked by the client.
+`Response::TheDriftVersionChanged { drift_version, drift_reason }` is
+the message the server will use to tell a connected client its dataset
+was replaced. It exists on the wire but nothing sends it yet — the
+socket-side piece that reacts to a bump is not wired.
 
-Every response payload is a bincode-encoded Result<T, DbError>. This
-matters. An earlier version returned a bare ok_serialized() on success and
-a serialized DbError on failure, and the client told them apart by
-checking whether the payload was empty - which was wrong, because both are
-non-empty. If you add a request, its handler must return
-Result<ItsPayloadType, DbError>.
+Every response payload is a bincode-encoded Result<T, ServErr>. ServErr
+is error_stuff's own type, and wraps the db's DbError when the failure
+really is a db failure. Its variants: DbErrorContainer(DbError) for db
+faults, ServerError(ErrorDetails) for internal-but-recoverable,
+ClientGone { user_name } for a disconnected client, RejectedBecause
+(String) for client refusals, BadCode(String) for internal code faults
+that aren't db, and DriftVersionMismatch for the drift check. If you
+add a request, its handler must return Result<ItsPayloadType, ServErr>.
 
-## server_core - 2026-10-27
+## server_core - 2026-11-10
 
 There's no wrapper struct around the db any more. The shared state is
 `Arc<std::sync::Mutex<LiveForever>>`; handlers lock it, take `&LiveForever`,
@@ -141,21 +158,30 @@ and awaits the reply. One executor task, started from main, takes jobs
 (important channel first, then normal, via a biased select), calls
 do_request, and sends the result back through the job's oneshot.
 
-A Job carries the request, the payload, a message id, and a socket id. The
-socket id is a u64 minted from an atomic counter when the socket is born.
-It names a connection before anyone has logged in, which is what lets the
-socket register its nudge channel at birth instead of at login.
+A Job carries the request, the payload, a message id, a socket id, and a
+WhereTheRequestCameFrom (an enum: FromAClient(drift_version) for a
+message that came in off some client's socket, FromTheServer for the
+socket's own internal pull). The socket id is a u64 minted from an
+atomic counter when the socket is born. It names a connection before
+anyone has logged in, which is what lets the socket register its nudge
+channel at birth instead of at login.
 
 do_request is async. Its signature is (request, payload, state, telephone,
-socket_id) -> Vec<u8>, where `state` is `&Arc<Mutex<LiveForever>>`. Every
-handler returns bytes and nothing else. The login gate lives here:
-do_request asks the telephone for the name attached to the socket id, and
-a socket with no name may only call Register or Login. Register,
-GetAllYrsPages, Ack and GetMyUnsentLetters lock the db briefly, do their
-work, and drop the guard; Login and SendLoveLetter do their own locking
-because they need to await the Telephone in between db calls. Each handler
-has a named fn in allowed_requests/: register_user, send_all_pages,
-acknowledge_letter, send_unsent_letters, log_in, accept_letter.
+socket_id, where_the_request_came_from) -> Vec<u8>, where `state` is
+`&Arc<Mutex<LiveForever>>`. Every handler returns bytes and nothing else.
+Two gates live here. The login gate asks the telephone for the name
+attached to the socket id; a socket with no name may only call Register
+or Login. The drift gate (in
+core::refuse_if_the_client_is_on_a_stale_drift_version) skips Register,
+Login, GetCurrentDrift and FromTheServer pulls, and for everything else
+compares the client's claimed drift_version against the current row,
+refusing a mismatch with ServErr::DriftVersionMismatch. Register,
+GetAllYrsPages, Ack, GetMyUnsentLetters, WipeDataset and GetCurrentDrift
+lock the db briefly, do their work, and drop the guard; Login and
+SendLoveLetter do their own locking because they need to await the
+Telephone in between db calls. Each handler has a named fn in
+allowed_requests/: register_user, send_all_pages, acknowledge_letter,
+send_unsent_letters, log_in, accept_letter, get_current_drift.
 
 Login does two things beyond checking the user exists: it tells the
 telephone to attach the name to the socket id, then tells the telephone
@@ -191,18 +217,25 @@ After a Login reply comes back, the socket asks the telephone who it is
 failed there is no name and the label stays the address. When the loop
 ends, the socket calls telephone.remove_socket(socket_id).
 
-## telephone - 2026-10-27
+## telephone - 2026-11-10
 
 A module inside server_core (src/telephone/), not a crate any more. It
 used to be the connected_clients crate; it moved because the socket id
 design ties the telephone and the socket loop into one story.
 
 Exposes one struct, `Telephone`. It's a handle to a task that owns a
-HashMap<u64, SocketEntry> - socket id -> { notify sender, user name }. The
-() on the channel is a notify: "you have something to pull". The
-telephone carries no letters; the letters stay in the db as unsent rows.
-Every method sends a Command to the task; the task is the only thing that
-touches the map, and it runs on tokio, draining one channel.
+HashMap<u64, SocketEntry> - socket id -> { notify sender, user name }.
+The per-socket channel carries a `TelephoneCommand` enum, not `()`:
+`GoPullYourUnsentLetters` means "you have something to pull", and
+`TellTheClientTheDriftVersionChangedThenClose` means "the drift version
+just changed and you're stale; ask the executor for the current one,
+tell the client, close". The second variant exists on the wire and in
+the enum but nothing sends it yet — Command::NotifyDrift is defined as
+a variant of the telephone's own command enum, but the task doesn't
+match on it and no method calls it. The telephone carries no letters;
+the letters stay in the db as unsent rows. Every method sends a Command
+to the task; the task is the only thing that touches the map, and it
+runs on tokio, draining one channel.
 
 Telephone is Clone. register_socket and remove_socket are sync and
 fire-and-forget: a socket registers at birth and removes itself at
@@ -257,7 +290,7 @@ on reconnect the row is still there and shows up in the next pull.
 The push wire format is `Response::LoveLetterFromServer(UnsentLetter)`,
 one message per letter. The pull wire format is a Message with request =
 GetMyUnsentLetters and no payload; the reply carries a bincode of
-Result<GetMyUnsentLettersPayload, DbError>. The pull is what the socket
+Result<GetMyUnsentLettersPayload, ServErr>. The pull is what the socket
 uses internally on a notify; the client never sends it directly.
 
 ## Gotchas - 2026-10-22

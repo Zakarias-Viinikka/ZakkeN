@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
 use client_table_blueprints::{tbl_pages, tbl_seen_server_letters};
+use error_stuff::ServErr;
 use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures_util::StreamExt;
 use leptos::prelude::*;
@@ -151,9 +152,9 @@ async fn start_over_fresh(
         .send_request(Request::GetAllYrsPages, Vec::new())
         .await
         .map_err(|e| DbError::BadCode(format!("GetAllYrsPages: {e:?}")))?;
-    let payload: Result<GetAllYrsPagesPayload, DbError> = Convert::un_payloadify(&bytes)
+    let payload: Result<GetAllYrsPagesPayload, ServErr> = Convert::un_payloadify(&bytes)
         .map_err(|e| DbError::BadCode(format!("decode pages: {e:?}")))?;
-    let payload = payload?;
+    let payload = payload.map_err(|e| DbError::BadCode(format!("server refused pages: {e:?}")))?;
 
     for row in payload.pages {
         apply_bootstrap_row(open, row).await?;
@@ -252,9 +253,11 @@ async fn pull_unsent(router: &RouterHandle) -> Result<Vec<UnsentLetter>, DbError
         .send_request(Request::GetMyUnsentLetters, Vec::new())
         .await
         .map_err(|e| DbError::BadCode(format!("GetMyUnsentLetters: {e:?}")))?;
-    let payload: Result<GetMyUnsentLettersPayload, DbError> = Convert::un_payloadify(&bytes)
+    let payload: Result<GetMyUnsentLettersPayload, ServErr> = Convert::un_payloadify(&bytes)
         .map_err(|e| DbError::BadCode(format!("decode unsent: {e:?}")))?;
-    payload.map(|p| p.letters)
+    payload
+        .map(|p| p.letters)
+        .map_err(|e| DbError::BadCode(format!("server refused unsent: {e:?}")))
 }
 
 async fn handle_one(

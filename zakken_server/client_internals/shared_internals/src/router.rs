@@ -162,6 +162,7 @@ impl RouterHandle {
             message_id: id,
             request,
             payload: Base64Bytes(payload),
+            drift_version: todo!("client doesn't send drift_version yet"),
         };
         if self.shared.outgoing_tx.unbounded_send(message).is_err() {
             self.shared.pending.lock().unwrap().remove(&id);

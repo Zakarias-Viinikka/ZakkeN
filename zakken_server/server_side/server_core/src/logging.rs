@@ -104,5 +104,6 @@ pub fn request_name(r: &Request) -> &'static str {
         Request::Ack => "acknowledged a letter",
         Request::GetMyUnsentLetters => "asked for its unsent letters",
         Request::WipeDataset => "asked to wipe the dataset",
+        Request::GetCurrentDrift => "asked what the current drift version is",
     }
 }

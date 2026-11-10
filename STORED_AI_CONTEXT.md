@@ -188,7 +188,7 @@ Batcher now matches owner+handle:
 - `batcher/mod.rs` no longer re-exports `Batcher`. Only `BatcherHandle`, `PendingWrite`, `run_exclusive`.
 - `main.rs` calls `BatcherHandle::spawn_task_and_get_handle()`; the `spawn_local(batcher.run())` block is gone.
 
-## zakken_server - 2026-10-28
+## zakken_server - 2026-11-10
 
 A workspace in four folders, shaped like rust_practice/server_template_3:
 
@@ -218,21 +218,29 @@ YrsActivePages. It deliberately doesn't call cqrs's builder.
 
 server_protocol - the server's own Message, Response, Request and
 payload structs. Request variants: Register, Login, SendLoveLetter,
-GetAllYrsPages, Ack, GetMyUnsentLetters. Request-only payloads
-(RegisterPayload, LoginPayload, SendLoveLetterPayload, AckPayload)
-live in request.rs; reply-only payloads (PageRow,
-GetAllYrsPagesPayload, UnsentLetter, GetMyUnsentLettersPayload) live
-in responses.rs. lib.rs is pure re-exports, so no call site cares
-which file a struct is in. Every reply payload is bincode
-Result<T, DbError>, so the client can tell success from failure.
+GetAllYrsPages, Ack, GetMyUnsentLetters, WipeDataset, GetCurrentDrift.
+Request-only payloads (RegisterPayload, LoginPayload,
+SendLoveLetterPayload, AckPayload) live in request.rs; reply-only
+payloads (PageRow, GetAllYrsPagesPayload, UnsentLetter,
+GetMyUnsentLettersPayload, LoginReply) live in responses.rs. lib.rs is
+pure re-exports, so no call site cares which file a struct is in. Every
+reply payload is bincode Result<T, ServErr> - error_stuff's type, not
+z_db's - so the client can tell success from failure. Message carries a
+drift_version field alongside the id, request and payload; the executor
+checks it on every request except Register, Login, GetCurrentDrift and
+the socket's own internal pulls.
 
 queue - Job, Priority, QueueManager. No db knowledge. Every client
 request goes through it, carrying the socket id. The executor (in
 server_core) drains it.
 
 telephone - a module inside server_core now, not a crate. Owns the
-socket id -> { notify sender, user name } map. The channel carries ()
-and means "go pull"; the letters stay in the db. No db knowledge, so
+socket id -> { notify sender, user name } map. The channel carries a
+TelephoneCommand enum: GoPullYourUnsentLetters ("go pull") and
+TellTheClientTheDriftVersionChangedThenClose ("your drift version is
+stale; ask the executor for the current one, tell the client, close").
+The second variant exists but nothing sends it yet. The letters stay
+in the db. No db knowledge, so
 it can never take the db lock; that fixes the lock order at
 db-then-telephone forever. Every method talks to one task that owns
 the map.
@@ -743,3 +751,41 @@ real changes and silently leaving stale wasm served to the tester.
 ## E2E audit-bug tests - 2026-11-07
 
 `complete_e2e` now has tests aimed at the audit list. Two fail on purpose: typing over a selection loses the typed text (audit #1), and an edit after Swedish letters panics yrs and kills the page (audit #3). A third, remote title edit shows in another client's menu (audit #6), passes. A menu crash caused by a disposed signal in `menu.rs` was fixed along the way. Details, helpers, and the narration and speed conventions are in `complete_e2e/STORED_AI_CONTEXT.md`.
+
+## Drift version per-request gate - 2026-11-10
+
+Building on the 2026-11-05 drift version + gating work, the server now
+checks the client's drift version on every request instead of only at
+login. The client's claim rides in the Message envelope as
+`drift_version`, travels through the queue on the Job, and the executor
+compares it to the current row before dispatch. Mismatch is refused
+with `ServErr::DriftVersionMismatch`. Register, Login, GetCurrentDrift
+and the socket's own internal pulls are exempt.
+
+Wire error type is now `ServErr` everywhere (server's own type, not
+z_db's `DbError`). `ServErr` gained `RejectedBecause(String)`,
+`BadCode(String)` and `DriftVersionMismatch` variants so client
+refusals and server faults stop wearing db-error labels.
+
+Two new request variants: `WipeDataset` (already existed, now in the
+doc) and `GetCurrentDrift` (anyone can ask what the current drift
+version is without holding a matching one, because asking is how you
+find out you were stale). Two new response variants on the wire:
+`TheDriftVersionChanged { drift_version, drift_reason }` (push before
+disconnect, not wired yet) and the `LoginReply` shape reused for
+GetCurrentDrift.
+
+Job carries `where_the_request_came_from: WhereTheRequestCameFrom`
+(FromAClient(version) / FromTheServer) instead of a bare optional
+version. The telephone's per-socket channel widened from `()` to a
+`TelephoneCommand` enum with two variants: pull and drift-changed-
+then-close. The second variant exists but nothing sends it yet, and
+the telephone's `Command::NotifyDrift` variant exists but the task
+doesn't match on it and no method calls it. That wiring is the next
+chunk of server work; the per-request gate, the new request, and the
+wire errors are all in.
+
+Client side is currently broken against this server: the client sends
+an empty `drift_version` (a `todo!()` in the router), and the client's
+own reply decoders still expect `DbError` in most places. That's the
+next work — see `drift_guard_and_ops` and the client decoder updates.

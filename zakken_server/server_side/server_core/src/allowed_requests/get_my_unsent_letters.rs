@@ -1,6 +1,6 @@
 use super::core::unsent_letters_for_user;
 use db_wrapper::android_mascot::LiveForever;
-use protocol::error::DbError;
+use error_stuff::ServErr;
 use protocol::serialization::Convert;
 use server_protocol::GetMyUnsentLettersPayload;
 
@@ -13,20 +13,21 @@ pub fn send_unsent_letters(
     sender: Option<&str>,
 ) -> Vec<u8> {
     let Some(user_name) = sender else {
-        let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(
-            DbError::IllegalInput("GetMyUnsentLetters without a logged-in user".to_string()),
+        let wrapped: Result<GetMyUnsentLettersPayload, ServErr> = Err(
+            ServErr::RejectedBecause("GetMyUnsentLetters without a logged-in user".to_string()),
         );
         return wrapped.to_payload();
     };
 
     match unsent_letters_for_user(state, user_name) {
         Ok(letters) => {
-            let wrapped: Result<GetMyUnsentLettersPayload, DbError> =
+            let wrapped: Result<GetMyUnsentLettersPayload, ServErr> =
                 Ok(GetMyUnsentLettersPayload { letters });
             wrapped.to_payload()
         }
         Err(e) => {
-            let wrapped: Result<GetMyUnsentLettersPayload, DbError> = Err(e);
+            let wrapped: Result<GetMyUnsentLettersPayload, ServErr> =
+                Err(ServErr::DbErrorContainer(e));
             wrapped.to_payload()
         }
     }

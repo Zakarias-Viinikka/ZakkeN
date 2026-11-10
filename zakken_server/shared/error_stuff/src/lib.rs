@@ -11,6 +11,14 @@ pub enum ServErr {
     ServerError(ErrorDetails),
     #[error("client '{user_name}' is gone")]
     ClientGone { user_name: String },
+    #[error("rejected: {0}")]
+    RejectedBecause(String),
+    #[error("bad code: {0}")]
+    BadCode(String),
+    /// The client's drift version doesn't match the server's. Recovery:
+    /// reconnect, log in, act on drift_solution.
+    #[error("drift version mismatch")]
+    DriftVersionMismatch,
 }
 
 impl From<DbError> for ServErr {

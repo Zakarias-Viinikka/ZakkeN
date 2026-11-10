@@ -5,7 +5,7 @@ use axum::extract::ws::{Message, WebSocket};
 use error_stuff::{ErrorDetails, LogCategory, ServErr};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
-use queue::{Priority, QueueManager};
+use queue::{Priority, QueueManager, WhereTheRequestCameFrom};
 use server_protocol::{
     GetMyUnsentLettersPayload, Request, Response, UnsentLetter, json_str_to_message,
     response_to_json_str,
@@ -17,7 +17,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 static NEXT_SOCKET_ID: AtomicU64 = AtomicU64::new(1);
 
 enum NextRequest {
-    Got(Request, usize, Vec<u8>),
+    Got(Request, usize, Vec<u8>, String),
     BadProtocol(ServErr),
     Closed,
 }
@@ -55,8 +55,8 @@ impl SocketState {
         loop {
             tokio::select! {
                 next = Self::next_request(&mut self.socket) => {
-                    let (request, msg_id, payload) = match next {
-                        NextRequest::Got(r, i, p) => (r, i, p),
+                    let (request, msg_id, payload, drift_version) = match next {
+                        NextRequest::Got(r, i, p, d) => (r, i, p, d),
                         NextRequest::BadProtocol(e) => {
                             self.reject_bad_protocol(e).await;
                             continue;
@@ -69,7 +69,7 @@ impl SocketState {
                     let is_login = matches!(request, Request::Login);
 
                     let Some(bytes) = self
-                        .run_request(request.clone(), msg_id, payload, queue)
+                        .run_request(request.clone(), msg_id, payload, drift_version, queue)
                         .await
                     else {
                         continue;
@@ -118,6 +118,7 @@ impl SocketState {
             Request::GetMyUnsentLetters,
             Vec::new(),
             self.socket_id,
+            WhereTheRequestCameFrom::FromTheServer,
             Priority::Normal,
         ) {
             Ok(rx) => rx,
@@ -153,7 +154,7 @@ impl SocketState {
             }
         };
 
-        let outer: Result<GetMyUnsentLettersPayload, DbError> =
+        let outer: Result<GetMyUnsentLettersPayload, ServErr> =
             match Convert::un_payloadify(&bytes) {
                 Ok(v) => v,
                 Err(e) => {
@@ -201,7 +202,7 @@ impl SocketState {
             match socket.recv().await {
                 Some(Ok(Message::Text(text))) => {
                     return match json_str_to_message(&text) {
-                        Ok(m) => NextRequest::Got(m.request, m.message_id, m.payload.0),
+                        Ok(m) => NextRequest::Got(m.request, m.message_id, m.payload.0, m.drift_version),
                         Err(e) => NextRequest::BadProtocol(e),
                     };
                 }
@@ -227,6 +228,7 @@ impl SocketState {
         request: Request,
         msg_id: usize,
         payload: Vec<u8>,
+        drift_version: String,
         queue: &QueueManager,
     ) -> Option<Vec<u8>> {
         let reply_rx = match queue.submit(
@@ -234,6 +236,7 @@ impl SocketState {
             request.clone(),
             payload,
             self.socket_id,
+            WhereTheRequestCameFrom::FromAClient(drift_version),
             Priority::Normal,
         ) {
             Ok(rx) => rx,
@@ -248,8 +251,12 @@ impl SocketState {
                         probable_cause: "the queue executor isn't running".to_string(),
                     },
                 );
-                let err: Result<(), DbError> =
-                    Err(DbError::BadCode(format!("queue closed: {e}")));
+                let err: Result<(), ServErr> = Err(ServErr::ServerError(ErrorDetails {
+                    err_msg: format!("queue closed: {e}"),
+                    file: file!().to_string(),
+                    method: "SocketState::run_request".to_string(),
+                    probable_cause: "the queue executor isn't running".to_string(),
+                }));
                 self.send_reply(err.to_payload(), msg_id, request).await;
                 return None;
             }
@@ -268,8 +275,12 @@ impl SocketState {
                         probable_cause: "the executor task ended".to_string(),
                     },
                 );
-                let err: Result<(), DbError> =
-                    Err(DbError::BadCode("queue dropped the reply".to_string()));
+                let err: Result<(), ServErr> = Err(ServErr::ServerError(ErrorDetails {
+                    err_msg: "queue dropped the reply".to_string(),
+                    file: file!().to_string(),
+                    method: "SocketState::run_request".to_string(),
+                    probable_cause: "the executor task ended".to_string(),
+                }));
                 self.send_reply(err.to_payload(), msg_id, request).await;
                 None
             }

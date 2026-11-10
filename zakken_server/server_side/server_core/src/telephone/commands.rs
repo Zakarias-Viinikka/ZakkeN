@@ -1,4 +1,5 @@
 use super::handle::NotifyReport;
+use super::telephone_command::TelephoneCommand;
 use error_stuff::ServErr;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
@@ -6,7 +7,7 @@ use tokio::sync::oneshot;
 pub enum Command {
     RegisterSocket {
         socket_id: u64,
-        sender: UnboundedSender<()>,
+        sender: UnboundedSender<TelephoneCommand>,
     },
     RemoveSocket {
         socket_id: u64,
@@ -34,5 +35,12 @@ pub enum Command {
     },
     ConnectedUserNames {
         reply: oneshot::Sender<Vec<String>>,
+    },
+    /// Tell every socket except the one whose id is given that the
+    /// drift version changed. Each will send its client the new
+    /// version, then close. The reply carries how many were told.
+    NotifyDrift {
+        dont_notify_socket_with_id: Option<u64>,
+        reply: oneshot::Sender<usize>,
     },
 }

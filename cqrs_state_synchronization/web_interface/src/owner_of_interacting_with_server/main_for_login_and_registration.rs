@@ -1,3 +1,4 @@
+use error_stuff::ServErr;
 use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
@@ -78,11 +79,13 @@ async fn try_login(router: &RouterHandle, name: &str) -> Result<LoginOutcome, St
         .send_request(Request::Login, payload.to_payload())
         .await
         .map_err(|e| format!("login request: {e:?}"))?;
-    let result: Result<LoginReply, DbError> = Convert::un_payloadify(&bytes)
+    let result: Result<LoginReply, ServErr> = Convert::un_payloadify(&bytes)
         .map_err(|e| format!("decode login reply: {e:?}"))?;
     match result {
         Ok(reply) => Ok(LoginOutcome::Ok(reply)),
-        Err(DbError::IllegalInput(msg)) if msg.contains("no such user") => {
+        Err(ServErr::DbErrorContainer(DbError::IllegalInput(msg)))
+            if msg.contains("no such user") =>
+        {
             Ok(LoginOutcome::NoSuchUser)
         }
         Err(e) => Ok(LoginOutcome::Other(format!("login failed: {e:?}"))),
@@ -104,11 +107,11 @@ async fn try_register(router: &RouterHandle, name: &str) -> Result<RegisterOutco
         .send_request(Request::Register, payload.to_payload())
         .await
         .map_err(|e| format!("register request: {e:?}"))?;
-    let result: Result<(), DbError> = Convert::un_payloadify(&bytes)
+    let result: Result<(), ServErr> = Convert::un_payloadify(&bytes)
         .map_err(|e| format!("decode register reply: {e:?}"))?;
     match result {
         Ok(()) => Ok(RegisterOutcome::Ok),
-        Err(DbError::IllegalInput(msg)) if msg.contains("already registered") => {
+        Err(ServErr::RejectedBecause(msg)) if msg.contains("already registered") => {
             Ok(RegisterOutcome::AlreadyRegistered)
         }
         Err(e) => Ok(RegisterOutcome::Other(format!("register failed: {e:?}"))),

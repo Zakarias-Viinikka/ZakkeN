@@ -1,6 +1,6 @@
 # Server: register + love letters
 
-Updated 28 October 2026 (first written 14 October 2026)
+Updated 10 November 2026 (first written 14 October 2026)
 
 ## What exists
 
@@ -34,20 +34,29 @@ server_protocol owns the server's own Message, Response, Request and
 the payload structs. Not z_db's - that one belongs to the browser. Its
 lib.rs is just re-exports; message.rs, request.rs and builders.rs hold
 the actual definitions. Request has Register, Login, SendLoveLetter,
-GetAllYrsPages, Ack, GetMyUnsentLetters. Response is either a Reply
-carrying message_id, request and payload, or LoveLetterFromServer
-carrying one letter and no id, because the client acks it individually.
-Every reply payload is bincode-encoded Result<T, DbError>, so success
-and failure are distinguishable on the wire. Frames on the socket are
-JSON; builders.rs decodes them.
+GetAllYrsPages, Ack, GetMyUnsentLetters, WipeDataset, GetCurrentDrift.
+Response is either a Reply carrying message_id, request and payload, a
+LoveLetterFromServer carrying one letter and no id (the client acks it
+individually), or TheDriftVersionChanged carrying the new version and
+reason (the server is about to close this socket; exists on the wire
+but nothing sends it yet). Message carries a drift_version field
+alongside the id, request and payload; the executor checks it on every
+request except Register, Login, GetCurrentDrift and the socket's own
+internal pulls. Every reply payload is bincode-encoded
+Result<T, ServErr>, so success and failure are distinguishable on the
+wire. Frames on the socket are JSON; builders.rs decodes them.
 
 queue - Job, Priority, QueueManager. No db knowledge. Every request
 goes through it, carrying the socket id. The socket's internal "go
 pull" is submitted the same way, with message_id 0.
 
 telephone - a module inside server_core now, not a crate. Owns the
-socket id -> { notify sender, user name } map. The channel carries ()
-and means "go pull"; the letters stay in the db. No db knowledge, so it
+socket id -> { notify sender, user name } map. The channel carries a
+TelephoneCommand enum: GoPullYourUnsentLetters ("go pull") and
+TellTheClientTheDriftVersionChangedThenClose ("your drift version is
+stale; ask the executor for the current one, tell the client, close").
+The second variant exists but nothing sends it yet. The letters stay
+in the db. No db knowledge, so it
 can never take the db lock; that fixes the lock order at
 db-then-telephone forever. Every method talks to one task that owns the
 map.
@@ -109,17 +118,27 @@ menu shows pages it makes.
 
 ## Next
 
-Dataset generation and sync recovery. The server owns a
-dataset_generation value in key_value_storage, minted once when the db
-is fresh and changed only when the dataset is deliberately replaced.
-Login would carry it, and the client would refuse to sync against a
-different one. On top of that: export everything to JSON, load from
-JSON and reset the server, wipe locally, and let a client tell the
-server to wipe itself and adopt the client's dataset. Web first;
-Android deferred but kept compatible. The plan is in
-artifacts/plan_for_general_data_management_ops.md, and it depends on a
-yrs hard-copy primitive (BossOfYrs::from_hard_copy) that isn't built
-yet. Not started.
+Dataset generation and sync recovery — now called drift version. The
+server owns a drift_version table (id, version, reason); key_value_storage
+points at the current one. Minted at startup, re-minted by wipe. Login
+reply carries { drift_version, drift_reason }; GetCurrentDrift returns
+the same. Every Message from a client also carries a drift_version, and
+the executor refuses requests whose claimed version doesn't match the
+current one — register, login, GetCurrentDrift and the socket's own
+internal pulls are exempt. The only exit from a mismatch on the client
+side is wipe_local_and_pull_from_server (a test method); reconcile /
+adopt / full wipe aren't built yet.
+
+Partly built on the server side: the drift version table, the
+per-request gate, GetCurrentDrift, and the wire message for telling a
+connected client its dataset was replaced. Not built: the socket side
+of that push (the telephone's NotifyDrift exists but no method sends
+it and the task doesn't handle it), adopt as a request, and the client
+side of any of this (decoders still expect DbError, the router sends an
+empty drift_version). The plan is in
+combining_connecting_template_with_cqrs_and_server.md and it depends
+on yrs::freeze_doc, which is built. Web first; Android deferred but
+kept compatible.
 
 The NoSuchUser clearing of the client's seen-letter set is a stopgap
 for "server db wiped" until generation ids land.

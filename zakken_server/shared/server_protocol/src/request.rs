@@ -12,6 +12,10 @@ pub enum Request {
     GetMyUnsentLetters,
     /// client -> server: delete every page and every stored love letter.
     WipeDataset,
+    /// anyone -> server: what drift version is current, and why did it
+    /// change. Exempt from the drift check, because asking is how you
+    /// find out you were stale.
+    GetCurrentDrift,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
