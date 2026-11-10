@@ -1,4 +1,4 @@
-use error_stuff::{ErrorDetails, LogCategory, LogLevel, ServerLogEntry};
+use server_errors::{ErrorDetails, LogCategory, LogLevel, ServerLogEntry};
 use server_protocol::Request;
 use std::sync::OnceLock;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};

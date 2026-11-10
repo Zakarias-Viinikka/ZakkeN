@@ -1,6 +1,6 @@
 use db_core::db::user_registration;
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::ServErr;
+use server_errors::ServErr;
 use protocol::error::DbError;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::RegisterPayload;

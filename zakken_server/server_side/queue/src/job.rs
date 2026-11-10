@@ -11,7 +11,7 @@ pub enum Priority {
 /// or something the socket asked on its own behalf (the internal pull,
 /// which has no client and therefore no drift version to check).
 pub enum WhereTheRequestCameFrom {
-    FromAClient(String),
+    FromAClient(Option<String>),
     FromTheServer,
 }
 

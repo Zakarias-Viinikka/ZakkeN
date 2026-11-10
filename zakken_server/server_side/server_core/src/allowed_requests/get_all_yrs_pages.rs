@@ -1,6 +1,6 @@
 use db_core::db::operations_pages;
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::ServErr;
+use server_errors::ServErr;
 use protocol::serialization::Convert;
 use server_protocol::{GetAllYrsPagesPayload, PageRow};
 

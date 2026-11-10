@@ -3,7 +3,7 @@ mod notifications;
 
 use super::commands::Command;
 use super::telephone_command::TelephoneCommand;
-use error_stuff::ServerLogEntry;
+use server_errors::ServerLogEntry;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 

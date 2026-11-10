@@ -4,11 +4,10 @@ Updated 10 November 2026 (first written 14 October 2026)
 
 ## What exists
 
-zakken_server is a workspace in four folders. `shared/` holds
-error_stuff and server_protocol. `server_side/` holds db (package name
-db_core), server_core, love_letter_parser and queue. `mock_client/`
-holds mock_client_core and cli_gui. `client_internals/` holds
-shared_internals_for_server.
+zakken_server is a workspace in three folders. `shared/` holds
+server_errors and server_protocol. `server_side/` holds db (package
+name db_core), server_core, love_letter_parser and queue.
+`client_internals/` holds shared_internals.
 
 db_core owns the schemas and the db operations, nothing else. Schemas
 live in db/src/db/schema/, one file per table with a tbl_ prefix:
@@ -36,13 +35,14 @@ lib.rs is just re-exports; message.rs, request.rs and builders.rs hold
 the actual definitions. Request has Register, Login, SendLoveLetter,
 GetAllYrsPages, Ack, GetMyUnsentLetters, WipeDataset, GetCurrentDrift.
 Response is either a Reply carrying message_id, request and payload, a
-LoveLetterFromServer carrying one letter and no id (the client acks it
-individually), or TheDriftVersionChanged carrying the new version and
-reason (the server is about to close this socket; exists on the wire
-but nothing sends it yet). Message carries a drift_version field
-alongside the id, request and payload; the executor checks it on every
-request except Register, Login, GetCurrentDrift and the socket's own
-internal pulls. Every reply payload is bincode-encoded
+LoveLetterFromServer carrying one letter and the drift version the
+server is on, or TheDriftVersionChanged carrying the new version and
+reason (sent just before the server closes the socket). Message carries
+an optional drift_version field alongside the id, request and payload;
+the executor checks it on every request except Register, Login,
+GetCurrentDrift and the socket's own internal pulls. None means the
+client hasn't learned the version yet, and is only allowed on the
+exempt requests. Every reply payload is bincode-encoded
 Result<T, ServErr>, so success and failure are distinguishable on the
 wire. Frames on the socket are JSON; builders.rs decodes them.
 
@@ -55,8 +55,8 @@ socket id -> { notify sender, user name } map. The channel carries a
 TelephoneCommand enum: GoPullYourUnsentLetters ("go pull") and
 TellTheClientTheDriftVersionChangedThenClose ("your drift version is
 stale; ask the executor for the current one, tell the client, close").
-The second variant exists but nothing sends it yet. The letters stay
-in the db. No db knowledge, so it
+notify_drift sends the second to every logged-in socket except the
+caller's own; wipe calls it after bumping. The letters stay in the db. No db knowledge, so it
 can never take the db lock; that fixes the lock order at
 db-then-telephone forever. Every method talks to one task that owns the
 map.
@@ -72,7 +72,7 @@ executor drains the log channel and writes the rows.
 
 Startup creates: socket_testing_table (and seeds it), registered_users,
 love_letters_from_clients, unsent_love_letters, pages, logs,
-key_value_storage.
+key_value_storage, drift_version.
 
 ## What happens when
 
@@ -118,27 +118,24 @@ menu shows pages it makes.
 
 ## Next
 
-Dataset generation and sync recovery — now called drift version. The
-server owns a drift_version table (id, version, reason); key_value_storage
-points at the current one. Minted at startup, re-minted by wipe. Login
-reply carries { drift_version, drift_reason }; GetCurrentDrift returns
-the same. Every Message from a client also carries a drift_version, and
-the executor refuses requests whose claimed version doesn't match the
-current one — register, login, GetCurrentDrift and the socket's own
-internal pulls are exempt. The only exit from a mismatch on the client
-side is wipe_local_and_pull_from_server (a test method); reconcile /
-adopt / full wipe aren't built yet.
+Drift version system: server side is done. The server owns a
+drift_version table (id, version, reason, drift_solution);
+key_value_storage points at the current one. Minted at startup,
+re-minted by wipe. Login reply carries { drift_version, drift_reason,
+drift_solution }; GetCurrentDrift returns the same. Every Message from
+a client carries an optional drift_version, and the executor refuses
+requests whose claimed version doesn't match — register, login,
+GetCurrentDrift and the socket's own internal pulls are exempt. Wipe
+unregisters every user, mints a new drift version carrying the
+caller's chosen DriftSolution, and sends every other logged-in socket
+a drift-changed push just before closing it. Wire errors are ServErr,
+not DbError.
 
-Partly built on the server side: the drift version table, the
-per-request gate, GetCurrentDrift, and the wire message for telling a
-connected client its dataset was replaced. Not built: the socket side
-of that push (the telephone's NotifyDrift exists but no method sends
-it and the task doesn't handle it), adopt as a request, and the client
-side of any of this (decoders still expect DbError, the router sends an
-empty drift_version). The plan is in
-combining_connecting_template_with_cqrs_and_server.md and it depends
-on yrs::freeze_doc, which is built. Web first; Android deferred but
-kept compatible.
+Not built: adopt as a request; the client-side reaction to
+drift_solution at login (the client always enters lonewolf on
+mismatch today); the picker for when drift_solution is absent;
+reconcile verb; the wipe button's solution picker (dev tools send
+None). Web first; Android deferred but kept compatible.
 
 The NoSuchUser clearing of the client's seen-letter set is a stopgap
 for "server db wiped" until generation ids land.

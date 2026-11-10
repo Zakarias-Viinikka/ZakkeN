@@ -1,7 +1,7 @@
 use crate::telephone::Telephone;
 use db_core::db::{operations_dataset, db_actions_for_drift};
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::ServErr;
+use server_errors::ServErr;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{LoginReply, WipeDatasetPayload};

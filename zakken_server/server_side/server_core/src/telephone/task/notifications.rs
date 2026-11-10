@@ -1,7 +1,7 @@
 use super::SocketEntry;
 use crate::telephone::handle::NotifyReport;
 use crate::telephone::telephone_command::TelephoneCommand;
-use error_stuff::{ErrorDetails, LogCategory, LogLevel, ServerLogEntry, ServErr};
+use server_errors::{ErrorDetails, LogCategory, LogLevel, ServerLogEntry, ServErr};
 use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;

@@ -1603,13 +1603,13 @@ dependencies = [
  "love_letter_parser",
  "protocol",
  "queue",
- "server_error_stuff",
+ "server_errors",
  "server_protocol",
  "tokio",
 ]
 
 [[package]]
-name = "server_error_stuff"
+name = "server_errors"
 version = "0.1.0"
 dependencies = [
  "protocol",
@@ -1624,7 +1624,7 @@ dependencies = [
  "protocol",
  "serde",
  "serde_json",
- "server_error_stuff",
+ "server_errors",
 ]
 
 [[package]]
@@ -1646,7 +1646,7 @@ dependencies = [
  "gloo-timers",
  "js-sys",
  "protocol",
- "server_error_stuff",
+ "server_errors",
  "server_protocol",
  "wasm-bindgen",
  "wasm-bindgen-futures",

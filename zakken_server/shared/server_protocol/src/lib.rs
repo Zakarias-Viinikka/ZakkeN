@@ -17,3 +17,5 @@ pub use responses::{
 };
 pub mod login_reply;
 pub use login_reply::LoginReply;
+
+pub use server_errors::ServErr;

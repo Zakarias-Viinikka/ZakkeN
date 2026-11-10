@@ -1,4 +1,4 @@
-use error_stuff::ServErr;
+use server_protocol::ServErr;
 use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
@@ -22,7 +22,10 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
     if let Some(saved) = read_saved_name().await? {
         match try_login(router, &saved).await? {
             LoginOutcome::Ok(reply) => {
-                compare_drift_and_maybe_enter_lonewolf(&reply).await;
+                compare_drift_and_maybe_enter_lonewolf(&reply).await?;
+                if super::core::CONN_STATE.get_untracked() == super::core::ConnState::LoggingIn {
+                    super::core::CONN_STATE.set(super::core::ConnState::Connected);
+                }
                 return Ok(());
             }
             LoginOutcome::NoSuchUser => {
@@ -43,7 +46,10 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
             save_name(&setup_name).await?;
             match try_login(router, &setup_name).await? {
                 LoginOutcome::Ok(reply) => {
-                    compare_drift_and_maybe_enter_lonewolf(&reply).await;
+                    compare_drift_and_maybe_enter_lonewolf(&reply).await?;
+                    if super::core::CONN_STATE.get_untracked() == super::core::ConnState::LoggingIn {
+                        super::core::CONN_STATE.set(super::core::ConnState::Connected);
+                    }
                     Ok(())
                 }
                 other => Err(format!("login after register failed: {other:?}")),
@@ -118,27 +124,21 @@ async fn try_register(router: &RouterHandle, name: &str) -> Result<RegisterOutco
     }
 }
 
-async fn compare_drift_and_maybe_enter_lonewolf(reply: &LoginReply) {
-    let stored = match key_value_storage_db_actions::get_client_drift_version().await {
-        Ok(v) => v,
-        Err(e) => {
-            leptos::logging::warn!("get_client_drift_version: {e:?}");
-            return;
-        }
-    };
+async fn compare_drift_and_maybe_enter_lonewolf(reply: &LoginReply) -> Result<(), String> {
+    let stored = key_value_storage_db_actions::get_client_drift_version()
+        .await
+        .map_err(|e| format!("get_client_drift_version: {e:?}"))?;
 
     match stored {
         None => {
-            if let Err(e) = key_value_storage_db_actions::set_client_drift_version(
-                &reply.drift_version,
-            )
-            .await
-            {
-                leptos::logging::warn!("set_client_drift_version: {e:?}");
-            }
+            key_value_storage_db_actions::set_client_drift_version(&reply.drift_version)
+                .await
+                .map_err(|e| format!("set_client_drift_version: {e:?}"))?;
+            shared_internals::set_drift_version(reply.drift_version.clone());
             let _ = key_value_storage_db_actions::set_should_i_drift_popup(true).await;
         }
         Some(v) if v == reply.drift_version => {
+            shared_internals::set_drift_version(reply.drift_version.clone());
             let _ = key_value_storage_db_actions::set_should_i_drift_popup(true).await;
         }
         Some(_) => {
@@ -150,6 +150,7 @@ async fn compare_drift_and_maybe_enter_lonewolf(reply: &LoginReply) {
             super::enter_lonewolf(reason);
         }
     }
+    Ok(())
 }
 
 async fn read_saved_name() -> Result<Option<String>, String> {

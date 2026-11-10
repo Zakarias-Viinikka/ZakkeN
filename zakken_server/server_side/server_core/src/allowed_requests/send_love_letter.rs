@@ -3,7 +3,7 @@ use crate::telephone::Telephone;
 use db_core::db::apply_letter::apply_letter;
 use db_core::db::operations_love_letters;
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::{ErrorDetails, LogCategory, ServErr};
+use server_errors::{ErrorDetails, LogCategory, ServErr};
 use love_letter::deserialize_love_letter;
 use love_letter_parser::get_target_page_id_from_letter;
 

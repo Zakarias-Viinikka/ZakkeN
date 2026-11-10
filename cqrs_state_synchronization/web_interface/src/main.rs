@@ -10,6 +10,7 @@ use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::custom_port_setting_page::CustomPortSettingPage;
 use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
+use web_interface::leptos_components::small_components::AppBorder;
 use web_interface::leptos_components::small_components::popup::CoolPopup;
 use web_interface::page_state::{OpenPages, Page, PageLoadState};
 use web_interface::shared_owners::batcher_handle;
@@ -57,28 +58,30 @@ fn App() -> impl IntoView {
     expose_methods_main!();
 
     view! {
-        {move || {
-            if !tables_ready.get() {
-                return view! { <div>"Loading..."</div> }.into_any();
-            }
-            view! {
-                <Router>
-                    <main>
-                        <Routes fallback=|| "Not found.">
-                            <Route path=path!("/") view=Menu/>
-                            <Route path=path!("/Menu") view=Menu/>
-                            <Route path=path!("/DbGui") view=db_gui_main::DbGui/>
-                            <Route path=path!("/MainContent/:page_id") view=MainContentRoute/>
-                            <Route path=path!("/setup") view=SetupPage/>
-                            <Route path=path!("/custom_port_setting_page") view=CustomPortSettingPage/>
-                        </Routes>
-                        <SetupGuard/>
-                        <CoolPopup/>
-                        <MainForNavigatingFromTheTester/>
-                    </main>
-                </Router>
-            }.into_any()
-        }}
+        <AppBorder>
+            {move || {
+                if !tables_ready.get() {
+                    return view! { <div>"Loading..."</div> }.into_any();
+                }
+                view! {
+                    <Router>
+                        <main>
+                            <Routes fallback=|| "Not found.">
+                                <Route path=path!("/") view=Menu/>
+                                <Route path=path!("/Menu") view=Menu/>
+                                <Route path=path!("/DbGui") view=db_gui_main::DbGui/>
+                                <Route path=path!("/MainContent/:page_id") view=MainContentRoute/>
+                                <Route path=path!("/setup") view=SetupPage/>
+                                <Route path=path!("/custom_port_setting_page") view=CustomPortSettingPage/>
+                            </Routes>
+                            <SetupGuard/>
+                            <CoolPopup/>
+                            <MainForNavigatingFromTheTester/>
+                        </main>
+                    </Router>
+                }.into_any()
+            }}
+        </AppBorder>
     }
 }
 

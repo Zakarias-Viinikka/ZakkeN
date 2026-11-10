@@ -1,10 +1,7 @@
 [package]
-name = "server_error_stuff"
+name = "server_errors"
 version = "0.1.0"
 edition = "2024"
-
-[lib]
-name = "error_stuff"
 
 [dependencies]
 thiserror = "2"

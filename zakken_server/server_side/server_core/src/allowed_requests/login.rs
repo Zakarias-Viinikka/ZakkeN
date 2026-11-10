@@ -2,7 +2,7 @@ use crate::logging::log_error;
 use crate::telephone::Telephone;
 use db_core::db::{db_actions_for_drift, user_registration};
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::{ErrorDetails, LogCategory, ServErr};
+use server_errors::{ErrorDetails, LogCategory, ServErr};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
 use server_protocol::{LoginPayload, LoginReply};

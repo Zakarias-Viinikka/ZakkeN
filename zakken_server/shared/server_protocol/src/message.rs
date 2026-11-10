@@ -8,7 +8,7 @@ pub struct Message {
     pub message_id: usize,
     pub request: Request,
     pub payload: Base64Bytes,
-    pub drift_version: String,
+    pub drift_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

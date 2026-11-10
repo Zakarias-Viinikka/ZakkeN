@@ -1,5 +1,5 @@
 use super::commands::Command;
-use error_stuff::{ErrorDetails, ServerLogEntry, ServErr};
+use server_errors::{ErrorDetails, ServerLogEntry, ServErr};
 use tokio::sync::{mpsc, oneshot};
 
 #[allow(dead_code)]

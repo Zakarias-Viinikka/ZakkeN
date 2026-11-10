@@ -69,21 +69,23 @@ async fn connect_to_socket_on_startup(open: OpenPages) {
         rx_hear_that_socket_reconnected_so_we_can_relogin,
     ) = futures_channel::mpsc::unbounded::<()>();
 
-    let on_love_letter_from_server = move |letter| {
-        let _ = tx_give_love_letter_that_came_from_server_to_task_that_processes_it
-            .unbounded_send(letter);
-    };
+    let (tx_forward_spontaneous_server_message, rx_forward_spontaneous_server_message) =
+        futures_channel::mpsc::unbounded::<server_protocol::Response>();
+    super::drift::spawn_owner_of_spontaneous_messages_from_server(
+        rx_forward_spontaneous_server_message,
+        tx_give_love_letter_that_came_from_server_to_task_that_processes_it,
+    );
     let on_conn_status_change = move |status| match status {
         ConnStatus::Connecting => CONN_STATE.set(ConnState::Connecting),
         ConnStatus::Connected => {
-            CONN_STATE.set(ConnState::Connected);
+            CONN_STATE.set(ConnState::LoggingIn);
             let _ =
                 tx_tell_receiving_task_that_socket_reconnected_so_it_can_relogin.unbounded_send(());
         }
-        ConnStatus::Failed => CONN_STATE.set(ConnState::FailedToConnect),
+        ConnStatus::Failed => CONN_STATE.set(ConnState::Offline),
     };
 
-    let router = Router::new(url, on_love_letter_from_server, on_conn_status_change);
+    let router = Router::new(url, tx_forward_spontaneous_server_message, on_conn_status_change);
 
     crate::shared_owners::router_handle::set(router.clone());
 

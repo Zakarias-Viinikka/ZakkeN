@@ -1,15 +1,18 @@
 //! The router owns the socket connection to `zakken_server`.
 //!
-//! `Router::new(url, on_love_letters, on_conn_status)` creates the
-//! shared state, spawns the dispatch loop and the socket-retry loop,
-//! and returns a `RouterHandle`. Callers only ever see `RouterHandle`.
+//! `Router::new(url, tx_forward_spontaneous_server_message, on_conn_status)`
+//! creates the shared state, spawns the dispatch loop and the
+//! socket-retry loop, and returns a `RouterHandle`. Callers only ever
+//! see `RouterHandle`.
 //!
 //! The `Router` struct itself is the dispatch loop: it reads decoded
 //! responses from the socket half, matches `Reply { message_id }` to
-//! the waiter that asked, and forwards `LoveLetterFromServer` to the
-//! caller-supplied callback. It's spawned inside `new`, not returned.
+//! the waiter that asked, and forwards every spontaneous response
+//! (love letters, the drift-changed push) into the caller-supplied
+//! channel. The owner of spontaneous messages lives on the other end
+//! of that channel and decides what each one means.
 
-use error_stuff::{ErrorDetails, ServErr};
+use server_errors::{ErrorDetails, ServErr};
 use futures::StreamExt;
 #[allow(unused_imports)]
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
@@ -43,20 +46,24 @@ struct Shared {
 pub struct Router {
     shared: Arc<Shared>,
     incoming_responses_rx: UnboundedReceiver<Response>,
-    on_love_letters: Box<dyn FnMut(UnsentLetter, String)>,
+    tx_forward_spontaneous_server_message: UnboundedSender<Response>,
 }
 
 impl Router {
     /// Create the shared state, spawn the dispatch loop and the socket
     /// retry loop, return a handle.
     ///
-    /// - `on_love_letters` fires for every server-pushed letter.
+    /// - `tx_forward_spontaneous_server_message` carries every
+    ///   spontaneous response the server pushes.
     /// - `on_conn_status` fires on every connection state change.
 
     #[cfg(any(target_arch = "wasm32", target_os = "android"))]
-    pub fn new<L, S>(url: String, on_love_letters: L, on_conn_status: S) -> RouterHandle
+    pub fn new<S>(
+        url: String,
+        tx_forward_spontaneous_server_message: UnboundedSender<Response>,
+        on_conn_status: S,
+    ) -> RouterHandle
     where
-        L: FnMut(UnsentLetter, String) + 'static,
         S: FnMut(ConnStatus) + 'static,
     {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
@@ -72,7 +79,7 @@ impl Router {
         let dispatch = Router {
             shared: Arc::clone(&shared),
             incoming_responses_rx: incoming_rx,
-            on_love_letters: Box::new(on_love_letters),
+            tx_forward_spontaneous_server_message,
         };
         socket::spawn_dispatch(dispatch);
 
@@ -122,17 +129,10 @@ impl Router {
                         let _ = tx.send(payload.0);
                     }
                 }
-                Response::LoveLetterFromServer {
-                    letter,
-                    drift_version,
-                } => {
-                    (self.on_love_letters)(letter, drift_version);
-                }
-                Response::TheDriftVersionChanged {
-                    drift_version: _,
-                    drift_reason: _,
-                } => {
-                    todo!("router doesn't hand TheDriftVersionChanged to the app yet")
+                Response::LoveLetterFromServer { .. } | Response::TheDriftVersionChanged { .. } => {
+                    let _ = self
+                        .tx_forward_spontaneous_server_message
+                        .unbounded_send(response);
                 }
             }
         }
@@ -171,7 +171,7 @@ impl RouterHandle {
             message_id: id,
             request,
             payload: Base64Bytes(payload),
-            drift_version: todo!("client doesn't send drift_version yet"),
+            drift_version: crate::drift_version::get_drift_version(),
         };
         if self.shared.outgoing_tx.unbounded_send(message).is_err() {
             self.shared.pending.lock().unwrap().remove(&id);
@@ -214,20 +214,17 @@ mod tests {
     }
 
     // Builds the shared state + dispatch loop + handle without touching
-    // the socket. Tests drive the two channel ends directly.
-    fn make<L>(
-        on_letters: L,
-    ) -> (
+    // the socket. Tests drive the channel ends directly.
+    fn make() -> (
         RouterHandle,
         Router,
         UnboundedSender<Response>,
         UnboundedReceiver<Message>,
-    )
-    where
-        L: FnMut(UnsentLetter, String) + 'static,
-    {
+        UnboundedReceiver<Response>,
+    ) {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
         let (incoming_tx, incoming_rx) = unbounded::<Response>();
+        let (spontaneous_tx, spontaneous_rx) = unbounded::<Response>();
         let shared = Arc::new(Shared {
             pending: Mutex::new(HashMap::new()),
             next_request_id: AtomicUsize::new(1),
@@ -237,14 +234,20 @@ mod tests {
         let dispatch = Router {
             shared: Arc::clone(&shared),
             incoming_responses_rx: incoming_rx,
-            on_love_letters: Box::new(on_letters),
+            tx_forward_spontaneous_server_message: spontaneous_tx,
         };
-        (RouterHandle { shared }, dispatch, incoming_tx, outgoing_rx)
+        (
+            RouterHandle { shared },
+            dispatch,
+            incoming_tx,
+            outgoing_rx,
+            spontaneous_rx,
+        )
     }
 
     #[test]
     fn a_reply_goes_to_the_caller_that_asked() {
-        let (handle, dispatch, incoming_tx, mut outgoing_rx) = make(|_, _| {});
+        let (handle, dispatch, incoming_tx, mut outgoing_rx, _spontaneous_rx) = make();
 
         block_on(async move {
             let call = handle.send_request(Request::Ack, Vec::new());
@@ -265,14 +268,8 @@ mod tests {
     }
 
     #[test]
-    fn a_love_letter_from_server_goes_to_the_callback() {
-        let received: Arc<Mutex<Vec<UnsentLetter>>> = Arc::new(Mutex::new(Vec::new()));
-        let received_clone = Arc::clone(&received);
-        let on_letters = move |letter: UnsentLetter, _drift_version: String| {
-            received_clone.lock().unwrap().push(letter);
-        };
-
-        let (_handle, dispatch, incoming_tx, _outgoing_rx) = make(on_letters);
+    fn a_love_letter_from_server_is_forwarded_unchanged() {
+        let (_handle, dispatch, incoming_tx, _outgoing_rx, mut spontaneous_rx) = make();
         let letter = UnsentLetter {
             letter_id: 5,
             love_letter: vec![1, 2, 3],
@@ -282,16 +279,53 @@ mod tests {
             let run = dispatch.run();
             incoming_tx
                 .unbounded_send(Response::LoveLetterFromServer {
-                    letter,
+                    letter: letter.clone(),
                     drift_version: "test".to_string(),
                 })
                 .expect("feed a push");
             drop(incoming_tx);
-            run.await;
-        });
 
-        let got = received.lock().unwrap();
-        assert_eq!(got.len(), 1);
-        assert_eq!(got[0].letter_id, 5);
+            let drive = async {
+                let got = spontaneous_rx.next().await.expect("one forwarded");
+                match got {
+                    Response::LoveLetterFromServer { letter: got, drift_version } => {
+                        assert_eq!(got.letter_id, 5);
+                        assert_eq!(drift_version, "test");
+                    }
+                    _ => panic!("wrong variant"),
+                }
+            };
+
+            let _ = futures::join!(run, drive);
+        });
+    }
+
+    #[test]
+    fn the_drift_changed_push_is_forwarded_unchanged() {
+        let (_handle, dispatch, incoming_tx, _outgoing_rx, mut spontaneous_rx) = make();
+
+        block_on(async move {
+            let run = dispatch.run();
+            incoming_tx
+                .unbounded_send(Response::TheDriftVersionChanged {
+                    drift_version: "v2".to_string(),
+                    drift_reason: "another client wiped".to_string(),
+                })
+                .expect("feed a push");
+            drop(incoming_tx);
+
+            let drive = async {
+                let got = spontaneous_rx.next().await.expect("one forwarded");
+                match got {
+                    Response::TheDriftVersionChanged { drift_version, drift_reason } => {
+                        assert_eq!(drift_version, "v2");
+                        assert_eq!(drift_reason, "another client wiped");
+                    }
+                    _ => panic!("wrong variant"),
+                }
+            };
+
+            let _ = futures::join!(run, drive);
+        });
     }
 }

@@ -79,7 +79,7 @@ async fn run_retry<S, F>(
             }
         }
         TimeoutFuture::new(backoff_ms).await;
-        backoff_ms = backoff_ms.saturating_mul(2).min(30_000);
+        backoff_ms = backoff_ms.saturating_mul(2).min(5_000);
     }
 }
 

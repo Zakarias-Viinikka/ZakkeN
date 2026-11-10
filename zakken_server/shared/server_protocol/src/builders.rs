@@ -1,5 +1,5 @@
 use crate::message::{Message, Response};
-use error_stuff::{ErrorDetails, ServErr};
+use server_errors::{ErrorDetails, ServErr};
 
 pub fn json_str_to_message(json: &str) -> Result<Message, ServErr> {
     serde_json::from_str(json).map_err(|e| protocol_err("json_str_to_message", e.to_string()))

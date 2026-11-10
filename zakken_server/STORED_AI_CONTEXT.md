@@ -23,8 +23,9 @@ A cargo workspace in three folders. The split mirrors
 rust_practice/server_template_3.
 
 shared/ holds what more than one side needs:
-- error_stuff - ServErr, ErrorDetails (err_msg/file/method/probable_cause),
-  and the log types LogCategory, LogLevel, ServerLogEntry.
+- server_errors - ServErr, ErrorDetails (err_msg/file/method/probable_cause),
+  and the log types LogCategory, LogLevel, ServerLogEntry. Package name
+  is `server_errors`; the folder is `shared/server_errors`.
 - server_protocol - the server's own Message/Response/Request and payload
   structs. Not z_db's protocol; that one belongs to the browser.
 
@@ -34,10 +35,6 @@ server_side/ holds the server's own crates:
   executor, and the telephone module.
 - love_letter_parser - letter bytes -> target_page_id.
 - queue - Job, Priority, QueueManager. No database knowledge.
-
-mock_client/ holds the mock client, at the top level:
-- mock_client_core - mock client logic, no printing.
-- cli_gui - the mock client's REPL.
 
 client_internals/ holds how a client talks to the server:
 - shared_internals - owns the socket connection AND the
@@ -140,7 +137,7 @@ before closing its socket, because the dataset was replaced. The
 client reconnects and re-logs-in from there.
 
 Every response payload is a bincode-encoded Result<T, ServErr>. ServErr
-is error_stuff's own type, and wraps the db's DbError when the failure
+is server_errors' own type, and wraps the db's DbError when the failure
 really is a db failure. Its variants: DbErrorContainer(DbError) for db
 faults, ServerError(ErrorDetails) for internal-but-recoverable,
 ClientGone { user_name } for a disconnected client, RejectedBecause
@@ -164,9 +161,10 @@ and awaits the reply. One executor task, started from main, takes jobs
 do_request, and sends the result back through the job's oneshot.
 
 A Job carries the request, the payload, a message id, a socket id, and a
-WhereTheRequestCameFrom (an enum: FromAClient(drift_version) for a
+WhereTheRequestCameFrom (an enum: FromAClient(Option<String>) for a
 message that came in off some client's socket, FromTheServer for the
-socket's own internal pull). The socket id is a u64 minted from an
+socket's own internal pull). The Option is None for Register, Login and
+GetCurrentDrift, which have no version to send. The socket id is a u64 minted from an
 atomic counter when the socket is born. It names a connection before
 anyone has logged in, which is what lets the socket register its nudge
 channel at birth instead of at login.
@@ -336,7 +334,7 @@ local_cargo.sh is a per-directory wrapper around cargo. `c c` checks the
 whole workspace with `--all-targets`, so `#[cfg(test)]` code is included,
 and also checks client_internals/web (wasm target) and
 client_internals/android. `c t` runs `cargo test --workspace`. `c r` runs
-zakken_server from the zakken_server root, cli_gui from mock_client.
+zakken_server from the zakken_server root.
 
 yrs's anti_deadlock prints "DEBUG_MODE is OFF (direct call, no timeout)" on
 every method call. That's from the yrs crate, not from the server.

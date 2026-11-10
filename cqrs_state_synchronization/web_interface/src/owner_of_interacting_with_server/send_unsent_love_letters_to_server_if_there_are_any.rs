@@ -15,7 +15,7 @@ use futures_channel::mpsc::{unbounded, UnboundedReceiver};
 use futures_util::StreamExt;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use error_stuff::ServErr;
+use server_protocol::ServErr;
 use love_letter::{build_a_love_letter, deserialize_sketch, love_letter_to_bytes};
 use protocol::error::DbError;
 use protocol::payload::*;

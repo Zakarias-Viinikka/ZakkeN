@@ -2,19 +2,23 @@ use client_table_blueprints::{
     tbl_client_love_letter, tbl_every_block_in_existence, tbl_key_value_storage, tbl_pages,
     tbl_seen_server_letters,
 };
-use data_builder_for_operations_that_need_to_be_correct::{add_block, create_page};
+use data_builder_for_operations_that_need_to_be_correct::{
+    add_block, create_page, disable_page as build_disable_page,
+};
 use error_stuff::CqrsErr;
 use leptos::prelude::Update;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
-    add_block_requires_three_db_actions, insert_page_requires_three_db_inserts,
-    run_in_transaction,
+    add_block_requires_three_db_actions, disabled_page_requires_three_db_actions,
+    insert_page_requires_three_db_inserts, run_in_transaction,
 };
 use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use protocol::payload::DeleteAllRowsIn;
 use web_internal_db::db_helper;
 
 use crate::db::cached_ids::{current_session_id, current_user_id};
-use crate::db::reads_wrapper::pages::get_yrs_unblobbed;
+use crate::db::reads_wrapper::pages::{
+    get_active_pages_blob, get_all_page_ids, get_page_is_disabled, get_yrs_unblobbed,
+};
 use crate::db::write_lock::WRITE_LOCK;
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;
@@ -102,14 +106,28 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
 }
 
 pub async fn delete_everything() -> Result<(), CqrsErr> {
-    let _guard = WRITE_LOCK.acquire().await;
-    wipe_tables(&[
-        tbl_pages::TABLE_NAME,
-        tbl_every_block_in_existence::TABLE_NAME,
-        tbl_client_love_letter::TABLE_NAME,
-        tbl_seen_server_letters::TABLE_NAME,
-    ])
-    .await
+    crate::shared_owners::batcher_handle::flush_now().await?;
+    let session_id = current_session_id();
+    crate::shared_owners::batcher_handle::run_exclusive(move || async move {
+        let page_ids = get_all_page_ids().await?;
+        run_in_transaction(move || async move {
+            for page_id in page_ids {
+                if get_page_is_disabled(page_id.clone()).await? {
+                    continue;
+                }
+                let active_pages_blob = get_active_pages_blob(page_id.clone()).await?;
+                let everything =
+                    build_disable_page(page_id.clone(), session_id.clone(), active_pages_blob)?;
+                disabled_page_requires_three_db_actions(everything).await?;
+            }
+            Ok(())
+        })
+        .await
+    })
+    .await?;
+    crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters();
+    crate::owner_of_interacting_with_server::MENU_TICK.update(|n| *n = n.wrapping_add(1));
+    Ok(())
 }
 
 pub async fn reset_everything() -> Result<(), CqrsErr> {

@@ -2,6 +2,9 @@
 pub enum ConnectionStatus {
     Offline,
     Connecting,
+    /// Socket is open but login and the drift comparison haven't
+    /// finished yet. Nothing may be sent from here.
+    LoggingIn,
     /// Either the in-between step between connecting and failed to connect due to
     /// failing to connect in general. But it's also the state for when the client
     /// tries to log in with x username and it fails for whatever reason.

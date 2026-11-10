@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
 use client_table_blueprints::{tbl_pages, tbl_seen_server_letters};
-use error_stuff::ServErr;
+use server_protocol::ServErr;
 use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures_util::StreamExt;
 use leptos::prelude::*;
@@ -20,6 +20,7 @@ use server_protocol::{
 use shared_internals::RouterHandle;
 use web_internal_db::db_helper;
 
+use crate::db::key_value_storage_db_actions;
 use crate::db::main_send_unsent_love_letters::main_send_unsent_love_letters;
 use crate::db::reads_wrapper::pages::page_exists;
 use crate::leptos_components::small_components::popup::show_popup;
@@ -40,7 +41,7 @@ static START_OVER_FRESH_ATTEMPTED: std::sync::atomic::AtomicBool =
 
 pub fn spawn_task_for_receiving_socket_messages(
     router: RouterHandle,
-    rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<UnsentLetter>,
+    rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<(UnsentLetter, String)>,
     rx_hear_that_socket_reconnected_so_we_can_relogin: UnboundedReceiver<()>,
     open: OpenPages,
 ) {
@@ -56,8 +57,8 @@ pub fn spawn_task_for_receiving_socket_messages(
 }
 
 pub fn make_letters_channel() -> (
-    UnboundedSender<UnsentLetter>,
-    UnboundedReceiver<UnsentLetter>,
+    UnboundedSender<(UnsentLetter, String)>,
+    UnboundedReceiver<(UnsentLetter, String)>,
 ) {
     unbounded()
 }
@@ -72,7 +73,7 @@ pub async fn clear_seen_server_letters() -> Result<(), DbError> {
 
 async fn task_for_receiving_socket_messages(
     router: RouterHandle,
-    mut rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<UnsentLetter>,
+    mut rx_take_love_letter_from_server_and_process_it: UnboundedReceiver<(UnsentLetter, String)>,
     mut rx_hear_that_socket_reconnected_so_we_can_relogin: UnboundedReceiver<()>,
     open: OpenPages,
 ) {
@@ -85,8 +86,8 @@ async fn task_for_receiving_socket_messages(
         let next_reconnect = rx_hear_that_socket_reconnected_so_we_can_relogin.next();
         match futures_util::future::select(next_item, next_reconnect).await {
             futures_util::future::Either::Left((item, _)) => match item {
-                Some(i) => {
-                    if !handle_one(open, &router, i).await {
+                Some((letter, drift_version)) => {
+                    if !handle_one(open, &router, letter, drift_version).await {
                         return;
                     }
                 }
@@ -96,6 +97,7 @@ async fn task_for_receiving_socket_messages(
                 if let Err(e) = super::main_for_login_and_registration::login(&router).await {
                     leptos::logging::error!("login: {e}");
                     show_popup(format!("login failed: {e}"));
+                    super::core::CONN_STATE.set(super::core::ConnState::FailedToConnect);
                     continue;
                 }
                 main_send_unsent_love_letters();
@@ -104,9 +106,9 @@ async fn task_for_receiving_socket_messages(
                     show_popup(format!("start_over_fresh failed: {e:?}"));
                 }
                 match pull_unsent(&router).await {
-                    Ok(letters) => {
+                    Ok((letters, drift_version)) => {
                         for item in letters {
-                            if !handle_one(open, &router, item).await {
+                            if !handle_one(open, &router, item, drift_version.clone()).await {
                                 return;
                             }
                         }
@@ -248,7 +250,7 @@ async fn local_db_has_pages() -> Result<bool, DbError> {
     Ok(!out.rows.is_empty())
 }
 
-async fn pull_unsent(router: &RouterHandle) -> Result<Vec<UnsentLetter>, DbError> {
+async fn pull_unsent(router: &RouterHandle) -> Result<(Vec<UnsentLetter>, String), DbError> {
     let bytes = router
         .send_request(Request::GetMyUnsentLetters, Vec::new())
         .await
@@ -256,7 +258,7 @@ async fn pull_unsent(router: &RouterHandle) -> Result<Vec<UnsentLetter>, DbError
     let payload: Result<GetMyUnsentLettersPayload, ServErr> = Convert::un_payloadify(&bytes)
         .map_err(|e| DbError::BadCode(format!("decode unsent: {e:?}")))?;
     payload
-        .map(|p| p.letters)
+        .map(|p| (p.letters, p.drift_version))
         .map_err(|e| DbError::BadCode(format!("server refused unsent: {e:?}")))
 }
 
@@ -264,10 +266,16 @@ async fn handle_one(
     open: OpenPages,
     router: &RouterHandle,
     item: UnsentLetter,
+    letter_drift_version: String,
 ) -> bool {
     if !super::sync_may_run() {
         return true;
     }
+
+    if !letter_is_on_our_drift_version(item.letter_id, &letter_drift_version).await {
+        return true;
+    }
+
     if SEEN_IDS.lock().unwrap().contains(&item.letter_id) {
         send_ack(router, item.letter_id).await;
         return true;
@@ -293,9 +301,9 @@ async fn handle_one(
             let _ = outcome.changed;
             MENU_TICK.update(|n| *n = n.wrapping_add(1));
             if created_new_page {
-                if let Ok(more) = pull_unsent(router).await {
+                if let Ok((more, next_drift_version)) = pull_unsent(router).await {
                     for extra in more {
-                        if !Box::pin(handle_one(open, router, extra)).await {
+                        if !Box::pin(handle_one(open, router, extra, next_drift_version.clone())).await {
                             return false;
                         }
                     }
@@ -324,6 +332,23 @@ async fn handle_one(
             false
         }
     }
+}
+
+async fn letter_is_on_our_drift_version(letter_id: i64, letter_drift_version: &str) -> bool {
+    let our_version = match key_value_storage_db_actions::get_client_drift_version().await {
+        Ok(v) => v,
+        Err(e) => {
+            leptos::logging::error!("couldn't read our drift version: {e:?}");
+            return false;
+        }
+    };
+    let accepts = our_version.as_deref() == Some(letter_drift_version);
+    if !accepts {
+        leptos::logging::warn!(
+            "letter {letter_id} arrived on drift version {letter_drift_version:?} but we're on {our_version:?} - dropping",
+        );
+    }
+    accepts
 }
 
 async fn send_ack(router: &RouterHandle, letter_id: i64) {

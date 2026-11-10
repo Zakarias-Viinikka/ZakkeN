@@ -1,6 +1,6 @@
 use crate::telephone::Telephone;
 use db_core::db::{db_actions_for_drift, operations_love_letters, operations_pages};
-use error_stuff::{ErrorDetails, ServErr};
+use server_errors::{ErrorDetails, ServErr};
 use queue::WhereTheRequestCameFrom;
 use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
@@ -54,6 +54,9 @@ fn refuse_if_the_client_is_on_a_stale_drift_version(
     }
     let WhereTheRequestCameFrom::FromAClient(client_version) = where_the_request_came_from else {
         return None;
+    };
+    let Some(client_version) = client_version.as_deref() else {
+        return Some(ServErr::DriftVersionMismatch);
     };
     let current = {
         let db_wrapper = state.lock().unwrap();

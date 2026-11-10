@@ -1,7 +1,7 @@
 use super::core::unsent_letters_for_user;
 use db_core::db::db_actions_for_drift;
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::ServErr;
+use server_errors::ServErr;
 use protocol::serialization::Convert;
 use server_protocol::GetMyUnsentLettersPayload;
 

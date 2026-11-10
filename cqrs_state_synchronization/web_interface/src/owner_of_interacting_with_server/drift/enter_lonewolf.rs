@@ -4,7 +4,7 @@ use leptos::task::spawn_local;
 use crate::db::key_value_storage_db_actions;
 use crate::leptos_components::small_components::popup::show_popup;
 
-use super::core::{ConnState, CONN_STATE};
+use super::super::core::{ConnState, CONN_STATE};
 
 /// Sync is stopped because the client's drift version and the server's
 /// don't match. Flips the status immediately (gating takes effect at
@@ -12,7 +12,7 @@ use super::core::{ConnState, CONN_STATE};
 /// the reason (or a generic message) only if it's still true.
 pub fn enter_lonewolf(reason: Option<String>) {
     let next = match CONN_STATE.get_untracked() {
-        ConnState::Connected | ConnState::Lonewolf => ConnState::Lonewolf,
+        ConnState::Connected | ConnState::Lonewolf | ConnState::LoggingIn => ConnState::Lonewolf,
         _ => ConnState::LoneWolfAndOffline,
     };
     CONN_STATE.set(next);

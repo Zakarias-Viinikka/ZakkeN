@@ -1,4 +1,5 @@
-use server_protocol::Request;
+use protocol::serialization::Convert;
+use server_protocol::{Request, WipeDatasetPayload};
 
 pub enum ClientCommand {
     WipeDataset,
@@ -11,5 +12,8 @@ pub fn build_request(command: ClientCommand) -> (Request, Vec<u8>) {
 }
 
 fn build_wipe_dataset_request() -> (Request, Vec<u8>) {
-    (Request::WipeDataset, Vec::new())
+    let payload = WipeDatasetPayload {
+        drift_solution: None,
+    };
+    (Request::WipeDataset, payload.to_payload())
 }

@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 futures = "0.3"
 server_protocol = { path = "../../shared/server_protocol" }
-error_stuff = { path = "../../shared/error_stuff", package = "server_error_stuff" }
+server_errors = { path = "../../shared/server_errors" }
 protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

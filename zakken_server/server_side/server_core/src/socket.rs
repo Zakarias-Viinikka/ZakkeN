@@ -2,7 +2,7 @@ use crate::logging::{log, log_error, request_name};
 use crate::reply::{craft_response, send_message};
 use crate::telephone::{Telephone, TelephoneCommand};
 use axum::extract::ws::{Message, WebSocket};
-use error_stuff::{ErrorDetails, LogCategory, ServErr};
+use server_errors::{ErrorDetails, LogCategory, ServErr};
 
 use protocol::serialization::Convert;
 use queue::{Priority, QueueManager, WhereTheRequestCameFrom};
@@ -17,7 +17,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 static NEXT_SOCKET_ID: AtomicU64 = AtomicU64::new(1);
 
 enum NextRequest {
-    Got(Request, usize, Vec<u8>, String),
+    Got(Request, usize, Vec<u8>, Option<String>),
     BadProtocol(ServErr),
     Closed,
 }
@@ -328,7 +328,7 @@ impl SocketState {
         request: Request,
         msg_id: usize,
         payload: Vec<u8>,
-        drift_version: String,
+        drift_version: Option<String>,
         queue: &QueueManager,
     ) -> Option<Vec<u8>> {
         let reply_rx = match queue.submit(

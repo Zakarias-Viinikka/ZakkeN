@@ -111,3 +111,24 @@ pub async fn get_active_pages_blob(page_id: String) -> Result<Vec<u8>, CqrsErr> 
         })?;
     Ok(blob)
 }
+
+pub async fn get_all_page_ids() -> Result<Vec<String>, CqrsErr> {
+    let out = db_helper::get_data(GetDataIn {
+        table_name: tbl_pages::TABLE_NAME.into(),
+        arguments: SelectArguments::Single(SelectArgument::All),
+        columns_to_read: vec![PAGE_ID.name.to_string()],
+    })
+    .await?;
+    let mut ids = Vec::new();
+    for row in out.rows {
+        if let Some(col) = row.cols.into_iter().next() {
+            if let Some(id) = tbl_pages::PAGE_ID
+                .try_destruct_db_col(col)
+                .map_err(|e| CqrsErr::DbErrorContainer(DbError::IllegalInput(e)))?
+            {
+                ids.push(id);
+            }
+        }
+    }
+    Ok(ids)
+}

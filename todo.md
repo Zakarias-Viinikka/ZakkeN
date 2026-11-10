@@ -89,24 +89,29 @@ See the "External: web_diff_viewer" section in `STORED_AI_CONTEXT.md` for the ca
 ## export / import / wipe / adopt / reconcile
 
 User-triggered sync recovery. Plan in
-plan_for_general_data_management_ops.md.
+plan_for_general_data_management_ops.md, superseded where they
+disagree by combining_connecting_template_with_cqrs_and_server.md.
 Covers: hard-copy JSON for pages and backlinks, dataset generation
 id in the server's Login reply, new request variants for wipe and
 adopt, and a per-page reconcile flow. Web first; Android deferred
-but kept compatible. Depends on the yrs hard copy primitive below.
+but kept compatible.
 
-Not started.
+Partly done. The wipe request exists and works server-side: it
+unregisters everyone, mints a new drift version with the caller's
+drift_solution, and tells every other connected socket before
+closing it. Export, import, adopt and reconcile: not started. The
+client-side reaction to drift_solution at login and the picker for
+when drift_solution is absent: not started.
 
 ## yrs: hard copy primitive
 
-BossOfYrs::from_hard_copy(blocks: Vec<HardCopyBlock>) -> Arc<BossOfYrs>.
-Takes a plain block list (id, content, meta, frac_position) and
-returns a fresh doc with those blocks, using
-insert_new_block_with_preexisting_id so ids survive. No history,
-no update log, fresh clocks. Both client and server need it for the
-export / import / wipe / adopt flow. Needed fairly soon.
-
-Not started.
+BossOfYrs::from_hard_copy was the original name. It landed as
+`freeze_doc(input: FreezeDocInput) -> BossOfYrs` in
+`yrs/src/yrs_wrapper/freeze_doc_main/`, with
+`freeze_doc_builder(boss) -> FreezeDocInput` for the read-back.
+File order is the order; fracs come from the rebuilt doc. Tests in
+`yrs/tests/freeze_doc_tests.rs`. Both client and server will use it
+for the export / import / adopt / reconcile flow.
 
 ## mock client: deliberate editing
 

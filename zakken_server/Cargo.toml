@@ -2,7 +2,7 @@
 members = [
     "server_side/db",
     "server_side/server_core",
-    "shared/error_stuff",
+    "shared/server_errors",
     "server_side/love_letter_parser",
     "server_side/queue",
     "shared/server_protocol",

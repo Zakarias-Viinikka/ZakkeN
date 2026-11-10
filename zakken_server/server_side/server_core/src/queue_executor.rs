@@ -1,7 +1,7 @@
 use crate::allowed_requests::do_request;
 use db_wrapper::android_mascot::LiveForever;
 use crate::telephone::Telephone;
-use error_stuff::ServerLogEntry;
+use server_errors::ServerLogEntry;
 use queue::Job;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::UnboundedReceiver;

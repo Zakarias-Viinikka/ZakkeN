@@ -1,6 +1,6 @@
 use db_core::db::operations_love_letters;
 use db_wrapper::android_mascot::LiveForever;
-use error_stuff::ServErr;
+use server_errors::ServErr;
 use protocol::serialization::{Convert, ok_serialized};
 use server_protocol::AckPayload;
 
