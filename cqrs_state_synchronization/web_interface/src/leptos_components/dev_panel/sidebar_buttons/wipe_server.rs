@@ -13,7 +13,7 @@ pub fn WipeServerButton() -> impl IntoView {
         <button on:click=move |_| {
             spawn_local(async move {
                 if let Err(e) = router_handle::send(ClientCommand::WipeDataset).await {
-                    show_popup(format!("wipe server failed: {e}"));
+                    show_popup(format!("wipe server failed: {e:?}"));
                 }
             });
         }>"wipe server"</button>

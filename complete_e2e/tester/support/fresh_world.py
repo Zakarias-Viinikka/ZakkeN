@@ -31,7 +31,8 @@ def fresh_world_with_three_pages(stage) -> None:
     for page, prefix, label in ((brave, "e2e_brave", "brave"), (edge, "e2e_edge", "edge")):
         say_both(stage, f"Setup 2/4: wiping {label.capitalize()}'s saved data and signing it in as a new user")
         reset_everything(page)
-        page.wait_for_url(re.compile(r"/setup$"), timeout=seconds(5))
+        from support.timeouts import ms
+        page.wait_for_url(re.compile(r"/setup$"), timeout=ms())
         bring_up_registered(page, port, prefix)
         clear_popup_log(page)
         say(page, f"Setup 2/4: {label.capitalize()} is signed in as a new user")
@@ -50,7 +51,10 @@ def count_users() -> int:
     return query("SELECT COUNT(*) FROM registered_users")[0][0]
 
 
-def wait_until_users_drop_below(before: int, timeout_secs: float = 5.0) -> None:
+def wait_until_users_drop_below(before: int, timeout_secs: float = None) -> None:
+    if timeout_secs is None:
+        from support.timeouts import secs as default_secs
+        timeout_secs = default_secs()
     deadline = time.time() + timeout_secs
     while time.time() < deadline:
         if count_users() < before:
@@ -61,7 +65,10 @@ def wait_until_users_drop_below(before: int, timeout_secs: float = 5.0) -> None:
     )
 
 
-def wait_until_titles(page, wanted: list[str], timeout_secs: float = 8.0) -> None:
+def wait_until_titles(page, wanted: list[str], timeout_secs: float = None) -> None:
+    if timeout_secs is None:
+        from support.timeouts import secs as default_secs
+        timeout_secs = default_secs()
     deadline = time.time() + timeout_secs
     titles: list[str] = []
     while time.time() < deadline:
@@ -76,7 +83,10 @@ def count_letters() -> int:
     return query(f"SELECT COUNT(*) FROM {LETTERS_TABLE}")[0][0]
 
 
-def wait_for_new_letter(before: int, page=None, timeout_secs: float = 5.0) -> int:
+def wait_for_new_letter(before: int, page=None, timeout_secs: float = None) -> int:
+    if timeout_secs is None:
+        from support.timeouts import secs as default_secs
+        timeout_secs = default_secs()
     """Waits until the server holds more letters than `before`. Returns the
     new count, so the next edit can pass it as its own `before`."""
     deadline = time.time() + timeout_secs
@@ -90,7 +100,10 @@ def wait_for_new_letter(before: int, page=None, timeout_secs: float = 5.0) -> in
     )
 
 
-def wait_until_letters_settle(quiet_secs: float = 0.6, timeout_secs: float = 10.0) -> None:
+def wait_until_letters_settle(quiet_secs: float = 0.6, timeout_secs: float = None) -> None:
+    if timeout_secs is None:
+        from support.timeouts import secs as default_secs
+        timeout_secs = default_secs()
     """Seeding sends a burst of letters. Wait until the count stops moving
     so a test's own `before` count isn't polluted by the tail of the seed."""
     deadline = time.time() + timeout_secs

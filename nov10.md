@@ -313,3 +313,9 @@ The "no placeholders" rule needs to land in the workflow prompt, not just
 
 Updated to describe what a working sync needs on the wire, including the
 drift rules. Done.
+
+---
+
+**Superseded 2026-11-11.** The "Open work" section below is out of date.
+Reconcile is built end to end (see `nov11.md`). The decisions here are
+still accurate; only the open-work list moved on.

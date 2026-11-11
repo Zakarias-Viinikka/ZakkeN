@@ -34,7 +34,8 @@ def test_two_clients_after_wipe(two_browser_stage, pause):
 
     both(two_browser_stage, "2/7 brave resets")
     reset_everything(brave)
-    brave.wait_for_url(re.compile(r"/setup$"), timeout=seconds(2))
+    from support.timeouts import ms
+    brave.wait_for_url(re.compile(r"/setup$"), timeout=ms())
     bring_up_registered(brave, port, "e2e_brave")
     clear_popup_log(brave)
     popup(brave, "3/7 brave is fresh and registered again")
@@ -42,7 +43,8 @@ def test_two_clients_after_wipe(two_browser_stage, pause):
 
     both(two_browser_stage, "4/7 edge resets")
     reset_everything(edge)
-    edge.wait_for_url(re.compile(r"/setup$"), timeout=seconds(2))
+    from support.timeouts import ms
+    edge.wait_for_url(re.compile(r"/setup$"), timeout=ms())
     bring_up_registered(edge, port, "e2e_edge")
     clear_popup_log(edge)
     popup(edge, "5/7 edge is fresh and registered again")
@@ -69,10 +71,13 @@ def test_two_clients_after_wipe(two_browser_stage, pause):
     pause(1)
 
     target = edge.locator("button.title_button", has_text=HARDCODED_TITLE)
-    expect(target).to_have_count(1, timeout=seconds(2))
+    from support.timeouts import ms
+    expect(target).to_have_count(1, timeout=ms())
     target.click()
-    expect(edge).to_have_url(re.compile(r"/MainContent/"), timeout=seconds(2))
-    edge.wait_for_selector("textarea.ps-content", timeout=seconds(2))
+    from support.timeouts import ms
+    expect(edge).to_have_url(re.compile(r"/MainContent/"), timeout=ms())
+    from support.timeouts import ms
+    edge.wait_for_selector("textarea.ps-content", timeout=ms())
     pause(2)
 
     popup(edge, f"counting blocks in {HARDCODED_TITLE}")

@@ -9,6 +9,10 @@ use shared_internals::{build_request, ClientCommand, RouterHandle};
 ///
 /// What a command becomes on the wire is decided in
 /// `shared_internals::request_builder`. This file only sends.
+///
+/// `send` returns the raw `ServErr` so callers can match on variants
+/// like `DriftVersionMismatch`. Callers that just need a message can
+/// `format!("{e:?}")` it.
 static ROUTER_HANDLE: OnceLock<RouterHandle> = OnceLock::new();
 
 pub fn set(router_handle: RouterHandle) {
@@ -17,13 +21,12 @@ pub fn set(router_handle: RouterHandle) {
     }
 }
 
-pub async fn send(command: ClientCommand) -> Result<Vec<u8>, String> {
-    let handle = ROUTER_HANDLE
-        .get()
-        .ok_or_else(|| "not connected to the server".to_string())?;
+pub async fn send(command: ClientCommand) -> Result<Vec<u8>, server_protocol::ServErr> {
+    let handle = ROUTER_HANDLE.get().ok_or_else(|| {
+        server_protocol::ServErr::BadCode(
+            "shared_owners::router_handle::send: router handle not installed".to_string(),
+        )
+    })?;
     let (request, payload) = build_request(command);
-    handle
-        .send_request(request, payload)
-        .await
-        .map_err(|e| format!("{e:?}"))
+    handle.send_request(request, payload).await
 }

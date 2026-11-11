@@ -18,7 +18,7 @@ use futures::StreamExt;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 use futures::channel::oneshot;
 use protocol::serialization::Base64Bytes;
-use server_protocol::{Message, Request, Response, UnsentLetter};
+use server_protocol::{Message, Request, Response};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

@@ -808,3 +808,68 @@ connection state.
 Still open on the client: the mismatch branch ignores `drift_solution`
 (always enters lonewolf); the picker for `None`; reconcile and adopt.
 See `nov10.md` for the full list.
+
+## Reconcile flow - 2026-11-11
+
+Client-side reconcile is built end to end. Closes the "reconcile" gap
+nov10.md listed as open: a lonewolf client can compare its pages
+against the server's, resolve the differences page by page, push the
+resolved data as a batch of love letters, and wipe itself so it adopts
+the server's drift version fresh.
+
+Four new requests, all exempt from the drift check:
+`GetPageFingerprints`, `GetPagesByIds`, `GetReconcileVersion`,
+`ReconcileLetters`. The first three are reads a lonewolf client needs;
+the fourth checks its own claimed target versions inside the handler.
+
+Fingerprint = SHA-256 of raw page bytes. Shared helper in
+`drift_guard_and_ops/shared` (package `drift_guard_shared`), called by
+both sides. Hashing bytes rather than decoded block texts means a
+page with identical text but a different yrs encoding still shows up
+as a mismatch. Accepted tradeoff: cheaper than decoding every page.
+
+`reconcile_version` lives in `key_value_storage`. Bumped inside the
+same transaction as the batch. Prevents two reconcilers from both
+succeeding off the same snapshot: whichever lands first bumps, the
+second is refused with `DriftVersionMismatch`, its client reloads.
+Does not bump drift_version — other clients are not disrupted.
+
+Client flow. New route `/reconcile`, dev-sidebar button entry only.
+Loads, fetches server fingerprints + reconcile_version, classifies
+pages into mismatched / client-only / server-only (ignored) / equal
+(ignored), fetches full data for mismatched, shows one card per
+mismatch. Three actions per card: use mine, use server's, open diff
+(mounts `DiffViewer` in a fullscreen overlay). Finish checks that
+local data hasn't changed since mount, builds a plan via the planner,
+sends the whole batch, wipes locally, reloads. The reload re-logs-in
+and pulls the fresh dataset back.
+
+Planner (`drift_guard_and_ops/client/src/reconcile_planner/`). Pure,
+synchronous. Loads the server blob into a scratch `BossOfYrs`, LCS-
+aligns initial vs target blocks, walks hunks generating edit / remove
+/ create letters, applies each to the scratch, self-checks that the
+final block texts equal target. No `MoveBlock`; a reorder becomes
+remove + create.
+
+Server handler structure. `main_for_accepting_a_letter` (was
+`accept_letter`) wraps its single `apply_one_letter` call in its own
+transaction. `reconcile_letters` decodes the whole batch first, opens
+ONE transaction, checks both target versions, loops `apply_one_letter`,
+bumps `reconcile_version`, commits, then notifies every connected
+socket except the sender's once. `apply_one_letter` does not open its
+own transaction; the caller owns it.
+
+New workspace members: `drift_guard_and_ops/shared`,
+`drift_guard_and_ops/diff_viewer_internals`. New
+`drift_guard_and_ops/local_cargo.sh` (mirrors web_diff_viewer's).
+
+`router_handle::send` now returns `ServErr` instead of `String`, so
+reconcile can match on `DriftVersionMismatch`. Existing callers
+stringify with `format!("{e:?}")`.
+
+Still open: login-mismatch routing to `/reconcile` (the
+`drift_solution = Reconcile` branch still enters lonewolf); picker
+for `drift_solution = None`; adopt as a second bump source; e2e test
+for the mismatched-page path.
+
+See `nov11.md` for the full decision log.

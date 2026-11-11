@@ -33,7 +33,10 @@ def query(sql: str, params: tuple = ()) -> list[tuple]:
     finally:
         conn.close()
 
-def wait_until_server_has_pages(count: int, timeout_secs: float = 5.0) -> None:
+def wait_until_server_has_pages(count: int, timeout_secs: float = None) -> None:
+    if timeout_secs is None:
+        from support.timeouts import secs as default_secs
+        timeout_secs = default_secs()
     import time
     deadline = time.time() + timeout_secs
     while time.time() < deadline:

@@ -2,4 +2,6 @@
 resolver = "3"
 members = [
     "client",
+    "shared",
+    "diff_viewer_internals",
 ]

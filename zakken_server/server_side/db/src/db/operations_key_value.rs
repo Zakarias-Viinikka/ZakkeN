@@ -7,6 +7,7 @@ use protocol::payload::{
 use protocol::schema_helper::DestructDbReturnCol;
 
 const SESSION_KEY: &str = "session_id";
+const RECONCILE_VERSION_KEY: &str = "reconcile_version";
 
 pub fn create_table_if_not_exist(liver: &LiveForever) -> Result<(), DbError> {
     let list = liver.list_tables()?;
@@ -75,4 +76,32 @@ pub fn bump_session_id(liver: &LiveForever) -> Result<i64, DbError> {
     insert_value(liver, SESSION_KEY, &next.to_string())?;
 
     Ok(next)
+}
+
+/// Read the current reconcile version. "0" if never bumped.
+pub fn get_reconcile_version(liver: &LiveForever) -> Result<String, DbError> {
+    let raw = get_value(liver, RECONCILE_VERSION_KEY)?;
+    Ok(raw
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| "0".to_string()))
+}
+
+/// Increment and store the reconcile version, returning the new one.
+/// Callers are expected to be inside a transaction so a failure to
+/// apply the batch rolls the bump back with it.
+pub fn bump_reconcile_version(liver: &LiveForever) -> Result<String, DbError> {
+    let current = get_value(liver, RECONCILE_VERSION_KEY)?
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    let next = current + 1;
+    liver.delete_row_where(DeleteRowWhereIn {
+        table_name: tbl_key_value_storage::TABLE_NAME.to_string(),
+        arguments: SelectArguments::Single(SelectArgument::XEqualY {
+            x: tbl_key_value_storage::KEY.name.to_string(),
+            y: RECONCILE_VERSION_KEY.to_string(),
+        }),
+    })?;
+    insert_value(liver, RECONCILE_VERSION_KEY, &next.to_string())?;
+    Ok(next.to_string())
 }

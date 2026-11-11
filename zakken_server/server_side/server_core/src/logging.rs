@@ -105,5 +105,9 @@ pub fn request_name(r: &Request) -> &'static str {
         Request::GetMyUnsentLetters => "asked for its unsent letters",
         Request::WipeDataset => "asked to wipe the dataset",
         Request::GetCurrentDrift => "asked what the current drift version is",
+        Request::GetPageFingerprints => "asked for page fingerprints",
+        Request::GetPagesByIds => "asked for specific pages",
+        Request::ReconcileLetters => "sent a reconcile batch",
+        Request::GetReconcileVersion => "asked for the reconcile version",
     }
 }

@@ -234,3 +234,71 @@ Audit-bug tests written, plus helpers, narration and speed changes.
 
 - Drift-gating tests #10 and #11 were skipped: the web app doesn't use the lonewolf state yet. The deferred ones (4 to 8) still wait on reconcile.
 - Next candidates: audit #2 (`Delete` combine), drag-then-edit snap-back (needs mouse-drag helpers), the rejected-letter queue block.
+
+## Update - 2026-11-11
+
+Reconcile e2e test, plus infrastructure cleanups.
+
+### New test
+
+`tests/test_006_reconcile/test_reconcile_client_only.py`. Walks the
+full reconcile flow: fresh world → brave wipes the server → edge goes
+lonewolf → brave resets and re-registers fresh → edge opens
+`/reconcile` → edge clicks Finish → wait for Connected → navigate back
+to `/Menu` → assert titles and server page count. Only client-only
+pages are covered; the diff-viewer path (both sides have the same
+page id with different content) isn't a test yet.
+
+### Timeout variable
+
+`support/timeouts.py` is new. `DEFAULT_SECS = 2.0` is the one number
+every test uses. Two helpers: `ms()` for Playwright `timeout=`, `secs()`
+for Python-side `timeout_secs=`. Every call site was migrated. If a
+specific wait legitimately needs longer (e.g.
+`_RECONCILE_FINISH_SECS` in `support/reconcile.py`,
+`_SETUP_BUTTON_STABLE_MS` in `support/setup_page.py`), the constant is
+defined beside the call site with a one-line comment saying why.
+
+### New helpers
+
+- `support/read_conn_state.py` — `read_conn_state(page)` and
+  `wait_for_conn_state(page, wanted, timeout_secs)`. Fires
+  `read_conn_state` window event, reads `window.__conn_state__`.
+  Accepts one wanted value or a tuple. Catches "Execution context was
+  destroyed" during reload and retries.
+- `support/reconcile.py` — `open_reconcile` (fires the `navigate` event
+  with `/reconcile`, because the dev-sidebar button is inside a
+  slide-out panel and out-of-viewport clicks time out), `click_finish_reconcile`,
+  `wait_for_reconcile_to_finish` (waits for CONN_STATE = Connected, not
+  for the URL to change: the reload keeps the URL).
+- `method_read_conn_state!()` on the web app, registered in
+  `expose_methods_main!()`.
+
+### Infrastructure fixes
+
+- `orchestrator/src/main_for_running_the_tester.rs` forwards the
+  caller's argv to pytest, so `c r -- -k test_xxx` works.
+- `two_browser_stage.py` respects `HEADLESS=1`, and sets a default
+  timeout on each page.
+- `conftest.py` fixture now registers both browsers *before* firing
+  the "Brave is signed in, now signing in Edge" popups. The old order
+  had a popup fading over the setup button while Playwright tried to
+  click it, which timed out at 2s.
+- `read_titles`, `fresh_world`, `blocks`, `db`, `setup_page`,
+  `reconcile` all use `timeouts.ms()` / `timeouts.secs()`.
+- `speed_config.json` lowered: 003 from 0.5 to 0.3, 004/005 from 1.5
+  to 1.0.
+- `test_006` removed all `pause()` calls.
+
+### Known test-organization issue
+
+The `retry N` zap verb re-runs the *whole* chain even when only one
+step failed. That means any subsequent step whose old-text already
+matched from an earlier successful run will fail. The workaround is
+to either send only the failed steps in a fresh chain, or re-order
+so already-applied steps aren't in the retry set.
+
+### Existing failures (unchanged, expected)
+
+`test_004` still fails on the audit bugs (get_diff losing text, yrs
+panicking on non-ASCII). Those are the bugs, not the harness.

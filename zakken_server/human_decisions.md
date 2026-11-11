@@ -36,3 +36,5 @@ everyone eventually" event, and it only fires once all the clients have
 been disconnected. The thing that enforces it, is refusing new
 connections, and the telephone sending a "disconnect me" to every
 socket.
+
+reconcile_version is drift_version but for reconciles because otherwise there isn't a way to prevent two reconciles happening at the same time. Allowing that would break stuff in a nasty way even though it's unlikely.

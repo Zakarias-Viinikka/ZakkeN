@@ -6,7 +6,11 @@
 
 use std::path::PathBuf;
 
-pub async fn main_for_running_the_tester(web_app_url: String, server_port: u16) -> Result<i32, String> {
+pub async fn main_for_running_the_tester(
+    web_app_url: String,
+    server_port: u16,
+    extra_args: Vec<String>,
+) -> Result<i32, String> {
     let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .ok_or("orchestrator crate has no parent folder")?
@@ -15,6 +19,7 @@ pub async fn main_for_running_the_tester(web_app_url: String, server_port: u16) 
 
     let status = tokio::process::Command::new("python3")
         .args(["-m", "pytest", "-v"])
+        .args(&extra_args)
         .current_dir(&tester)
         .env("WEB_APP_URL", &web_app_url)
         .env("SERVER_PORT", server_port.to_string())

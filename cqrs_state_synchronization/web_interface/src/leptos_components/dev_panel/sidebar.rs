@@ -2,7 +2,7 @@ use leptos::{logging::log, prelude::*};
 use stylist::style;
 
 use crate::leptos_components::dev_panel::sidebar_buttons::{
-    DeleteEverythingButton, InsertThreePagesButton, ResetEverythingButton,
+    DeleteEverythingButton, InsertThreePagesButton, ReconcileButton, ResetEverythingButton,
     WipeSelfAndAdoptServerButton, WipeServerButton,
 };
 
@@ -223,6 +223,7 @@ fn SidebarContent() -> impl IntoView {
         <ResetEverythingButton />
         <hr/>
         <WipeSelfAndAdoptServerButton />
+        <ReconcileButton />
     }
 }
 

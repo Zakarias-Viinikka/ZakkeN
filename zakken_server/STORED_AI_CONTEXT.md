@@ -358,3 +358,56 @@ deferred. A letter with no unsent rows is harmless in the table. Note that
 the old meaning.
 
 Migrations. schema/migration/ is empty on purpose. See db_core above.
+
+## Reconcile handlers - 2026-11-11
+
+Three new request handlers in `allowed_requests/`, plus a fourth for
+version reads:
+
+- `get_page_fingerprints.rs` - returns page_id + fingerprint for every
+  page the server has, plus the current drift version. Fingerprint is
+  SHA-256 of raw `blobbed_page` bytes (via `drift_guard_shared::fingerprint`).
+- `get_pages_by_ids.rs` - takes `page_ids: Vec<String>`, returns full
+  data for the ones it has. Unknown ids are skipped silently.
+- `get_reconcile_version.rs` - returns the current reconcile_version
+  (a "0" default if never bumped, from `operations_key_value::get_reconcile_version`).
+- `reconcile_letters.rs` - the write handler. Decodes the whole batch
+  first (any decode failure rejects the whole batch with nothing
+  applied), then opens ONE transaction, checks both
+  `target_drift_version` and `target_reconcile_version` against the
+  current rows, loops `apply_one_letter` for each letter, bumps
+  reconcile_version inside the same transaction, commits, then
+  notifies every connected socket except the sender's once. Any
+  failure rolls the whole batch back.
+
+All four are exempt from the drift check. The first three are reads a
+lonewolf client needs; `reconcile_letters` checks its own target
+versions inside the handler, so the outer gate doesn't apply.
+
+`send_love_letter.rs` gained `apply_one_letter` (pub(crate)), extracted
+from what used to be inline in `accept_letter`. Same four steps:
+apply, insert, queue unsent for every user except the sender, return
+the letter_id. Does NOT open its own transaction. `accept_letter` was
+renamed `main_for_accepting_a_letter` and now wraps its single
+`apply_one_letter` call in a begin/commit, same behaviour as before.
+`reconcile_letters` opens its own transaction around the loop.
+
+`operations_key_value.rs` gained `get_reconcile_version` and
+`bump_reconcile_version`. The version lives under the
+`reconcile_version` key. Bumped inside the transaction that applies
+the batch, so a failure leaves it unchanged.
+
+`server_core/Cargo.toml` gained `drift_guard_shared` and
+`diff_viewer_internals` as path deps. The server now imports the same
+SHA-256 fingerprint helper the web client uses.
+
+New variants on `Request`: `GetPageFingerprints`, `GetPagesByIds`,
+`GetReconcileVersion`, `ReconcileLetters`. New payloads:
+`GetPagesByIdsPayload`, `ReconcileLettersPayload`,
+`GetPageFingerprintsPayload`, `PageFingerprint`,
+`GetReconcileVersionPayload`. `ReconcileLettersPayload` carries
+`target_drift_version: String`, `target_reconcile_version: String`,
+`letters: Vec<Vec<u8>>`.
+
+See `../nov11.md` for the design decisions and `../plan.md` for the
+flow summary.

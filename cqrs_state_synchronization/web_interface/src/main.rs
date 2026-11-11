@@ -8,6 +8,7 @@ use web_interface::expose_methods_main;
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::custom_port_setting_page::CustomPortSettingPage;
+use web_interface::leptos_components::reconcile_page::ReconcilePage;
 use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
 use web_interface::leptos_components::small_components::AppBorder;
@@ -73,6 +74,7 @@ fn App() -> impl IntoView {
                                 <Route path=path!("/MainContent/:page_id") view=MainContentRoute/>
                                 <Route path=path!("/setup") view=SetupPage/>
                                 <Route path=path!("/custom_port_setting_page") view=CustomPortSettingPage/>
+                                <Route path=path!("/reconcile") view=ReconcilePage/>
                             </Routes>
                             <SetupGuard/>
                             <CoolPopup/>

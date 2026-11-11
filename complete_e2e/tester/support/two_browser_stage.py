@@ -27,14 +27,19 @@ class TwoBrowserStage:
     def launch(cls, playwright, url="about:blank"):
         screen_w, screen_h = _get_screen_size()
 
-        brave_browser = playwright.chromium.launch(headless=False)
+        import os
+        from support.timeouts import ms
+        headless = os.environ.get("HEADLESS") == "1"
+        brave_browser = playwright.chromium.launch(headless=headless)
         brave_page = brave_browser.new_context(no_viewport=True).new_page()
+        brave_page.set_default_timeout(ms())
         brave_page.goto(url)
         _add_label(brave_page, "BRAVE", "#1a3fd4")
         brave_cdp, brave_window_id = _get_window(brave_browser)
 
-        edge_browser = playwright.chromium.launch(headless=False)
+        edge_browser = playwright.chromium.launch(headless=headless)
         edge_page = edge_browser.new_context(no_viewport=True).new_page()
+        edge_page.set_default_timeout(ms())
         edge_page.goto(url)
         _add_label(edge_page, "EDGE", "#c81a1a")
         edge_cdp, edge_window_id = _get_window(edge_browser)

@@ -9,8 +9,9 @@ use server_protocol::{Request, UnsentLetter};
 use std::sync::{Arc, Mutex};
 
 use super::{
-    ack, get_all_yrs_pages, get_current_drift, get_my_unsent_letters, login, register,
-    send_love_letter, wipe_dataset,
+    ack, get_all_yrs_pages, get_current_drift, get_my_unsent_letters, get_page_fingerprints,
+    get_pages_by_ids, get_reconcile_version, login, reconcile_letters, register, send_love_letter,
+    wipe_dataset,
 };
 
 pub fn err_bytes(e: ServErr) -> Vec<u8> {
@@ -46,9 +47,19 @@ fn refuse_if_the_client_is_on_a_stale_drift_version(
     where_the_request_came_from: &WhereTheRequestCameFrom,
     state: &Arc<Mutex<LiveForever>>,
 ) -> Option<ServErr> {
+    // Exempt: register/login/get-current are how a client learns the
+    // version. GetPageFingerprints and GetPagesByIds are reads a stale
+    // client needs to run reconcile. ReconcileLetters checks its own
+    // claimed target version inside the handler.
     if matches!(
         msg_request,
-        Request::Register | Request::Login | Request::GetCurrentDrift
+        Request::Register
+            | Request::Login
+            | Request::GetCurrentDrift
+            | Request::GetPageFingerprints
+            | Request::GetPagesByIds
+            | Request::ReconcileLetters
+            | Request::GetReconcileVersion
     ) {
         return None;
     }
@@ -121,14 +132,30 @@ pub async fn do_request(
         }
         Request::Login => login::log_in(msg_content, state, telephone, socket_id).await,
         Request::SendLoveLetter => {
-            send_love_letter::accept_letter(msg_content, state, telephone, sender).await
+            send_love_letter::main_for_accepting_a_letter(msg_content, state, telephone, sender)
+                .await
         }
         Request::WipeDataset => {
             wipe_dataset::wipe_dataset(msg_content, state, telephone, socket_id).await
         }
         Request::GetCurrentDrift => {
-            let locked = state.lock().unwrap();
-            get_current_drift::get_current_drift(msg_content, &locked)
+            let db_wrapper = state.lock().unwrap();
+            get_current_drift::get_current_drift(msg_content, &db_wrapper)
+        }
+        Request::GetPageFingerprints => {
+            let db_wrapper = state.lock().unwrap();
+            get_page_fingerprints::get_page_fingerprints(msg_content, &db_wrapper)
+        }
+        Request::GetPagesByIds => {
+            let db_wrapper = state.lock().unwrap();
+            get_pages_by_ids::get_pages_by_ids(msg_content, &db_wrapper)
+        }
+        Request::ReconcileLetters => {
+            reconcile_letters::reconcile_letters(msg_content, state, telephone, sender).await
+        }
+        Request::GetReconcileVersion => {
+            let db_wrapper = state.lock().unwrap();
+            get_reconcile_version::get_reconcile_version(msg_content, &db_wrapper)
         }
     }
 }

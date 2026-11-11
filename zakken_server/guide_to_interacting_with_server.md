@@ -21,3 +21,40 @@ What replies deserialize into can be found at `zakken_server/shared/server_proto
 The client doesn't touch the socket itself. It calls `send_request(request, payload)` on the `RouterHandle` from `shared_internals` and awaits the payload that comes back. `Router::new(url, tx_forward_spontaneous_server_message, on_conn_status)` creates the socket connection and returns that handle. The caller passes a channel sender that every spontaneous server push goes into; an owner on the other side of that channel decides what each push means.
 
 Spontaneous messages from the server are a separate thing on the wire — `Response::LoveLetterFromServer`, which carries one letter, the drift version the server is on, and no message id, and `Response::TheDriftVersionChanged`, which carries the new drift version + reason (sent just before the server closes this socket because its dataset was replaced). The router doesn't know what to do with them, so it forwards every spontaneous response into a channel the app supplies when it builds the router. The app matches on the variant there.
+
+## Reconcile — the client's other three asks
+
+Reconcile is the flow a lonewolf client runs to merge its pages back
+into the server's dataset. Four requests, all exempt from the drift
+check:
+
+`GetPageFingerprints` takes no payload. Replies with the current
+`drift_version` and, for every page the server has, a `page_id` plus a
+`fingerprint` string. The fingerprint is SHA-256 of the page's raw
+`blobbed_page` bytes, computed by the same shared helper the client
+uses (`drift_guard_shared::fingerprint`). Same input, same output on
+both sides.
+
+`GetPagesByIds` takes `{ page_ids: Vec<String> }`. Replies with the
+full data of each requested page (same `PageRow` shape as
+`GetAllYrsPages`). Unknown ids are skipped silently.
+
+`GetReconcileVersion` takes no payload. Replies with
+`{ reconcile_version: String }`, the current monotonic counter.
+
+`ReconcileLetters` takes `{ target_drift_version, target_reconcile_version,
+letters: Vec<Vec<u8>> }` where each `letters` entry is a serialised
+`LoveLetter` encoded the same way `SendLoveLetterPayload::love_letter`
+is. The handler decodes every letter first (any failure rejects the
+whole batch), opens one transaction, checks both target versions
+against the current rows, applies every letter in order, bumps
+`reconcile_version` inside the same transaction, commits, then notifies
+every connected socket except the sender's once. Any failure rolls the
+whole batch back. Success returns `Ok(())`.
+
+`reconcile_version` is drift_version for reconciles, kept separate so
+two clients can't both succeed off the same snapshot. Which batch
+lands first bumps it; the second is refused with
+`DriftVersionMismatch`, its client reloads and starts over. It does
+not bump `drift_version` — other connected clients are not informed or
+disconnected. Each lonewolf client reconciles on its own.

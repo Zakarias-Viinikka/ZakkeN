@@ -33,6 +33,9 @@ error_stuff = { path = "../error_stuff" }
 drift_guard_client.path = "/home/zakke/ProgStuff/ZakkeN/drift_guard_and_ops/client"
 text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"
 rapier2d = "0.35.3"
+block_diff_viewer_leptos.path = "/home/zakke/ProgStuff/ZakkeN/web_diff_viewer/block_diff_viewer_leptos"
+drift_guard_shared.path = "/home/zakke/ProgStuff/ZakkeN/drift_guard_and_ops/shared"
+serde = { version = "1", features = ["derive"] }
 
 # server link
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"

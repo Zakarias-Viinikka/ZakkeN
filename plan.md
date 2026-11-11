@@ -153,3 +153,45 @@ the schema is frozen and won't be the first time a column changes.
 Identity. "Same name = same user" with no auth: a second device using
 the same name takes over the first one's socket. Fine for the local
 network this runs on, not a design that survives anything wider.
+
+## Reconcile - 2026-11-11
+
+Client-side reconcile flow built end to end. Four new requests, all
+exempt from the drift check: GetPageFingerprints (each page's
+fingerprint + the current drift version), GetPagesByIds (full data of
+the requested pages), GetReconcileVersion (the current reconcile
+version), and ReconcileLetters (a batch of love letters, checked
+against target_drift_version and target_reconcile_version inside the
+handler, whole batch in one transaction, bumps reconcile_version on
+success).
+
+Fingerprint is SHA-256 of raw page bytes. Shared helper in
+drift_guard_and_ops/shared, both sides call it.
+
+reconcile_version lives in key_value_storage, "0" if never bumped,
+strictly monotonic. Bumped inside the same transaction as the batch.
+Prevents two reconcilers from both succeeding off the same snapshot.
+
+Client flow. New route /reconcile, dev-sidebar button entry only.
+Reads local pages, fetches server fingerprints and reconcile_version,
+classifies into mismatched / client-only / server-only (ignored) /
+equal (ignored), fetches full data for the mismatched pages, shows a
+card per mismatch. Each card: use mine, use server's, open diff.
+Finish builds a plan per resolved page via the planner, sends the
+whole batch, wipes locally, reloads. The reload re-logs-in and pulls
+the fresh dataset back, adopting the server's drift version.
+
+Planner (drift_guard_and_ops/client/src/reconcile_planner/). Pure,
+synchronous. Loads the server's blob into a scratch BossOfYrs with a
+unique actor name, LCS-aligns initial vs target blocks, walks hunks
+generating edit / remove / create letters, applies each to the
+scratch, self-checks that the final block texts equal target. No
+MoveBlock; a reorder becomes remove + create.
+
+Reconcile does NOT bump drift_version. Other clients are not
+informed, not disconnected. Each lonewolf client reconciles
+separately.
+
+Not built: login-mismatch routing to /reconcile (drift_solution =
+Reconcile branch still enters lonewolf); picker for drift_solution =
+None; adopt; e2e test for the mismatched-page path.

@@ -52,15 +52,19 @@ def report_js_errors_on_failure(*error_lists):
 
 def open_page_from_menu(page: Page, title: str, block_count: int) -> None:
     button = page.locator("button.title_button", has_text=title)
-    expect(button).to_have_count(1, timeout=seconds(5))
+    from support.timeouts import ms
+    expect(button).to_have_count(1, timeout=ms())
     button.click()
-    expect(page).to_have_url(re.compile(r"/MainContent/"), timeout=seconds(5))
-    expect(page.locator(BLOCKS)).to_have_count(block_count, timeout=seconds(5))
+    from support.timeouts import ms
+    expect(page).to_have_url(re.compile(r"/MainContent/"), timeout=ms())
+    from support.timeouts import ms
+    expect(page.locator(BLOCKS)).to_have_count(block_count, timeout=ms())
 
 
 def reload_and_wait_for_blocks(page: Page, block_count: int) -> None:
     page.reload()
-    expect(page.locator(BLOCKS)).to_have_count(block_count, timeout=seconds(10))
+    from support.timeouts import ms
+    expect(page.locator(BLOCKS)).to_have_count(block_count, timeout=ms())
 
 
 def block_values(page: Page) -> list[str]:
@@ -74,7 +78,10 @@ def block_with_value(page: Page, value: str) -> Locator:
     return page.locator(BLOCKS).nth(values.index(value))
 
 
-def wait_for_value_in_blocks(page: Page, value: str, timeout_secs: float = 3.0) -> list[str]:
+def wait_for_value_in_blocks(page: Page, value: str, timeout_secs: float = None) -> list[str]:
+    if timeout_secs is None:
+        from support.timeouts import secs as default_secs
+        timeout_secs = default_secs()
     """Polls until some block has exactly `value`. Returns the last list of
     block texts either way, so the caller can assert and print it."""
     deadline = time.time() + timeout_secs

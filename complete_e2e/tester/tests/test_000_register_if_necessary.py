@@ -11,7 +11,8 @@ from support.setup_page import on_setup_page, setup_page_register
 
 
 def test_register_if_necessary(web_app, pause):
-    web_app.wait_for_url(re.compile(r"/(setup|Menu)$"), timeout=seconds(2))
+    from support.timeouts import ms
+    web_app.wait_for_url(re.compile(r"/(setup|Menu)$"), timeout=ms())
 
     if not on_setup_page(web_app):
         expect(web_app).to_have_url(re.compile(r"/Menu$"))

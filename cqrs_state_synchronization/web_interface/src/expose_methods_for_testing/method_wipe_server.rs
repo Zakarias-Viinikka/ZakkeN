@@ -21,7 +21,7 @@ macro_rules! method_wipe_server {
                         }
                         Err(e) => {
                             $crate::leptos_components::small_components::popup::show_popup(
-                                format!("wipe server failed: {e}"),
+                                format!("wipe server failed: {e:?}"),
                             );
                         }
                     }

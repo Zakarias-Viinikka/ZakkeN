@@ -4,6 +4,7 @@ mod drift;
 mod main_for_login_and_registration;
 pub mod main_for_applying_love_letter_from_server_to_app;
 pub mod main_for_receiving_spontaneous_love_letters_from_server;
+pub mod reconcile_requests;
 pub mod send_unsent_love_letters_to_server_if_there_are_any;
 pub mod server_port;
 mod two_tab_guard;

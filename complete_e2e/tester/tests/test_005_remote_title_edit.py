@@ -50,7 +50,8 @@ def test_remote_title_edit_shows_in_menu_of_a_client_that_never_opened_the_page(
         say_both(stage, "4/5 server has the new title, watching Edge's menu for 'Grocery list v2'", hold=0.3)
         new_title_in_menu = edge.locator("button.title_button", has_text="Grocery list v2")
         try:
-            expect(new_title_in_menu).to_have_count(1, timeout=seconds(5))
+            from support.timeouts import ms
+            expect(new_title_in_menu).to_have_count(1, timeout=ms())
         except AssertionError:
             raise AssertionError(
                 "Edge's menu never showed the new title 'Grocery list v2'. "

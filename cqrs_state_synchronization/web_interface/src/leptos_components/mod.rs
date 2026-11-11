@@ -2,6 +2,7 @@ pub mod action_buttons;
 pub mod dev_panel;
 pub mod main_content;
 pub mod menu;
+pub mod reconcile_page;
 pub mod setup_page;
 pub mod small_components;
 pub mod setup_guard;

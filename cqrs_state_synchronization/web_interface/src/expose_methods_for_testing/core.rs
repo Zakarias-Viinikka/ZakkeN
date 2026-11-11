@@ -22,5 +22,6 @@ macro_rules! expose_methods_main {
         $crate::method_wipe_server!();
         $crate::method_read_titles!();
         $crate::method_read_client_state!();
+        $crate::method_read_conn_state!();
     };
 }

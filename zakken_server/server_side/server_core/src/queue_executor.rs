@@ -47,9 +47,9 @@ async fn run_job(job: Job, state: &Arc<Mutex<LiveForever>>, telephone: &Telephon
 }
 
 fn write_log(entry: ServerLogEntry, state: &Arc<Mutex<LiveForever>>) {
-    let locked = state.lock().unwrap();
+    let db_wrapper = state.lock().unwrap();
     if let Err(e) = db_core::db::operations_logs::insert_log(
-        &locked,
+        &db_wrapper,
         entry.timestamp,
         entry.level.as_str(),
         entry.category.as_str(),

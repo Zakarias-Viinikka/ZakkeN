@@ -34,7 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let web_app_url = format!("http://127.0.0.1:{static_port}/custom_port_setting_page");
     println!("[orchestrator] web app at {web_app_url}");
 
-    let exit_code = main_for_running_the_tester(web_app_url, server_port).await?;
+    let extra_args: Vec<String> = std::env::args().skip(1).collect();
+    let exit_code = main_for_running_the_tester(web_app_url, server_port, extra_args).await?;
     println!("[orchestrator] tester finished with exit code {exit_code}");
 
     let _ = server.child.kill().await;

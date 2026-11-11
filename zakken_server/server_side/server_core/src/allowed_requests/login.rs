@@ -26,8 +26,8 @@ pub async fn log_in(
     };
 
     let drift = {
-        let locked = state.lock().unwrap();
-        match user_registration::user_exists(&locked, &payload.user_name) {
+        let db_wrapper = state.lock().unwrap();
+        match user_registration::user_exists(&db_wrapper, &payload.user_name) {
             Ok(false) => {
                 return err_bytes(ServErr::DbErrorContainer(DbError::IllegalInput(format!(
                     "no such user: '{}'",
@@ -37,7 +37,7 @@ pub async fn log_in(
             Ok(true) => {}
             Err(e) => return err_bytes(ServErr::DbErrorContainer(e)),
         }
-        match db_actions_for_drift::get_current(&locked) {
+        match db_actions_for_drift::get_current(&db_wrapper) {
             Ok(Some(dv)) => dv,
             Ok(None) => {
                 return err_bytes(ServErr::ServerError(ErrorDetails {

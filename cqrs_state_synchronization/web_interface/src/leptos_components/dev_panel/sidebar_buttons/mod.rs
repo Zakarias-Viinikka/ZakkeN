@@ -1,11 +1,13 @@
 pub mod delete_everything;
 pub mod insert_three_pages;
+pub mod reconcile_button;
 pub mod reset_everything;
 pub mod wipe_self_and_adopt_server;
 pub mod wipe_server;
 
 pub use delete_everything::DeleteEverythingButton;
 pub use insert_three_pages::InsertThreePagesButton;
+pub use reconcile_button::ReconcileButton;
 pub use reset_everything::ResetEverythingButton;
 pub use wipe_self_and_adopt_server::WipeSelfAndAdoptServerButton;
 pub use wipe_server::WipeServerButton;

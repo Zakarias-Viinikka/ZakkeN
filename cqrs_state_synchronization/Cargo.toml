@@ -6,3 +6,11 @@ members = [
     "data_builder_for_operations_that_need_to_be_correct",
     "web_interface",
 ]
+
+# server_fn_macro_default (a leptos dep) pins syn 2.0 while leptos itself
+# wants syn 3.0, and the mismatch breaks the proc macro. The two vendored
+# copies below use syn 3.0 so the whole tree resolves to one version.
+# Explained in browser_ui_testing/drag_reorder/final_test/SYN_ISSUE_EXPLAINED.md.
+[patch.crates-io]
+server_fn_macro = { path = "./vendor/server_fn_macro" }
+server_fn_macro_default = { path = "./vendor/server_fn_macro_default" }

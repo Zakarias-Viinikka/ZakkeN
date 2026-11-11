@@ -1,0 +1,7 @@
+[package]
+name = "diff_viewer_internals"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"

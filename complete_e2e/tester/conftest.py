@@ -58,8 +58,11 @@ def web_app(page, web_app_url):
     from playwright.sync_api import expect
     from support.seconds import seconds
 
+    from support.timeouts import ms
+    page.set_default_timeout(ms())
     page.goto(web_app_url)
-    expect(page.locator("text=custom port setting page")).to_be_visible(timeout=seconds(2))
+    from support.timeouts import ms
+    expect(page.locator("text=custom port setting page")).to_be_visible(timeout=ms())
     port = int(os.environ["SERVER_PORT"])
     page.evaluate(f"window.dispatchEvent(new CustomEvent('set_port', {{ detail: {port} }}))")
     page.evaluate("window.dispatchEvent(new CustomEvent('navigate', { detail: '/' }))")
@@ -124,11 +127,10 @@ def two_browser_stage(web_app_url, playwright_instance, request):
     from support import speed
 
     bring_up_registered(stage.brave, port, "e2e_brave")
-    popup(stage.brave, "Step 1 of 2: Brave is signed in, now signing in Edge")
-    popup(stage.edge, "Step 1 of 2: Brave is signed in, now signing in Edge")
-    speed.sleep(1.0)
-
     bring_up_registered(stage.edge, port, "e2e_edge")
+    popup(stage.brave, "Step 1 of 2: both browsers are signed in")
+    popup(stage.edge, "Step 1 of 2: both browsers are signed in")
+    speed.sleep(1.0)
     popup(stage.brave, "Step 2 of 2: Edge is signed in too, both browsers ready")
     popup(stage.edge, "Step 2 of 2: Edge is signed in too, both browsers ready")
     speed.sleep(1.0)

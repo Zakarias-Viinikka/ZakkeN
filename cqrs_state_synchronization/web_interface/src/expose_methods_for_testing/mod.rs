@@ -10,3 +10,4 @@ pub mod method_insert_three_pages;
 pub mod method_wipe_server;
 pub mod method_read_titles;
 pub mod method_read_client_state;
+pub mod method_read_conn_state;

@@ -10,10 +10,12 @@ pub use builders::{
 pub use drift_solution::DriftSolution;
 pub use message::{Message, Response};
 pub use request::{
-    AckPayload, LoginPayload, RegisterPayload, Request, SendLoveLetterPayload, WipeDatasetPayload,
+    AckPayload, GetPagesByIdsPayload, LoginPayload, ReconcileLettersPayload, RegisterPayload,
+    Request, SendLoveLetterPayload, WipeDatasetPayload,
 };
 pub use responses::{
-    GetAllYrsPagesPayload, GetMyUnsentLettersPayload, PageRow, UnsentLetter,
+    GetAllYrsPagesPayload, GetMyUnsentLettersPayload, GetPageFingerprintsPayload,
+    GetReconcileVersionPayload, PageFingerprint, PageRow, UnsentLetter,
 };
 pub mod login_reply;
 pub use login_reply::LoginReply;

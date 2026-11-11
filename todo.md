@@ -99,9 +99,17 @@ but kept compatible.
 Partly done. The wipe request exists and works server-side: it
 unregisters everyone, mints a new drift version with the caller's
 drift_solution, and tells every other connected socket before
-closing it. Export, import, adopt and reconcile: not started. The
-client-side reaction to drift_solution at login and the picker for
-when drift_solution is absent: not started.
+closing it. Reconcile is built end to end (2026-11-11): four new
+requests, a fingerprint helper, a client-side planner, and a /reconcile
+route that lets a lonewolf client merge local and server data page by
+page before wiping itself and adopting the server's dataset. See
+nov11.md for the reconcile_version and fingerprint decisions.
+
+Still not built: export, import, adopt. The client-side reaction to
+drift_solution at login (mismatch still enters lonewolf regardless of
+the solution). The picker for when drift_solution is absent. Adopt as
+a second bump source. An e2e test for the diff-viewer path (both sides
+have the same page id with different content).
 
 ## yrs: hard copy primitive
 

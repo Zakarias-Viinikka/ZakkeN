@@ -1,8 +1,9 @@
 {
+    "test_reconcile_client_only": 1.0,
     "test_000_register_if_necessary": 0.1,
     "test_001_web_app_connects_to_server": 0.1,
     "test_002_read_db_while_server_running": 0.1,
-    "test_two_clients_after_wipe": 0.5,
-    "test_004_text_sync": 1.5,
-    "test_005_remote_title_edit": 1.5
+    "test_two_clients_after_wipe": 0.3,
+    "test_004_text_sync": 1.0,
+    "test_005_remote_title_edit": 1.0
 }
