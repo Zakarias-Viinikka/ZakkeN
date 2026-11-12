@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::shared_owners::{focus, BlockRow};
+use crate::complex_state::{focus, BlockRow};
 use crate::db::cached_ids::current_session_id;
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;

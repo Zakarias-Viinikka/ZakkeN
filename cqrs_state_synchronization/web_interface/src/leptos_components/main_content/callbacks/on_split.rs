@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::shared_owners::{batcher_handle, focus, BlockRow};
+use crate::complex_state::{batcher_handle, focus, BlockRow};
 use crate::db::cached_ids::current_session_id;
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::new_local_block_id::new_local_block_id;

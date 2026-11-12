@@ -13,7 +13,7 @@ macro_rules! method_wipe_server {
             move |_| {
                 leptos::task::spawn_local(async move {
                     use shared_internals::ClientCommand;
-                    match $crate::shared_owners::router_handle::send(ClientCommand::WipeDataset).await {
+                    match $crate::complex_state::router_handle::send(ClientCommand::WipeDataset).await {
                         Ok(_) => {
                             $crate::leptos_components::small_components::popup::show_popup(
                                 "server wiped".to_string(),

@@ -1,4 +1,3 @@
-use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use leptos::prelude::*;
@@ -11,12 +10,11 @@ use crate::page_state::OpenPages;
 
 pub use drift_guard_client::connection_status::ConnectionStatus as ConnState;
 
-pub static CONN_STATE: LazyLock<ArcRwSignal<ConnState>> =
-    LazyLock::new(|| ArcRwSignal::new(ConnState::Offline));
+use crate::{plexget_conn_state_untracked, plexset_conn_state};
 
 /// True only when sync is allowed to run. Reads the status, nothing else.
 pub fn sync_may_run() -> bool {
-    CONN_STATE.get_untracked() == ConnState::Connected
+    plexget_conn_state_untracked() == ConnState::Connected
 }
 
 static LINK_STARTED: AtomicBool = AtomicBool::new(false);
@@ -49,7 +47,7 @@ pub fn connect_to_socket(open: OpenPages) {
 
 async fn connect_to_socket_on_startup(open: OpenPages) {
     if !super::two_tab_guard::acquire().await {
-        CONN_STATE.set(ConnState::TwoTabs);
+        plexset_conn_state(ConnState::TwoTabs);
         return;
     }
 
@@ -76,18 +74,25 @@ async fn connect_to_socket_on_startup(open: OpenPages) {
         tx_give_love_letter_that_came_from_server_to_task_that_processes_it,
     );
     let on_conn_status_change = move |status| match status {
-        ConnStatus::Connecting => CONN_STATE.set(ConnState::Connecting),
+        ConnStatus::Connecting => plexset_conn_state(ConnState::Connecting),
         ConnStatus::Connected => {
-            CONN_STATE.set(ConnState::LoggingIn);
+            plexset_conn_state(ConnState::LoggingIn);
             let _ =
                 tx_tell_receiving_task_that_socket_reconnected_so_it_can_relogin.unbounded_send(());
         }
-        ConnStatus::Failed => CONN_STATE.set(ConnState::Offline),
+        ConnStatus::Failed => plexset_conn_state(ConnState::Offline),
     };
 
-    let router = Router::new(url, tx_forward_spontaneous_server_message, on_conn_status_change);
+    let router = Router::new(
+        url,
+        tx_forward_spontaneous_server_message,
+        on_conn_status_change,
+    );
 
-    crate::shared_owners::router_handle::set(router.clone());
+    crate::complex_state::router_handle::set(router.clone());
+    // Kick the first connect attempt so we don't wait for the next
+    // reconnect-task tick.
+    router.attempt_reconnect();
 
     super::spawn_sender(router.clone());
     super::spawn_task_for_receiving_socket_messages(
@@ -109,8 +114,7 @@ fn not_on_the_custom_port_page() -> bool {
 }
 
 fn build_ws_url() -> String {
-    let port = super::server_port::get_port()
-        .expect("failing to get port by now is a logic error");
+    let port = super::server_port::get_port().expect("failing to get port by now is a logic error");
     let Some(window) = web_sys::window() else {
         return format!("ws://127.0.0.1:{port}/ws");
     };
@@ -134,7 +138,7 @@ fn install_check_if_internet_connection_is_lost_and_set_conn_state_to_offline() 
         return;
     };
     let on_offline = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
-        CONN_STATE.set(ConnState::Offline);
+        plexset_conn_state(ConnState::Offline);
     });
     let _ = window.add_event_listener_with_callback("offline", on_offline.as_ref().unchecked_ref());
     on_offline.forget();

@@ -8,7 +8,8 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::owner_of_interacting_with_server::{ConnState, CONN_STATE};
+use crate::owner_of_interacting_with_server::ConnState;
+use crate::plexget_conn_state;
 
 use super::load_and_classify::load_and_classify;
 use super::not_lonewolf_view::NotLonewolfView;
@@ -65,9 +66,9 @@ pub fn ReconcilePage() -> impl IntoView {
     let load_started = RwSignal::new(false);
 
     Effect::new(move |_| {
-        let current = CONN_STATE.get();
+        let current = plexget_conn_state();
         match current {
-            ConnState::Lonewolf | ConnState::LoneWolfAndOffline => {
+            ConnState::Lonewolf | ConnState::LonewolfAndOffline => {
                 if !load_started.get_untracked() {
                     load_started.set(true);
                     phase.set(Phase::Loading);

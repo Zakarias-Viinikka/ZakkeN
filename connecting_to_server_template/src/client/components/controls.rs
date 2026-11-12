@@ -156,8 +156,8 @@ fn ServerControls(coms: ComsHandleForClient) -> impl IntoView {
     let coms_push = coms;
     let next_letter_id = RwSignal::new(1i64);
     let client_disabled = Signal::derive(move || !crate::client::client_started_signal().get());
-    let powered_off = crate::shared_owners::power::powered_signal();
-    let powered_on = crate::shared_owners::power::powered_signal();
+    let powered_off = crate::complex_state::power::powered_signal();
+    let powered_on = crate::complex_state::power::powered_signal();
     let server_off = Signal::derive(move || !powered_off.get());
     let server_on = Signal::derive(move || powered_on.get());
 
@@ -207,7 +207,7 @@ fn OtherClientControls(coms: ComsHandleForClient) -> impl IntoView {
     let coms_wipe = coms.clone();
     let coms_reconcile = coms.clone();
     let coms_start_over = coms;
-    let server_off = Signal::derive(move || !crate::shared_owners::power::powered_signal().get());
+    let server_off = Signal::derive(move || !crate::complex_state::power::powered_signal().get());
 
     view! {
         <ControlsSection title="Another client did this">

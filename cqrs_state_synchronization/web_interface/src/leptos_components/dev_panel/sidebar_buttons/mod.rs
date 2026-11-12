@@ -1,3 +1,4 @@
+pub mod deliberate_lonewolf_button;
 pub mod delete_everything;
 pub mod insert_three_pages;
 pub mod reconcile_button;
@@ -5,6 +6,7 @@ pub mod reset_everything;
 pub mod wipe_self_and_adopt_server;
 pub mod wipe_server;
 
+pub use deliberate_lonewolf_button::DeliberateLonewolfButton;
 pub use delete_everything::DeleteEverythingButton;
 pub use insert_three_pages::InsertThreePagesButton;
 pub use reconcile_button::ReconcileButton;

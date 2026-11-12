@@ -867,9 +867,58 @@ New workspace members: `drift_guard_and_ops/shared`,
 reconcile can match on `DriftVersionMismatch`. Existing callers
 stringify with `format!("{e:?}")`.
 
-Still open: login-mismatch routing to `/reconcile` (the
-`drift_solution = Reconcile` branch still enters lonewolf); picker
-for `drift_solution = None`; adopt as a second bump source; e2e test
-for the mismatched-page path.
+Still open: automatic wipe on `drift_solution = WipeSelfAndAdoptServer`
+at login; picker for `drift_solution = None`; adopt as a second bump
+source; e2e test for the mismatched-page path.
 
 See `nov11.md` for the full decision log.
+
+## Continued - 2026-11-12
+
+Reconcile merged as `3b1f79d`. Work on adjacent pieces since.
+
+### complex_state/
+
+Every `shared_owner/` folder was renamed to `complex_state/`. The
+convention is in `coding_style.md`: one file per state created in one
+place and touched by many. Default mechanism is a global getter and
+setter with the `plexget_` / `plexset_` prefix. Two files landed:
+
+`complex_state/conn_state.rs` — connection state, with a tracked read
+(`plexget_conn_state`), an untracked read
+(`plexget_conn_state_untracked`), and a setter
+(`plexset_conn_state`). The doc comment maps every reader and writer.
+
+`complex_state/drift_version.rs` — drift version, cache + DB in one
+file. `plexget_drift_version()` panics if the cache isn't populated;
+only legitimate after login. `plexget_drift_version_from_db()` is the
+async read for the login comparison. `plexset_drift_version(v)` writes
+both. `plexset_make_new_drift_version()` mints a fresh one internally
+for the deliberate-lonewolf button.
+
+`new_drift_version(user_id, time_in_unix)` in
+`drift_guard_and_ops/shared`.
+
+### Reconnect ownership moved to web_interface
+
+The retry loop was inside `shared_internals::socket_web`, web-only
+behaviour living in a crate named "shared". Removed. Socket task now
+waits on a "try now" signal from
+`owner_of_interacting_with_server/main_for_reconnecting_automatically/`,
+a 1-second polling task that asks the router to `attempt_reconnect`
+when `ConnState` is one of the offline states. First connection fires
+immediately (kick after setup) so the loop's first tick isn't a
+visible delay.
+
+### Deliberate-lonewolf button and tester expose
+
+Dev-panel button puts the client into lonewolf on purpose. Also
+exposed as `enter_lonewolf` window event. New `read_conn_state` event
+already existed from the reconcile work but is worth listing.
+
+### Still open
+
+Login mismatch `drift_solution = WipeSelfAndAdoptServer` at login
+doesn't act automatically. No picker for `None`. Adopt not built.
+`OfflineDeliberately` parked. Remaining e2e tests from
+`tests_to_write.md`.

@@ -1,21 +1,21 @@
-use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use crate::db::key_value_storage_db_actions;
 use crate::leptos_components::small_components::popup::show_popup;
 
-use super::super::core::{ConnState, CONN_STATE};
+use super::super::ConnState;
+use crate::{plexget_conn_state_untracked, plexset_conn_state};
 
 /// Sync is stopped because the client's drift version and the server's
 /// don't match. Flips the status immediately (gating takes effect at
 /// once), then reads the popup-once flag in the background and shows
 /// the reason (or a generic message) only if it's still true.
 pub fn enter_lonewolf(reason: Option<String>) {
-    let next = match CONN_STATE.get_untracked() {
+    let next = match plexget_conn_state_untracked() {
         ConnState::Connected | ConnState::Lonewolf | ConnState::LoggingIn => ConnState::Lonewolf,
-        _ => ConnState::LoneWolfAndOffline,
+        _ => ConnState::LonewolfAndOffline,
     };
-    CONN_STATE.set(next);
+    plexset_conn_state(next);
     spawn_local(async move {
         let should = key_value_storage_db_actions::get_should_i_drift_popup()
             .await

@@ -126,12 +126,16 @@ the server already has that state.
 
 ## Open work
 
-### Login-mismatch path still ignores drift_solution
+### Login-mismatch path enters lonewolf
 
 The mismatch branch in `main_for_login_and_registration.rs` enters
-lonewolf and pops a message. It should call `wipe_local_and_pull_from_server`
-on `WipeSelfAndAdoptServer`, route to `/reconcile` on `Reconcile`, and
-stay in lonewolf on `None`.
+lonewolf and pops a message. That's correct — routing to `/reconcile`
+on mismatch is not the intended behaviour. Reconcile is entered via
+the dev sidebar only.
+
+`drift_solution` is still ignored for the other two values:
+`WipeSelfAndAdoptServer` should call `wipe_local_and_pull_from_server`,
+and `None` stays in lonewolf while a picker is built.
 
 ### Picker for drift_solution = None
 
@@ -147,3 +151,83 @@ user and mint a new drift version, same as wipe.
 `complete_e2e/tester/tests/test_006_reconcile/test_reconcile_client_only.py`
 covers client-only pages. The diff-viewer path (both sides have the
 same page id with different content) isn't covered yet.
+
+## Update - 2026-11-12
+
+Reconcile is built and merged (`3b1f79d`). Continued on adjacent work.
+
+### complex_state/
+
+The `shared_owner/` folders across the codebase were renamed to
+`complex_state/`. The naming convention is documented in
+`coding_style.md`: one file per piece of state that is created in one
+place and touched by many. Default mechanism is a global getter and
+setter, named with the `plexget_` / `plexset_` prefix so a call site
+instantly says "I'm touching complex state".
+
+Two files added under `complex_state/`:
+
+`conn_state.rs` — the connection state signal, with
+`plexget_conn_state()` (subscribes, for view closures),
+`plexget_conn_state_untracked()` (no subscription, for send loops and
+drift detection), and `plexset_conn_state(state)`. The doc comment
+lists every reader and every writer, and for each writer says what
+would stop happening if that writer didn't exist.
+
+`drift_version.rs` — the drift version, both the in-memory cache
+(which `shared_internals` reads synchronously on every send) and the
+DB copy (which survives reloads).
+`plexget_drift_version()` panics if the cache hasn't been populated;
+only legitimate after login. `plexget_drift_version_from_db()` is
+async and is what the login comparison uses.
+`plexset_drift_version(v)` writes both copies.
+`plexset_make_new_drift_version()` mints a fresh one internally so
+callers don't need to know how a version is formed.
+
+`new_drift_version(user_id, time_in_unix)` lives in
+`drift_guard_and_ops/shared`, callable from either side.
+
+### Reconnect task
+
+The retry loop used to live inside `shared_internals::socket_web`,
+running forever on socket close. Removed. The socket task now waits
+for an external "try now" signal and opens at most one connection per
+burst.
+
+`web_interface` owns the retry decision now, in
+`owner_of_interacting_with_server/main_for_reconnecting_automatically/`.
+A task runs once per second. Each tick reads `ConnState` and, if the
+client is offline, asks the router to try opening a connection.
+
+The router gained `attempt_reconnect` on its handle. The app calls it
+once right after the first setup so the first connection doesn't wait
+for a tick.
+
+### Deliberate-lonewolf button
+
+New dev-panel button that puts the client into lonewolf on purpose:
+bumps the local drift version (via
+`plexset_make_new_drift_version`) and flips `ConnState` to lonewolf
+(or lonewolf-and-offline if it wasn't connected). Wired to
+`db/dev_actions::enter_lone_wolf`. Also exposed to the tester as the
+`enter_lonewolf` window event so tests don't need the sidebar button.
+
+### OfflineDeliberately — parked
+
+A new connection state for "offline on purpose, don't poll to
+reconnect". Not built. The plan: add the variant, add a guard to
+`should_i_reconnect`, add a "go online" exit. Won't persist across
+reload, so a reload always re-enables reconnect. Accepted.
+
+### New expose methods
+
+`method_read_conn_state` and `method_enter_lonewolf`. Both registered
+in `expose_methods_main!()`.
+
+### Login mismatch in lonewolf is correct
+
+Docs earlier in this file said the login mismatch path should route
+to `/reconcile`. It shouldn't — entering lonewolf is the intended
+behaviour. Reconcile is entered via the dev sidebar only. The
+`drift_solution = WipeSelfAndAdoptServer` case still doesn't act
+automatically, and the picker for `None` still isn't built.

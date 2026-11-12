@@ -107,15 +107,25 @@ The main entry method for a file goes at the top. Helpers and abstractions go at
 
 The main entry method is the one callers reach for first. For a component file, it's the component that's called from outside. For a logic file, it's the function the rest of the codebase calls to do this file's thing. Everything else — helper functions, private components, support types — sits below it.
 
-## shared_owner/
+## complex_state/
 
 When a signal (or any state) is created in one place and touched by many others, and you can only look at one file at a time, you can't infer "does anyone do X to this" or "what happens if I do Y".
 
-Convention: a folder called `shared_owner/` holds one file per such thing. The file *is* that thing's shared owner — everyone who touches it finds it there.
+Convention: a folder called `complex_state/` holds one file per such thing. The file *is* that thing's meeting place — everyone who touches it finds it there.
+
+Default mechanism: one global getter and one global setter per thing. Name them with the `plexget_` / `plexset_` prefix so a call site instantly says "I'm touching complex state". Don't build more machinery than that unless something actually needs it.
+
+A file can have more than one getter if callers need different reads of the same thing. The variants so far:
+
+- **Tracked vs untracked.** In Leptos, `plexget_x()` subscribes (view closures want this), `plexget_x_untracked()` doesn't (send loops, drift detection, anything outside a reactive scope).
+- **Cache vs source of truth.** When a value has a fast in-memory copy plus a slower durable copy, expose both: a sync read from the cache for callers whose logic promises the cache is populated, and an async read from the durable copy for the one caller that runs before the cache is warmed. Naming: `plexget_x` for the cache, `plexget_x_from_<source>` for the durable source.
+- **Panic on broken promises.** If a sync read exists only for callers that have already promised "the cache is warm by now", panic with a sentence stating the invariant when it isn't. Silent `Option` return would let a logic error travel silently.
+
+Setters can also be split by caller intent. `plexset_x(v)` for callers that have a specific value; `plexset_make_new_x()` for callers that just want a fresh one and don't need to know how it's formed. Same file, same `plexset_` prefix.
 
 What changes is the mechanism. In Leptos, signals have subscribe-and-notify built in, so touching the signal directly is right. In a CLI or server there's nothing reactive, so it's owner + handle + rxtx. Same concept, different mechanism.
 
-What stays the same: the file per thing, in `shared_owner/`, and its doc comment as the map. Every place that touches it: literal path from crate root, why it modifies, when it modifies. Same shape as the naming rules — what would break if this writer didn't exist, why it exists, from a caller pov what do you need to know.
+What stays the same: the file per thing, in `complex_state/`, and its doc comment as the map. Every place that touches it: literal path from crate root, why it modifies, when it modifies. Same shape as the naming rules — what would break if this writer didn't exist, why it exists, from a caller pov what do you need to know.
 
 ## naming examples
 

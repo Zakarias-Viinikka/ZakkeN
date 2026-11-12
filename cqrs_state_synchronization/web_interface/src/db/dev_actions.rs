@@ -6,11 +6,12 @@ use data_builder_for_operations_that_need_to_be_correct::{
     add_block, create_page, disable_page as build_disable_page,
 };
 use error_stuff::CqrsErr;
-use leptos::prelude::Update;
 use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db::page_executor::{
     add_block_requires_three_db_actions, disabled_page_requires_three_db_actions,
     insert_page_requires_three_db_inserts, run_in_transaction,
 };
+use leptos::children::ChildrenOptContainer;
+use leptos::prelude::Update;
 use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use protocol::payload::DeleteAllRowsIn;
 use web_internal_db::db_helper;
@@ -22,6 +23,7 @@ use crate::db::reads_wrapper::pages::{
 use crate::db::write_lock::WRITE_LOCK;
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;
+use crate::{plexget_conn_state, plexset_conn_state};
 
 pub async fn insert_three_pages() -> Result<(), CqrsErr> {
     let seeds: [(&str, &[&str]); 3] = [
@@ -106,9 +108,9 @@ pub async fn insert_three_pages() -> Result<(), CqrsErr> {
 }
 
 pub async fn delete_everything() -> Result<(), CqrsErr> {
-    crate::shared_owners::batcher_handle::flush_now().await?;
+    crate::complex_state::batcher_handle::flush_now().await?;
     let session_id = current_session_id();
-    crate::shared_owners::batcher_handle::run_exclusive(move || async move {
+    crate::complex_state::batcher_handle::run_exclusive(move || async move {
         let page_ids = get_all_page_ids().await?;
         run_in_transaction(move || async move {
             for page_id in page_ids {
@@ -170,5 +172,22 @@ pub async fn bump_local_drift_version_for_testing() -> Result<(), CqrsErr> {
     let now = js_sys::Date::now();
     let fake = format!("local-test-{}", now as u64);
     crate::db::key_value_storage_db_actions::set_client_drift_version(&fake).await?;
+    Ok(())
+}
+
+use crate::complex_state::conn_state::ConnState;
+use crate::complex_state::drift_version;
+pub async fn enter_lone_wolf() -> Result<(), CqrsErr> {
+    //bump drift version
+    drift_version::plexset_make_new_drift_version().await?;
+
+    let c = plexget_conn_state();
+    match c {
+        ConnState::Connected => {
+            plexset_conn_state(ConnState::Lonewolf);
+        }
+        _ => plexset_conn_state(ConnState::LonewolfAndOffline),
+    };
+
     Ok(())
 }

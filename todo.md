@@ -105,11 +105,11 @@ route that lets a lonewolf client merge local and server data page by
 page before wiping itself and adopting the server's dataset. See
 nov11.md for the reconcile_version and fingerprint decisions.
 
-Still not built: export, import, adopt. The client-side reaction to
-drift_solution at login (mismatch still enters lonewolf regardless of
-the solution). The picker for when drift_solution is absent. Adopt as
-a second bump source. An e2e test for the diff-viewer path (both sides
-have the same page id with different content).
+Still not built: export, import, adopt. Automatic wipe on
+`drift_solution = WipeSelfAndAdoptServer` at login. The picker for
+when drift_solution is absent. Adopt as a second bump source. An e2e
+test for the diff-viewer path (both sides have the same page id with
+different content).
 
 ## yrs: hard copy primitive
 
@@ -202,3 +202,19 @@ the edit. Until then, the first ordering is data loss.
 
 Not urgent until adopt is built. Written down so the adopt plan
 accounts for it.
+
+## OfflineDeliberately — parked
+
+New `ConnState` variant for "offline on purpose". Same as Offline from
+the UI's point of view but the reconnect task skips it. Three pieces:
+
+- Add the variant to `ConnectionStatus`.
+- Add a guard in `should_i_reconnect` to treat it as "don't poll".
+- Add a "go online" exit — either a matching method or a reload.
+
+Won't persist across reload; a reload always re-enables reconnect.
+Accepted because a real user going offline on purpose is rare enough
+that a reload as the exit is fine. Test scenarios that need "offline"
+should kill the server instead.
+
+Not started. See `nov11.md` for the design note.

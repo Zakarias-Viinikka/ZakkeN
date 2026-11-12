@@ -12,7 +12,7 @@ pub enum ConnectionStatus {
     /// Currently no support for the same browser having two tabs connected to server at once, would be complicated to fix
     TwoTabs,
     Connected,
-    LoneWolfAndOffline,
+    LonewolfAndOffline,
     /// Means connected to the server, but sync is disabled for whatever reason.
     /// Either because the user has been forced into lonewolf due to another user
     /// forcing the server to a new dataset. Or it happens because the client

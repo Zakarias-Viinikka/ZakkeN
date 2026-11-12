@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::shared_owners::{batcher_handle, BlockInputEvent};
+use crate::complex_state::{batcher_handle, BlockInputEvent};
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 

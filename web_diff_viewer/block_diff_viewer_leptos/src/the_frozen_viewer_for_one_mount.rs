@@ -49,10 +49,10 @@ use crate::reorder_rows_by_drag_math::{
     insertion_slot_for_dragged_center,
 };
 use crate::segs_for_highlighting::segs_for_a_line;
-use crate::shared_owner::drag_in_progress_feedback::{
+use crate::complex_state::drag_in_progress_feedback::{
     DragInProgressFeedback, DropEdge, DropIndicator,
 };
-use crate::shared_owner::visual_row_order::create_visual_row_order;
+use crate::complex_state::visual_row_order::create_visual_row_order;
 use crate::the_drag_session_state::{
     auto_scroll_if_pointer_is_near_the_edge, read_pointer_y,
     read_row_rects_in_content_coords, read_scroll_top, DragSession,

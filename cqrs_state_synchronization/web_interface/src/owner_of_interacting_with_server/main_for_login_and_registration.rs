@@ -1,7 +1,7 @@
-use server_protocol::ServErr;
 use leptos::prelude::{GetUntracked, Set};
 use protocol::error::DbError;
 use protocol::serialization::Convert;
+use server_protocol::ServErr;
 use server_protocol::{LoginPayload, LoginReply, RegisterPayload, Request};
 use shared_internals::RouterHandle;
 
@@ -23,8 +23,8 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
         match try_login(router, &saved).await? {
             LoginOutcome::Ok(reply) => {
                 compare_drift_and_maybe_enter_lonewolf(&reply).await?;
-                if super::core::CONN_STATE.get_untracked() == super::core::ConnState::LoggingIn {
-                    super::core::CONN_STATE.set(super::core::ConnState::Connected);
+                if crate::plexget_conn_state_untracked() == super::ConnState::LoggingIn {
+                    crate::plexset_conn_state(super::ConnState::Connected);
                 }
                 return Ok(());
             }
@@ -47,8 +47,8 @@ pub async fn login(router: &RouterHandle) -> Result<(), String> {
             match try_login(router, &setup_name).await? {
                 LoginOutcome::Ok(reply) => {
                     compare_drift_and_maybe_enter_lonewolf(&reply).await?;
-                    if super::core::CONN_STATE.get_untracked() == super::core::ConnState::LoggingIn {
-                        super::core::CONN_STATE.set(super::core::ConnState::Connected);
+                    if crate::plexget_conn_state_untracked() == super::ConnState::LoggingIn {
+                        crate::plexset_conn_state(super::ConnState::Connected);
                     }
                     Ok(())
                 }
@@ -85,8 +85,8 @@ async fn try_login(router: &RouterHandle, name: &str) -> Result<LoginOutcome, St
         .send_request(Request::Login, payload.to_payload())
         .await
         .map_err(|e| format!("login request: {e:?}"))?;
-    let result: Result<LoginReply, ServErr> = Convert::un_payloadify(&bytes)
-        .map_err(|e| format!("decode login reply: {e:?}"))?;
+    let result: Result<LoginReply, ServErr> =
+        Convert::un_payloadify(&bytes).map_err(|e| format!("decode login reply: {e:?}"))?;
     match result {
         Ok(reply) => Ok(LoginOutcome::Ok(reply)),
         Err(ServErr::DbErrorContainer(DbError::IllegalInput(msg)))
@@ -113,8 +113,8 @@ async fn try_register(router: &RouterHandle, name: &str) -> Result<RegisterOutco
         .send_request(Request::Register, payload.to_payload())
         .await
         .map_err(|e| format!("register request: {e:?}"))?;
-    let result: Result<(), ServErr> = Convert::un_payloadify(&bytes)
-        .map_err(|e| format!("decode register reply: {e:?}"))?;
+    let result: Result<(), ServErr> =
+        Convert::un_payloadify(&bytes).map_err(|e| format!("decode register reply: {e:?}"))?;
     match result {
         Ok(()) => Ok(RegisterOutcome::Ok),
         Err(ServErr::RejectedBecause(msg)) if msg.contains("already registered") => {

@@ -11,7 +11,7 @@
 //! once, in `AppMain`. Done.
 
 use crate::client_server_coms::ComsHandleForClient;
-use crate::shared_owners::client_status::{client_status_signal, ClientStatus};
+use crate::complex_state::client_status::{client_status_signal, ClientStatus};
 use leptos::prelude::*;
 
 pub fn main_for_retrying_the_connection_while_offline(client_handle: ComsHandleForClient) {

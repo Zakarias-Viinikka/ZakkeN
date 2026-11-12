@@ -6,7 +6,7 @@ pub mod overlays;
 pub mod owner_of_interacting_with_server;
 pub mod owner_of_sync_state_and_recovery;
 pub mod server;
-pub mod shared_owners;
+pub mod complex_state;
 
 pub use client::{CustomButton, controls, custom_button};
 pub use server::protocol;

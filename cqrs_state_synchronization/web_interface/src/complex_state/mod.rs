@@ -1,4 +1,6 @@
 pub mod batcher_handle;
+pub mod conn_state;
+pub mod drift_version;
 pub mod block_input_event;
 pub mod focus;
 pub mod rows;

@@ -302,3 +302,41 @@ so already-applied steps aren't in the retry set.
 
 `test_004` still fails on the audit bugs (get_diff losing text, yrs
 panicking on non-ASCII). Those are the bugs, not the harness.
+
+## Update - 2026-11-12 (drift, reconnect, deliberate lonewolf)
+
+Three new expose methods on the web app:
+
+- `read_conn_state` — fires `read_conn_state` window event, reads
+  `window.__conn_state__`. Helper:
+  `support/read_conn_state.py::{read_conn_state, wait_for_conn_state}`.
+  `wait_for_conn_state` accepts a single string or an iterable, and
+  retries through "Execution context was destroyed" during reload.
+- `enter_lonewolf` — calls the same action the dev-panel
+  deliberate-lonewolf button does. Fires `enter_lonewolf` window
+  event. Bumps the local drift version and flips to lonewolf (or
+  lonewolf-and-offline).
+- `bump_local_drift_version_and_reload` — already existed; forces a
+  login mismatch on reload by writing a fake version and reloading.
+
+All registered in `expose_methods_main!()`.
+
+### Reconnect task
+
+The web app owns reconnect now, in a 1-second polling task that reads
+`ConnState` and asks the router to try again when offline. Server
+side retry removed. This isn't directly testable end-to-end without
+killing the server mid-test, which the orchestrator can't do from
+inside pytest. Options for a follow-up: expose the decision
+(`should_i_reconnect`) as a pure function, or a window event that
+exposes it, or a partial test asserting the loop doesn't misfire when
+`Connected`.
+
+### complex_state pattern
+
+`plexget_conn_state` / `plexset_conn_state` /
+`plexget_drift_version` / `plexset_make_new_drift_version` in
+`complex_state/`. `plexget_drift_version()` panics if the cache isn't
+populated — only legitimate after login. Worth a test that exercises
+the panic boundary: calling it before login panics, after login
+returns the version.

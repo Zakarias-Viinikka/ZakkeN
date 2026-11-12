@@ -9,7 +9,7 @@ use crate::server::components::panel::ServerReadout;
 use crate::server::latency::{
     reply_after_delay, reply_after_delay_if_still_powered, LATENCY_HEAVY_MS, LATENCY_LIGHT_MS,
 };
-use crate::shared_owners::power::POWERED;
+use crate::complex_state::power::POWERED;
 use futures::StreamExt;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::channel::oneshot;

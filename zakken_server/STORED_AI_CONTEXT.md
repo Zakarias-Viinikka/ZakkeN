@@ -411,3 +411,24 @@ New variants on `Request`: `GetPageFingerprints`, `GetPagesByIds`,
 
 See `../nov11.md` for the design decisions and `../plan.md` for the
 flow summary.
+
+## Socket retry loop removed - 2026-11-12
+
+`shared_internals::socket_web` used to own a retry loop: open, wait
+for close, backoff, open again, forever. That was web-specific logic
+in a crate named "shared" (android is a stub, so it never matched).
+
+Removed. The socket task now waits for a "try now" signal on a
+channel and opens at most one connection per burst. It reports
+`Connecting` / `Connected` / `Failed` to `on_conn_status` as before,
+but never decides on its own to try again.
+
+`RouterHandle` gained `attempt_reconnect()` which fires the "try now"
+signal. Idempotent under burst (extra signals are drained before an
+open attempt). The reconnect decision now lives in `web_interface`
+(`owner_of_interacting_with_server/main_for_reconnecting_automatically/`),
+which polls `ConnState` once a second and calls `attempt_reconnect` on
+the offline states.
+
+Note: `try_next` on the receiver was replaced with `try_recv` (the
+former is deprecated).

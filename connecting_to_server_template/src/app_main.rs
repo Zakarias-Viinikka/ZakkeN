@@ -74,7 +74,7 @@ pub fn AppMain() -> impl IntoView {
 }
 
 fn client_title() -> Signal<String> {
-    use crate::shared_owners::client_status::{ClientStatus, client_status_signal};
+    use crate::complex_state::client_status::{ClientStatus, client_status_signal};
     let status = client_status_signal();
     Signal::derive(move || {
         let label = match status.get() {

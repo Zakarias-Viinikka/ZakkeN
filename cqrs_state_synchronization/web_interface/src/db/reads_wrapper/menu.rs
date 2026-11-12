@@ -6,7 +6,7 @@ use protocol::error::DbError;
 use protocol::payload::{GetDataIn, JoinType, SelectArgument, SelectArguments};
 use web_internal_db::db_helper;
 
-use crate::shared_owners::LocalPages;
+use crate::complex_state::LocalPages;
 use super::destruct::destruct_entire_get_all_menu_pages;
 
 pub async fn get_all_menu_pages() -> Result<Vec<LocalPages>, DbError> {

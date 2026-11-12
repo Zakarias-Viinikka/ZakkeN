@@ -13,7 +13,7 @@ use server_protocol::{
 };
 use shared_internals::ClientCommand;
 
-use crate::shared_owners::router_handle;
+use crate::complex_state::router_handle;
 
 pub async fn fetch_page_fingerprints() -> Result<GetPageFingerprintsPayload, ServErr> {
     let bytes = router_handle::send(ClientCommand::GetPageFingerprints).await?;

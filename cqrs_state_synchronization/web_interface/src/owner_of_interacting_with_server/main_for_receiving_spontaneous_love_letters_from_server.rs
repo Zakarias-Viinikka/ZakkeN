@@ -2,8 +2,7 @@ use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
 use client_table_blueprints::{tbl_pages, tbl_seen_server_letters};
-use server_protocol::ServErr;
-use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures_channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 use futures_util::StreamExt;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -14,6 +13,7 @@ use protocol::payload::{
 };
 use protocol::schema_helper::DestructDbReturnCol;
 use protocol::serialization::Convert;
+use server_protocol::ServErr;
 use server_protocol::{
     AckPayload, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, PageRow, Request, UnsentLetter,
 };
@@ -26,13 +26,11 @@ use crate::db::reads_wrapper::pages::page_exists;
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 
-use super::main_for_applying_love_letter_from_server_to_app::{apply_letter, ApplyError};
+use super::main_for_applying_love_letter_from_server_to_app::{ApplyError, apply_letter};
 
-pub static STARTED_FRESH: LazyLock<ArcRwSignal<bool>> =
-    LazyLock::new(|| ArcRwSignal::new(false));
+pub static STARTED_FRESH: LazyLock<ArcRwSignal<bool>> = LazyLock::new(|| ArcRwSignal::new(false));
 
-pub static MENU_TICK: LazyLock<ArcRwSignal<u32>> =
-    LazyLock::new(|| ArcRwSignal::new(0));
+pub static MENU_TICK: LazyLock<ArcRwSignal<u32>> = LazyLock::new(|| ArcRwSignal::new(0));
 
 static SEEN_IDS: LazyLock<Mutex<HashSet<i64>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
@@ -97,7 +95,7 @@ async fn task_for_receiving_socket_messages(
                 if let Err(e) = super::main_for_login_and_registration::login(&router).await {
                     leptos::logging::error!("login: {e}");
                     show_popup(format!("login failed: {e}"));
-                    super::core::CONN_STATE.set(super::core::ConnState::FailedToConnect);
+                    crate::plexset_conn_state(super::ConnState::FailedToConnect);
                     continue;
                 }
                 main_send_unsent_love_letters();
@@ -121,10 +119,7 @@ async fn task_for_receiving_socket_messages(
     leptos::logging::warn!("receive worker exiting: socket channel closed");
 }
 
-async fn start_over_fresh_guard(
-    router: &RouterHandle,
-    open: OpenPages,
-) -> Result<(), DbError> {
+async fn start_over_fresh_guard(router: &RouterHandle, open: OpenPages) -> Result<(), DbError> {
     use std::sync::atomic::Ordering;
 
     if START_OVER_FRESH_ATTEMPTED.load(Ordering::Relaxed) {
@@ -146,10 +141,7 @@ async fn start_over_fresh_guard(
     Ok(())
 }
 
-async fn start_over_fresh(
-    router: &RouterHandle,
-    open: OpenPages,
-) -> Result<(), DbError> {
+async fn start_over_fresh(router: &RouterHandle, open: OpenPages) -> Result<(), DbError> {
     let bytes = router
         .send_request(Request::GetAllYrsPages, Vec::new())
         .await
@@ -164,10 +156,7 @@ async fn start_over_fresh(
     Ok(())
 }
 
-async fn apply_bootstrap_row(
-    open: OpenPages,
-    row: PageRow,
-) -> Result<(), DbError> {
+async fn apply_bootstrap_row(open: OpenPages, row: PageRow) -> Result<(), DbError> {
     let is_disabled = !page_status_is_active(&row.page_status, &row.page_id);
 
     let exists = page_exists(row.page_id.clone()).await?;
@@ -303,7 +292,9 @@ async fn handle_one(
             if created_new_page {
                 if let Ok((more, next_drift_version)) = pull_unsent(router).await {
                     for extra in more {
-                        if !Box::pin(handle_one(open, router, extra, next_drift_version.clone())).await {
+                        if !Box::pin(handle_one(open, router, extra, next_drift_version.clone()))
+                            .await
+                        {
                             return false;
                         }
                     }

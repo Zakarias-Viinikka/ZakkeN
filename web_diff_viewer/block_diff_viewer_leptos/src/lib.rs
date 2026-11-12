@@ -23,7 +23,7 @@ pub mod finish_handle;
 pub mod map_caret_across_edit;
 pub mod reorder_rows_by_drag_math;
 pub mod segs_for_highlighting;
-pub mod shared_owner;
+pub mod complex_state;
 pub mod the_diff_viewer;
 pub mod the_drag_session_state;
 pub mod the_edit_state_of_one_block_of_text;
@@ -37,7 +37,7 @@ pub use reorder_rows_by_drag_math::{
     insertion_slot_for_dragged_center, RowMoveEvent,
 };
 pub use segs_for_highlighting::{segs_for_a_line, Segment};
-pub use shared_owner::visual_row_order;
+pub use complex_state::visual_row_order;
 pub use the_diff_viewer::DiffViewer;
 pub use the_edit_state_of_one_block_of_text::BlockEditState;
 pub use the_pure_function_that_builds_the_output::output_right_side_texts_in_visual_order;

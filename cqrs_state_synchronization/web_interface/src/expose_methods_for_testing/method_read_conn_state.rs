@@ -16,8 +16,7 @@ macro_rules! method_read_conn_state {
                     Some(w) => w,
                     None => return,
                 };
-                let state = $crate::owner_of_interacting_with_server::CONN_STATE
-                    .get_untracked();
+                let state = $crate::plexget_conn_state_untracked();
                 let text = format!("{:?}", state);
                 let _ = js_sys::Reflect::set(
                     &window,

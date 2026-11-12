@@ -1,11 +1,12 @@
 use leptos::prelude::*;
 
-use crate::owner_of_interacting_with_server::{ConnState, CONN_STATE, PENDING_COUNT};
+use crate::owner_of_interacting_with_server::{ConnState, PENDING_COUNT};
+use crate::plexget_conn_state;
 
 #[component]
 pub fn ConnectionIndicator() -> impl IntoView {
     let bg = move || {
-        let state = CONN_STATE.get();
+        let state = plexget_conn_state();
         let pending = PENDING_COUNT.get();
         match state {
             ConnState::Offline => "#2255cc",
@@ -16,11 +17,11 @@ pub fn ConnectionIndicator() -> impl IntoView {
             ConnState::Connected => "#227722",
             ConnState::TwoTabs => "#444",
             ConnState::Lonewolf => "#2255cc",
-            ConnState::LoneWolfAndOffline => "#2255cc",
+            ConnState::LonewolfAndOffline => "#2255cc",
         }
     };
     let label = move || {
-        let state = CONN_STATE.get();
+        let state = plexget_conn_state();
         let pending = PENDING_COUNT.get();
         match state {
             ConnState::Offline => "Offline".to_string(),
@@ -31,7 +32,7 @@ pub fn ConnectionIndicator() -> impl IntoView {
             ConnState::Connected => "Connected".to_string(),
             ConnState::TwoTabs => "Another tab is connected".to_string(),
             ConnState::Lonewolf => "Sync stopped".to_string(),
-            ConnState::LoneWolfAndOffline => "Offline, sync stopped".to_string(),
+            ConnState::LonewolfAndOffline => "Offline, sync stopped".to_string(),
         }
     };
     view! {

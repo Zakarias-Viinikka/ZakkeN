@@ -192,6 +192,48 @@ Reconcile does NOT bump drift_version. Other clients are not
 informed, not disconnected. Each lonewolf client reconciles
 separately.
 
-Not built: login-mismatch routing to /reconcile (drift_solution =
-Reconcile branch still enters lonewolf); picker for drift_solution =
-None; adopt; e2e test for the mismatched-page path.
+Not built: automatic wipe on `drift_solution = WipeSelfAndAdoptServer`
+at login; picker for `drift_solution = None`; adopt; e2e test for the
+mismatched-page path.
+
+## Continued - 2026-11-12
+
+Reconcile merged (`3b1f79d`). Adjacent work since.
+
+Every `shared_owner/` folder renamed to `complex_state/`. Convention in
+`coding_style.md`. Two files landed under `complex_state/`:
+
+- `conn_state.rs` — connection state. Tracked read for view callers,
+  untracked read for send loops and drift detection, one setter. Doc
+  comment maps every reader and every writer.
+- `drift_version.rs` — drift version, cache + DB in one file. Sync
+  read from the cache (panics if cache isn't warm, only legitimate
+  after login). Async read from DB for the login comparison. Setter
+  writes both. Separate mint function for callers that want a fresh
+  one without knowing how it's formed.
+
+`new_drift_version(user_id, time_in_unix)` lives in
+`drift_guard_and_ops/shared`, callable from either side.
+
+The socket retry loop moved out of `shared_internals::socket_web`.
+That was web-specific logic in a crate named "shared"; Android was
+never going to match. The socket task now waits for a "try now" signal
+and opens at most one connection per burst. `RouterHandle` gained
+`attempt_reconnect()`. The reconnect decision lives in
+`web_interface/owner_of_interacting_with_server/main_for_reconnecting_automatically/`,
+a 1-second polling task that reads `ConnState` and calls
+`attempt_reconnect` when offline. First connection fires immediately
+after setup, not on the first tick.
+
+New dev-panel button that puts the client into lonewolf on purpose.
+Also exposed to the tester as `enter_lonewolf`. New
+`read_conn_state` window event for reading `ConnState` from the tester.
+
+Login mismatch entering lonewolf is correct. Routing to `/reconcile`
+on mismatch is not intended. Reconcile is entered via the dev
+sidebar only. `drift_solution = WipeSelfAndAdoptServer` still doesn't
+act automatically; no picker for `None`.
+
+Not built: `OfflineDeliberately` (a new state for "offline on
+purpose, don't poll"). Plan is in nov11.md. Won't persist across
+reload; accepted.

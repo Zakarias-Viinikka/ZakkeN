@@ -3,7 +3,7 @@ use std::sync::Arc;
 use leptos::prelude::*;
 use my_yrs_lib::BossOfYrs;
 
-use crate::shared_owners::BlockRow;
+use crate::complex_state::BlockRow;
 
 #[derive(Clone, Copy)]
 pub struct Page {

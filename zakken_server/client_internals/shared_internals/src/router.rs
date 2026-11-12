@@ -36,6 +36,7 @@ struct Shared {
     pending: Mutex<HashMap<usize, oneshot::Sender<Vec<u8>>>>,
     next_request_id: AtomicUsize,
     outgoing_tx: UnboundedSender<Message>,
+    tx_ask_the_socket_task_to_try_connecting_again: UnboundedSender<()>,
     connected: AtomicBool,
 }
 
@@ -68,11 +69,14 @@ impl Router {
     {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
         let (incoming_tx, incoming_rx) = unbounded::<Response>();
+        let (tx_ask_the_socket_task_to_try_connecting_again, rx_attempt_to_connect) =
+            unbounded::<()>();
 
         let shared = Arc::new(Shared {
             pending: Mutex::new(HashMap::new()),
             next_request_id: AtomicUsize::new(1),
             outgoing_tx,
+            tx_ask_the_socket_task_to_try_connecting_again,
             connected: AtomicBool::new(false),
         });
 
@@ -105,6 +109,7 @@ impl Router {
             incoming_tx,
             on_conn_status,
             on_disconnect,
+            rx_attempt_to_connect,
         );
 
         RouterHandle { shared }
@@ -193,6 +198,16 @@ impl RouterHandle {
         })
     }
 
+    /// Ask the socket task to try opening a new connection. Safe to
+    /// call multiple times; extra signals are drained before a new
+    /// attempt, so at most one socket is opened per burst.
+    pub fn attempt_reconnect(&self) {
+        let _ = self
+            .shared
+            .tx_ask_the_socket_task_to_try_connecting_again
+            .unbounded_send(());
+    }
+
     /// Drop every pending waiter. Their `await` resolves with an error.
     pub fn fail_all_pending(&self) {
         self.shared.pending.lock().unwrap().clear();
@@ -225,10 +240,13 @@ mod tests {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
         let (incoming_tx, incoming_rx) = unbounded::<Response>();
         let (spontaneous_tx, spontaneous_rx) = unbounded::<Response>();
+        let (tx_ask_the_socket_task_to_try_connecting_again, _rx_attempt_to_connect) =
+            unbounded::<()>();
         let shared = Arc::new(Shared {
             pending: Mutex::new(HashMap::new()),
             next_request_id: AtomicUsize::new(1),
             outgoing_tx,
+            tx_ask_the_socket_task_to_try_connecting_again,
             connected: AtomicBool::new(true),
         });
         let dispatch = Router {

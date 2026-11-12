@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use crate::shared_owners::{BlockInputEvent, BlockRow};
+use crate::complex_state::{BlockInputEvent, BlockRow};
 use super::drag_reorder_black_box::{BlockRenderInput, DragReorderBlackBox, MoveEvent, PageInput};
 
 use super::my_block_content::MyBlockContent;

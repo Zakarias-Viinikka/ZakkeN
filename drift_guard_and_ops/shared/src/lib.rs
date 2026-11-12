@@ -91,3 +91,40 @@ mod tests {
         assert_eq!(fingerprint(v.as_slice()), fingerprint(v.as_slice()));
     }
 }
+
+/// A fresh drift version for a client to adopt. Formed from the user id
+/// and a unix time so two mints by the same user at different moments
+/// can't collide. Distinct from the server's minting (which uses a
+/// "server-" prefix) so the two sides are never confused.
+pub fn new_drift_version(user_id: &str, time_in_unix: &str) -> String {
+    format!("local-{user_id}-{time_in_unix}")
+}
+
+#[cfg(test)]
+mod drift_version_tests {
+    use super::*;
+
+    #[test]
+    fn same_inputs_give_same_version() {
+        assert_eq!(
+            new_drift_version("alice", "1700000000"),
+            new_drift_version("alice", "1700000000"),
+        );
+    }
+
+    #[test]
+    fn different_user_gives_different_version() {
+        assert_ne!(
+            new_drift_version("alice", "1700000000"),
+            new_drift_version("bob", "1700000000"),
+        );
+    }
+
+    #[test]
+    fn different_time_gives_different_version() {
+        assert_ne!(
+            new_drift_version("alice", "1700000000"),
+            new_drift_version("alice", "1700000001"),
+        );
+    }
+}

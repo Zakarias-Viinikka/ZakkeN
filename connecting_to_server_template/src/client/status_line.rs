@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::shared_owners::client_status::{client_status_signal, ClientStatus};
+use crate::complex_state::client_status::{client_status_signal, ClientStatus};
 
 pub fn status_line() -> Signal<String> {
     let status = client_status_signal();

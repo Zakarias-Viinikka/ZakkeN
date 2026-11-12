@@ -1,14 +1,17 @@
 //! Browser socket half.
 //!
-//! Opens a WebSocket, drains the outgoing queue to the wire, decodes
-//! incoming frames into `Response` and feeds them back into the
-//! router's dispatch loop. Owns the retry loop: on every failed open,
-//! or on close after a successful connect, reports to `on_conn_status`
-//! and retries with backoff.
+//! Opens a WebSocket when told to, drains the outgoing queue to the
+//! wire, decodes incoming frames into `Response`, and feeds them back
+//! into the router's dispatch loop. One connect attempt per signal
+//! from `rx_attempt_to_connect`. On close or open failure, reports
+//! through `on_conn_status` and waits for the next signal.
 //!
-//! The outgoing queue is owned by the retry loop and lent to each
-//! connect attempt. A dropped receiver would lose every queued
-//! message, so it lives here for the lifetime of the process.
+//! Retry is not this file's job any more — it's driven from outside by
+//! `web_interface::owner_of_interacting_with_server::main_for_reconnecting_automatically`.
+//!
+//! The outgoing queue is owned by this task for the lifetime of the
+//! process. A dropped receiver would lose every queued message, so it
+//! lives here.
 
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
@@ -27,59 +30,62 @@ pub(crate) fn spawn<S, F>(
     incoming_tx: UnboundedSender<Response>,
     on_conn_status: S,
     on_disconnect: F,
+    rx_attempt_to_connect: UnboundedReceiver<()>,
 ) where
     S: FnMut(ConnStatus) + 'static,
     F: Fn() + 'static,
 {
     spawn_local(async move {
-        run_retry(
+        socket_task(
             url,
             outgoing_rx,
             incoming_tx,
             on_conn_status,
             on_disconnect,
+            rx_attempt_to_connect,
         )
         .await;
     });
 }
 
-async fn run_retry<S, F>(
+async fn socket_task<S, F>(
     url: String,
     mut outgoing_rx: UnboundedReceiver<Message>,
     incoming_tx: UnboundedSender<Response>,
     mut on_conn_status: S,
     on_disconnect: F,
+    mut rx_attempt_to_connect: UnboundedReceiver<()>,
 ) where
     S: FnMut(ConnStatus) + 'static,
     F: Fn() + 'static,
 {
-    let mut backoff_ms: u32 = 1000;
     loop {
+        // Wait for the app to ask for an attempt.
+        let Some(()) = rx_attempt_to_connect.next().await else {
+            return;
+        };
+        // Drain any extra signals so one connect attempt doesn't trigger
+        // several back-to-back open attempts.
+        while rx_attempt_to_connect.try_recv().is_ok() {}
+
         on_conn_status(ConnStatus::Connecting);
         match open_and_wait(&url).await {
             Ok(ws) => {
                 on_conn_status(ConnStatus::Connected);
-                let closed_cleanly = run_one(ws, &mut outgoing_rx, incoming_tx.clone()).await;
-                // The socket has died. Any request still waiting for a
-                // reply over the old connection will never get one, so
-                // drop the waiters and let their callers see an error
-                // instead of hanging.
+                let keep_going = run_one(ws, &mut outgoing_rx, incoming_tx.clone()).await;
                 on_disconnect();
-                if !closed_cleanly {
-                    // The message channel itself closed; nothing more
-                    // to do.
+                if !keep_going {
                     return;
                 }
-                backoff_ms = 1000;
-                on_conn_status(ConnStatus::Connecting);
+                // Signal "we're no longer connected, the retry task
+                // should try again". Failed maps to Offline in the app.
+                on_conn_status(ConnStatus::Failed);
             }
             Err(e) => {
                 web_sys::console::warn_1(&format!("connect {url}: {e}").into());
                 on_conn_status(ConnStatus::Failed);
             }
         }
-        TimeoutFuture::new(backoff_ms).await;
-        backoff_ms = backoff_ms.saturating_mul(2).min(5_000);
     }
 }
 
@@ -97,8 +103,8 @@ async fn open_and_wait(url: &str) -> Result<WebSocket, String> {
 }
 
 /// One connection. Runs until the socket closes. Returns true if the
-/// caller should retry (socket died), false if the outgoing channel
-/// closed (nothing left to send, stop entirely).
+/// caller should keep the process alive (socket died), false if the
+/// outgoing channel closed (nothing left to send, stop entirely).
 async fn run_one(
     ws: WebSocket,
     outgoing_rx: &mut UnboundedReceiver<Message>,
@@ -141,7 +147,6 @@ async fn run_one(
     };
     ws.set_onerror(Some(onerror.as_ref().unchecked_ref()));
 
-    // Hold the closures for the duration of `run_one`.
     let _onmessage = onmessage;
     let _onclose = onclose;
     let _onerror = onerror;

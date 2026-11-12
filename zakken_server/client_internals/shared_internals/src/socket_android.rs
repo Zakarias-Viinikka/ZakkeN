@@ -14,6 +14,7 @@ pub(crate) fn spawn<S, F>(
     _incoming_tx: UnboundedSender<Response>,
     _on_conn_status: S,
     _on_disconnect: F,
+    _rx_attempt_to_connect: UnboundedReceiver<()>,
 ) where
     S: FnMut(ConnStatus) + 'static,
     F: Fn() + 'static,

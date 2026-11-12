@@ -3,25 +3,25 @@ use leptos::task::spawn_local;
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
+use web_interface::complex_state::batcher_handle;
 use web_interface::db::{cached_ids, init};
 use web_interface::expose_methods_main;
+use web_interface::leptos_components::custom_port_setting_page::CustomPortSettingPage;
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
-use web_interface::leptos_components::custom_port_setting_page::CustomPortSettingPage;
 use web_interface::leptos_components::reconcile_page::ReconcilePage;
 use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
 use web_interface::leptos_components::small_components::AppBorder;
 use web_interface::leptos_components::small_components::popup::CoolPopup;
 use web_interface::page_state::{OpenPages, Page, PageLoadState};
-use web_interface::shared_owners::batcher_handle;
-
 
 use web_internal_db::db_gui::db_gui_main;
 
 fn main() {
     console_error_panic_hook::set_once();
     mount_to_body(App);
+    //either here or in App() do install_auto_reconecter
 }
 
 fn connection_refresh_guard(open_pages: OpenPages) {
@@ -39,6 +39,7 @@ fn App() -> impl IntoView {
     let tables_ready = RwSignal::new(false);
 
     batcher_handle::init();
+    web_interface::owner_of_interacting_with_server::main_for_reconnecting_automatically::spawn_task_to_auto_reconnect();
 
     let open_pages = OpenPages {
         page1: Page::new(String::new()),
@@ -86,8 +87,6 @@ fn App() -> impl IntoView {
         </AppBorder>
     }
 }
-
-
 
 #[component]
 fn MainForNavigatingFromTheTester() -> impl IntoView {
