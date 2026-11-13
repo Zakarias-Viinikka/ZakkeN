@@ -14,3 +14,7 @@ def reset_everything(page: Page) -> None:
 
 def insert_three_pages(page: Page) -> None:
     page.evaluate("window.dispatchEvent(new CustomEvent('insert_three_pages'))")
+
+def enter_lonewolf(page):
+    """Same action as the dev-sidebar deliberate-lonewolf button."""
+    page.evaluate("window.dispatchEvent(new CustomEvent('enter_lonewolf'))")

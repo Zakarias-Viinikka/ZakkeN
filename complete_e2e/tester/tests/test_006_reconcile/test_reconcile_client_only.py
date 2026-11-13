@@ -48,7 +48,7 @@ def test_reconcile_client_only(two_browser_stage):
         )
         try:
             wait_for_conn_state(
-                edge, ("Lonewolf", "LoneWolfAndOffline")
+                edge, ("Lonewolf", "LonewolfAndOffline")
             )
         except AssertionError as e:
             state = read_conn_state(edge)

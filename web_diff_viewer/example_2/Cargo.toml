@@ -1,0 +1,11 @@
+[package]
+name = "example_2"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+console_error_panic_hook.workspace = true
+leptos = { workspace = true, features = ["csr"] }
+leptos_router.workspace = true
+block_diff_viewer_leptos = { path = "../block_diff_viewer_leptos" }
+generate_love_letters = { path = "../generate_love_letters" }

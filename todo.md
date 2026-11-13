@@ -82,7 +82,7 @@ Basically I want to create a demo for: "create a menu system for reversing a yrs
 
 A Leptos CSR port of zap's egui diff viewer, living at `~/ProgStuff/ZakkeN/web_diff_viewer/`. Standalone project, not part of ZakkeN; worked on as a reusable component. Eventually the reconcile UI in the web app could use it.
 
-Built. Workspace with three crates: `block_text_diff` (pure logic), `block_diff_viewer_leptos` (the `DiffViewer` component + pure helpers), `example_app` (trunk demo with four sample pairs). Native tests via `c t` at workspace root. `c r` serves the demo.
+Built. Workspace with five crates: `block_text_diff` (pure logic), `block_diff_viewer_leptos` (the `DiffViewer` component + pure helpers), `example_app` (trunk demo with four sample pairs), `example_2` (prototype of the reconcile UI shell — numbered chooser, pick screen, inline viewer, preview strip, Submit), `generate_love_letters` (pure: turn a server page + a user page into `LoveLetterSketch`s keyed by block_id). Native tests via `c t` at workspace root. `c r` serves the demo.
 
 See the "External: web_diff_viewer" section in `STORED_AI_CONTEXT.md` for the caller contract, what the viewer does, and the deliberate deviations from the original plan.
 
@@ -218,3 +218,11 @@ that a reload as the exit is fine. Test scenarios that need "offline"
 should kill the server instead.
 
 Not started. See `nov11.md` for the design note.
+
+### Research known bugs from similar apps
+
+Adjacent apps share the same fundamental problems — CRDT sync, offline editing, block-based editing, drag reorder, search, backlinks, import/export. Notion, Obsidian, Logseq, AnyType, Roam, and the various open-source CRDT projects all have public bug trackers, GitHub issues, and engineering post-mortems. Research the bugs and complaints that are architecturally relevant to this app, then write tests that reproduce the user action. If the test passes, the app handles it. If it fails, a real bug was found before a real user could hit it.
+
+The goal isn't to fix every bug or to achieve coverage. It's to widen the categories of bug I know to look for. The audit list in `2026_10_31_cqrs_and_server_audit_findings.md` is a list of bugs I already know about; this is a strategy for finding the ones I don't.
+
+Not started. Filter (relevance to my architecture) is the hard part, and the answer to "what's relevant" is a function of how well I understand my own code.

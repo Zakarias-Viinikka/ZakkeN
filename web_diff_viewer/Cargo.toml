@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["block_text_diff", "block_diff_viewer_leptos", "example_app"]
+members = ["block_text_diff", "block_diff_viewer_leptos", "example_app", "example_2", "generate_love_letters"]
 
 [workspace.package]
 version = "0.1.0"

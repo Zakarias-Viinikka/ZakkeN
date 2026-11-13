@@ -1,0 +1,166 @@
+* { box-sizing: border-box; }
+
+html, body, main {
+    margin: 0;
+    height: 100vh;
+}
+
+body {
+    background: #0a0e18;
+    color: #e4e9f2;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 16px;
+}
+
+.viewer-region {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.no-diff-open {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding: 40px;
+    background: #1c2433;
+    border: 1px solid rgba(228, 233, 242, 0.09);
+    border-radius: 10px;
+    color: rgba(228, 233, 242, 0.55);
+}
+.no-diff-open h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(228, 233, 242, 0.8);
+}
+.no-diff-open p {
+    margin: 0;
+    font-size: 13px;
+    max-width: 380px;
+    line-height: 1.5;
+}
+
+.sketch-panel {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: rgba(228, 233, 242, 0.85);
+}
+.sketch-panel h2 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-weight: 600;
+    color: #e4e9f2;
+}
+.sketch-page {
+    margin-bottom: 16px;
+}
+.sketch-page-id {
+    color: #8ab4ff;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.sketch-page ul {
+    margin: 0;
+    padding-left: 20px;
+    color: rgba(228, 233, 242, 0.7);
+}
+.sketch-page li {
+    line-height: 1.6;
+}
+
+.nothing-selected {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    background: #1c2433;
+    border: 1px solid rgba(228, 233, 242, 0.09);
+    border-radius: 10px;
+}
+.nothing-selected .chooser-row {
+    flex-wrap: wrap;
+}
+.nothing-selected .chooser-row {
+    flex-wrap: wrap;
+}
+.nothing-selected-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+.default-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.default-picker-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    color: rgba(228, 233, 242, 0.55);
+    margin-right: 6px;
+}
+.default-btn {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 5px 10px;
+    border: 1px solid rgba(228, 233, 242, 0.14);
+    border-radius: 5px;
+    background: transparent;
+    color: rgba(228, 233, 242, 0.7);
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.default-btn:hover {
+    border-color: rgba(228, 233, 242, 0.35);
+    color: #e4e9f2;
+}
+.default-btn-active {
+    border-color: #8ab4ff;
+    color: #8ab4ff;
+    background: rgba(138, 180, 255, 0.08);
+}
+
+.submit-btn {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 10px 24px;
+    border: 1px solid #8ab4ff;
+    border-radius: 6px;
+    background: #8ab4ff;
+    color: #0a0e18;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.submit-btn:hover {
+    background: #a4c5ff;
+    border-color: #a4c5ff;
+}

@@ -39,3 +39,27 @@ def wait_for_reconcile_to_finish(page: Page, timeout_secs: float = None) -> None
     if timeout_secs is None:
         timeout_secs = _RECONCILE_FINISH_SECS
     wait_for_conn_state(page, "Connected", timeout_secs=timeout_secs)
+
+def only_card(page: Page):
+    """The one mismatched-page card. Fails if there isn't exactly one."""
+    card = page.locator(".rp-card")
+    expect(card).to_have_count(1, timeout=ms())
+    return card
+
+
+def pick_on_only_card(page: Page, button_name: str, badge_pattern: str) -> None:
+    """Click one of the card's buttons ("use mine", "use server's") and wait
+    for the green badge to show the choice."""
+    card = only_card(page)
+    card.get_by_role("button", name=button_name, exact=True).click(timeout=ms())
+    expect(card.locator(".rp-card-badge")).to_have_text(
+        re.compile(badge_pattern, re.I), timeout=ms()
+    )
+
+
+def go_to_menu(page: Page) -> None:
+    """After Finish the reload keeps the /reconcile URL. Go back to the menu."""
+    page.evaluate(
+        "window.dispatchEvent(new CustomEvent('navigate', { detail: '/Menu' }))"
+    )
+    expect(page).to_have_url(re.compile(r"/Menu$"), timeout=ms())

@@ -1,0 +1,8 @@
+[package]
+name = "generate_love_letters"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+love_letter = { path = "../../love_letter" }
+yrs.path = "../../yrs"
