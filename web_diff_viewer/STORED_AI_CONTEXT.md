@@ -40,14 +40,16 @@ Workspace members:
 
 The viewer is a black box. Mounting code never reads its internals.
 
-    let left = RwSignal::new(vec_of_strings);
-    let right = RwSignal::new(vec_of_strings);
-    let (output, set_output) = signal(Vec::<String>::new());
+    let server = RwSignal::new(Some(page_blocks_for_the_viewer));
+    let client = RwSignal::new(page_blocks_for_the_viewer);
+    let kept = RwSignal::new(PickedSide::Mine);
+    let (output, set_output) = signal(ViewerOutput::default());
     let handle = FinishHandle::new();
 
     <DiffViewer
-        left_page=left
-        right_page=right
+        server_page=server
+        client_page=client
+        kept_side=kept
         output=set_output
         handle=handle
         on_finished=Callback::new(move |_| { /* read output.get_untracked() */ })
@@ -56,34 +58,40 @@ The viewer is a black box. Mounting code never reads its internals.
         "Done"
     </button>
 
-- `left_page` / `right_page` are `Signal<Vec<String>>`. Changing either
-  remounts the inner viewer; edits and drags never survive a remount.
-- `output` is a `WriteSignal<Vec<String>>` the viewer writes to when
-  the caller asks to finish. Value is the right-side blocks in current
-  visual order, LeftOnly rows skipped.
+- `server_page` is `Signal<Option<PageBlocksForTheViewer>>`. `None`
+  means client-only (no server copy); the viewer skips the diff and
+  emits a single `CreateNewPage` sketch on finish.
+- `client_page` is `Signal<PageBlocksForTheViewer>`.
+- `kept_side` is `Signal<PickedSide>` — `Mine` puts server on the
+  left and client on the right (client editable); `Server` puts client
+  on the left and server on the right. Either way the editable side is
+  the right.
+- Changing any of the three remounts the inner viewer; edits and
+  drags never survive a remount.
+- `output` is a `WriteSignal<ViewerOutput>`. `ViewerOutput` has two
+  fields: `kept_blocks: Vec<Block>` (the editable right-side blocks in
+  visual order, each with its id, text, metadata, frac) and
+  `sketches: Vec<LoveLetterSketch>` (the love-letter sketches that
+  turn the server's page into `kept_blocks`; empty for client-only).
 - `handle` is `FinishHandle`. Caller stores it, passes it in, and calls
   `handle.finish_and_write_the_result()` from any button. Internally
   it bumps a counter signal; the viewer's effect writes `output` then
   fires `on_finished`.
 - `on_finished` is optional. Fires after every finish. Anything that
-  reads `output.get_untracked()` inside it sees the fresh value
-  because `output` is written before the callback runs.
+  reads `output.get_untracked()` inside it sees the fresh value.
+
+`Block` and `LoveLetterSketch` are re-exported from
+`generate_love_letters`. `PageBlocksForTheViewer` is a page id,
+`is_main_menu_page`, and `Vec<Block>`.
 
 Two `FinishHandle`s can drive the same viewer — clone it, call the
-method on either. Useful when Done and the numbered close-box both
-need to trigger a finish.
+method on either.
 
 The only caller setup is one stylesheet link in `index.html`:
 
     <link data-trunk rel="scss" href="../block_diff_viewer_leptos/css/block_diff_viewer.scss" />
 
-Everything inside the viewer is scoped under `.dv-root`. The stylesheet
-uses `--dv-*` custom properties; a host can override any of them
-without touching the file.
-
-The viewer returns text only. It does not know about `block_id`,
-`metadata`, or `frac_position`. If the caller needs those, it must
-reattach them on its side — see "Known gaps".
+Everything inside the viewer is scoped under `.dv-root`.
 
 ## example_2 — the reconcile UI shell
 
@@ -197,41 +205,117 @@ API doesn't change when the real thing starts using it.
 
 Rules:
 
-- A server id is gone from `user` → `RemoveBlock`.
-- A server id is in `user` with empty text → `RemoveBlock`.
-- A server id is in `user` with different text → `EditBlock` with
-  `TextEdit::Replace { old_text: server's, new_text: user's,
-  position: 0 }`. Full replace, not fine-grained diff.
+- **The first server block is the title. It is never removed.** A
+  blanked title becomes an edit (replace text with empty). Otherwise
+  blanking a non-empty block is a deletion.
+- A server id is gone from `user` → `RemoveBlock` (unless it's the
+  title, in which case nothing is emitted — see above).
+- A server id is in `user` with empty text AND the server's text was
+  non-empty AND it's not the title → `RemoveBlock`. Blank on both
+  sides is a no-op.
+- A server id is in `user` with different text → `EditBlock` with a
+  fine-grained `TextEdit` computed by a private
+  `text_edit_for_block_change(old, new)` helper (common char prefix,
+  then common char suffix capped so prefix+suffix ≤ shorter length,
+  then Insert / Delete / Replace on just the middle at the prefix
+  offset). Not `text_diff::get_diff` — `get_diff` returns a
+  whole-string insert for different-length replacements ("cat" ->
+  "dogs" -> Insert of "dogs"), which corrupts the block.
 - A server id is in `user` with different `frac_position` →
   `MoveBlock { new_frac_position }`. Same id, same text.
 - An id in `user` but not in `server` (and non-empty) →
-  `CreateNewBlockWithId`, anchored via
-  `PositionToInsert::Between { above, below }` where above/below are
-  the nearest surviving ids in `user`'s order. If neither exists,
-  `AtEnd`.
+  `CreateNewBlockWithId`.
 - Unchanged blocks → nothing.
 - Duplicate ids in either list → `GenErr::DuplicateBlockId`.
 
+The sketch's `PositionToInsert` on `CreateNewBlockWithId` is not
+consumed by the letter builder — see `make_sketches_out_of_two_pages`
+and `turn_all_edits_into_love_letters` in `drift_guard_and_ops`.
+
 Out of scope on purpose:
 
-- Reorders of unchanged blocks (that's the `MoveBlock` path above and
-  it works).
-- Snapshot construction. Emits sketches only. The caller (finish
-  flow) turns sketches into `LoveLetter`s with `build_a_love_letter`.
+- Snapshot construction. Emits sketches only. The caller turns
+  sketches into `LoveLetter`s with `build_a_love_letter`.
+
+## make_sketches_out_of_two_pages — the viewer's sketch generator
+
+Called inside the viewer on finish, and re-exported so the caller can
+generate sketches without opening the viewer (e.g. for auto-picked
+pages).
+
+    pub fn make_sketches_out_of_two_pages(
+        server_page: &PageBlocksForTheViewer,
+        kept_blocks: &[Block],
+    ) -> Vec<LoveLetterSketch>
+
+Steps:
+
+- Alive filter. A kept block is alive unless it's a non-title server
+  block whose text was blanked. The first server block (the title)
+  always survives, even blanked.
+- Frac assignment. Only survivors whose order is out of sequence
+  relative to the server's own order get a fresh frac; the rest keep
+  theirs. The kept survivors are the longest strictly-increasing
+  subsequence of their server indices. Each non-stable survivor gets
+  a frac minted by `smart_frac_index` between its neighbours in the
+  kept order. Result: `MoveBlock` sketches only for the minimum set.
+- `generate_sketches` on the alive-with-fracs list.
+
+Panics on duplicate block ids (programming bug, not a runtime case).
+
+Native tests cover the LIS edge cases and the four sketch outcomes
+(edit / remove / move / create) plus the title invariant.
+
+## drift_guard_and_ops::reconcile_planner — sketch → letter
+
+The viewer produces sketches. `drift_guard_and_ops/client` turns them
+into full `LoveLetter`s with snapshots. Entry:
+
+    pub fn turn_all_edits_into_love_letters(
+        server_page: Arc<BossOfYrs>,
+        edits: &[LoveLetterSketch],
+        target_blocks: &[Block],
+    ) -> Result<Vec<LoveLetter>, String>
+
+Two passes:
+
+- Edits, deletes, moves. `edit_to_love_letter` matches on the sketch
+  and calls one of `edit_variant_to_love_letter` /
+  `delete_variant_to_love_letter` / `move_variant_to_love_letter`.
+  Each applies its change to a scratch copy of the server's page via
+  `update_doc_so_next_edits_are_aware` (bookmark → apply → diff),
+  then wraps the sketch + snapshot into a `LoveLetter`.
+- Creates, in target order. `insert_variant_to_love_letter` uses
+  `insert_new_block_with_preexisting_id`, so the viewer's target id
+  becomes the doc id. Position is `Some(target_blocks[i-1])` — the
+  previous target block. The first block is always the title, so
+  there's never a create at index 0; that path panics with a clear
+  message if it somehow fires.
+
+Moves use `set_frac_position` (new yrs method), not `move_block`.
+`move_block` recomputes the frac from neighbour ids at apply time;
+in a batch a later move's neighbour might still be at its old
+position. The viewer already computed the frac, so it's written
+verbatim.
+
+No self-check. Correctness is covered by tests.
+
+Old files removed: `align_two_block_lists.rs` and
+`main_for_turning_a_reconcile_choice_into_love_letters.rs` (LCS-based,
+text-only, no reorder awareness, replaced).
 
 ## Known gaps
 
-- **Ids through the viewer.** `DiffViewer` returns `Vec<String>` in
-  visual order. To key `generate_sketches` by id, the caller must
-  reattach ids. Today `example_2` zips by position against
-  `kept_blocks`. Correct under edits; wrong under drag (a dragged
-  block's text lands at a different index). The real fix is to change
-  `block_diff_viewer_leptos` to return `(id, text)` pairs or a paired
-  API. Not done.
 - **Server handler for `CreateNewBlockWithId`.** The sketch variant is
-  emitted; whether the real server accepts it hasn't been verified.
-- **`example_2` has no persistence and no server.** Every "commit" and
-  "submit" is local. Data resets on reload.
+  emitted and the letter builder produces the corresponding
+  `LoveLetter`; whether the real server accepts it hasn't been
+  verified.
+- **`example_2` has no persistence and no server.** Every "commit"
+  and "submit" is local. Data resets on reload.
+- **New-block metadata.** `insert_new_block_with_preexisting_id` is
+  called with an empty metadata string. Reconcile doesn't edit
+  metadata today, so nothing is lost, but if that changes the sketch
+  needs to carry it.
 
 ## Build and run
 

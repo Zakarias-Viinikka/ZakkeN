@@ -1,3 +1,5 @@
+**HISTORICAL BUILD PLAN.** This document describes the original build of the viewer workspace on 2026-11-01. It has not been updated since. For the current state of the code and the caller contract, see `STORED_AI_CONTEXT.md` in this same folder. In particular: the workspace is now five crates (not three), `DiffViewer`'s props are id-carrying (not string-only), and the viewer emits love-letter sketches on finish.
+
 **STATUS: Implemented 2026-11-01.** The workspace exists (`block_text_diff` + `block_diff_viewer_leptos` + `example_app`) and everything below is built, with a few deviations worth knowing:
 
 - Moved blocks are a single `Relationship::Moved` row, with a purple strip only on the left (via CSS) plus the blue edit bar when the move also edited the text. The right side of a moved row has no bar (pure move) or the edit bar (move + edit). Replaces the plan's "extra purple bar next to the standard delete/insert bar".

@@ -1,7 +1,7 @@
 use my_yrs_lib::{EditTarget, TextEdit, yrs_wrapper::PositionToInsert};
 use serde::{Deserialize, Serialize};
 
-#[derive(uniffi::Enum, Serialize, Deserialize)]
+#[derive(uniffi::Enum, Serialize, Deserialize, Clone, Debug)]
 pub enum LoveLetterSketch {
     EditBlock {
         text_edit: TextEdit,

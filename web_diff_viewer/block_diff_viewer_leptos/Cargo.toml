@@ -6,6 +6,8 @@ edition.workspace = true
 [dependencies]
 leptos.workspace = true
 block_text_diff = { path = "../block_text_diff" }
+generate_love_letters = { path = "../generate_love_letters" }
+smart_frac_index = { path = "../../smart_frac_index" }
 
 [dependencies.web-sys]
 version = "0.3"

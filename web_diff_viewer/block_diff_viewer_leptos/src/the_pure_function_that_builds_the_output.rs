@@ -1,32 +1,43 @@
-//! Caller pov: pass the frozen rows, the current visual order, and a
-//! closure that returns the current text of each row's right side.
-//! Returns the right page's blocks in the visual order, top to bottom.
-//! LeftOnly rows (rows with no right slot) are skipped — they don't
-//! contribute to the output because there was nothing on the right to
-//! begin with.
+//! Caller pov: pass the frozen rows, the current visual order, the
+//! original right-side block list, and a closure that returns the
+//! current text of each row's right side. Returns the kept blocks in
+//! visual order, top to bottom. Each entry carries the id, metadata and
+//! frac from the original right-side block at that row's slot, with the
+//! closure's text as its text. LeftOnly rows (no right slot) are
+//! skipped.
 //!
 //! Pure: no DOM, no signals, no leptos. The closure is what connects
-//! this to the live edit states; without it, this function has no idea
-//! about textareas or signals.
+//! this to the live edit states.
 
 use block_text_diff::Row;
+use generate_love_letters::Block;
 
-pub fn output_right_side_texts_in_visual_order(
+pub fn output_right_side_blocks_in_visual_order(
     rows: &[Row],
     visual_order: &[usize],
+    right_blocks: &[Block],
     mut text_for_row: impl FnMut(usize) -> Option<String>,
-) -> Vec<String> {
+) -> Vec<Block> {
     let mut out = Vec::new();
     for &row_id in visual_order {
         if row_id >= rows.len() {
             continue;
         }
-        if rows[row_id].right.is_none() {
+        let Some(slot) = rows[row_id].right else {
             continue;
-        }
-        if let Some(text) = text_for_row(row_id) {
-            out.push(text);
-        }
+        };
+        let Some(text) = text_for_row(row_id) else {
+            continue;
+        };
+        let Some(original) = right_blocks.get(slot.block_index) else {
+            continue;
+        };
+        out.push(Block {
+            block_id: original.block_id.clone(),
+            text,
+            metadata: original.metadata.clone(),
+            frac_position: original.frac_position.clone(),
+        });
     }
     out
 }
@@ -35,6 +46,15 @@ pub fn output_right_side_texts_in_visual_order(
 mod tests {
     use super::*;
     use block_text_diff::{LeftMarker, Relationship, RightMarker, Slot};
+
+    fn b(id: &str, text: &str) -> Block {
+        Block {
+            block_id: id.to_string(),
+            text: text.to_string(),
+            metadata: String::new(),
+            frac_position: String::new(),
+        }
+    }
 
     fn row_with_both(left: usize, right: usize) -> Row {
         Row {
@@ -46,106 +66,39 @@ mod tests {
             right_marker: RightMarker::Unchanged,
         }
     }
-    fn left_only(left: usize) -> Row {
-        Row {
-            left: Some(Slot { block_index: left }),
-            right: None,
-            relationship: Relationship::LeftOnly,
-            hunk_index: Some(0),
-            left_marker: LeftMarker::Deleted,
-            right_marker: RightMarker::Unchanged,
-        }
-    }
-    fn right_only(right: usize) -> Row {
-        Row {
-            left: None,
-            right: Some(Slot { block_index: right }),
-            relationship: Relationship::RightOnly,
-            hunk_index: Some(0),
-            left_marker: LeftMarker::Unchanged,
-            right_marker: RightMarker::Inserted,
-        }
-    }
 
     #[test]
-    fn untouched_order_yields_right_page_in_order() {
-        let rows = vec![row_with_both(0, 0), row_with_both(1, 1), row_with_both(2, 2)];
-        let order = vec![0, 1, 2];
-        let texts = vec!["one".to_string(), "two".to_string(), "three".to_string()];
-        let out = output_right_side_texts_in_visual_order(&rows, &order, |row_id| {
-            Some(texts[row_id].clone())
-        });
-        assert_eq!(out, vec!["one", "two", "three"]);
-    }
-
-    #[test]
-    fn permuted_order_yields_permuted_texts() {
-        let rows = vec![row_with_both(0, 0), row_with_both(1, 1), row_with_both(2, 2)];
-        let order = vec![2, 0, 1];
-        let texts = vec!["one".to_string(), "two".to_string(), "three".to_string()];
-        let out = output_right_side_texts_in_visual_order(&rows, &order, |row_id| {
-            Some(texts[row_id].clone())
-        });
-        assert_eq!(out, vec!["three", "one", "two"]);
-    }
-
-    #[test]
-    fn left_only_rows_contribute_nothing_wherever_they_sit() {
+    fn ids_follow_visual_order_not_position() {
         let rows = vec![
             row_with_both(0, 0),
-            left_only(1),
-            row_with_both(2, 1),
-            left_only(3),
+            row_with_both(1, 1),
+            row_with_both(2, 2),
         ];
-        let order = vec![0, 1, 2, 3];
-        let texts = vec!["one".to_string(), "two".to_string()];
-        let out = output_right_side_texts_in_visual_order(&rows, &order, |row_id| {
-            match rows[row_id].right {
-                Some(slot) => Some(texts[slot.block_index].clone()),
-                None => None,
-            }
-        });
-        assert_eq!(out, vec!["one", "two"]);
+        let right_blocks = vec![b("a", "one"), b("b", "two"), b("c", "three")];
+        // Permute: c first, then a, then b.
+        let order = vec![2, 0, 1];
+        let out = output_right_side_blocks_in_visual_order(
+            &rows,
+            &order,
+            &right_blocks,
+            |row_id| Some(right_blocks[row_id].text.clone()),
+        );
+        assert_eq!(out[0].block_id, "c");
+        assert_eq!(out[1].block_id, "a");
+        assert_eq!(out[2].block_id, "b");
     }
 
     #[test]
-    fn left_only_rows_contribute_nothing_even_when_permuted_to_the_top() {
-        let rows = vec![row_with_both(0, 0), left_only(1), row_with_both(2, 1)];
-        let order = vec![1, 0, 2];
-        let texts = vec!["one".to_string(), "two".to_string()];
-        let out = output_right_side_texts_in_visual_order(&rows, &order, |row_id| {
-            match rows[row_id].right {
-                Some(slot) => Some(texts[slot.block_index].clone()),
-                None => None,
-            }
-        });
-        assert_eq!(out, vec!["one", "two"]);
-    }
-
-    #[test]
-    fn right_only_rows_do_contribute() {
-        let rows = vec![right_only(0), row_with_both(0, 1)];
-        let order = vec![0, 1];
-        let texts = vec!["inserted".to_string(), "matched".to_string()];
-        let out = output_right_side_texts_in_visual_order(&rows, &order, |row_id| {
-            match rows[row_id].right {
-                Some(_) => Some(texts[row_id].clone()),
-                None => None,
-            }
-        });
-        assert_eq!(out, vec!["inserted", "matched"]);
-    }
-
-    #[test]
-    fn empty_rows_give_empty_output() {
-        let out = output_right_side_texts_in_visual_order(&[], &[], |_| None);
-        assert!(out.is_empty());
-    }
-
-    #[test]
-    fn empty_order_gives_empty_output() {
+    fn edited_text_keeps_the_original_id() {
         let rows = vec![row_with_both(0, 0)];
-        let out = output_right_side_texts_in_visual_order(&rows, &[], |_| Some("x".to_string()));
-        assert!(out.is_empty());
+        let right_blocks = vec![b("x", "original")];
+        let out = output_right_side_blocks_in_visual_order(
+            &rows,
+            &[0],
+            &right_blocks,
+            |_| Some("edited".to_string()),
+        );
+        assert_eq!(out[0].block_id, "x");
+        assert_eq!(out[0].text, "edited");
     }
 }

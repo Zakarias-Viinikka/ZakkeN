@@ -36,6 +36,7 @@ use std::sync::Arc;
 use block_text_diff::{
     inline_spans, rows_for_two_pages, LeftMarker, Relationship, RightMarker,
 };
+use generate_love_letters::LoveLetterSketch;
 use leptos::ev;
 use leptos::html::{Div, Textarea};
 use leptos::prelude::*;
@@ -43,6 +44,7 @@ use web_sys::wasm_bindgen::JsCast;
 use web_sys::wasm_bindgen::JsValue;
 
 use crate::finish_handle::FinishHandle;
+use crate::make_sketches_out_of_two_pages::make_sketches_out_of_two_pages;
 use crate::map_caret_across_edit::map_caret_across_edit;
 use crate::reorder_rows_by_drag_math::{
     apply_row_move_event, build_row_move_event,
@@ -58,7 +60,10 @@ use crate::the_drag_session_state::{
     read_row_rects_in_content_coords, read_scroll_top, DragSession,
 };
 use crate::the_edit_state_of_one_block_of_text::BlockEditState;
-use crate::the_pure_function_that_builds_the_output::output_right_side_texts_in_visual_order;
+use crate::the_public_types::{
+    PageBlocksForTheViewer, PickedSide, ViewerOutput,
+};
+use crate::the_pure_function_that_builds_the_output::output_right_side_blocks_in_visual_order;
 
 /// Minimum vertical movement in CSS pixels before a mousedown counts as
 /// a drag rather than a click. Below this the session stays "not moved"
@@ -67,14 +72,30 @@ const DRAG_THRESHOLD_Y: f32 = 4.0;
 
 #[component]
 pub(crate) fn TheFrozenViewerForOneMount(
-    left: Vec<String>,
-    right: Vec<String>,
-    output: WriteSignal<Vec<String>>,
+    server_page: Option<PageBlocksForTheViewer>,
+    client_page: PageBlocksForTheViewer,
+    kept_side: PickedSide,
+    output: WriteSignal<ViewerOutput>,
     handle: FinishHandle,
     on_finished: Option<Callback<()>>,
 ) -> impl IntoView {
-    let left_arc = Arc::new(left);
-    let right_arc = Arc::new(right);
+    // Which side sits on the left (discarded) vs right (kept, editable).
+    let (left_blocks, right_blocks) = match (&server_page, kept_side) {
+        (None, _) => (Vec::new(), client_page.blocks.clone()),
+        (Some(sp), PickedSide::Mine) => {
+            (sp.blocks.clone(), client_page.blocks.clone())
+        }
+        (Some(sp), PickedSide::Server) => {
+            (client_page.blocks.clone(), sp.blocks.clone())
+        }
+    };
+    let left_texts: Vec<String> = left_blocks.iter().map(|b| b.text.clone()).collect();
+    let right_texts: Vec<String> = right_blocks.iter().map(|b| b.text.clone()).collect();
+    let right_blocks_arc = Arc::new(right_blocks);
+    let server_page_arc = Arc::new(server_page);
+    let client_page_arc = Arc::new(client_page);
+    let left_arc = Arc::new(left_texts);
+    let right_arc = Arc::new(right_texts);
     let rows = Arc::new(rows_for_two_pages(left_arc.as_ref(), right_arc.as_ref()));
     let visual_order = create_visual_row_order((0..rows.len()).collect());
     let scroll_body_ref = NodeRef::<Div>::new();
@@ -160,13 +181,16 @@ pub(crate) fn TheFrozenViewerForOneMount(
     };
 
     Effect::new(move |_| {
-        output.set(Vec::new());
+        output.set(ViewerOutput::default());
     });
 
     let last_counter = StoredValue::new(handle.counter.get_untracked());
     Effect::new({
         let rows = Arc::clone(&rows);
         let states = Arc::clone(&states);
+        let right_blocks_arc = Arc::clone(&right_blocks_arc);
+        let server_page_arc = Arc::clone(&server_page_arc);
+        let client_page_arc = Arc::clone(&client_page_arc);
         move |_| {
             let current = handle.counter.get();
             if current == last_counter.get_value() {
@@ -174,13 +198,25 @@ pub(crate) fn TheFrozenViewerForOneMount(
             }
             last_counter.set_value(current);
             let order = visual_order.get_untracked();
-            let texts = output_right_side_texts_in_visual_order(&rows, &order, |row_id| {
-                states
-                    .get(row_id)
-                    .and_then(|o| *o)
-                    .map(|sig| sig.get_untracked().current().to_string())
-            });
-            output.set(texts);
+            let kept_blocks = output_right_side_blocks_in_visual_order(
+                &rows,
+                &order,
+                right_blocks_arc.as_ref(),
+                |row_id| {
+                    states
+                        .get(row_id)
+                        .and_then(|o| *o)
+                        .map(|sig| sig.get_untracked().current().to_string())
+                },
+            );
+            let sketches = match server_page_arc.as_ref() {
+                Some(sp) => make_sketches_out_of_two_pages(sp, &kept_blocks),
+                None => vec![LoveLetterSketch::CreateNewPage {
+                    page_id: client_page_arc.page_id.clone(),
+                    is_main_menu_page: client_page_arc.is_main_menu_page,
+                }],
+            };
+            output.set(ViewerOutput { kept_blocks, sketches });
             if let Some(cb) = on_finished {
                 cb.run(());
             }

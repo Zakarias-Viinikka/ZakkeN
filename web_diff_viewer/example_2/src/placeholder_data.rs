@@ -1,8 +1,8 @@
 //! Caller pov: fake mismatched pages plus the per-pair state container.
 //! `PagePair` holds both sides, the picked side (if any), and the last
-//! edited kept-side blocks (set by Done or X, cleared by Reset).
+//! viewer output.
 
-use generate_love_letters::Block;
+use block_diff_viewer_leptos::{Block, PageBlocksForTheViewer, ViewerOutput};
 
 use crate::pick_screen::PickedSide;
 
@@ -12,7 +12,25 @@ pub struct PagePair {
     pub client_page: Vec<Block>,
     pub server_page: Vec<Block>,
     pub picked: Option<PickedSide>,
-    pub edited_kept_blocks: Option<Vec<Block>>,
+    pub last_output: Option<ViewerOutput>,
+}
+
+impl PagePair {
+    pub fn server_page_for_viewer(&self) -> PageBlocksForTheViewer {
+        PageBlocksForTheViewer {
+            page_id: self.page_id.clone(),
+            is_main_menu_page: false,
+            blocks: self.server_page.clone(),
+        }
+    }
+
+    pub fn client_page_for_viewer(&self) -> PageBlocksForTheViewer {
+        PageBlocksForTheViewer {
+            page_id: self.page_id.clone(),
+            is_main_menu_page: false,
+            blocks: self.client_page.clone(),
+        }
+    }
 }
 
 fn b(id: &str, text: &str, frac: &str) -> Block {
@@ -43,7 +61,7 @@ pub fn placeholder_items() -> Vec<PagePair> {
                 b("bn5", "Thanks for reading.", "84"),
             ],
             picked: None,
-            edited_kept_blocks: None,
+            last_output: None,
         },
         PagePair {
             page_id: "page-todo".to_string(),
@@ -61,7 +79,7 @@ pub fn placeholder_items() -> Vec<PagePair> {
                 b("bt5", "Pick up dry cleaning", "84"),
             ],
             picked: None,
-            edited_kept_blocks: None,
+            last_output: None,
         },
         PagePair {
             page_id: "page-shopping".to_string(),
@@ -78,7 +96,7 @@ pub fn placeholder_items() -> Vec<PagePair> {
                 b("bs4", "Apples", "83"),
             ],
             picked: None,
-            edited_kept_blocks: None,
+            last_output: None,
         },
     ]
 }

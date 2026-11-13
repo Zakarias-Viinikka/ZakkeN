@@ -1,9 +1,12 @@
-//! Caller pov: hosts one `DiffViewer`. Done computes a preview strip under
-//! the viewer and leaves it open (edits are still saved via `on_done`).
-//! The numbered close-box saves edits and closes via `on_close`. Reset
-//! goes back to the picker without saving.
+//! Caller pov: hosts one `DiffViewer`. Done and the numbered close-box
+//! both call `handle.finish_and_write_the_result()`, which fires
+//! `on_finished`, which reads `output` and calls `on_done` or
+//! `on_close` with the resulting `ViewerOutput`. Reset returns to the
+//! pick screen without committing.
 
-use block_diff_viewer_leptos::{DiffViewer, FinishHandle};
+use block_diff_viewer_leptos::{
+    DiffViewer, FinishHandle, PageBlocksForTheViewer, PickedSide, ViewerOutput,
+};
 use leptos::prelude::*;
 
 const CSS: &str = r#"
@@ -166,30 +169,35 @@ const CSS: &str = r#"
 pub fn ViewerHost(
     number: usize,
     page_id: String,
-    left: Vec<String>,
-    right: Vec<String>,
+    server_page: Option<PageBlocksForTheViewer>,
+    client_page: PageBlocksForTheViewer,
+    kept_side: PickedSide,
     show_reset: bool,
     preview: Signal<Option<Vec<String>>>,
     on_reset: Callback<()>,
-    on_done: Callback<Vec<String>>,
-    on_close: Callback<Vec<String>>,
+    on_done: Callback<ViewerOutput>,
+    on_close: Callback<ViewerOutput>,
 ) -> impl IntoView {
-    let client_count = left.len();
-    let server_count = right.len();
-    let left_signal = RwSignal::new(left);
-    let right_signal = RwSignal::new(right);
-    let (output, set_output) = signal(Vec::<String>::new());
+    let client_count = client_page.blocks.len();
+    let server_count = server_page
+        .as_ref()
+        .map(|p| p.blocks.len())
+        .unwrap_or(0);
+    let server_signal = RwSignal::new(server_page);
+    let client_signal = RwSignal::new(client_page);
+    let kept_side_signal = RwSignal::new(kept_side);
+    let (output, set_output) = signal(ViewerOutput::default());
     let handle = FinishHandle::new();
     let handle_for_close = handle.clone();
     let handle_for_done = handle.clone();
     let done_clicked = RwSignal::new(false);
 
     let on_finished = Callback::new(move |_: ()| {
-        let blocks = output.get_untracked();
+        let v = output.get_untracked();
         if done_clicked.get_untracked() {
-            on_done.run(blocks);
+            on_done.run(v);
         } else {
-            on_close.run(blocks);
+            on_close.run(v);
         }
     });
 
@@ -210,10 +218,10 @@ pub fn ViewerHost(
                 </button>
                 <span class="viewer-title">{page_id}</span>
                 <span class="viewer-counts">
-                    {format!("{} left · {} right", client_count, server_count)}
+                    {format!("{} left · {} right", server_count, client_count)}
                 </span>
                 <span class="viewer-hint">
-                    "left: discarded · right: kept (editable, draggable)"
+                    "left: server · right: kept (editable, draggable)"
                 </span>
                 <span class="viewer-legend">
                     <span class="viewer-legend-item">
@@ -248,8 +256,9 @@ pub fn ViewerHost(
             </div>
             <div class="viewer-body">
                 <DiffViewer
-                    left_page=left_signal
-                    right_page=right_signal
+                    server_page=server_signal
+                    client_page=client_signal
+                    kept_side=kept_side_signal
                     output=set_output
                     handle=handle
                     on_finished=on_finished

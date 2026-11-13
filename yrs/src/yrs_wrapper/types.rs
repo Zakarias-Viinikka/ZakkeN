@@ -7,7 +7,7 @@ pub struct Block {
     pub id_in_yrs: String,
 }
 
-#[derive(uniffi::Enum, Serialize, Deserialize, Clone)]
+#[derive(uniffi::Enum, Serialize, Deserialize, Clone, Debug)]
 pub enum TextEdit {
     Insert {
         text: String,
@@ -24,13 +24,13 @@ pub enum TextEdit {
     },
 }
 
-#[derive(uniffi::Enum, Serialize, Deserialize)]
+#[derive(uniffi::Enum, Serialize, Deserialize, Clone, Debug)]
 pub enum EditTarget {
     Text,
     Meta,
 }
 
-#[derive(uniffi::Enum, Serialize, Deserialize, Clone)]
+#[derive(uniffi::Enum, Serialize, Deserialize, Clone, Debug)]
 pub enum PositionToInsert {
     AtEnd,
     Between {

@@ -1,4 +1,6 @@
-use block_diff_viewer_leptos::{DiffViewer, FinishHandle};
+use block_diff_viewer_leptos::{
+    Block, DiffViewer, FinishHandle, PageBlocksForTheViewer, PickedSide, ViewerOutput,
+};
 use leptos::prelude::*;
 
 use crate::sample_pages::{sample_pairs, SamplePair};
@@ -7,6 +9,23 @@ use crate::sample_pages::{sample_pairs, SamplePair};
 enum Screen {
     PickerAndPreview,
     DiffViewer,
+}
+
+fn page_from_texts(page_id: &str, texts: Vec<String>) -> PageBlocksForTheViewer {
+    PageBlocksForTheViewer {
+        page_id: page_id.to_string(),
+        is_main_menu_page: false,
+        blocks: texts
+            .into_iter()
+            .enumerate()
+            .map(|(i, text)| Block {
+                block_id: format!("{page_id}-{i}"),
+                text,
+                metadata: String::new(),
+                frac_position: format!("{}", i),
+            })
+            .collect(),
+    }
 }
 
 #[component]
@@ -86,9 +105,7 @@ fn PickerAndPreview(
 
     view! {
         <div class="app-preview-page">
-            <header class="app-pair-menu">
-                {buttons}
-            </header>
+            <header class="app-pair-menu">{buttons}</header>
             <div class="app-preview-panes">
                 <div class="app-preview-pane">
                     <div class="app-preview-pane-title">"Before"</div>
@@ -128,11 +145,14 @@ enum Phase {
 #[component]
 fn SampleViewer(pair: SamplePair, on_back: Callback<()>) -> impl IntoView {
     let SamplePair { name, description: _, left, right } = pair;
-    let left_original = left.clone();
-    let right_original = right.clone();
-    let left_signal = RwSignal::new(left);
-    let right_signal = RwSignal::new(right);
-    let (output, set_output) = signal(Vec::<String>::new());
+    let page_id = format!("sample-{name}");
+    let left_original = page_from_texts(&page_id, left);
+    let right_original = page_from_texts(&page_id, right);
+
+    let server_signal = RwSignal::new(Some(left_original.clone()));
+    let client_signal = RwSignal::new(right_original.clone());
+    let kept_side_signal = RwSignal::new(PickedSide::Mine);
+    let (output, set_output) = signal(ViewerOutput::default());
     let handle = FinishHandle::new();
     let phase = RwSignal::new(Phase::Editing);
 
@@ -141,8 +161,8 @@ fn SampleViewer(pair: SamplePair, on_back: Callback<()>) -> impl IntoView {
     });
 
     let reopen = Callback::new(move |_: ()| {
-        left_signal.set(left_original.clone());
-        right_signal.set(right_original.clone());
+        server_signal.set(Some(left_original.clone()));
+        client_signal.set(right_original.clone());
         phase.set(Phase::Editing);
     });
 
@@ -159,17 +179,17 @@ fn SampleViewer(pair: SamplePair, on_back: Callback<()>) -> impl IntoView {
                 <Show
                     when=move || phase.get() == Phase::Editing
                     fallback=move || {
-                        let blocks = output.get();
+                        let kept = output.get().kept_blocks;
                         view! {
                             <div class="app-result">
                                 <div class="app-result-header">
-                                    <span>{format!("Result: {} blocks", blocks.len())}</span>
+                                    <span>{format!("Result: {} blocks", kept.len())}</span>
                                     <button on:click=move |_| reopen.run(())>"Open again"</button>
                                 </div>
                                 <ol class="app-result-list">
-                                    {blocks
+                                    {kept
                                         .into_iter()
-                                        .map(|text| view! { <li class="app-result-card">{text}</li> })
+                                        .map(|b| view! { <li class="app-result-card">{b.text}</li> })
                                         .collect_view()}
                                 </ol>
                             </div>
@@ -177,8 +197,9 @@ fn SampleViewer(pair: SamplePair, on_back: Callback<()>) -> impl IntoView {
                     }
                 >
                     <DiffViewer
-                        left_page=left_signal
-                        right_page=right_signal
+                        server_page=server_signal
+                        client_page=client_signal
+                        kept_side=kept_side_signal
                         output=set_output
                         handle=handle
                         on_finished=on_finished

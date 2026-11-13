@@ -1,13 +1,11 @@
 //! Caller pov: top-level layout. `pairs` holds every page pair and its
-//! per-pair state (picked side, last saved edited blocks). Done in the
-//! viewer computes a preview for that page and stores it in `preview`;
-//! the viewer reads it and shows it below the diff. X saves edits and
-//! closes. Submit (in nothing-selected) aggregates love letters for
-//! every picked page and shows them.
+//! per-pair state (picked side, last viewer output). Done and X in the
+//! viewer both save the last output; Done additionally shows the
+//! sketches. Submit aggregates sketches across every picked pair.
 
 use leptos::prelude::*;
 
-use generate_love_letters::{generate_sketches, Block, LoveLetterSketch};
+use block_diff_viewer_leptos::{LoveLetterSketch, ViewerOutput};
 
 use crate::chooser::Chooser;
 use crate::pick_screen::{PickScreen, PickedSide};
@@ -100,101 +98,45 @@ pub fn AppMain() -> impl IntoView {
                             .into_any();
                     };
 
-                    let (left_texts, right_texts) = match (
-                        picked_side,
-                        pair.edited_kept_blocks.as_ref(),
-                    ) {
-                        (PickedSide::Mine, Some(edited)) => (
-                            pair.server_page.iter().map(|b| b.text.clone()).collect(),
-                            edited.iter().map(|b| b.text.clone()).collect(),
-                        ),
-                        (PickedSide::Mine, None) => (
-                            pair.server_page.iter().map(|b| b.text.clone()).collect(),
-                            pair.client_page.iter().map(|b| b.text.clone()).collect(),
-                        ),
-                        (PickedSide::Server, Some(edited)) => (
-                            pair.client_page.iter().map(|b| b.text.clone()).collect(),
-                            edited.iter().map(|b| b.text.clone()).collect(),
-                        ),
-                        (PickedSide::Server, None) => (
-                            pair.client_page.iter().map(|b| b.text.clone()).collect(),
-                            pair.server_page.iter().map(|b| b.text.clone()).collect(),
-                        ),
+                    let server_for_viewer = pair.server_page_for_viewer();
+                    let client_for_viewer = pair.client_page_for_viewer();
+                    let kept_side_for_viewer = match picked_side {
+                        PickedSide::Mine => {
+                            block_diff_viewer_leptos::PickedSide::Mine
+                        }
+                        PickedSide::Server => {
+                            block_diff_viewer_leptos::PickedSide::Server
+                        }
                     };
 
-                    let kept_template: Vec<Block> = match picked_side {
-                        PickedSide::Mine => pair.client_page.clone(),
-                        PickedSide::Server => pair.server_page.clone(),
-                    };
-                    let server_page = pair.server_page.clone();
-                    let pid_save = pid.clone();
+                    let pid_done = pid.clone();
+                    let on_done = Callback::new(move |out: ViewerOutput| {
+                        let summaries: Vec<String> =
+                            out.sketches.iter().map(summary).collect();
+                        let pid_save = pid_done.clone();
+                        pairs.update(|ps| {
+                            if let Some(p) =
+                                ps.iter_mut().find(|p| p.page_id == pid_save)
+                            {
+                                p.last_output = Some(out.clone());
+                            }
+                        });
+                        preview.set(Some((pid_done.clone(), summaries)));
+                    });
 
-                    let on_done = {
-                        let kept_template = kept_template.clone();
-                        let server_page = server_page.clone();
-                        let pid_save = pid_save.clone();
-                        let pid_for_preview = pid.clone();
-                        Callback::new(move |blocks: Vec<String>| {
-                            let user_blocks: Vec<Block> = kept_template
-                                .iter()
-                                .zip(blocks.iter())
-                                .map(|(orig, text)| Block {
-                                    block_id: orig.block_id.clone(),
-                                    text: text.clone(),
-                                    metadata: orig.metadata.clone(),
-                                    frac_position: orig.frac_position.clone(),
-                                })
-                                .collect();
-                            let summaries = match generate_sketches(
-                                &pid_save,
-                                &server_page,
-                                &user_blocks,
-                            ) {
-                                Ok(sketches) => sketches.iter().map(summary).collect(),
-                                Err(e) => {
-                                    leptos::logging::log!(
-                                        "generate_sketches failed: {e:?}"
-                                    );
-                                    Vec::new()
-                                }
-                            };
-                            let pid_save2 = pid_save.clone();
-                            pairs.update(|ps| {
-                                if let Some(p) =
-                                    ps.iter_mut().find(|p| p.page_id == pid_save2)
-                                {
-                                    p.edited_kept_blocks = Some(user_blocks);
-                                }
-                            });
-                            preview.set(Some((pid_for_preview.clone(), summaries)));
-                        })
-                    };
-
-                    let on_close = {
-                        let kept_template = kept_template.clone();
-                        Callback::new(move |blocks: Vec<String>| {
-                            let user_blocks: Vec<Block> = kept_template
-                                .iter()
-                                .zip(blocks.iter())
-                                .map(|(orig, text)| Block {
-                                    block_id: orig.block_id.clone(),
-                                    text: text.clone(),
-                                    metadata: orig.metadata.clone(),
-                                    frac_position: orig.frac_position.clone(),
-                                })
-                                .collect();
-                            let pid_save = pid_save.clone();
-                            pairs.update(|ps| {
-                                if let Some(p) =
-                                    ps.iter_mut().find(|p| p.page_id == pid_save)
-                                {
-                                    p.edited_kept_blocks = Some(user_blocks);
-                                }
-                            });
-                            selected.set(None);
-                            preview.set(None);
-                        })
-                    };
+                    let pid_close = pid.clone();
+                    let on_close = Callback::new(move |out: ViewerOutput| {
+                        let pid_save = pid_close.clone();
+                        pairs.update(|ps| {
+                            if let Some(p) =
+                                ps.iter_mut().find(|p| p.page_id == pid_save)
+                            {
+                                p.last_output = Some(out);
+                            }
+                        });
+                        selected.set(None);
+                        preview.set(None);
+                    });
 
                     let pid_reset = pid.clone();
                     let on_reset = Callback::new(move |_: ()| {
@@ -203,7 +145,7 @@ pub fn AppMain() -> impl IntoView {
                                 ps.iter_mut().find(|p| p.page_id == pid_reset)
                             {
                                 p.picked = None;
-                                p.edited_kept_blocks = None;
+                                p.last_output = None;
                             }
                         });
                         preview.set(None);
@@ -222,8 +164,9 @@ pub fn AppMain() -> impl IntoView {
                         <ViewerHost
                             number=number
                             page_id=pid
-                            left=left_texts
-                            right=right_texts
+                            server_page=Some(server_for_viewer)
+                            client_page=client_for_viewer
+                            kept_side=kept_side_for_viewer
                             show_reset=show_reset
                             preview=preview_for_page
                             on_reset=on_reset
@@ -287,9 +230,7 @@ fn NothingSelectedBody(
             </div>
             <div class="nothing-selected-body">
                 {move || {
-                    let current_pairs = pairs.get();
-                    let submit_clicked = submit_result.get();
-                    if let Some(result) = submit_clicked {
+                    if let Some(result) = submit_result.get() {
                         return view! {
                             <div class="sketch-panel">
                                 <h2>"Submitted — love letters that would be sent:"</h2>
@@ -323,46 +264,26 @@ fn NothingSelectedBody(
                         }
                             .into_any();
                     }
+                    let current_pairs = pairs.get();
                     let any_picked = current_pairs.iter().any(|p| p.picked.is_some());
                     let pairs_for_submit = pairs;
-                    let server_pages: Vec<(String, Vec<Block>)> = current_pairs
-                        .iter()
-                        .filter(|p| p.picked.is_some())
-                        .map(|p| (p.page_id.clone(), p.server_page.clone()))
-                        .collect();
                     let submit_state = submit_result;
                     let on_submit = Callback::new(move |_: ()| {
-                        let mut result = Vec::new();
                         let snapshot = pairs_for_submit.get_untracked();
+                        let mut result = Vec::new();
                         for pair in snapshot {
-                            let Some(_) = pair.picked else { continue };
-                            let kept = pair
-                                .edited_kept_blocks
-                                .clone()
-                                .unwrap_or_else(|| match pair.picked.unwrap() {
-                                    PickedSide::Mine => pair.client_page.clone(),
-                                    PickedSide::Server => pair.server_page.clone(),
-                                });
-                            match generate_sketches(
-                                &pair.page_id,
-                                &pair.server_page,
-                                &kept,
-                            ) {
-                                Ok(sketches) => {
-                                    let summaries: Vec<String> =
-                                        sketches.iter().map(summary).collect();
-                                    if !summaries.is_empty() {
-                                        result.push((pair.page_id, summaries));
-                                    }
-                                }
-                                Err(e) => {
-                                    leptos::logging::log!(
-                                        "generate_sketches failed: {e:?}"
-                                    );
-                                }
+                            if pair.picked.is_none() {
+                                continue;
+                            }
+                            let Some(out) = pair.last_output else {
+                                continue;
+                            };
+                            let summaries: Vec<String> =
+                                out.sketches.iter().map(summary).collect();
+                            if !summaries.is_empty() {
+                                result.push((pair.page_id, summaries));
                             }
                         }
-                        let _ = server_pages;
                         submit_state.set(Some(result));
                     });
                     if !any_picked {

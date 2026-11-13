@@ -271,6 +271,30 @@ impl BossOfYrs {
         })
     }
 
+    /// Directly overwrite a block's frac position. The reconcile letter
+    /// builder uses this instead of `move_block` because the caller
+    /// already computed the final frac via smart_frac_index; recomputing
+    /// it from neighbour ids at apply time is unsafe in a batch (a
+    /// later move's neighbour might still be in its old position).
+    pub fn set_frac_position(
+        self: Arc<Self>,
+        block_id: String,
+        new_frac_position: String,
+    ) -> Result<(), YrsError> {
+        crate::guarded!("set_frac_position", move || {
+            let doc = crate::write_doc!(self.doc, "set_frac_position");
+            let array = doc.get_or_insert_array(BLOCKS_KEY.to_string());
+            let mut txn = doc.transact_mut();
+            let (_, block_map) = find_block(&array, &txn, &block_id)?;
+            block_map.insert(
+                &mut txn,
+                FRAC_POSITION_KEY.to_string(),
+                In::from(new_frac_position),
+            );
+            Ok(())
+        })
+    }
+
     pub fn get_frac_position_of_block(
         self: Arc<Self>,
         block_id: String,

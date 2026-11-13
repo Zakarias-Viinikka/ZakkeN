@@ -6,4 +6,4 @@ edition = "2024"
 [dependencies]
 yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
-text_diff.path = "/home/zakke/ProgStuff/ZakkeN/text_diff"
+generate_love_letters = { path = "../../web_diff_viewer/generate_love_letters" }
