@@ -16,49 +16,6 @@ use super::not_lonewolf_view::NotLonewolfView;
 use super::phase::Phase;
 use super::ready_view::ReadyView;
 
-const CSS: &str = r#"
-.rp-page {
-    min-height: 100vh;
-    padding: 28px 32px 40px;
-    background: #151c29;
-    color: #e4e9f2;
-    font-family: system-ui, -apple-system, sans-serif;
-    box-sizing: border-box;
-}
-.rp-page-inner {
-    max-width: 960px;
-    margin: 0 auto;
-}
-.rp-header {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    margin-bottom: 24px;
-}
-.rp-header h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-}
-.rp-header-sub {
-    color: rgba(228, 233, 242, 0.5);
-    font-size: 13px;
-}
-.rp-error {
-    color: #ff6b6b;
-    background: rgba(255, 107, 107, 0.08);
-    border: 1px solid rgba(255, 107, 107, 0.25);
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-size: 13px;
-    line-height: 1.5;
-}
-.rp-loading {
-    color: rgba(228, 233, 242, 0.55);
-    font-size: 14px;
-}
-"#;
 
 #[component]
 pub fn ReconcilePage() -> impl IntoView {
@@ -87,7 +44,6 @@ pub fn ReconcilePage() -> impl IntoView {
     });
 
     view! {
-        <style>{CSS}</style>
         <div class="rp-page">
             <div class="rp-page-inner">
                 <div class="rp-header">

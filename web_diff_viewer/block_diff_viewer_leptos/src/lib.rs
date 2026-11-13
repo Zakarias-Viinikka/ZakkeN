@@ -49,6 +49,7 @@ pub use complex_state::visual_row_order;
 pub use the_diff_viewer::DiffViewer;
 pub use the_edit_state_of_one_block_of_text::BlockEditState;
 pub use the_public_types::{
-    Block, LoveLetterSketch, PageBlocksForTheViewer, PickedSide, ViewerOutput,
+    Block, LoveLetter, LoveLetterSketch, PageBlocksForTheViewer, PickedSide,
+    ViewerOutput,
 };
 pub use the_pure_function_that_builds_the_output::output_right_side_blocks_in_visual_order;

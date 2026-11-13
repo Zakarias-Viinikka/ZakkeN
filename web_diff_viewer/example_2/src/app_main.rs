@@ -5,7 +5,7 @@
 
 use leptos::prelude::*;
 
-use block_diff_viewer_leptos::{LoveLetterSketch, ViewerOutput};
+use block_diff_viewer_leptos::{LoveLetter, ViewerOutput};
 
 use crate::chooser::Chooser;
 use crate::pick_screen::{PickScreen, PickedSide};
@@ -112,7 +112,7 @@ pub fn AppMain() -> impl IntoView {
                     let pid_done = pid.clone();
                     let on_done = Callback::new(move |out: ViewerOutput| {
                         let summaries: Vec<String> =
-                            out.sketches.iter().map(summary).collect();
+                            out.love_letters.iter().map(summary).collect();
                         let pid_save = pid_done.clone();
                         pairs.update(|ps| {
                             if let Some(p) =
@@ -279,7 +279,7 @@ fn NothingSelectedBody(
                                 continue;
                             };
                             let summaries: Vec<String> =
-                                out.sketches.iter().map(summary).collect();
+                                out.love_letters.iter().map(summary).collect();
                             if !summaries.is_empty() {
                                 result.push((pair.page_id, summaries));
                             }
@@ -312,16 +312,16 @@ fn NothingSelectedBody(
     }
 }
 
-fn summary(s: &LoveLetterSketch) -> String {
-    match s {
-        LoveLetterSketch::EditBlock { block_id, .. } => format!("EditBlock({block_id})"),
-        LoveLetterSketch::RemoveBlock { block_id, .. } => format!("RemoveBlock({block_id})"),
-        LoveLetterSketch::CreateNewBlock { .. } => "CreateNewBlock".to_string(),
-        LoveLetterSketch::CreateNewBlockWithId { block_id, .. } => {
+fn summary(l: &LoveLetter) -> String {
+    match l {
+        LoveLetter::EditBlock { block_id, .. } => format!("EditBlock({block_id})"),
+        LoveLetter::RemoveBlock { block_id, .. } => format!("RemoveBlock({block_id})"),
+        LoveLetter::CreateNewBlock { .. } => "CreateNewBlock".to_string(),
+        LoveLetter::CreateNewBlockWithId { block_id, .. } => {
             format!("CreateNewBlockWithId({block_id})")
         }
-        LoveLetterSketch::MoveBlock { block_id, .. } => format!("MoveBlock({block_id})"),
-        LoveLetterSketch::DisablePage { page_id } => format!("DisablePage({page_id})"),
-        LoveLetterSketch::CreateNewPage { page_id, .. } => format!("CreateNewPage({page_id})"),
+        LoveLetter::MoveBlock { block_id, .. } => format!("MoveBlock({block_id})"),
+        LoveLetter::DisablePage { page_id, .. } => format!("DisablePage({page_id})"),
+        LoveLetter::CreateNewPage { page_id, .. } => format!("CreateNewPage({page_id})"),
     }
 }

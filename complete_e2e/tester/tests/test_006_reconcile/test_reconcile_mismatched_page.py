@@ -3,14 +3,16 @@
 Setup: Brave and Edge both have the three seed pages. Edge goes lonewolf
 and changes the title of "Grocery list" to "Grocery list v2". Brave stays
 connected and does nothing. Edge opens /reconcile and sees exactly one
-card.
+mismatched page (the chooser has one button).
 
-- use mine: Finish sends the edit to the server. Edge wipes itself and
-  re-pulls, so it ends with the new title. Brave receives it live.
-- use server's: Finish sends nothing. Edge wipes itself and re-pulls, so
-  its edit is gone. Brave never sees it.
+- Use mine: X produces an EditBlock letter. Submit shows it in the
+  review. Send sends it. Edge wipes and re-pulls so it ends with the new
+  title; Brave receives it live from the server.
+- Use server's: X produces zero letters (kept side == server). Submit
+  shows nothing to send. Send does nothing. Edge wipes and re-pulls so
+  its edit is gone; Brave never sees it.
 
-The merged path (diff overlay) is a separate test."""
+The merged path (editing inside the viewer) is a separate test."""
 
 from support.blocks import (
     block_with_value,
@@ -32,10 +34,14 @@ from support.narrate import announce_result, say_both
 from support.popup import assert_no_error_popups
 from support.read_conn_state import wait_for_conn_state
 from support.reconcile import (
-    click_finish_reconcile,
+    click_chooser,
+    click_done_in_viewer,
+    click_number_box_to_close_viewer,
+    click_send_and_finish,
+    click_submit,
     go_to_menu,
     open_reconcile,
-    pick_on_only_card,
+    pick_side,
     wait_for_reconcile_to_finish,
 )
 from support.test_events import enter_lonewolf
@@ -60,8 +66,6 @@ def _edge_edits_title_while_lonewolf_then_opens_reconcile(stage) -> None:
     title_block = block_with_value(edge, ORIGINAL_TITLE)
     caret_to_end(title_block)
     title_block.press_sequentially(" v2")
-    # Titles come from the local db, so this also proves the edit was saved
-    # before reconcile reads the local pages.
     wait_until_titles(edge, [EDITED_TITLE])
 
     say_both(stage, "Setup 4/4: Edge opens the reconcile page")
@@ -77,15 +81,23 @@ def test_reconcile_use_mine(two_browser_stage):
     with announce_result(stage), report_js_errors_on_failure(brave_errors, edge_errors):
         _edge_edits_title_while_lonewolf_then_opens_reconcile(stage)
 
-        say_both(stage, "Step 1/3: Edge picks 'use mine' for the one page that differs")
-        pick_on_only_card(edge, "use mine", "mine")
+        say_both(stage, "Step 1/4: Edge opens the one mismatched page")
+        click_chooser(edge, 0)
 
-        say_both(stage, "Step 2/3: Edge finishes reconcile")
-        click_finish_reconcile(edge)
+        say_both(stage, "Step 2/4: Edge picks 'Use mine' — viewer opens with server on left, edge on right")
+        pick_side(edge, "Use mine")
+
+        say_both(stage, "Step 3/4: Edge clicks Done (preview strip shows the EditBlock), then X to close")
+        click_done_in_viewer(edge)
+        click_number_box_to_close_viewer(edge)
+
+        say_both(stage, "Step 4/4: Edge submits, reviews, sends")
+        click_submit(edge)
+        click_send_and_finish(edge)
         wait_for_reconcile_to_finish(edge)
         go_to_menu(edge)
 
-        say_both(stage, "Step 3/3: both browsers and the server should have the new title")
+        say_both(stage, "Verify: both browsers and the server should have the new title")
         wait_until_titles(edge, [EDITED_TITLE])
         wait_until_server_has_pages(3)
         wait_until_titles(brave, [EDITED_TITLE])
@@ -109,15 +121,23 @@ def test_reconcile_use_server(two_browser_stage):
         _edge_edits_title_while_lonewolf_then_opens_reconcile(stage)
         letters_before = count_letters()
 
-        say_both(stage, "Step 1/3: Edge picks 'use server's' for the one page that differs")
-        pick_on_only_card(edge, "use server's", "server")
+        say_both(stage, "Step 1/4: Edge opens the one mismatched page")
+        click_chooser(edge, 0)
 
-        say_both(stage, "Step 2/3: Edge finishes reconcile")
-        click_finish_reconcile(edge)
+        say_both(stage, "Step 2/4: Edge picks 'Use server's' — viewer opens with edge on left, server on right")
+        pick_side(edge, "Use server's")
+
+        say_both(stage, "Step 3/4: Edge clicks Done (no letters to send), then X to close")
+        click_done_in_viewer(edge)
+        click_number_box_to_close_viewer(edge)
+
+        say_both(stage, "Step 4/4: Edge submits, reviews (no letters shown), sends")
+        click_submit(edge)
+        click_send_and_finish(edge)
         wait_for_reconcile_to_finish(edge)
         go_to_menu(edge)
 
-        say_both(stage, "Step 3/3: Edge's edit is gone, nothing reached the server or Brave")
+        say_both(stage, "Verify: Edge's edit is gone, nothing reached the server or Brave")
         wait_until_titles(edge, SEED_TITLES)
         wait_until_server_has_pages(3)
 

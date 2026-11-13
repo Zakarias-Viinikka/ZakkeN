@@ -19,7 +19,7 @@ const ICON_ERROR: &str = r#"<svg viewBox="0 0 24 24" fill="none" stroke="current
 
 const CSS: &str = r#"
 .pp-stack { position: fixed; left: 20px; bottom: 20px; width: min(360px, calc(100vw - 40px)); display: flex; flex-direction: column; z-index: 90; pointer-events: none; }
-.pp-row { display: grid; grid-template-rows: 1fr; pointer-events: auto; animation: pp-row-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards; transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1) 140ms; }
+.pp-row { display: grid; grid-template-rows: 1fr; pointer-events: none; animation: pp-row-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards; transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1) 140ms; }
 .pp-row.leaving { grid-template-rows: 0fr; pointer-events: none; animation: none; }
 .pp-row.consumed { grid-template-rows: 0fr; pointer-events: none; animation: none; transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1) 0ms; }
 @keyframes pp-row-enter { from { grid-template-rows: 0fr; } to { grid-template-rows: 1fr; } }

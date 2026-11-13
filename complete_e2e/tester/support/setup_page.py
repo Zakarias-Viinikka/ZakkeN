@@ -12,6 +12,10 @@ def on_setup_page(page: Page) -> bool:
 
 def setup_page_register(page: Page, name: str) -> None:
     page.fill('[data-testid="username_input"]', name)
+    # Wait for web fonts to finish loading. Without this, the paragraph
+    # above the button reflows when the font swaps in, and Playwright's
+    # stability check can miss the button mid-shift.
+    page.evaluate("document.fonts.ready")
     page.click('[data-testid="finish_setup_button"]')
     from support.timeouts import ms
     expect(page).to_have_url(re.compile(r"/Menu$"), timeout=ms())

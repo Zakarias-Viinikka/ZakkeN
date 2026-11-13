@@ -259,6 +259,7 @@ pub fn ViewerHost(
                     server_page=server_signal
                     client_page=client_signal
                     kept_side=kept_side_signal
+                    server_page_boss=Signal::derive(move || None)
                     output=set_output
                     handle=handle
                     on_finished=on_finished

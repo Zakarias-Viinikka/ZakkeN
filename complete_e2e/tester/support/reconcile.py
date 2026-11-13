@@ -1,6 +1,17 @@
-"""Helpers for the /reconcile page: open it via the app's own
-`navigate` window event (the SPA route, not a URL reload), click
-Finish, wait for the reload that follows."""
+"""Helpers for the /reconcile page. The post-port flow:
+
+    open_reconcile
+    -> chooser row (numbered buttons)
+    -> pick screen ("Use mine" / "Use server's")
+    -> inline viewer (Done / X)
+    -> Submit
+    -> review panel
+    -> Send and finish
+    -> reload, back to Connected
+
+Client-only pages (no server copy) don't appear in the chooser; they go
+straight to the review panel on Submit as `CreateNewPage` letters.
+"""
 
 import re
 
@@ -17,49 +28,79 @@ def open_reconcile(page: Page) -> None:
     expect(page.locator("h1", has_text="Reconcile")).to_be_visible(timeout=ms())
 
 
-def click_finish_reconcile(page: Page) -> None:
-    locator = page.get_by_role("button", name="Finish reconcile", exact=True)
-    expect(locator).to_be_enabled(timeout=ms())
-    locator.click(timeout=ms())
+def click_chooser(page: Page, index: int = 0) -> None:
+    """Click the numbered chooser button at 0-based `index`. Opens the
+    pick screen (or the viewer if a default side is set)."""
+    btn = page.locator(".rp-chooser-btn").nth(index)
+    expect(btn).to_be_visible(timeout=ms())
+    btn.click(timeout=ms())
 
 
-# The Finish click runs the planner (CPU), sends the batch, wipes
-# locally, then reloads. The page reload keeps the /reconcile URL; on
-# reload the client re-logs-in and reaches Connected. What matters is
-# that the state is Connected, not what URL it's on.
+def pick_side(page: Page, label: str) -> None:
+    """`label` is "Use mine" or "Use server's". Opening the viewer is a
+    side effect of the pick."""
+    btn = page.get_by_role("button", name=label, exact=True)
+    expect(btn).to_be_visible(timeout=ms())
+    btn.click(timeout=ms())
+
+
+def click_done_in_viewer(page: Page) -> None:
+    """Done produces love letters for the current viewer state and shows
+    the preview strip. Viewer stays open."""
+    btn = page.get_by_role("button", name="Done", exact=True)
+    expect(btn).to_be_visible(timeout=ms())
+    btn.click(timeout=ms())
+
+
+def click_number_box_to_close_viewer(page: Page) -> None:
+    """The blue numbered box in the viewer toolbar. Produces love letters
+    (same as Done) and closes back to the chooser."""
+    btn = page.locator(".rp-host-number-box").first
+    expect(btn).to_be_visible(timeout=ms())
+    btn.click(timeout=ms())
+
+
+def click_submit(page: Page) -> None:
+    """Submit is on the nothing-selected panel; opens the review."""
+    btn = page.get_by_role("button", name="Submit", exact=True)
+    expect(btn).to_be_enabled(timeout=ms())
+    btn.click(timeout=ms())
+
+
+def click_send_and_finish(page: Page) -> None:
+    """The review panel's confirm button. Triggers verify + send + wipe +
+    reload."""
+    btn = page.get_by_role("button", name="Send and finish", exact=True)
+    expect(btn).to_be_enabled(timeout=ms())
+    btn.click(timeout=ms())
+
+
 _RECONCILE_FINISH_SECS = 10.0
 
 
 def wait_for_reconcile_to_finish(page: Page, timeout_secs: float = None) -> None:
-    """After Finish, the app reloads. Wait for the client to reach
-    Connected again — that's the signal it adopted the server's drift
-    version."""
+    """After Send the app reloads. Wait for the client to reach Connected
+    again — the signal it adopted the server's drift version."""
     from support.read_conn_state import wait_for_conn_state
 
     if timeout_secs is None:
         timeout_secs = _RECONCILE_FINISH_SECS
     wait_for_conn_state(page, "Connected", timeout_secs=timeout_secs)
 
-def only_card(page: Page):
-    """The one mismatched-page card. Fails if there isn't exactly one."""
-    card = page.locator(".rp-card")
-    expect(card).to_have_count(1, timeout=ms())
-    return card
-
-
-def pick_on_only_card(page: Page, button_name: str, badge_pattern: str) -> None:
-    """Click one of the card's buttons ("use mine", "use server's") and wait
-    for the green badge to show the choice."""
-    card = only_card(page)
-    card.get_by_role("button", name=button_name, exact=True).click(timeout=ms())
-    expect(card.locator(".rp-card-badge")).to_have_text(
-        re.compile(badge_pattern, re.I), timeout=ms()
-    )
-
 
 def go_to_menu(page: Page) -> None:
-    """After Finish the reload keeps the /reconcile URL. Go back to the menu."""
     page.evaluate(
         "window.dispatchEvent(new CustomEvent('navigate', { detail: '/Menu' }))"
     )
     expect(page).to_have_url(re.compile(r"/Menu$"), timeout=ms())
+
+
+def reconcile_one_mismatched_page(page: Page, side_label: str) -> None:
+    """Full flow for a single mismatched page: chooser -> pick side -> X
+    (saves letters, closes) -> Submit -> Send and finish -> wait."""
+    click_chooser(page, 0)
+    pick_side(page, side_label)
+    click_number_box_to_close_viewer(page)
+    click_submit(page)
+    click_send_and_finish(page)
+    wait_for_reconcile_to_finish(page)

@@ -69,16 +69,25 @@ pub fn position_for_insert(
 }
 
 fn scratch_user_id() -> String {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("reconcile-{nanos}")
+    format!("reconcile-{}", now_micros())
 }
 
 fn scratch_time() -> String {
+    now_micros().to_string()
+}
+
+/// std's SystemTime on wasm32-unknown-unknown panics ("time not
+/// implemented on this platform"). Route through the browser's clock
+/// there; use std everywhere else (native tests, Android).
+#[cfg(target_arch = "wasm32")]
+fn now_micros() -> u128 {
+    (js_sys::Date::now() * 1000.0) as u128
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn now_micros() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_micros().to_string())
-        .unwrap_or_else(|_| "0".to_string())
+        .map(|d| d.as_micros())
+        .unwrap_or(0)
 }

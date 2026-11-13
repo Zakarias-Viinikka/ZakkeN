@@ -10,7 +10,7 @@ use executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db
     add_block_requires_three_db_actions, disabled_page_requires_three_db_actions,
     insert_page_requires_three_db_inserts, run_in_transaction,
 };
-use leptos::children::ChildrenOptContainer;
+
 use leptos::prelude::Update;
 use my_yrs_lib::yrs_wrapper::PositionToInsert;
 use protocol::payload::DeleteAllRowsIn;
@@ -23,7 +23,7 @@ use crate::db::reads_wrapper::pages::{
 use crate::db::write_lock::WRITE_LOCK;
 use crate::db::writes::edit_title_for_page;
 use crate::get_time;
-use crate::{plexget_conn_state, plexset_conn_state};
+use crate::{plexget_conn_state_untracked, plexset_conn_state};
 
 pub async fn insert_three_pages() -> Result<(), CqrsErr> {
     let seeds: [(&str, &[&str]); 3] = [
@@ -181,7 +181,7 @@ pub async fn enter_lone_wolf() -> Result<(), CqrsErr> {
     //bump drift version
     drift_version::plexset_make_new_drift_version().await?;
 
-    let c = plexget_conn_state();
+    let c = plexget_conn_state_untracked();
     match c {
         ConnState::Connected => {
             plexset_conn_state(ConnState::Lonewolf);

@@ -43,6 +43,7 @@ The viewer is a black box. Mounting code never reads its internals.
     let server = RwSignal::new(Some(page_blocks_for_the_viewer));
     let client = RwSignal::new(page_blocks_for_the_viewer);
     let kept = RwSignal::new(PickedSide::Mine);
+    let boss = RwSignal::new(Some(server_boss_of_yrs));
     let (output, set_output) = signal(ViewerOutput::default());
     let handle = FinishHandle::new();
 
@@ -50,6 +51,7 @@ The viewer is a black box. Mounting code never reads its internals.
         server_page=server
         client_page=client
         kept_side=kept
+        server_page_boss=boss
         output=set_output
         handle=handle
         on_finished=Callback::new(move |_| { /* read output.get_untracked() */ })
@@ -60,19 +62,24 @@ The viewer is a black box. Mounting code never reads its internals.
 
 - `server_page` is `Signal<Option<PageBlocksForTheViewer>>`. `None`
   means client-only (no server copy); the viewer skips the diff and
-  emits a single `CreateNewPage` sketch on finish.
+  emits a single `CreateNewPage` love letter on finish.
 - `client_page` is `Signal<PageBlocksForTheViewer>`.
 - `kept_side` is `Signal<PickedSide>` — `Mine` puts server on the
   left and client on the right (client editable); `Server` puts client
   on the left and server on the right. Either way the editable side is
   the right.
-- Changing any of the three remounts the inner viewer; edits and
-  drags never survive a remount.
+- `server_page_boss` is `Signal<Option<Arc<BossOfYrs>>>`. When
+  `Some`, the viewer builds full love letters on finish. When `None`,
+  `love_letters` in the output comes back empty (diff-only mode).
+  Snapshotted at mount, so a change to the boss does not remount.
+- Changing `server_page`, `client_page`, or `kept_side` remounts the
+  inner viewer; edits and drags never survive a remount.
 - `output` is a `WriteSignal<ViewerOutput>`. `ViewerOutput` has two
   fields: `kept_blocks: Vec<Block>` (the editable right-side blocks in
-  visual order, each with its id, text, metadata, frac) and
-  `sketches: Vec<LoveLetterSketch>` (the love-letter sketches that
-  turn the server's page into `kept_blocks`; empty for client-only).
+  visual order, each with id, text, metadata, frac) and
+  `love_letters: Vec<LoveLetter>` (the full letters that turn the
+  server's page into `kept_blocks`; for a client-only page this is
+  one `CreateNewPage`; empty in diff-only mode).
 - `handle` is `FinishHandle`. Caller stores it, passes it in, and calls
   `handle.finish_and_write_the_result()` from any button. Internally
   it bumps a counter signal; the viewer's effect writes `output` then
@@ -80,9 +87,9 @@ The viewer is a black box. Mounting code never reads its internals.
 - `on_finished` is optional. Fires after every finish. Anything that
   reads `output.get_untracked()` inside it sees the fresh value.
 
-`Block` and `LoveLetterSketch` are re-exported from
-`generate_love_letters`. `PageBlocksForTheViewer` is a page id,
-`is_main_menu_page`, and `Vec<Block>`.
+`Block`, `LoveLetterSketch`, and `LoveLetter` are re-exported from the
+viewer crate. `PageBlocksForTheViewer` is a page id,
+`is_main_menu_page`, `Vec<Block>`, and the page's raw `blob: Vec<u8>`.
 
 Two `FinishHandle`s can drive the same viewer — clone it, call the
 method on either.
@@ -268,8 +275,9 @@ Native tests cover the LIS edge cases and the four sketch outcomes
 
 ## drift_guard_and_ops::reconcile_planner — sketch → letter
 
-The viewer produces sketches. `drift_guard_and_ops/client` turns them
-into full `LoveLetter`s with snapshots. Entry:
+Called by the viewer (via `block_diff_viewer_leptos`) on finish, and
+re-exported for callers that want to build letters without opening the
+viewer. Entry:
 
     pub fn turn_all_edits_into_love_letters(
         server_page: Arc<BossOfYrs>,
@@ -303,6 +311,11 @@ No self-check. Correctness is covered by tests.
 Old files removed: `align_two_block_lists.rs` and
 `main_for_turning_a_reconcile_choice_into_love_letters.rs` (LCS-based,
 text-only, no reorder awareness, replaced).
+
+Because the viewer calls this on finish, callers never see a sketch.
+The viewer's `ViewerOutput` carries full `LoveLetter`s. The reconcile
+page in cqrs aggregates those across pages and sends them in one
+`reconcile_letters` request.
 
 ## Known gaps
 

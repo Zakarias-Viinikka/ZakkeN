@@ -36,10 +36,13 @@ use std::sync::Arc;
 use block_text_diff::{
     inline_spans, rows_for_two_pages, LeftMarker, Relationship, RightMarker,
 };
+use drift_guard_client::reconcile_planner::turn_all_edits_into_love_letters;
 use generate_love_letters::LoveLetterSketch;
 use leptos::ev;
 use leptos::html::{Div, Textarea};
 use leptos::prelude::*;
+use love_letter::build_a_love_letter;
+use my_yrs_lib::BossOfYrs;
 use web_sys::wasm_bindgen::JsCast;
 use web_sys::wasm_bindgen::JsValue;
 
@@ -75,6 +78,7 @@ pub(crate) fn TheFrozenViewerForOneMount(
     server_page: Option<PageBlocksForTheViewer>,
     client_page: PageBlocksForTheViewer,
     kept_side: PickedSide,
+    server_page_boss: Option<Arc<BossOfYrs>>,
     output: WriteSignal<ViewerOutput>,
     handle: FinishHandle,
     on_finished: Option<Callback<()>>,
@@ -184,6 +188,7 @@ pub(crate) fn TheFrozenViewerForOneMount(
         output.set(ViewerOutput::default());
     });
 
+    let server_page_boss_at_mount = server_page_boss;
     let last_counter = StoredValue::new(handle.counter.get_untracked());
     Effect::new({
         let rows = Arc::clone(&rows);
@@ -209,14 +214,29 @@ pub(crate) fn TheFrozenViewerForOneMount(
                         .map(|sig| sig.get_untracked().current().to_string())
                 },
             );
-            let sketches = match server_page_arc.as_ref() {
-                Some(sp) => make_sketches_out_of_two_pages(sp, &kept_blocks),
-                None => vec![LoveLetterSketch::CreateNewPage {
-                    page_id: client_page_arc.page_id.clone(),
-                    is_main_menu_page: client_page_arc.is_main_menu_page,
-                }],
+            let love_letters = match (
+                server_page_arc.as_ref(),
+                server_page_boss_at_mount.as_ref(),
+            ) {
+                (Some(sp), Some(boss)) => {
+                    let sketches = make_sketches_out_of_two_pages(sp, &kept_blocks);
+                    turn_all_edits_into_love_letters(
+                        boss.clone(),
+                        &sketches,
+                        &kept_blocks,
+                    )
+                    .unwrap_or_default()
+                }
+                (None, _) => vec![build_a_love_letter(
+                    LoveLetterSketch::CreateNewPage {
+                        page_id: client_page_arc.page_id.clone(),
+                        is_main_menu_page: client_page_arc.is_main_menu_page,
+                    },
+                    client_page_arc.blob.clone(),
+                )],
+                (Some(_), None) => Vec::new(),
             };
-            output.set(ViewerOutput { kept_blocks, sketches });
+            output.set(ViewerOutput { kept_blocks, love_letters });
             if let Some(cb) = on_finished {
                 cb.run(());
             }

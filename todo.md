@@ -82,7 +82,7 @@ Basically I want to create a demo for: "create a menu system for reversing a yrs
 
 A Leptos CSR port of zap's egui diff viewer, living at `~/ProgStuff/ZakkeN/web_diff_viewer/`. Standalone project, not part of ZakkeN; worked on as a reusable component. Eventually the reconcile UI in the web app could use it.
 
-Built. Workspace with five crates: `block_text_diff` (pure logic), `block_diff_viewer_leptos` (the `DiffViewer` component + pure helpers; owns id-carrying props and frac assignment), `example_app` (trunk demo with four sample pairs), `example_2` (prototype of the reconcile UI shell), `generate_love_letters` (pure: turn a server page + a user page into `LoveLetterSketch`s keyed by block_id). The sketch-to-letter half lives in `drift_guard_and_ops/client::reconcile_planner`. Native tests via `c t` at workspace root. `c r` serves the demo.
+Built. Workspace with five crates: `block_text_diff` (pure logic), `block_diff_viewer_leptos` (the `DiffViewer` component + pure helpers; owns id-carrying props, frac assignment, and — via `drift_guard_and_ops/client::reconcile_planner` — sketch-to-letter build), `example_app` (trunk demo), `example_2` (prototype of the reconcile UI shell), `generate_love_letters` (pure sketch generator). The viewer's output is `ViewerOutput { kept_blocks, love_letters }`; when the caller passes a `server_page_boss`, love letters are real. Ported into cqrs's `/reconcile` page. Native tests via `c t` at workspace root. `c r` serves the demo.
 
 See the "External: web_diff_viewer" section in `STORED_AI_CONTEXT.md` for the caller contract, what the viewer does, and the deliberate deviations from the original plan.
 

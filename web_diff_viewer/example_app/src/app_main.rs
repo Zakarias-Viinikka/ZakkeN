@@ -25,6 +25,7 @@ fn page_from_texts(page_id: &str, texts: Vec<String>) -> PageBlocksForTheViewer 
                 frac_position: format!("{}", i),
             })
             .collect(),
+        blob: Vec::new(),
     }
 }
 
@@ -200,6 +201,7 @@ fn SampleViewer(pair: SamplePair, on_back: Callback<()>) -> impl IntoView {
                         server_page=server_signal
                         client_page=client_signal
                         kept_side=kept_side_signal
+                        server_page_boss=Signal::derive(move || None)
                         output=set_output
                         handle=handle
                         on_finished=on_finished

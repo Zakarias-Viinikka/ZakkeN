@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use drift_guard_shared::fingerprint;
+use generate_love_letters::Block;
 
 use crate::db::cached_ids::current_user_id;
 use crate::db::reads_wrapper::pages::{get_all_page_ids, get_yrs_unblobbed, is_main_menu_page};
@@ -86,7 +87,7 @@ pub async fn load_and_classify() -> Result<Phase, String> {
 struct LocalPages {
     ids: Vec<String>,
     blobs: HashMap<String, Vec<u8>>,
-    blocks: HashMap<String, Vec<String>>,
+    blocks: HashMap<String, Vec<Block>>,
 }
 
 async fn read_local_pages(user_id: &str, time: &str) -> Result<LocalPages, String> {
@@ -103,22 +104,16 @@ async fn read_local_pages(user_id: &str, time: &str) -> Result<LocalPages, Strin
             .clone()
             .snapshot()
             .map_err(|e| format!("snapshot {page_id}: {e:?}"))?;
-        let text_list: Vec<String> = boss
-            .clone()
-            .get_entire_page()
-            .map_err(|e| format!("read blocks {page_id}: {e:?}"))?
-            .into_iter()
-            .map(|b| b.text)
-            .collect();
+        let converted = read_blocks_with_fracs(boss.clone(), page_id)?;
         blobs.insert(page_id.clone(), blob);
-        blocks.insert(page_id.clone(), text_list);
+        blocks.insert(page_id.clone(), converted);
     }
     Ok(LocalPages { ids, blobs, blocks })
 }
 
 async fn fetch_and_pair_mismatched(
     mismatched_ids: Vec<String>,
-    client_blocks: &HashMap<String, Vec<String>>,
+    client_blocks: &HashMap<String, Vec<Block>>,
     client_blobs: &HashMap<String, Vec<u8>>,
     user_id: &str,
     time: &str,
@@ -140,7 +135,7 @@ async fn fetch_and_pair_mismatched(
         let Some(server_blob) = server_blob_by_id.get(&page_id) else {
             continue;
         };
-        let server_blocks = block_texts_from_blob(server_blob, user_id, time, &page_id)?;
+        let server_blocks = blocks_from_blob(server_blob, user_id, time, &page_id)?;
         let client = client_blocks.get(&page_id).cloned().unwrap_or_default();
         let client_blob = client_blobs.get(&page_id).cloned().unwrap_or_default();
         result.push(MismatchedPage {
@@ -154,21 +149,47 @@ async fn fetch_and_pair_mismatched(
     Ok(result)
 }
 
-fn block_texts_from_blob(
+fn blocks_from_blob(
     blob: &[u8],
     user_id: &str,
     time: &str,
     page_id: &str,
-) -> Result<Vec<String>, String> {
-    let boss = my_yrs_lib::doc_from_snapshot(
-        blob.to_vec(),
-        user_id.to_string(),
-        page_id.to_string(),
-        time.to_string(),
-    )
-    .map_err(|e| format!("decode server page {page_id}: {e:?}"))?;
-    let blocks = std::sync::Arc::new(boss)
+) -> Result<Vec<Block>, String> {
+    let boss = std::sync::Arc::new(
+        my_yrs_lib::doc_from_snapshot(
+            blob.to_vec(),
+            user_id.to_string(),
+            page_id.to_string(),
+            time.to_string(),
+        )
+        .map_err(|e| format!("decode server page {page_id}: {e:?}"))?,
+    );
+    read_blocks_with_fracs(boss, page_id)
+}
+
+/// Read every block on a page, tagging each with its frac position.
+/// `get_entire_page` gives text/metadata/id but no frac, so this does
+/// one extra lookup per block.
+fn read_blocks_with_fracs(
+    boss: std::sync::Arc<my_yrs_lib::BossOfYrs>,
+    page_id: &str,
+) -> Result<Vec<Block>, String> {
+    let pages_blocks = boss
+        .clone()
         .get_entire_page()
-        .map_err(|e| format!("read server blocks {page_id}: {e:?}"))?;
-    Ok(blocks.into_iter().map(|b| b.text).collect())
+        .map_err(|e| format!("read blocks {page_id}: {e:?}"))?;
+    let mut converted: Vec<Block> = Vec::with_capacity(pages_blocks.len());
+    for b in pages_blocks {
+        let frac = boss
+            .clone()
+            .get_frac_position_of_block(b.id_in_yrs.clone())
+            .map_err(|e| format!("frac {page_id}/{}: {e:?}", b.id_in_yrs))?;
+        converted.push(Block {
+            block_id: b.id_in_yrs,
+            text: b.text,
+            metadata: b.metadata,
+            frac_position: frac,
+        });
+    }
+    Ok(converted)
 }

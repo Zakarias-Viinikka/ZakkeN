@@ -4,6 +4,7 @@
 
 pub struct SamplePair {
     pub name: &'static str,
+    #[allow(dead_code)]
     pub description: &'static str,
     pub left: Vec<String>,
     pub right: Vec<String>,

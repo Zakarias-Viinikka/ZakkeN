@@ -20,6 +20,8 @@
 //! - `leptos_components/main_content/connection_indicator.rs` — tracked.
 //! - `leptos_components/reconcile_page/reconcile_page.rs` — tracked.
 //! - `expose_methods_for_testing/method_read_conn_state.rs` — untracked.
+//! - `db/dev_actions.rs` — untracked (dev-panel actions run outside
+//!   any reactive scope).
 //!
 //! Setters (literal path from the web_interface `src/` root). Each
 //! entry says what would stop happening if that setter didn't exist.

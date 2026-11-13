@@ -340,3 +340,101 @@ exposes it, or a partial test asserting the loop doesn't misfire when
 populated — only legitimate after login. Worth a test that exercises
 the panic boundary: calling it before login panics, after login
 returns the version.
+
+## Update - 2026-11-13 (reconcile UI ported; viewer produces love letters)
+
+The reconcile flow was ported to a new shape and now produces love
+letters end to end.
+
+### What changed in the app (context for future tester work)
+
+- The viewer (`block_diff_viewer_leptos`) now takes pages-with-blobs
+  and emits `ViewerOutput { kept_blocks, love_letters }`. It runs the
+  whole sketch-to-letter chain internally on finish; callers never
+  see sketches.
+- `drift_guard_and_ops::reconcile_planner` is called from inside the
+  viewer. Its entry is `turn_all_edits_into_love_letters`.
+- The reconcile page's flow is now: chooser row → pick screen
+  ("Use mine" / "Use server's") → inline viewer (Done or X) → back to
+  chooser with a preview strip stored → Submit → review panel → "Send
+  and finish" → wipe + reload.
+- Client-only pages skip the chooser; they only appear in the review
+  panel as `CreateNewPage` letters.
+
+### New test
+
+`tests/test_006_reconcile/test_reconcile_edit_in_viewer.py` — the
+only test that exercises the edit path *inside* the viewer. Edge
+edits the title to v2 in the page editor while lonewolf, opens
+reconcile, picks "Use mine", edits the title to v3 inside the viewer,
+clicks Done, closes with X, Submits, sends. Both clients and the
+server must end with "Grocery list v3". This test proved the "viewer
+remounts on Done and wipes the edit" bug; the fix is that
+`ready_view.rs` writes `pair.last_output` directly instead of going
+through `pairs_signal`.
+
+The existing `test_reconcile_use_mine` / `test_reconcile_use_server`
+in `tests/test_006_reconcile/test_reconcile_mismatched_page.py` were
+rewritten to the new flow (chooser → pick → X → Submit → Send). Both
+pass. `test_reconcile_client_only` stays the same story but the flow
+is one step shorter (Submit → Send, no chooser).
+
+### Helpers in `support/reconcile.py`
+
+Everything was rewritten for the new flow. The old `.rp-card` selectors
+are gone. New helpers:
+
+- `open_reconcile(page)` — SPA-navigates and asserts the header.
+- `click_chooser(page, index)` — clicks the numbered chooser button.
+- `pick_side(page, label)` — "Use mine" / "Use server's".
+- `click_done_in_viewer(page)` — Done (preview only, viewer stays open).
+- `click_number_box_to_close_viewer(page)` — the blue numbered box in
+  the toolbar. This is X. Triggers a finish and closes.
+- `click_submit(page)` — opens the review panel.
+- `click_send_and_finish(page)` — the confirm button. Triggers verify
+  + send + wipe + reload.
+- `wait_for_reconcile_to_finish(page)` — waits for ConnState to reach
+  `Connected` again.
+- `reconcile_one_mismatched_page(page, side_label)` — the whole
+  sequence as a single call.
+
+There is a second `[viewer finish]` after X on the same page. That is
+by design: Done stores the letters, X re-runs finish (idempotent) and
+closes. Do not treat the two finishes as a bug.
+
+### Popup click-through fix (`web_interface/.../popup.rs`)
+
+`.pp-row` used to have `pointer-events: auto`, which meant a toast
+could intercept clicks aimed at a button underneath (Send and finish,
+usually). Changed to `pointer-events: none`. Toasts are now
+display-only — click-to-expand-modal, X dismiss, and hover-pause are
+all gone. This also fixed an observed "toasts never fade" bug caused
+by hover-pause holding them forever. If someone wants
+click-to-expand back, it has to be reintroduced carefully (the
+current shape is intentional for tests).
+
+### Orchestrator fingerprint fix
+
+`main_for_building_the_web_app_build.rs::tracked_inputs` only walked
+`web_interface/src` and `web_interface/css`, so edits to path-dep
+crates (viewer, planner, yrs, love_letter, z_db) left the marker
+"fresh" and the old wasm kept being served. Symptom: an app fix
+didn't take effect even after a rebuild, and `rm -rf dist` was the
+only workaround. Fixed: `tracked_inputs` now walks the whole
+path-dep tree. If a new path dep is added to `web_interface`'s
+Cargo.toml, add its `src` folder to `repo_relative_dep_folders` /
+`z_db_relative_dep_folders` or the marker silently goes stale again.
+
+### Speed config
+
+`tester/speed_config.json` now has entries for all four `test_006`
+tests at `0.1`. `test_reconcile_edit_in_viewer` runs in ~20s at that
+multiplier.
+
+### Known issues (not fixed)
+
+- Headless mode flakes on `finish_setup_button` in
+  `support/setup_page.py`. Headed mode works. Not diagnosed. Probably
+  layout-stability related. Use headed mode until it's fixed.
+- `test_004` still fails on the audit bugs (get_diff losing text,
+  yrs panicking on non-ASCII). Those are the bugs, not the harness.

@@ -245,8 +245,13 @@ name = "block_diff_viewer_leptos"
 version = "0.1.0"
 dependencies = [
  "block_text_diff",
+ "drift_guard_client",
+ "generate_love_letters",
  "leptos",
+ "love_letter",
+ "smart_frac_index",
  "web-sys",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -675,8 +680,9 @@ checksum = "669a445ee724c5c69b1b06fe0b63e70a1c84bc9bb7d9696cd4f4e3ec45050408"
 name = "drift_guard_client"
 version = "0.1.0"
 dependencies = [
+ "generate_love_letters",
+ "js-sys",
  "love_letter",
- "text_diff",
  "yrs 0.1.0",
 ]
 
@@ -917,6 +923,14 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "generate_love_letters"
+version = "0.1.0"
+dependencies = [
+ "love_letter",
+ "yrs 0.1.0",
 ]
 
 [[package]]
@@ -3204,6 +3218,7 @@ dependencies = [
  "executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db",
  "futures-channel",
  "futures-util",
+ "generate_love_letters",
  "gloo-timers",
  "js-sys",
  "leptos",

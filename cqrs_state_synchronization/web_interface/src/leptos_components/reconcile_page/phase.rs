@@ -3,15 +3,17 @@
 
 use std::collections::HashMap;
 
+use generate_love_letters::Block;
+
 use crate::owner_of_interacting_with_server::ConnState;
 
 #[derive(Debug, Clone)]
 pub struct MismatchedPage {
     pub page_id: String,
     pub client_blob: Vec<u8>,
-    pub client_blocks: Vec<String>,
+    pub client_blocks: Vec<Block>,
     pub server_blob: Vec<u8>,
-    pub server_blocks: Vec<String>,
+    pub server_blocks: Vec<Block>,
 }
 
 #[derive(Debug, Clone)]

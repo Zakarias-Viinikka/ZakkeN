@@ -21,6 +21,7 @@ impl PagePair {
             page_id: self.page_id.clone(),
             is_main_menu_page: false,
             blocks: self.server_page.clone(),
+            blob: Vec::new(),
         }
     }
 
@@ -29,6 +30,7 @@ impl PagePair {
             page_id: self.page_id.clone(),
             is_main_menu_page: false,
             blocks: self.client_page.clone(),
+            blob: Vec::new(),
         }
     }
 }

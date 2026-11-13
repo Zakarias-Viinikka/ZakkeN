@@ -7,3 +7,6 @@ edition = "2024"
 yrs.path = "/home/zakke/ProgStuff/ZakkeN/yrs"
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
 generate_love_letters = { path = "../../web_diff_viewer/generate_love_letters" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"

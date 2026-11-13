@@ -2,17 +2,17 @@
 
 Brave and Edge both have the three seed pages. Brave wipes the server.
 Both go lonewolf. Brave resets + re-registers fresh (server still empty).
-Edge opens /reconcile, all three of its pages show up as client-only, and
-clicking Finish should: send CreateNewPage letters for all three, wipe
-Edge locally, and pull the fresh dataset back. At the end both clients
-have the three titles and the server has three pages.
+Edge opens /reconcile — all three of its pages are client-only (no server
+copy). Submit opens the review; Send and finish sends CreateNewPage
+letters for all three, wipes Edge locally, and pulls the fresh dataset
+back. At the end both clients have the three titles and the server has
+three pages.
 
 The mismatched-page path (both sides have the same page id with different
 content, requiring the diff viewer) is a separate test."""
 
 import os
 import re
-import time
 
 from support.client_db import read_titles
 from support.db import query, wait_until_server_has_pages
@@ -21,11 +21,11 @@ from support.narrate import announce_result, say_both
 from support.popup import assert_no_error_popups, clear_popup_log, popup
 from support.read_conn_state import read_conn_state, wait_for_conn_state
 from support.reconcile import (
-    click_finish_reconcile,
+    click_send_and_finish,
+    click_submit,
     open_reconcile,
     wait_for_reconcile_to_finish,
 )
-from support.seconds import seconds
 from support.setup_page import bring_up_registered
 from support.test_events import reset_everything, wipe_server
 
@@ -68,8 +68,9 @@ def test_reconcile_client_only(two_browser_stage):
         say_both(two_browser_stage, "Setup 5/6: edge opens reconcile")
         open_reconcile(edge)
 
-        say_both(two_browser_stage, "Setup 6/6: edge clicks Finish reconcile")
-        click_finish_reconcile(edge)
+        say_both(two_browser_stage, "Setup 6/6: edge clicks Submit, then Send and finish")
+        click_submit(edge)
+        click_send_and_finish(edge)
         wait_for_reconcile_to_finish(edge)
 
         # The reload leaves edge on /reconcile; navigate back to /Menu to

@@ -8,6 +8,9 @@ leptos.workspace = true
 block_text_diff = { path = "../block_text_diff" }
 generate_love_letters = { path = "../generate_love_letters" }
 smart_frac_index = { path = "../../smart_frac_index" }
+drift_guard_client = { path = "../../drift_guard_and_ops/client" }
+love_letter = { path = "../../love_letter" }
+yrs.path = "../../yrs"
 
 [dependencies.web-sys]
 version = "0.3"
