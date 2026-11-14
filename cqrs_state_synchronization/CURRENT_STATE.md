@@ -339,3 +339,13 @@ Batcher rewritten to owner+handle:
 - `flush_now()` unchanged.
 
 `main.rs` simplified: no manual run-loop spawn, no re-export of `Batcher`.
+
+## Update - 2026-11-14
+
+New route `/imp_or_export` (`ImpOrExport` in
+`leptos_components/imp_or_export/`) — placeholder component, no content
+yet. Dev sidebar gained `ImpOrExportButton` after an `<hr/>`, below the
+drift group. It navigates to the route.
+
+Export itself is server-side (see zakken_server docs). The client side
+of the exchange is not built — the button only opens the page.

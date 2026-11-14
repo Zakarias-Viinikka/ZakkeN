@@ -58,3 +58,23 @@ lands first bumps it; the second is refused with
 `DriftVersionMismatch`, its client reloads and starts over. It does
 not bump `drift_version` — other connected clients are not informed or
 disconnected. Each lonewolf client reconciles on its own.
+
+## Export — the server builds, the client downloads
+
+`Export` is a new request, no payload yet. The client sends it and the
+server builds the export archive itself. The server has OS file access
+and the pages table already, so the client doesn't need to hold the
+whole dataset or a zip in memory.
+
+Server side: `allowed_requests/exp_and_import.rs::export_all_pages`.
+It clears and recreates `export_temp/` (relative to the server's launch
+dir, same as `zakken.sqlite`), reads every page id, writes each page as
+`export_temp/<page_id>.json` — a JSON array of blocks, each
+`{ content, metadata, frac_index }` — and the final step zips the folder
+and returns the bytes.
+
+Not built yet: unpacking `blobbed_page` into blocks
+(`get_blocks_for_page`), and the zip step. Both are `todo!()`.
+
+Reply shape for `Export` is not decided yet (raw zip bytes in the
+reply, or a follow-up fetch). When it lands, that paragraph goes here.

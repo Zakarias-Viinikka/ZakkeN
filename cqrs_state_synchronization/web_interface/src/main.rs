@@ -7,6 +7,7 @@ use web_interface::complex_state::batcher_handle;
 use web_interface::db::{cached_ids, init};
 use web_interface::expose_methods_main;
 use web_interface::leptos_components::custom_port_setting_page::CustomPortSettingPage;
+use web_interface::leptos_components::imp_or_export::ImpOrExport;
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
 use web_interface::leptos_components::reconcile_page::ReconcilePage;
@@ -76,6 +77,7 @@ fn App() -> impl IntoView {
                                 <Route path=path!("/setup") view=SetupPage/>
                                 <Route path=path!("/custom_port_setting_page") view=CustomPortSettingPage/>
                                 <Route path=path!("/reconcile") view=ReconcilePage/>
+                                <Route path=path!("/imp_or_export") view=ImpOrExport/>
                             </Routes>
                             <SetupGuard/>
                             <CoolPopup/>

@@ -1,5 +1,6 @@
 # Implementation Plan
 
+HISTORICAL RECORD, no open tasks, do not execute it. Checked 2026-11-13: DocEvents/AddBlock, EditTextInBlock, RemoveBlock, diffBuffer and ViewPageHelper named below no longer exist.
 COMPLETED as of 2026-10-20. Steps 1 through 13 have been executed against
 the current Android tree, with the schema version bumped all the way to
 V3 (frac_position replaced position). This file is kept as a record of

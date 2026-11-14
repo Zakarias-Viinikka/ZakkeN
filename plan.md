@@ -237,3 +237,23 @@ act automatically; no picker for `None`.
 Not built: `OfflineDeliberately` (a new state for "offline on
 purpose, don't poll"). Plan is in nov11.md. Won't persist across
 reload; accepted.
+
+## Export - 2026-11-14
+
+Export runs on the server, not the client. The web client has no OS
+file access and a full dataset plus zip can exceed wasm heap, so the
+client sends `Request::Export` (no payload) and the server does the
+folder work with the files it already has.
+
+Server side: `allowed_requests/exp_and_import.rs::export_all_pages`.
+Clears `export_temp/` (relative to launch dir, next to `zakken.sqlite`),
+reads every page id via `operations_pages::get_all_pages`, writes each
+page as `export_temp/<page_id>.json` (a JSON array of
+`{ content, metadata, frac_index }` blocks), then zips the folder.
+
+Not built: `get_blocks_for_page` (unpacking `blobbed_page`), the zip
+step, the reply shape, and the client side of the exchange.
+
+Client side: new route `/imp_or_export` (placeholder view
+`ImpOrExport`), dev-sidebar button after an `<hr/>`. The button opens
+the page; nothing else is wired.

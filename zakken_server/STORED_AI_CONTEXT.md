@@ -432,3 +432,23 @@ the offline states.
 
 Note: `try_next` on the receiver was replaced with `try_recv` (the
 former is deprecated).
+
+## Export request - 2026-11-14
+
+`Request::Export` was added (no payload) and dispatched in
+`allowed_requests/core.rs` to the new
+`allowed_requests/exp_and_import.rs::export_all_pages`.
+
+`export_all_pages(&LiveForever) -> Vec<u8>` clears `export_temp/`
+(relative to the server's launch dir, next to `zakken.sqlite`), reads
+every page id from `operations_pages::get_all_pages`, and per page
+writes `export_temp/<page_id>.json` — a pretty-printed JSON array of
+blocks, each `{ content, metadata, frac_index }`.
+
+Not built yet: `get_blocks_for_page` (unpacking `blobbed_page` into
+blocks) and the final zip step are `todo!()`. Both are the human's to
+fill in. Not compiled or tested.
+
+Export runs on the server because the web client has no OS file access
+and a full dataset plus zip can exceed wasm heap; the client asks, the
+server builds, and (when done) the client downloads the result.

@@ -500,3 +500,32 @@ the wire format is split by return type. Commands that return nothing send Ok::<
 cargo prints "skipping duplicate package" warnings on every invocation. That's because /home/zakke/ProgStuff/ZakkeN is itself a clone of the Zakarias-Viinikka/ZakkeN repo, so cargo sees the same git URL at a local path and in its checkout cache. It picks one and moves on. Cosmetic, not a problem.
 
 the builder and executor split isn't by purpose. It's by target. The builder prepares all the data and touches nothing outside itself, so it can run anywhere. The executor is the only one that reaches into web_internal_db, which is wasm-only. Same job, different constraints on where each half can run.
+
+Saturday, 14 November 2026 (imp/export page scaffold)
+=====================================================
+
+New route `/imp_or_export` with view `ImpOrExport`, in
+`leptos_components/imp_or_export/` (mod.rs re-exports, the component
+lives in `imp_or_export.rs`). It is a placeholder — one `<div>` reading
+"imp_or_export". Registered in `leptos_components/mod.rs` and in the
+Routes list in `main.rs`.
+
+Dev sidebar gained `ImpOrExportButton` (`sidebar_buttons/imp_or_export_button.rs`),
+placed after an `<hr/>` below the drift group. It calls
+`use_navigate()` and navigates to `/imp_or_export`.
+
+The export work itself is server-side, not client-side. The web client
+has no OS file access and a full dataset plus zip can exceed wasm heap,
+so the client will ask the server to build the zip and the server does
+the folder work with the files it already has. Server side: new
+`Request::Export`, dispatched to
+`allowed_requests/exp_and_import.rs::export_all_pages`. That function
+clears and recreates `export_temp/` (relative to the server's launch
+dir, next to `zakken.sqlite`), reads every page id, and per page writes
+`export_temp/<page_id>.json` as a JSON array of
+`{ content, metadata, frac_index }` blocks. `get_blocks_for_page` (the
+blobbed_page -> blocks unpacking) and the final zip step are
+`todo!()`s, human's to fill in.
+
+Not built on the client side: the actual export request and the
+download handling. The button only opens the page.

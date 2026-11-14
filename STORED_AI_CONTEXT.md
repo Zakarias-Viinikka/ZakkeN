@@ -934,3 +934,30 @@ Login mismatch `drift_solution = WipeSelfAndAdoptServer` at login
 doesn't act automatically. No picker for `None`. Adopt not built.
 `OfflineDeliberately` parked. Remaining e2e tests from
 `tests_to_write.md`.
+
+## Export over the server - 2026-11-14
+
+Export runs on the server, not the client. The web client has no normal
+OS file access, and buffering every page plus a zip in wasm heap has a
+cap, so the client sends one request and the server does the folder work
+with the files it already has.
+
+Wire: `Request::Export` (new, in `server_protocol/src/request.rs`). No
+payload yet. Dispatched in `allowed_requests/core.rs` to
+`allowed_requests/exp_and_import.rs::export_all_pages(&LiveForever)`.
+
+Server side, `exp_and_import.rs`: `clear_existing_import_folder()`
+deletes and recreates `export_temp/` (relative to the server's launch
+dir, same as `zakken.sqlite`). `get_all_page_ids` reads every page via
+`operations_pages::get_all_pages`. Per page it writes
+`export_temp/<page_id>.json` — a JSON array of blocks, each
+`{ content, metadata, frac_index }`. `get_blocks_for_page` is a `todo!()`
+(human fills in the blobbed_page -> blocks unpacking) and the final step
+(zipping `export_temp/` and returning the bytes) is also a `todo!()`.
+Nothing compiled or tested yet.
+
+Client side, web_interface: new route `/imp_or_export` view
+`ImpOrExport` (a placeholder component, no real UI yet), and a dev-panel
+button `ImpOrExportButton` that navigates there. It sits below an
+`<hr/>` and is the only button in that group — deliberately separated
+from the drift/reconcile buttons.

@@ -11,7 +11,7 @@ When you design something without a reference, add an entry here.
 
 ### Parallel Column Schema Descriptors & Type Canary Tests
 
-Android: `z.zndroid.db.schema` holds `ColumnDescriptor<T>` objects per table (name, typeName, unwrap(Col) -> T). `SchemaCanaryTest` asserts hardcoded type expectations per column as a compile/test time substitute for Rust's generic `SchemaColumn<T>`. Every read in `db/reads` goes through these descriptors; there are no positional column indexes elsewhere.
+Android: `z.zndroid.db.schema` holds `ColumnDescriptor<T>` objects per table (name, typeName, unwrap(Col) -> T). `SchemaCanaryTest` asserts hardcoded type expectations per column as a compile/test time substitute for Rust's generic `SchemaColumn<T>`. Every read in `db/reads` goes through these descriptors. Positional column indexes still exist in StorageAccess, MigrationManager, DbManager, InspectTable and some tests (2026-11-13; see MISSING_AND_STALE.md).
 
 Reference location: `client_table_blueprints` in Rust.
 
@@ -21,7 +21,7 @@ To verify: Compare `ColumnDescriptor` field types and `SchemaCanaryTest` asserti
 
 ### In-Memory Transaction Log Buffer & Rollback Flush
 
-Android: `DbTransactionElement` maintains a coroutine-context in-memory log buffer (`logBuffer`). Logs emitted via `Logger` during an active transaction are appended to `logBuffer`. On commit, `logBuffer` is cleared without writing. On rollback, `logBuffer` is flushed to the `logs` SQLite table outside the failed transaction. Logs emitted outside a transaction insert directly into `logs`.
+Android: `DbTransactionElement` maintains a coroutine-context in-memory log buffer (`logBuffer`). Logs emitted via `Logger` during an active transaction are appended to `logBuffer`. On commit, `logBuffer` is cleared without writing. On rollback, `logBuffer` is flushed to the `logs` SQLite table outside the failed transaction. Logs emitted outside a transaction insert directly into `logs`. Known gap (2026-11-13): `Logger` locates the open transaction through a ThreadLocal, not the coroutine context, so a thread switch inside a transaction defeats the buffering.
 
 Reference location: web's DB worker. Whether web preserves error logs from a rolled-back transaction and where they end up should be checked.
 
@@ -55,7 +55,7 @@ To verify: Web can't auto-reload, so the Android answer will always differ here.
 
 ### Move Up / Down instead of drag
 
-Android: block reorder is two buttons in the long-press block action menu ("Up" / "Down"). No drag. The title can't move and nothing moves above it.
+Android: block reorder is two buttons in the block action menu (opened by tapping the `::` handle, not a long-press) ("Up" / "Down"). No drag. The title can't move and nothing moves above it.
 
 Web: drag the block handle to reorder, implemented by `drag_reorder_container`.
 
@@ -67,7 +67,7 @@ To verify: On a phone, drag-to-reorder competes with text selection and the scro
 
 ### Session id per process, not per navigation
 
-Android: `SessionManager.initialize` reads the last stored id and increments once per process start. `MainActivity` no longer increments on every navigation change. `SessionMonotonicityTest` asserts it stays stable during a session.
+Android: `SessionManager.initialize` reads the last stored id and increments once per process start. THIS IS NOT TRUE IN CODE as of 2026-11-13: `MainActivity` still registers `addOnDestinationChangedListener { SessionManager.incrementAndStore() }`, so the id bumps on every navigation. This entry describes the intended design. `SessionMonotonicityTest` asserts it stays stable during a session.
 
 Web: `init_session_id` in `db/init.rs` increments on each page reload.
 
@@ -91,7 +91,7 @@ To verify: any future UI redesign can re-label the button. Nothing depends on th
 
 ### Dev Tools page + DevCheck registry
 
-Android: debug-only page at route `test_results` (nav button "Dev Tools"). `DevCheckRegistry.checks` is the one list of checks. `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
+Android: page (only the nav button is debug-gated; the route compiles into release) at route `test_results` (nav button "Dev Tools"). `DevCheckRegistry.checks` is the one list of checks. `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
 
 Web: `web_interface/src/db/dev_actions.rs` has `insert_three_pages`, `delete_everything`, `reset_everything` exposed as buttons in a dev sidebar. No pass/fail check registry.
 
@@ -103,11 +103,23 @@ To verify: If web ever wants an equivalent check registry, the shape here is the
 
 ### External transaction hook for e2e testing
 
-Android: `TestTransactionReceiver` in `src/debug/` listens for three broadcast actions and calls `DbManager.beginExternalTransaction()`, `endExternalTransaction(commit = false)`, or `endExternalTransaction(commit = true)`. While `externalTransactionActive` is true, `withTransaction` runs its block inside the already-open transaction instead of starting a nested one. Used by the external Python/Appium test harness to wrap a whole test run in one transaction that rolls back at teardown. Debug-only; absent from release builds.
+Android: `TestTransactionReceiver` in `src/debug/` listens for three broadcast actions and calls `DbManager.beginExternalTransaction()`, `endExternalTransaction(commit = false)`, or `endExternalTransaction(commit = true)`. While `externalTransactionActive` is true, `withTransaction` runs its block inside the already-open transaction instead of starting a nested one. Used by the external Python/Appium test harness to wrap a whole test run in one transaction that rolls back at teardown. The receiver is debug-only (`src/debug`). `beginExternalTransaction`, `endExternalTransaction` and the `externalTransactionActive` branch in `withTransaction` live in `DbManager` in the main source set and ship in release (nothing in release calls them). In this mode a failing block is not rolled back: there is no savepoint, so partial writes from a failed batch stay in the open transaction until teardown, and the log buffer's rollback flush never runs. The e2e run therefore exercises the success path only.
 
 Reference location: none. This is testing infrastructure, not a domain feature. A matching "server test mode" (see root TODO) is planned for the server.
 
 To verify: N/A - this is a testing-apparatus choice, not a domain design.
+
+---
+
+### createNewPage emits two love letters
+
+Android: `actions/createNewPage` inserts the page (page row, title block, body block, and a CreateNewPage letter), then runs `editBlock` on the title with `getDiff("", name)`, which inserts a second letter (EditBlock). Both happen in one transaction.
+
+Web: `create_page` emits exactly one letter, a CreateNewPage carrying a title-bearing snapshot.
+
+Reference location: web's `create_page` and the builder's `create_page`.
+
+To verify: both orderings converge on the server, but Android sends two round-trips where web sends one. Decide whether the builder should take the initial title so one letter is enough.
 
 ---
 

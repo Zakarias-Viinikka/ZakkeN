@@ -1,6 +1,8 @@
 # Outside Android App
 
 Context the Android app needs that it can't see from inside its own tree.
+
+STATUS 2026-11-13: everything from "What changed since the app was last touched" down is a dated changelog of the 2026-10-17..20 Rust-side changes, written in the present tense of that moment. Do not read it as current state. For current state read AI_READ_THIS.md and SHARED_MEMORY.md. Known-wrong statements below: "Logger.kt writes to Logcat only" (it writes to the logs table too), "LATEST points at V0" (it is V3), "Moving a block has no Rust implementation" (move_block exists in yrs, love_letter, the builder and the Kotlin executor), "Android should not build structural ops" (add/delete/move all exist), the logs table having details/details_type and new_log_row taking eight arguments (live: six, no details), and the "uncommitted_diffs" names (now client_love_letter). The e2e section describes two tests; there are now three (test_dev_checks).
 Read this before making decisions about how Android should behave.
 Anything in here is a constraint, not a suggestion.
 
@@ -13,7 +15,7 @@ authoritative.
 
 Edits are "love letters" - serialized intents the client sends to the
 server so both sides agree on what changed. The client stores its own
-copy in uncommitted_diffs; the server tracks which registered clients
+copy in client_love_letter (uncommitted_diffs before 2026-10-19); the server tracks which registered clients
 have received which letters.
 
 You are the Android client. cqrs_state_synchronization/web_interface is
@@ -113,7 +115,7 @@ incoming_love_letters - new. id, love_letter, target_page_id. Not
 needed yet; that is server-side work.
 
 logs - new. id, timestamp, level, category, source, session_id,
-message, details, details_type. Needs to be created and written to.
+message. (This brief also listed details and details_type; the live Android table and newLogRow have no such columns.) Created and written to.
 
 ### Row builder signature changes
 
@@ -125,7 +127,7 @@ content, my_id_as_given_by_yrs, id_of_page_i_belong_to, frac_position: String) -
 arguments.
 
 new_log_row(timestamp, level, category, source, session_id, message,
-details, details_type) - eight arguments. timestamp is passed in, not
+details, details_type) - eight arguments. [STALE 2026-11-13: live newLogRow takes six, ending at message.] timestamp is passed in, not
 computed inside.
 
 new_incoming_love_letter_row(love_letter, target_page_id) - two
@@ -177,8 +179,7 @@ The Rust executor lives in
 executor_of_what_the_builder_built_because_the_builder_shouldnt_touch_the_db.
 It is wasm-only. Your executor lives in Kotlin and uses DbManager.
 
-For operations Rust does not cover yet - add block, remove block, split
-block - you design your own builder and executor following the same
+Rust now also covers add_block, delete_block and move_block, and Android mirrors each in z.zndroid.executor. If a future operation has no Rust builder, design your own builder and executor following the same
 shape. Log what you invent (see below).
 
 ## The squash-first rule
@@ -229,7 +230,7 @@ Android has its own migration system in Kotlin: MigrationManager,
 SchemaVersion, and frozen snapshots in db/migrations/schemas/.
 
 SchemaVersion.V0 is a frozen copy of the schema at version 0. LATEST
-points at V0 today. assertLatestMatchesBlueprints() compares the latest
+pointed at V0 when this was written (LATEST is V3 now). assertLatestMatchesBlueprints() compares the latest
 frozen version against the live Rust blueprints and throws if they
 disagree.
 
@@ -260,7 +261,7 @@ coroutine context for a DbTransactionElement.
 
 ## Logging
 
-Logger.kt writes to Logcat only. It needs to also write to the logs
+(Done: Logger now writes to Logcat and the logs table.) Original brief: Logger.kt wrote to Logcat only. It needed to also write to the logs
 table.
 
 The rule: while a transaction is open, log lines do not write to the
@@ -413,7 +414,7 @@ after the skip; there is no cap. Nothing existing changed.
 
 `add_block` and `delete_block` are built on the Rust side as builder functions and uniffi exports. Android can call them once it writes its own executors. Neither is wired to any UI on web either.
 
-Moving a block has no Rust implementation yet - no yrs move method, no love_letter variant, no builder, no executor. Android should not build one either, because there is no reference to mirror yet.
+(Superseded 2026-10-20: move_block now exists in yrs, love_letter, the builder and the Kotlin executor `moveBlockRequiresThreeDbActions`, and PageBatcher uses it.)
 
 `new_every_block_in_existence_row` takes `frac_position: String`. The placeholder-then-update dance is gone.
 

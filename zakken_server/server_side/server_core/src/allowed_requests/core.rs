@@ -1,10 +1,10 @@
-use crate::telephone::Telephone;
+use crate::{allowed_requests::exp_and_import, telephone::Telephone};
 use db_core::db::{db_actions_for_drift, operations_love_letters, operations_pages};
-use server_errors::{ErrorDetails, ServErr};
-use queue::WhereTheRequestCameFrom;
 use db_wrapper::android_mascot::LiveForever;
 use protocol::error::DbError;
 use protocol::serialization::Convert;
+use queue::WhereTheRequestCameFrom;
+use server_errors::{ErrorDetails, ServErr};
 use server_protocol::{Request, UnsentLetter};
 use std::sync::{Arc, Mutex};
 
@@ -105,9 +105,11 @@ pub async fn do_request(
         return err_bytes(ServErr::RejectedBecause("not logged in".to_string()));
     }
 
-    if let Some(e) =
-        refuse_if_the_client_is_on_a_stale_drift_version(msg_request, &where_the_request_came_from, state)
-    {
+    if let Some(e) = refuse_if_the_client_is_on_a_stale_drift_version(
+        msg_request,
+        &where_the_request_came_from,
+        state,
+    ) {
         return err_bytes(e);
     }
 
@@ -156,6 +158,10 @@ pub async fn do_request(
         Request::GetReconcileVersion => {
             let db_wrapper = state.lock().unwrap();
             get_reconcile_version::get_reconcile_version(msg_content, &db_wrapper)
+        }
+        Request::Export => {
+            let db_wrapper = state.lock().unwrap();
+            exp_and_import::export_all_pages(&db_wrapper)
         }
     }
 }

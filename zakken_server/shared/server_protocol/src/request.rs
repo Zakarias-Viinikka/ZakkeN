@@ -35,6 +35,9 @@ pub enum Request {
     /// client -> server: what is the current reconcile version. Exempt
     /// from the drift check. Bumps only when ReconcileLetters succeeds.
     GetReconcileVersion,
+    //web app doesn't have normal os access etc, so instead exporting is a
+    // request it makes to the server and the server handles it.
+    Export,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
