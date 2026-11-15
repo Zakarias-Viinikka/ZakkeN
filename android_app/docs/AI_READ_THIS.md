@@ -125,13 +125,13 @@ Logger.kt: Engine using Dispatchers.IO. Writes to Logcat and `logs` SQLite table
   - Inside transaction: buffers in `DbTransactionElement.logBuffer`. On commit, drops buffer. On rollback, flushes buffer to `logs` table outside failed transaction. CAVEAT: `Logger` finds the transaction through `DbManager.activeTransactionThreadLocal`, not the coroutine context, so after a thread switch inside a transaction it sees no transaction and writes the log directly (after the transaction ends). Under the e2e external transaction nothing is buffered at all.
   - Source parameter (file/class/function) is passed explicitly at call sites.
   - `Logger.e(details, detailsType)` and `LogEntry.details` / `detailsType` exist but are dropped: the `logs` table has no such columns.
-ViewPageLogs.kt: Feature-specific helpers (logPageInit, logPageLoadSuccess, etc.).
+ViewPageLogs.kt: Feature-specific helpers (logPageInit, logPageLoadSuccess, etc.). In practice these are the only log calls in the app: `ViewPage` calls three of the five helpers, so the `logs` table holds only page-open and page-load lines, and nothing logs inside a transaction today (grep 2026-11-13, including direct `Logger.log(` calls).
 LogDateHelpers.kt: Unix timestamp conversion for query ranges. Returns seconds, but `LogEntry.timestamp` is milliseconds; unused today.
 
 AI Lab (z.zndroid.lab):
 Experimental UX testing ground, isolated from production code.
 Rules: See AI_LAB_RULE.md. Modular folder structure in experiments/.
-Core: `LabNavigator` (lab/core/LabNavigator.kt: routes Production and ScrollLab, plus undo-bar and multi-select toggles) and `LabContainer` (lab/core/LabManager.kt: overlays and the smart button). Experiments: scroll, selection, undoredo.
+Core: `LabNavigator` (lab/core/LabNavigator.kt: routes Production and ScrollLab, plus undo-bar and multi-select toggles) and `LabContainer` (lab/core/LabManager.kt: overlays and the smart button). Experiments: scroll, selection, undoredo. NOT MOUNTED (2026-11-13): `MainActivity` uses `MainContainer`, not `LabContainer`, so none of this is reachable from the app today (see MISSING_AND_STALE.md). The undo bar is a mock (empty click handlers) and the selection overlay only draws a trail.
 
 Dev Tools page (only the nav button is gated by BuildConfig.DEBUG; the route and page compile into release):
 Replaces the old "Internal Test Suite". Route is still `test_results`. The nav button label is "Dev Tools".
@@ -144,9 +144,9 @@ Replaces the old "Internal Test Suite". Route is still `test_results`. The nav b
 
 ## Native libraries and bindings
 
-`./update.sh` (in android_app/) copies the Rust build outputs into this tree: `.so` files into `app/src/main/jniLibs/arm64-v8a/` and the generated UniFFI Kotlin into `app/src/main/java/` (`com/z_db/android_mascot`, `rustlib/*`, `uniffi/protocol`). It deletes and recreates those Kotlin folders every run, so never hand-edit generated files there. It patches package names with sed (`uniffi.my_yrs_lib` and `uniffi.text_diff` become `rustlib.*`), fails if a source file is missing (the matching `build_android.sh` must have run first, `../build_all_android.sh` builds everything), and prints "a change was made" or "nothing changed". Hashed `libmy_yrs_lib-<hash>.so` files come from the `client_table_blueprints` output and are removed and recopied each run.
+`./update.sh` (in android_app/) copies the Rust build outputs into this tree: `.so` files into `app/src/main/jniLibs/arm64-v8a/` and the generated UniFFI Kotlin into `app/src/main/java/` (`com/z_db/android_mascot`, `rustlib/*`, `uniffi/protocol`). It deletes and recreates those Kotlin folders every run, so never hand-edit generated files there. It patches package names with sed (`uniffi.my_yrs_lib` and `uniffi.text_diff` become `rustlib.*`), fails if a source file is missing (the matching `build_android.sh` must have run first, `../build_all_android.sh` builds the five ZakkeN crates, not z_db's `protocol` and `db_wrapper` (those come from `z_db/build_web_and_android.sh`), and then runs `update.sh`), and prints "a change was made" or "nothing changed". Hashed `libmy_yrs_lib-<hash>.so` files come from the `client_table_blueprints` output and are removed and recopied each run.
 
-Only arm64-v8a is shipped, minSdk is 31, compileSdk 37. `build_and_install.sh` runs `:app:assembleDebug`, refuses emulators, needs exactly one physical device (or `ANDROID_SERIAL`), installs with `adb install -r`, and exits non-zero if the `z.zndroid.debug.BEGIN_TEST_TX` receiver is not registered.
+Only arm64-v8a is shipped, minSdk is 31, compileSdk and targetSdk 37. Build tooling (gradle/libs.versions.toml): AGP 9.3.3, Kotlin 2.2.10, Compose BOM 2026.02.01, navigation-compose 2.10.0. JNA is hard-coded in app/build.gradle.kts as 5.16.0 (aar); the catalog's 5.19.1 entry is unused. `build_and_install.sh` runs `:app:assembleDebug`, refuses emulators unless `ANDROID_SERIAL` names one, needs exactly one physical device otherwise, installs with `adb install -r`, and exits non-zero if the `z.zndroid.debug.BEGIN_TEST_TX` receiver is not registered.
 
 ## End-to-end testing
 
