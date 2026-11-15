@@ -32,6 +32,17 @@ use crate::socket_web as socket;
 #[cfg(target_os = "android")]
 use crate::socket_android as socket;
 
+/// `Send` where a multi-threaded runtime needs it (android), nothing
+/// where it doesn't (wasm32, single-threaded).
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSend for T {}
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + ?Sized> MaybeSend for T {}
+
 struct Shared {
     pending: Mutex<HashMap<usize, oneshot::Sender<Vec<u8>>>>,
     next_request_id: AtomicUsize,
@@ -65,7 +76,7 @@ impl Router {
         on_conn_status: S,
     ) -> RouterHandle
     where
-        S: FnMut(ConnStatus) + 'static,
+        S: FnMut(ConnStatus) + MaybeSend + 'static,
     {
         let (outgoing_tx, outgoing_rx) = unbounded::<Message>();
         let (incoming_tx, incoming_rx) = unbounded::<Response>();

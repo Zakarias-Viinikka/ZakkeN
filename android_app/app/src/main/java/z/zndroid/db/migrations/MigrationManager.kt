@@ -9,14 +9,14 @@ import rustlib.client_table_blueprints.newKeyValueItem
 
 object MigrationManager {
     private const val SCHEMA_VERSION_KEY = "schema_version"
+    private const val KV_TABLE = "key_value_storage"
 
     fun migrate(db: LiveForever) {
-        // Begin an all-or-nothing transaction for bootstrapping or updating
         db.beginAllOrNothing()
         try {
             val currentVersionInt = readCurrentVersion(db)
             if (currentVersionInt == null) {
-                // Fresh Database -> bootstrap LATEST directly
+                // Fresh database (key_value_storage does not exist yet).
                 SchemaVersion.LATEST.bootstrap(db)
                 writeVersion(db, SchemaVersion.LATEST.version)
             } else {
@@ -28,8 +28,13 @@ object MigrationManager {
                 var currentVersion = SchemaVersion.fromInt(currentVersionInt)
                 while (currentVersion.version < SchemaVersion.LATEST.version) {
                     val nextVersion = currentVersion.updateOnce(db)
-                    if (nextVersion == currentVersion) {
-                        break
+                    if (nextVersion.version <= currentVersion.version) {
+                        // A step that does not advance leaves the app on an
+                        // old schema with no error. Fail loudly instead.
+                        throw IllegalStateException(
+                            "Migration stuck at v${currentVersion.version}: " +
+                            "updateOnce returned v${nextVersion.version}"
+                        )
                     }
                     currentVersion = nextVersion
                 }
@@ -44,26 +49,43 @@ object MigrationManager {
         }
     }
 
+    /**
+     * Returns the persisted schema version, or null if this is a fresh
+     * database (the storage table has not been created yet). Any other
+     * failure is re-thrown so a broken read on a populated DB does not
+     * silently get treated as a fresh one.
+     */
     private fun readCurrentVersion(db: LiveForever): Int? {
-        return try {
-            val result = db.getData(GetDataIn(
-                "key_value_storage",
-                SelectArguments.Single(SelectArgument.XEqualY("key", SCHEMA_VERSION_KEY)),
-                emptyList()
-            ))
-            val row = result.rows.firstOrNull() ?: return null
-            val valueCol = row.cols.lastOrNull() as? Col.Text ?: return null
-            valueCol.v1.toIntOrNull()
+        val tables = try {
+            db.listTables().tableNames
         } catch (e: Exception) {
-            // key_value_storage table doesn't even exist yet
-            null
+            throw IllegalStateException(
+                "MigrationManager.readCurrentVersion: listTables failed: ${e.message}", e
+            )
         }
+        if (KV_TABLE !in tables) return null
+
+        val result = try {
+            db.getData(GetDataIn(
+                KV_TABLE,
+                SelectArguments.Single(SelectArgument.XEqualY("key", SCHEMA_VERSION_KEY)),
+                listOf("value")
+            ))
+        } catch (e: Exception) {
+            throw IllegalStateException(
+                "MigrationManager.readCurrentVersion: getData failed: ${e.message}", e
+            )
+        }
+
+        val row = result.rows.firstOrNull() ?: return null
+        val valueCol = row.cols.firstOrNull() as? Col.Text ?: return null
+        return valueCol.v1.toIntOrNull()
     }
 
     private fun writeVersion(db: LiveForever, version: Int) {
         try {
             db.deleteRowWhere(DeleteRowWhereIn(
-                "key_value_storage",
+                KV_TABLE,
                 SelectArguments.Single(SelectArgument.XEqualY("key", SCHEMA_VERSION_KEY))
             ))
         } catch (_: Exception) {}
@@ -75,6 +97,6 @@ object MigrationManager {
             expectedNames = listOf("key", "value"),
             skipId = true
         )
-        db.insertData(InsertDataIn("key_value_storage", values))
+        db.insertData(InsertDataIn(KV_TABLE, values))
     }
 }

@@ -28,11 +28,14 @@ fun DevToolsPage(onBack: () -> Unit) {
         if (isRunning) return
         isRunning = true
         scope.launch(Dispatchers.IO) {
-            val runningResult = DevCheckResult(id, DevCheckRegistry.checks.first { it.id == id }.name, DevCheckStatus.RUNNING)
-            results[id] = runningResult
-            val result = DevCheckRegistry.runOne(id)
-            results[id] = result
-            isRunning = false
+            try {
+                val runningResult = DevCheckResult(id, DevCheckRegistry.checks.first { it.id == id }.name, DevCheckStatus.RUNNING)
+                results[id] = runningResult
+                val result = DevCheckRegistry.runOne(id)
+                results[id] = result
+            } finally {
+                isRunning = false
+            }
         }
     }
 
@@ -42,14 +45,18 @@ fun DevToolsPage(onBack: () -> Unit) {
         scope.launch(Dispatchers.IO) {
             var passCount = 0
             var failCount = 0
-            DevCheckRegistry.checks.forEach { check ->
-                results[check.id] = DevCheckResult(check.id, check.name, DevCheckStatus.RUNNING)
-                val result = DevCheckRegistry.runOne(check.id)
-                results[check.id] = result
-                if (result.status == DevCheckStatus.PASS) passCount++ else if (result.status == DevCheckStatus.FAIL) failCount++
+            try {
+                DevCheckRegistry.checks.forEach { check ->
+                    results[check.id] = DevCheckResult(check.id, check.name, DevCheckStatus.RUNNING)
+                    val result = DevCheckRegistry.runOne(check.id)
+                    results[check.id] = result
+                    if (result.status == DevCheckStatus.PASS) passCount++
+                    else if (result.status == DevCheckStatus.FAIL) failCount++
+                }
+            } finally {
+                Log.i("DevCheck", "summary pass=$passCount fail=$failCount")
+                isRunning = false
             }
-            Log.i("DevCheck", "summary pass=$passCount fail=$failCount")
-            isRunning = false
         }
     }
 
@@ -88,7 +95,11 @@ fun DevToolsPage(onBack: () -> Unit) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(DevCheckRegistry.checks) { check ->
                     val res = results[check.id] ?: DevCheckResult(check.id, check.name, DevCheckStatus.NOT_RUN)
-                    DevCheckCard(res, enabled = !isRunning) { launchCheck(check.id) }
+                    DevCheckCard(
+                        result = res,
+                        canRun = !isRunning,
+                        onRun = { launchCheck(check.id) }
+                    )
                 }
                 item {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -102,7 +113,10 @@ fun DevToolsPage(onBack: () -> Unit) {
                     TextButton(
                         onClick = {
                             if (!isRunning) {
-                                scope.launch(Dispatchers.IO) { Actions.wipeAllPageData() }
+                                scope.launch(Dispatchers.IO) {
+                                    val r = Actions.wipeAllPageData()
+                                    Log.i("DevAction", "id=${r.id} status=${r.status} message=${r.message.take(200)}")
+                                }
                             }
                         },
                         enabled = !isRunning,
@@ -113,7 +127,10 @@ fun DevToolsPage(onBack: () -> Unit) {
                     TextButton(
                         onClick = {
                             if (!isRunning) {
-                                scope.launch(Dispatchers.IO) { Actions.seedThreePages() }
+                                scope.launch(Dispatchers.IO) {
+                                    val r = Actions.seedThreePages()
+                                    Log.i("DevAction", "id=${r.id} status=${r.status} message=${r.message.take(200)}")
+                                }
                             }
                         },
                         enabled = !isRunning,
@@ -126,7 +143,10 @@ fun DevToolsPage(onBack: () -> Unit) {
 }
 
 @Composable
-private fun DevCheckCard(result: DevCheckResult, enabled: Boolean, onClick: () -> Unit) {
+private fun DevCheckCard(result: DevCheckResult, canRun: Boolean, onRun: () -> Unit) {
+    // Tapping the card toggles the detail. Running the check is a
+    // separate button so a failed card can be inspected without
+    // re-running it.
     var expanded by remember { mutableStateOf(false) }
     val color = when (result.status) {
         DevCheckStatus.PASS -> Color(0xFF4CAF50)
@@ -134,9 +154,10 @@ private fun DevCheckCard(result: DevCheckResult, enabled: Boolean, onClick: () -
         DevCheckStatus.RUNNING -> Color(0xFFAA8800)
         DevCheckStatus.NOT_RUN -> MaterialTheme.colorScheme.outline
     }
+    val hasDetail = result.detail != null
     Card(
         modifier = Modifier.fillMaxWidth().testTag("check_${result.id}"),
-        onClick = { if (enabled) onClick() else expanded = !expanded },
+        onClick = { if (hasDetail) expanded = !expanded },
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.5f))
     ) {
@@ -151,11 +172,19 @@ private fun DevCheckCard(result: DevCheckResult, enabled: Boolean, onClick: () -
                     style = MaterialTheme.typography.titleMedium,
                     color = color
                 )
-                Text(
-                    text = result.id,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = result.id,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = onRun,
+                        enabled = canRun,
+                        modifier = Modifier.testTag("run_${result.id}")
+                    ) { Text("Run") }
+                }
             }
             if (result.message.isNotEmpty()) {
                 Text(

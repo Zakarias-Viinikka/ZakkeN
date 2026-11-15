@@ -32,7 +32,7 @@ suspend fun createNewPage(name: String): Result<Unit> {
                 try {
                     val diff = getDiff("", name)
                     val editCtx = editBlock(boss, titleId, diff, sessionId)
-                        ?: throw Exception("edit_block returned null on non-empty rename")
+                        ?: throw Exception("edit_block returned null while setting the new page's title")
                     editBlockRequiresThreeDbInserts(editCtx).getOrThrow()
                 } finally {
                     boss.destroy()
@@ -58,13 +58,9 @@ suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
                 try {
                     val currentTitle = boss.readBlock(titleId)
                         ?: throw Exception("Title block $titleId not present in yrs for page $pageId")
-                    // Historical note: this used to be a workaround for a
-                    // text_diff.getDiff bug that no longer exists — current
-                    // getDiff returns Replace correctly. Sending Replace
-                    // directly is still fine for a rename, so this stays.
-                    // Original comment: text_diff.getDiff returns a bare Delete when
-                    // old and new share no prefix and no suffix, dropping the new
-                    // text. A rename is a replace, so send Replace explicitly.
+                    // A rename is a whole-title replace, so send Replace
+                    // directly. getDiff would produce the same thing today,
+                    // but Replace keeps the intent explicit at the call site.
                     val diff = DiffResult.Replace(currentTitle, newTitle, 0u)
                     val editCtx = editBlock(boss, titleId, diff, sessionId)
                         ?: throw Exception("edit_block returned null on rename")

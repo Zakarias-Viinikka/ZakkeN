@@ -13,12 +13,19 @@ object OutboxIntegrityCheck {
     const val NAME = "Outbox integrity (sketches decode, targets exist)"
 
     suspend fun run(): DevCheckResult {
-        if (DbManager.executeNative { }.isFailure) {
-            return pass(ID, NAME, "Skipped (DB not ready)")
+        try {
+            DbManager.awaitReady()
+        } catch (e: Exception) {
+            return fail(ID, NAME, "DB not ready: ${e.message}", e.stackTraceToString())
         }
         return try {
-            val pagesOut = DbManager.getPages().getOrThrow()
-            val existingPages = pagesOut.mapNotNull { (it.cols.getOrNull(1) as? Col.Text)?.v1 }.toSet()
+            val existingPages = DbManager.getData(GetDataIn(
+                "pages",
+                SelectArguments.Single(SelectArgument.All),
+                listOf("page_id")
+            )).getOrThrow().rows.mapNotNull {
+                (it.cols.firstOrNull() as? Col.Text)?.v1
+            }.toSet()
 
             val letters = DbManager.getData(GetDataIn(
                 "client_love_letter",

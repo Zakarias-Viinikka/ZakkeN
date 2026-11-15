@@ -109,5 +109,6 @@ pub fn request_name(r: &Request) -> &'static str {
         Request::GetPagesByIds => "asked for specific pages",
         Request::ReconcileLetters => "sent a reconcile batch",
         Request::GetReconcileVersion => "asked for the reconcile version",
+        Request::Export => "asked for an export",
     }
 }

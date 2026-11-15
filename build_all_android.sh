@@ -6,6 +6,10 @@ cd "$(dirname "$0")"
 # These are all the projects in ZakkeN that have android builds, and the
 # specific crates that produce android output:
 #
+#   smart_frac_index/build_android.sh
+#     - crate: smart_frac_index
+#     - output: android_output_folder/
+#
 #   yrs/build_android.sh
 #     - crate: yrs (lib name my_yrs_lib)
 #     - output: android_output_folder/
@@ -29,11 +33,13 @@ cd "$(dirname "$0")"
 # z_db's protocol and db_wrapper also produce android output, but they
 # live in a different repo and are built by z_db/build_web_and_android.sh.
 
+./smart_frac_index/build_android.sh
 ./yrs/build_android.sh
 ./love_letter/build_android.sh
 ./text_diff/build_android.sh
 ./client_table_blueprints/build_android.sh
 ./cqrs_state_synchronization/data_builder_for_operations_that_need_to_be_correct/build_android.sh
+./zakken_server/client_internals/server_link/build_android.sh
 
 echo "all android builds done"
 

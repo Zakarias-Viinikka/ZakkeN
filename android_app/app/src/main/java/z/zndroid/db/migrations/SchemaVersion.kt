@@ -2,9 +2,12 @@ package z.zndroid.db.migrations
 
 import com.z_db.android_mascot.LiveForever
 import uniffi.protocol.*
+import z.zndroid.db.migrations.schemas.FrozenTable
 import z.zndroid.db.migrations.schemas.Version0
 import z.zndroid.db.migrations.schemas.Version1
 import z.zndroid.db.migrations.schemas.Version2
+import z.zndroid.db.migrations.schemas.Version3
+import z.zndroid.db.migrations.schemas.Version4
 import z.zndroid.protocol.SafeRowMapper
 
 enum class SchemaVersion(val version: Int) {
@@ -18,38 +21,31 @@ enum class SchemaVersion(val version: Int) {
         }
 
         override fun updateOnce(db: LiveForever): SchemaVersion {
-            // Migrate uncommitted_diffs to client_love_letter
-            try {
-                db.copyTable(CopyTableIn("uncommitted_diffs", "client_love_letter"))
-                db.dropTable(DropTableIn("uncommitted_diffs"))
-            } catch (_: Exception) {}
+            db.copyTable(CopyTableIn("uncommitted_diffs", "client_love_letter"))
+            db.dropTable(DropTableIn("uncommitted_diffs"))
 
-            // Migrate every_block_in_existence
             db.addColumn(AddColumnIn("every_block_in_existence", ColumnDef("is_part_of_main_menu_page", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "false", autoincrement = false)))
             db.addColumn(AddColumnIn("every_block_in_existence", ColumnDef("page_is_disabled", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "false", autoincrement = false)))
 
-            // Migrate key_value_storage
-            val oldKvData = try {
-                db.getData(GetDataIn("key_value_storage", SelectArguments.Single(SelectArgument.XEqualY("1", "1")), emptyList()))
-            } catch (_: Exception) { null }
+            val oldKvData = db.getData(GetDataIn("key_value_storage", SelectArguments.Single(SelectArgument.XEqualY("1", "1")), emptyList()))
 
             db.dropTable(DropTableIn("key_value_storage"))
             db.createTable(CreateTableIn("key_value_storage", Version1.keyValueStorageColumns()))
 
-            oldKvData?.rows?.forEach { oldRow ->
+            oldKvData.rows.forEach { oldRow ->
                 val k = (oldRow.cols.getOrNull(0) as? Col.Text)?.v1
                 val v = (oldRow.cols.getOrNull(1) as? Col.Text)?.v1
-                if (k != null && v != null) {
-                    val newRow = rustlib.client_table_blueprints.newKeyValueItem(k, v)
-                    val values = SafeRowMapper.mapRow(newRow, Version1.keyValueStorageColumns(), listOf("key", "value"), skipId = true)
-                    db.insertData(InsertDataIn("key_value_storage", values))
+                if (k == null || v == null) {
+                    throw IllegalStateException(
+                        "V0->V1: key_value_storage row with unreadable key or value during migration"
+                    )
                 }
+                val newRow = rustlib.client_table_blueprints.newKeyValueItem(k, v)
+                val values = SafeRowMapper.mapRow(newRow, Version1.keyValueStorageColumns(), listOf("key", "value"), skipId = true)
+                db.insertData(InsertDataIn("key_value_storage", values))
             }
 
-            // Create logs table
             db.createTable(CreateTableIn("logs", Version1.logsColumns()))
-
-            // Create incoming_love_letters table
             db.createTable(CreateTableIn("incoming_love_letters", Version1.incomingLoveLettersColumns()))
 
             return V1
@@ -67,21 +63,13 @@ enum class SchemaVersion(val version: Int) {
         }
 
         override fun updateOnce(db: LiveForever): SchemaVersion {
-            // V1 → V2: repair DBs that were bootstrapped when Version1 still
-            // meant "uncommitted_diffs" and later renamed to "client_love_letter"
-            // in place without bumping the version. Those DBs have the old
-            // table but not the new one.
             val tables = db.listTables().tableNames
             if ("client_love_letter" !in tables) {
                 if ("uncommitted_diffs" in tables) {
-                    try {
-                        db.copyTable(CopyTableIn("uncommitted_diffs", "client_love_letter"))
-                        db.dropTable(DropTableIn("uncommitted_diffs"))
-                    } catch (_: Exception) {}
+                    db.copyTable(CopyTableIn("uncommitted_diffs", "client_love_letter"))
+                    db.dropTable(DropTableIn("uncommitted_diffs"))
                 } else {
-                    try {
-                        db.createTable(CreateTableIn("client_love_letter", Version1.clientLoveLetterColumns()))
-                    } catch (_: Exception) {}
+                    db.createTable(CreateTableIn("client_love_letter", Version1.clientLoveLetterColumns()))
                 }
             }
             return V2
@@ -99,20 +87,35 @@ enum class SchemaVersion(val version: Int) {
         }
 
         override fun updateOnce(db: LiveForever): SchemaVersion {
-            // V2 -> V3: every_block_in_existence.position (REAL) became
-            // frac_position (TEXT). The project is pre-data; drop and
-            // recreate rather than migrating rows.
-            try {
-                db.dropTable(DropTableIn("every_block_in_existence"))
-            } catch (_: Exception) {}
+            db.dropTable(DropTableIn("every_block_in_existence"))
             db.createForeignTable(CreateForeignTableIn("every_block_in_existence", Version2.everyBlockInExistenceColumns(), Version2.getForeignDefEveryBlockInExistence()))
             return V3
         }
     },
     V3(3) {
         override fun bootstrap(db: LiveForever) {
-            V2.bootstrap(db)
+            createSnapshotTables(db, Version3.tables)
         }
+
+        override val snapshotTables: List<FrozenTable> get() = Version3.tables
+
+        override fun updateOnce(db: LiveForever): SchemaVersion {
+            // V3 -> V4: add seen_server_letters. Simple additive table;
+            // no FK, no existing rows to migrate.
+            val newTable = Version4.tables.firstOrNull { it.name == "seen_server_letters" }
+                ?: throw IllegalStateException(
+                    "V3->V4: Version4.tables is missing seen_server_letters"
+                )
+            db.createTable(CreateTableIn(newTable.name, newTable.columns))
+            return V4
+        }
+    },
+    V4(4) {
+        override fun bootstrap(db: LiveForever) {
+            createSnapshotTables(db, Version4.tables)
+        }
+
+        override val snapshotTables: List<FrozenTable> get() = Version4.tables
 
         override fun updateOnce(db: LiveForever): SchemaVersion = this
     };
@@ -120,8 +123,15 @@ enum class SchemaVersion(val version: Int) {
     abstract fun bootstrap(db: LiveForever)
     abstract fun updateOnce(db: LiveForever): SchemaVersion
 
+    /**
+     * The tables this version's bootstrap creates, as a frozen snapshot.
+     * Non-null only for versions whose bootstrap goes through a
+     * `Version<N>.tables`. Used by the device-side drift check.
+     */
+    open val snapshotTables: List<FrozenTable>? get() = null
+
     companion object {
-        val LATEST = V3
+        val LATEST = V4
 
         fun fromInt(version: Int): SchemaVersion {
             return values().find { it.version == version }
@@ -129,49 +139,141 @@ enum class SchemaVersion(val version: Int) {
         }
 
         /**
-         * Verifies that the latest frozen version matches the live Rust blueprints.
-         * This should be called in build-time/internal tests to ensure a version bump
-         * is performed when blueprints change.
+         * Device-side backstop for the host-side schema_drift_detector.
+         * Compares the live Rust blueprints (loaded from the shipped
+         * arm64 .so) against the LATEST frozen snapshot. Names the table
+         * and first differing column on failure, rather than dumping two
+         * lists.
+         *
+         * Skips only when the native libs can't load (host JVM tests).
          */
         fun assertLatestMatchesBlueprints() {
-            val livePages = try { rustlib.client_table_blueprints.newTablePages() } catch (e: Throwable) { return }
-            val frozenPages = Version1.pagesColumns()
-            if (livePages != frozenPages) throw SchemaMismatchException("pages", livePages, frozenPages)
+            val snapshot = LATEST.snapshotTables ?: return
+            val liveColumns: Map<String, List<ColumnDef>>
+            val liveFks: Map<String, List<ForeignKeyDef>>
+            try {
+                liveColumns = mapOf(
+                    "pages" to rustlib.client_table_blueprints.newTablePages(),
+                    "every_block_in_existence" to rustlib.client_table_blueprints.newTableEveryBlockInExistence(),
+                    "client_love_letter" to rustlib.client_table_blueprints.newTableClientLoveLetter(),
+                    "key_value_storage" to rustlib.client_table_blueprints.newTableKeyValueStorage(),
+                    "backlinks" to rustlib.client_table_blueprints.newTableBacklinks(),
+                    "incoming_love_letters" to rustlib.client_table_blueprints.newTableIncomingLoveLetters(),
+                    "logs" to rustlib.client_table_blueprints.newTableLogs(),
+                    "seen_server_letters" to rustlib.client_table_blueprints.newTableSeenServerLetters(),
+                )
+                liveFks = mapOf(
+                    "backlinks" to rustlib.client_table_blueprints.getForeignDefBacklinks(),
+                    "every_block_in_existence" to rustlib.client_table_blueprints.getForeignDefEveryBlockInExistence(),
+                )
+            } catch (e: UnsatisfiedLinkError) {
+                return
+            } catch (e: NoClassDefFoundError) {
+                return
+            }
 
-            val liveClientLove = rustlib.client_table_blueprints.newTableClientLoveLetter()
-            val frozenClientLove = Version1.clientLoveLetterColumns()
-            if (liveClientLove != frozenClientLove) throw SchemaMismatchException("client_love_letter", liveClientLove, frozenClientLove)
+            for (table in snapshot) {
+                val liveCols = liveColumns[table.name]
+                    ?: throw IllegalStateException(
+                        "assertLatestMatchesBlueprints: no live blueprint for '${table.name}'. " +
+                        "Add it to the fetch map in SchemaVersion.assertLatestMatchesBlueprints."
+                    )
+                compareTableColumns(table.name, liveCols, table.columns)
+                val liveFkList = liveFks[table.name] ?: emptyList()
+                compareTableFks(table.name, liveFkList, table.foreignKeys)
+            }
+        }
 
-            val liveBacklinks = rustlib.client_table_blueprints.newTableBacklinks()
-            val frozenBacklinks = Version1.backlinksColumns()
-            if (liveBacklinks != frozenBacklinks) throw SchemaMismatchException("backlinks", liveBacklinks, frozenBacklinks)
+        private fun createSnapshotTables(db: LiveForever, tables: List<FrozenTable>) {
+            for (t in tables) {
+                if (t.foreignKeys.isEmpty()) {
+                    db.createTable(CreateTableIn(t.name, t.columns))
+                } else {
+                    db.createForeignTable(CreateForeignTableIn(t.name, t.columns, t.foreignKeys))
+                }
+            }
+        }
 
-            val liveEveryBlock = rustlib.client_table_blueprints.newTableEveryBlockInExistence()
-            val frozenEveryBlock = Version2.everyBlockInExistenceColumns()
-            if (liveEveryBlock != frozenEveryBlock) throw SchemaMismatchException("every_block_in_existence", liveEveryBlock, frozenEveryBlock)
+        private fun compareTableColumns(name: String, live: List<ColumnDef>, frozen: List<ColumnDef>) {
+            val liveByName = live.associateBy { it.name }
+            val frozenByName = frozen.associateBy { it.name }
 
-            val liveKV = rustlib.client_table_blueprints.newTableKeyValueStorage()
-            val frozenKV = Version1.keyValueStorageColumns()
-            if (liveKV != frozenKV) throw SchemaMismatchException("key_value_storage", liveKV, frozenKV)
+            for (fc in frozen) {
+                val lc = liveByName[fc.name]
+                    ?: throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': removed in Rust (frozen V${LATEST.version} expects it)"
+                    )
+                if (lc.columnType != fc.columnType) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': type changed. Frozen='${fc.columnType}' Rust='${lc.columnType}'"
+                    )
+                }
+                if (lc.primaryKey != fc.primaryKey) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': primaryKey changed. Frozen=${fc.primaryKey} Rust=${lc.primaryKey}"
+                    )
+                }
+                if (lc.notNull != fc.notNull) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': notNull changed. Frozen=${fc.notNull} Rust=${lc.notNull}"
+                    )
+                }
+                if (lc.unique != fc.unique) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': unique changed. Frozen=${fc.unique} Rust=${lc.unique}"
+                    )
+                }
+                if (lc.defaultValue != fc.defaultValue) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': default changed. Frozen='${fc.defaultValue}' Rust='${lc.defaultValue}'"
+                    )
+                }
+                if (lc.autoincrement != fc.autoincrement) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${fc.name}': autoincrement changed. Frozen=${fc.autoincrement} Rust=${lc.autoincrement}"
+                    )
+                }
+            }
 
-            val liveIncoming = rustlib.client_table_blueprints.newTableIncomingLoveLetters()
-            val frozenIncoming = Version1.incomingLoveLettersColumns()
-            if (liveIncoming != frozenIncoming) throw SchemaMismatchException("incoming_love_letters", liveIncoming, frozenIncoming)
+            for (lc in live) {
+                if (lc.name !in frozenByName) {
+                    throw SchemaMismatchException(
+                        "table '$name' column '${lc.name}': added in Rust, not in frozen V${LATEST.version}"
+                    )
+                }
+            }
 
-            val liveLogs = rustlib.client_table_blueprints.newTableLogs()
-            val frozenLogs = Version1.logsColumns()
-            if (liveLogs != frozenLogs) throw SchemaMismatchException("logs", liveLogs, frozenLogs)
+            val liveOrder = live.map { it.name }
+            val frozenOrder = frozen.map { it.name }
+            if (liveOrder != frozenOrder) {
+                throw SchemaMismatchException(
+                    "table '$name': column order changed. Frozen=$frozenOrder Rust=$liveOrder"
+                )
+            }
+        }
 
-            val liveFKBacklinks = rustlib.client_table_blueprints.getForeignDefBacklinks()
-            val frozenFKBacklinks = Version1.getForeignDefBacklinks()
-            if (liveFKBacklinks != frozenFKBacklinks) throw SchemaMismatchException("FK backlinks", liveFKBacklinks, frozenFKBacklinks)
-
-            val liveFKEveryBlock = rustlib.client_table_blueprints.getForeignDefEveryBlockInExistence()
-            val frozenFKEveryBlock = Version2.getForeignDefEveryBlockInExistence()
-            if (liveFKEveryBlock != frozenFKEveryBlock) throw SchemaMismatchException("FK every_block", liveFKEveryBlock, frozenFKEveryBlock)
+        private fun compareTableFks(name: String, live: List<ForeignKeyDef>, frozen: List<ForeignKeyDef>) {
+            if (live.size != frozen.size) {
+                throw SchemaMismatchException(
+                    "table '$name': foreign key count changed. Frozen=${frozen.size} Rust=${live.size}"
+                )
+            }
+            for (i in live.indices) {
+                val l = live[i]
+                val f = frozen[i]
+                if (l.columnName != f.columnName ||
+                    l.referencedTableName != f.referencedTableName ||
+                    l.referencedColumnName != f.referencedColumnName
+                ) {
+                    throw SchemaMismatchException(
+                        "table '$name': FK[$i] changed. " +
+                        "Frozen=(${f.columnName}->${f.referencedTableName}.${f.referencedColumnName}) " +
+                        "Rust=(${l.columnName}->${l.referencedTableName}.${l.referencedColumnName})"
+                    )
+                }
+            }
         }
     }
 
-    class SchemaMismatchException(tableName: String, live: Any, frozen: Any) :
-        Exception("Schema mismatch for table '$tableName'. Live blueprints have changed. Please freeze a new version.\nLive: $live\nFrozen: $frozen")
+    class SchemaMismatchException(message: String) : Exception(message)
 }

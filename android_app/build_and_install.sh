@@ -55,6 +55,16 @@ elif command -v gradle >/dev/null 2>&1; then GRADLE=gradle
 else fail "no gradlew and no gradle on PATH"
 fi
 
+log "schema drift check"
+if [ -x ./schema_drift_detector/check.sh ]; then
+  if ! ./schema_drift_detector/check.sh; then
+    fail "schema drift detected — see the report above"
+  fi
+  export SCHEMA_DRIFT_CHECKED=1
+else
+  log "schema_drift_detector/check.sh missing; skipping"
+fi
+
 log "gradle :app:assembleDebug"
 "$GRADLE" :app:assembleDebug
 
@@ -65,7 +75,12 @@ log "apk: $APK"
 log "installing on $SERIAL..."
 adb -s "$SERIAL" install -r "$APK"
 
-if adb -s "$SERIAL" shell dumpsys package "$APP_PACKAGE" 2>/dev/null | grep -q "z.zndroid.debug.BEGIN_TEST_TX"; then
+# Capture first, grep second. Piping dumpsys directly into `grep -q`
+# under `set -o pipefail` can report failure when adb is killed by
+# SIGPIPE right after grep's early exit, producing a false "NOT
+# registered" even when the receiver is there.
+DUMP_PKG="$(adb -s "$SERIAL" shell dumpsys package "$APP_PACKAGE" 2>/dev/null || true)"
+if printf '%s' "$DUMP_PKG" | grep -q "z.zndroid.debug.BEGIN_TEST_TX"; then
   ok "installed; TestTransactionReceiver is registered"
 else
   echo "${C_RED}[build]${C_RESET} installed, but z.zndroid.debug.BEGIN_TEST_TX is NOT registered." >&2

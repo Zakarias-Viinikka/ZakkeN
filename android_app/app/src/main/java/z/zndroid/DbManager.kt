@@ -5,10 +5,11 @@ import com.z_db.android_mascot.LiveForever
 import uniffi.protocol.*
 import rustlib.client_table_blueprints.*
 import z.zndroid.Storage.StorageInitializer
-import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import z.zndroid.protocol.SafeRowMapper
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
@@ -21,8 +22,6 @@ object DbManager {
     // Serializes all database access to prevent race conditions.
     // This mirrors the 'askQueue' logic from the WASM worker implementation.
     private val dbMutex = Mutex()
-
-    internal val activeTransactionThreadLocal = ThreadLocal<DbTransactionElement?>()
 
     /**
      * Element to store the active database instance in the coroutine context during a transaction.
@@ -93,46 +92,52 @@ object DbManager {
      * Acquisition of dbMutex ensures that only one DB operation runs at a time.
      * If a transaction is active in the current coroutine context, it bypasses the mutex.
      */
-    internal suspend inline fun <T> executeNative(crossinline block: (LiveForever) -> T): Result<T> {
-        val transactionElement = coroutineContext[DbTransactionElement]
-        if (transactionElement != null) {
-            return try {
-                Result.success(block(transactionElement.db))
-            } catch (e: Exception) {
-                val errorMessage = e.message ?: e.toString()
-                Result.failure(LocalDbError.QueryFailed(errorMessage))
+    // The body runs on Dispatchers.IO. A UI caller on Main suspends here;
+    // the yrs/uniffi work happens off the UI thread. Inside an open
+    // transaction the coroutine context already carries a DbTransactionElement,
+    // so re-entrant calls find the DB directly without touching the mutex
+    // (the mutex was taken by the outermost withTransaction).
+    internal suspend inline fun <T> executeNative(crossinline block: (LiveForever) -> T): Result<T> =
+        withContext(Dispatchers.IO) {
+            val transactionElement = coroutineContext[DbTransactionElement]
+            if (transactionElement != null) {
+                return@withContext try {
+                    Result.success(block(transactionElement.db))
+                } catch (e: Exception) {
+                    val errorMessage = e.message ?: e.toString()
+                    Result.failure(LocalDbError.QueryFailed(errorMessage))
+                }
             }
-        }
 
-        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
-        return dbMutex.withLock {
-            try {
-                Result.success(block(currentDb))
-            } catch (e: Exception) {
-                // Use e.toString() if message is null to ensure we don't return "null" to the UI
-                val errorMessage = e.message ?: e.toString()
-                Result.failure(LocalDbError.QueryFailed(errorMessage))
+            val currentDb = db ?: return@withContext Result.failure(LocalDbError.NotReady)
+            dbMutex.withLock {
+                try {
+                    Result.success(block(currentDb))
+                } catch (e: Exception) {
+                    val errorMessage = e.message ?: e.toString()
+                    Result.failure(LocalDbError.QueryFailed(errorMessage))
+                }
             }
         }
-    }
 
     /**
      * Executes a block of database operations within a single transaction.
      * If a transaction is already active in the current coroutine context, the block
      * is executed directly within that transaction (re-entrant).
      */
-    suspend fun <T> withTransaction(block: suspend () -> T): Result<T> {
-        val transactionElement = coroutineContext[DbTransactionElement]
-        if (transactionElement != null) {
-            return try {
-                Result.success(block())
-            } catch (e: Exception) {
-                Result.failure(e)
+    suspend fun <T> withTransaction(block: suspend () -> T): Result<T> =
+        withContext(Dispatchers.IO) {
+            val transactionElement = coroutineContext[DbTransactionElement]
+            if (transactionElement != null) {
+                return@withContext try {
+                    Result.success(block())
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
             }
-        }
 
-        val currentDb = db ?: return Result.failure(LocalDbError.NotReady)
-        return dbMutex.withLock {
+            val currentDb = db ?: return@withContext Result.failure(LocalDbError.NotReady)
+            dbMutex.withLock {
             // Test-tool hook: TestTransactionReceiver may be holding an external
             // transaction open across the whole test run. In that case, run the
             // block inside it without beginning/committing a nested transaction.
@@ -149,7 +154,6 @@ object DbManager {
             }
 
             val txElement = DbTransactionElement(currentDb)
-            activeTransactionThreadLocal.set(txElement)
             try {
                 currentDb.beginAllOrNothing()
                 val result = kotlinx.coroutines.withContext(txElement) {
@@ -165,11 +169,9 @@ object DbManager {
                 }
                 txElement.onRollback(currentDb)
                 Result.failure(e)
-            } finally {
-                activeTransactionThreadLocal.remove()
+            }
             }
         }
-    }
 
     @Volatile
     private var externalTransactionActive: Boolean = false
@@ -215,22 +217,30 @@ object DbManager {
         }
     }
 
-    // Call this once from MainApplication (runs on background thread)
+    // Call this once from MainApplication (runs on background thread).
+    // Sets `db` only after migrations and storage init succeed, so callers
+    // that skip awaitReady() see NotReady instead of a half-migrated DB.
+    // If init fails, readyDeferred completes exceptionally so callers that
+    // do await it get the failure instead of hanging forever.
     suspend fun init(context: Context) {
-        if (db == null) {
-            val dbPath = context.getDatabasePath("my_database.db").absolutePath
-            val newDb = LiveForever(dbPath)
-            
-            db = newDb
-
-            // Execute migrations or bootstrap via MigrationManager
-            z.zndroid.db.migrations.MigrationManager.migrate(newDb)
-
-            // Ensure storage initial default records exist (e.g. user_id)
-            // StorageInitializer will now just populate records since tables are created by MigrationManager
-            StorageInitializer.create_all_these_things_if_they_dont_exist()
-            
-            readyDeferred.complete(Unit)
+        // Under dbMutex so a concurrent second init call cannot race past
+        // the `db != null` check and open the database / run migrations
+        // twice. migrate and StorageInitializer take the LiveForever
+        // directly and don't call back into DbManager, so this cannot
+        // deadlock against itself.
+        dbMutex.withLock {
+            if (db != null) return
+            try {
+                val dbPath = context.getDatabasePath("my_database.db").absolutePath
+                val newDb = LiveForever(dbPath)
+                z.zndroid.db.migrations.MigrationManager.migrate(newDb)
+                StorageInitializer.create_all_these_things_if_they_dont_exist(newDb)
+                db = newDb
+                readyDeferred.complete(Unit)
+            } catch (e: Throwable) {
+                readyDeferred.completeExceptionally(e)
+                throw e
+            }
         }
     }
 
@@ -279,65 +289,21 @@ object DbManager {
     }
 
     /**
-     * Update the binary snapshot for a page.
-     */
-    suspend fun updatePageSnapshot(pageId: String, snapshot: ByteArray): Result<Unit> = executeNative { db ->
-        // We first need the internal 'id' to use editColInRow
-        val pageRow = getPageSync(db, pageId)
-        val internalId = when (val idCol = pageRow.cols.firstOrNull()) {
-            is Col.Integer -> idCol.v1.toString()
-            is Col.Text -> idCol.v1
-            else -> throw Exception("Could not determine internal ID for page $pageId")
-        }
-        
-        db.editColInRow(EditColInRowIn(
-            tableName = "pages",
-            rowId = internalId,
-            column = "blobbed_page",
-            newValue = Col.Blob(snapshot)
-        ))
-    }
-
-    /**
-     * Internal sync helper to avoid nested executeNative calls which would deadlock the Mutex.
-     */
-    private fun getPageSync(db: LiveForever, pageId: String): Row {
-        val result = db.getData(GetDataIn(
-            "pages",
-            SelectArguments.Single(SelectArgument.XEqualY("page_id", pageId)),
-            emptyList()
-        ))
-        return result.rows.firstOrNull() ?: throw Exception("Page not found: $pageId")
-    }
-
-    /**
-     * Deprecated: use z.zndroid.actions.createNewPage instead. Kept so
-     * anything else that references it still compiles during the migration.
-     */
-    suspend fun addPage(title: String, isMainMenu: Boolean = false): Result<Unit> {
-        return z.zndroid.actions.createNewPage(title)
-    }
-
-    /**
-     * Deprecated: use z.zndroid.actions.renamePage instead.
-     */
-    suspend fun renamePage(pageId: String, newTitle: String): Result<Unit> {
-        return z.zndroid.actions.renamePage(pageId, newTitle)
-    }
-
-    /**
      * Dev-only hard delete. The nav "Delete" button calls
      * z.zndroid.actions.disablePage instead, which hides the page from
-     * the menu without removing rows. This function is kept for the dev
-     * page's "Wipe all page data" action and for scratch-page cleanup in
+     * the menu without removing rows. Kept for scratch-page cleanup in
      * the ops checks.
+     *
+     * Removes every row that names this page: block mirror rows, backlinks
+     * in both directions, love letters targeting the page, and the page row
+     * itself. Leaves the page's blob to yrs (nothing else reads it once the
+     * page row is gone).
      */
-    suspend fun deletePage(pageId: String): Result<Unit> = hardDeletePage(pageId)
-
     suspend fun hardDeletePage(pageId: String): Result<Unit> = withTransaction {
         deleteRowsByColumn("every_block_in_existence", "id_of_page_i_belong_to", pageId)
         deleteRowsByColumn("backlinks", "page_that_holds_link_id", pageId)
         deleteRowsByColumn("backlinks", "page_being_linked_to_id", pageId)
+        deleteRowsByColumn("client_love_letter", "target_id", pageId)
         deleteRowsByColumn("pages", "page_id", pageId)
     }
 

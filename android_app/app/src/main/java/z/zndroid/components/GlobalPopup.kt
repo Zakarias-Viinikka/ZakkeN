@@ -15,38 +15,42 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import android.util.Log
 import z.zndroid.BuildConfig
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * Global Manager for showing popups (Snackbars) from anywhere in the app.
  *
  * Two entry points:
- *   - show(msg)      : informational popup; tester records but does not fail.
- *   - showError(msg) : error popup; tester fails the step that produced it.
+ *   - show(msg)      : informational popup.
+ *   - showError(msg) : error popup; prefixed with "ERROR:" in the snackbar.
  *
- * Error popups are rendered with an "ERROR: " prefix so the running-app a11y
- * tree distinguishes them without needing access to logcat.
+ * Both are fire-and-forget: the backing channel is unbounded, so a popup
+ * requested before [GlobalPopup] first composes (or while the activity is
+ * being recreated) sits in the channel and is shown by the next collector.
  */
 internal data class Popup(val text: String, val isError: Boolean)
 
 object GlobalPopupManager {
-    private val messages = MutableSharedFlow<Popup>()
+    private val channel = Channel<Popup>(capacity = Channel.UNLIMITED)
 
-    suspend fun show(message: String) {
+    fun show(message: String) {
         if (BuildConfig.DEBUG) {
             Log.i("GlobalPopup", message)
         }
-        messages.emit(Popup(message, isError = false))
+        channel.trySend(Popup(message, isError = false))
     }
 
-    suspend fun showError(message: String) {
+    fun showError(message: String) {
         if (BuildConfig.DEBUG) {
             Log.e("GlobalPopup", message)
         }
@@ -54,18 +58,20 @@ object GlobalPopupManager {
             .removePrefix("ERROR: ")
             .removePrefix("Error: ")
             .removePrefix("error: ")
-        messages.emit(Popup(cleaned, isError = true))
+        channel.trySend(Popup(cleaned, isError = true))
     }
 
-    internal val events = messages
+    internal val events = channel.receiveAsFlow()
 }
 
 @Composable
 fun GlobalPopup() {
     val state = remember { SnackbarHostState() }
+    var currentIsError by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        GlobalPopupManager.events.collectLatest { msg ->
+        GlobalPopupManager.events.collect { msg ->
+            currentIsError = msg.isError
             val display = if (msg.isError) "ERROR: ${msg.text}" else msg.text
             state.showSnackbar(
                 message = display,
@@ -73,6 +79,22 @@ fun GlobalPopup() {
                 duration = SnackbarDuration.Indefinite
             )
         }
+    }
+
+    val containerColor = if (currentIsError) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val contentColor = if (currentIsError) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    val actionColor = if (currentIsError) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
@@ -90,9 +112,9 @@ fun GlobalPopup() {
                         Text(data.visuals.actionLabel ?: "Dismiss")
                     }
                 },
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                actionContentColor = MaterialTheme.colorScheme.error,
+                containerColor = containerColor,
+                contentColor = contentColor,
+                actionContentColor = actionColor,
                 shape = MaterialTheme.shapes.medium
             ) {
                 Text(text = data.visuals.message)

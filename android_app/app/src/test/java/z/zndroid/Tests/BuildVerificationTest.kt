@@ -5,16 +5,20 @@ import org.junit.Assert.*
 import kotlinx.coroutines.runBlocking
 
 /**
- * A JUnit wrapper that runs your internal app tests during the Gradle build.
- * Note: If your tests require the native Rust libraries, they must be available
- * for the host architecture (JNA path) for this to pass at compile time.
+ * A JUnit wrapper that runs the app's internal tests during `./gradlew test`.
+ *
+ * Tests that need the native Rust libraries skip on the host JVM. Two error
+ * types mean "not available here" and are treated as skips:
+ *   - UnsatisfiedLinkError: the .so could not be loaded.
+ *   - NoClassDefFoundError: a class the JNA binder needs is missing.
+ * Every other Throwable propagates and fails the build.
  */
 class BuildVerificationTest {
 
     @Test
     fun runInternalSuite() = runBlocking {
         println("--- Running Build-Time Verification ---")
-        
+
         var allPassed = true
         val failures = mutableListOf<String>()
 
@@ -31,6 +35,8 @@ class BuildVerificationTest {
                 }
             } catch (e: UnsatisfiedLinkError) {
                 println("SKIPPED (Native library not found on host)")
+            } catch (e: NoClassDefFoundError) {
+                println("SKIPPED (Required class not found on host)")
             } catch (e: Exception) {
                 println("ERROR")
                 allPassed = false
@@ -41,7 +47,7 @@ class BuildVerificationTest {
         if (!allPassed) {
             fail("Internal verification failed:\n" + failures.joinToString("\n"))
         }
-        
+
         println("--- Verification Complete: ALL PASSED ---")
     }
 }

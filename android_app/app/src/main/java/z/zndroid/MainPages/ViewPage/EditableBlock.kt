@@ -67,6 +67,9 @@ fun EditableBlock(
                 delay(16)
             }
         }
+        // The row never laid out. Clear the request so a stale pendingFocus
+        // doesn't silently block the next focus attempt once it composes.
+        session.clearPendingFocus()
     }
 
     Row(

@@ -25,21 +25,21 @@ object StorageAccess {
             }
         }
 
-        // 2. Fallback to SQLite
+        // 2. Fallback to SQLite. Ask for only `value` so a later column
+        // added to the table can't silently shift which position is read.
         val result = DbManager.getData(GetDataIn(
             "key_value_storage",
             SelectArguments.Single(SelectArgument.XEqualY("key", key.keyName)),
-            emptyList()
+            listOf("value")
         ))
-        
+
         return result.fold(
             onSuccess = { data ->
                 val row = data.rows.firstOrNull()
                 if (row == null) {
                     RummageResult.NotFound
                 } else {
-                    // In key_value_storage: value is the last column
-                    val valueCol = row.cols.lastOrNull()
+                    val valueCol = row.cols.firstOrNull()
                     if (valueCol is Col.Text) {
                         RummageResult.StringValue(valueCol.v1)
                     } else {
@@ -68,14 +68,14 @@ object StorageAccess {
      * Persists or updates a value in the key-value storage for a given [StorageKey].
      */
     suspend fun setValue(key: StorageKey, value: String) {
-        // Update memory cache if applicable
-        if (FastStorageKey.fromStorageKey(key) != null) {
-            FastStorage.set(key, value)
-        }
-
         DbManager.withTransaction {
-            val current = rummage_in_storage(key)
-            if (current is RummageResult.StringValue) {
+            val existing = DbManager.getData(GetDataIn(
+                "key_value_storage",
+                SelectArguments.Single(SelectArgument.XEqualY("key", key.keyName)),
+                emptyList()
+            )).getOrThrow()
+
+            if (existing.rows.firstOrNull() != null) {
                 DbManager.editColInRowWhere(EditColInRowWhereIn(
                     tableName = "key_value_storage",
                     whereClause = SelectArguments.Single(
@@ -94,6 +94,10 @@ object StorageAccess {
                 )
                 DbManager.insertData(InsertDataIn("key_value_storage", values)).getOrThrow()
             }
+        }
+        // Only update the memory cache after the DB write succeeded.
+        if (FastStorageKey.fromStorageKey(key) != null) {
+            FastStorage.set(key, value)
         }
     }
 }

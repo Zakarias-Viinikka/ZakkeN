@@ -18,7 +18,7 @@ class SessionMonotonicityTest : AppTest {
             if (s1 == s2) {
                 TestResult(name, true, "Session id stable at $s1")
             } else {
-                TestResult(name, false, "Session id changed without navigation: $s1 -> $s2")
+                TestResult(name, false, "Session id should be stable during a session: $s1 -> $s2")
             }
         } catch (e: Exception) {
             TestResult(name, false, "Exception occurred", e.stackTraceToString())

@@ -1,0 +1,22 @@
+[package]
+name = "schema_drift_detector"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[lib]
+name = "schema_drift_detector"
+path = "src/lib.rs"
+
+[[bin]]
+name = "schema_drift_detector"
+path = "src/main.rs"
+
+[dependencies]
+client_table_blueprints = { path = "../../client_table_blueprints" }
+protocol = { path = "/home/zakke/ProgStuff/z_db/protocol" }
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"

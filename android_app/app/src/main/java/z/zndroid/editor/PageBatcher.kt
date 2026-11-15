@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -46,33 +47,57 @@ class PageBatcher(
     private var debounceJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // Set by [destroy]. Once true, pushes are dropped and no further flush
+    // runs. This stops a batcher whose session has been replaced from
+    // flushing edits against a destroyed boss.
+    @Volatile
+    private var destroyed = false
+
     fun pushEdit(blockId: String, diff: DiffResult) {
+        if (destroyed) return
         synchronized(queueLock) { queue.add(Entry.Edit(blockId, diff)) }
         armDebounce()
     }
 
     fun pushAdd(blockId: String, content: String, position: PositionToInsert) {
+        if (destroyed) return
         synchronized(queueLock) { queue.add(Entry.Add(blockId, content, position)) }
         armDebounce()
     }
 
     fun pushDelete(blockId: String) {
+        if (destroyed) return
         synchronized(queueLock) { queue.add(Entry.Delete(blockId)) }
         armDebounce()
     }
 
     fun pushMove(blockId: String, above: String?, below: String?) {
+        if (destroyed) return
         synchronized(queueLock) { queue.add(Entry.Move(blockId, above, below)) }
         armDebounce()
     }
 
     private fun armDebounce() {
+        if (destroyed) return
         debounceJob?.cancel()
         debounceJob = scope.launch {
             delay(500)
-            debounceJob = null
+            if (destroyed) return@launch
             runOneFlush()
         }
+    }
+
+    /**
+     * Permanently stops this batcher. Pending queued entries are dropped;
+     * callers must flush first if they want them written. The scope is
+     * cancelled so no later debounce can fire.
+     */
+    fun destroy() {
+        destroyed = true
+        debounceJob?.cancel()
+        debounceJob = null
+        synchronized(queueLock) { queue.clear() }
+        scope.cancel()
     }
 
     suspend fun flushNow(): Result<Unit> {
@@ -81,13 +106,28 @@ class PageBatcher(
         return runOneFlush()
     }
 
-    suspend fun closeAndFlush(): Result<Unit> = flushNow()
+    suspend fun flush(): Result<Unit> = flushNow()
 
-    fun closeAndFlushAsync() {
+    /** True while edits are queued or a flush is writing. */
+    fun hasPending(): Boolean =
+        flushMutex.isLocked || synchronized(queueLock) { queue.isNotEmpty() }
+
+    /** Flush in the background, then run [then] (even if the flush failed). */
+    fun flushThen(then: () -> Unit) {
+        if (destroyed) return
+        scope.launch {
+            runOneFlush()
+            then()
+        }
+    }
+
+    fun flushAsync() {
+        if (destroyed) return
         scope.launch { runOneFlush() }
     }
 
     private suspend fun runOneFlush(): Result<Unit> = flushMutex.withLock {
+        if (destroyed) return Result.success(Unit)
         val batch: List<Entry> = synchronized(queueLock) {
             if (queue.isEmpty()) return Result.success(Unit)
             val b = queue.toList()

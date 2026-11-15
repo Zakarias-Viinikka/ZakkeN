@@ -1,0 +1,21 @@
+[package]
+name = "server_link"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+futures = "0.3"
+log = "0.4"
+serde = "1"
+thiserror = "2"
+uniffi = { version = "0.32", features = ["cli"] }
+server_protocol = { path = "../../shared/server_protocol" }
+shared_internals = { path = "../shared_internals" }
+drift_guard_shared.path = "/home/zakke/ProgStuff/ZakkeN/drift_guard_and_ops/shared"
+protocol.path = "/home/zakke/ProgStuff/z_db/protocol"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.14"

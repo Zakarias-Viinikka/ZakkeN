@@ -1,0 +1,6 @@
+[crate-roots]
+server_link = "."
+
+[crates.server_link.bindings.kotlin]
+package_name = "rustlib.server_link"
+android = true

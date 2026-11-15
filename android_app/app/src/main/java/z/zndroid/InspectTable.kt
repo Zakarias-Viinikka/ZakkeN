@@ -144,7 +144,24 @@ fun InspectTable(tableName: String, onBack: () -> Unit) {
                                 // Delete Button
                                 IconButton(onClick = {
                                     coroutineScope.launch {
-                                        val idCol = row.cols.firstOrNull()
+                                        // Look up the id column by name rather than
+                                        // trusting position 0. The read asks for
+                                        // only "id", so this is currently
+                                        // position 0, but a future column-order
+                                        // change shouldn't silently break delete.
+                                        val idColIndex = run {
+                                            val check = DbManager.checkTable(
+                                                uniffi.protocol.CheckTableIn(tableName)
+                                            ).getOrNull()
+                                            check?.columns?.indexOfFirst { it.name == "id" } ?: -1
+                                        }
+                                        if (idColIndex < 0) {
+                                            GlobalPopupManager.showError(
+                                                "Delete failed: could not find id column on '$tableName'"
+                                            )
+                                            return@launch
+                                        }
+                                        val idCol = row.cols.getOrNull(idColIndex)
                                         val idStr = when (idCol) {
                                             is Col.Integer -> idCol.v1.toString()
                                             is Col.Text -> idCol.v1

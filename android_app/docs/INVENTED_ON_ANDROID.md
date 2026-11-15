@@ -67,7 +67,7 @@ To verify: On a phone, drag-to-reorder competes with text selection and the scro
 
 ### Session id per process, not per navigation
 
-Android: `SessionManager.initialize` reads the last stored id and increments once per process start. THIS IS NOT TRUE IN CODE as of 2026-11-13: `MainActivity` still registers `addOnDestinationChangedListener { SessionManager.incrementAndStore() }`, so the id bumps on every navigation. This entry describes the intended design. `SessionMonotonicityTest` asserts it stays stable during a session.
+Android: `SessionManager.initialize` reads the last stored id and sets `currentSessionId` to that + 1, synchronously, and persists it. Navigation does not bump it — `MainActivity` no longer registers a destination-changed listener. A read error or unparsable stored value leaves the counter alone rather than resetting to 0. `SessionMonotonicityTest` asserts it stays stable during a session.
 
 Web: `init_session_id` in `db/init.rs` increments on each page reload.
 
@@ -91,13 +91,73 @@ To verify: any future UI redesign can re-label the button. Nothing depends on th
 
 ### Dev Tools page + DevCheck registry
 
-Android: page (only the nav button is debug-gated; the route compiles into release) at route `test_results` (nav button "Dev Tools"). `DevCheckRegistry.checks` is the one list of checks. `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
+Android: page at route `test_results` (nav button "Dev Tools"). Both the nav button and the route are gated behind `BuildConfig.DEBUG` in `MainActivity`, so the page is unreachable in release even though its class is compiled in. `DevCheckRegistry.checks` is the one list of checks. `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
 
 Web: `web_interface/src/db/dev_actions.rs` has `insert_three_pages`, `delete_everything`, `reset_everything` exposed as buttons in a dev sidebar. No pass/fail check registry.
 
 Reference location: `cqrs_state_synchronization/web_interface/src/db/dev_actions.rs` and `web_interface/src/leptos_components/dev_panel`.
 
 To verify: If web ever wants an equivalent check registry, the shape here is the template: one list, one runner, one summary log line that e2e can read.
+
+---
+
+### Server sync via uniffi foreign-trait listener
+
+Android: Rust owns the websocket (`shared_internals::socket_android::spawn`). Kotlin implements `LinkListener`, an uniffi `with_foreign` trait. Rust calls it from a background thread; Kotlin's implementation only does `trySend` on a `Channel`, then returns immediately.
+
+Web: the spontaneous-push callback is a wasm-bindgen `Closure` that runs on the JS thread, so there is no thread handoff and no channel.
+
+Reference location: `zakken_server/client_internals/server_link/src/lib.rs` (`forward_spontaneous`), `android_app/app/src/main/java/z/zndroid/sync/owner_of_interacting_with_server/SyncListener.kt`.
+
+To verify: N/A — this is the correct uniffi shape for a foreign callback. No behavioural parity check needed.
+
+---
+
+### SpontaneousInbox channels
+
+Android: `SpontaneousInbox.kt` holds the Channels that carry pushes from the Rust callback thread into the receive loop's coroutine. Four channels: `letters` (UNLIMITED, one per incoming letter), `socketReconnected` (CONFLATED, "log in again"), `loggedIn` (CONFLATED, "pull unsent"), `driftChanged` (UNLIMITED, one per drift push).
+
+Web: no equivalent. Wasm runs on one JS thread, so the receive loop reads directly from the router's response stream.
+
+Reference location: `android_app/app/src/main/java/z/zndroid/sync/owner_of_interacting_with_server/SpontaneousInbox.kt`.
+
+To verify: N/A — Kotlin-thread plumbing.
+
+---
+
+### Auto-mint server_url
+
+Android: `connectToSocket()` reads `server_url` from `key_value_storage`. If unset, it mints `ws://127.0.0.1:3000/ws`, stores it (so it's visible and editable via Database Inspector), and uses it. With `adb reverse tcp:3000 tcp:3000` set up, a fresh install just connects.
+
+Web: hard-codes `ws://127.0.0.1:<port>/ws` in `owner_of_interacting_with_server/core.rs` because the browser and server share a machine.
+
+Reference location: `android_app/app/src/main/java/z/zndroid/sync/owner_of_interacting_with_server/Core.kt` (`mintServerUrl`), `cqrs_state_synchronization/web_interface/src/owner_of_interacting_with_server/core.rs`.
+
+To verify: fresh install with `adb reverse` set up should connect without touching Database Inspector.
+
+---
+
+### recoverUnknownPage
+
+Android: when a letter arrives for a page the client doesn't have, `ReceiveLoop.recoverUnknownPage` fetches the page via `getPagesByIds`, applies it as `CreateNewPage` (and `DisablePage` when disabled), then re-applies the letter. If the server doesn't have the page either, the letter is acked and dropped (persisted in `seen_server_letters` so it doesn't replay).
+
+Web: same logic in `main_for_applying_love_letter_from_server_to_app.rs`, no separate function name.
+
+Reference location: `android_app/app/src/main/java/z/zndroid/sync/owner_of_interacting_with_server/ReceiveLoop.kt` (`recoverUnknownPage`), web's `main_for_applying_love_letter_from_server_to_app.rs`.
+
+To verify: two clients, one creates a page, the other receives an edit for it before its own bootstrap has pulled. Compare with web's behavior on the same edge.
+
+---
+
+### Auto-mint default drift version on first connect
+
+Android: fresh install has no `client_drift_version`, so `afterLogin` accepts the server's version and stores it. Lonewolf fires only when a stored version disagrees with the server's.
+
+Web: same logic, `owner_of_interacting_with_server/main_for_login_and_registration.rs`.
+
+Reference location: `android_app/app/src/main/java/z/zndroid/sync/owner_of_interacting_with_server/Login.kt` (`afterLogin`).
+
+To verify: N/A — mirrors web.
 
 ---
 

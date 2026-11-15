@@ -25,14 +25,46 @@ capture_hash() {
     fi
 }
 
+# Source files this script will copy. Every entry MUST be a regular file
+# before anything is deleted. If any source is missing, exit before
+# touching the destination tree.
+SOURCES=(
+    "$Z_DB/db_wrapper/android_output/jniLibs/arm64-v8a/libdb_wrapper.so"
+    "$Z_DB/protocol/output_for_android/jniLibs/arm64-v8a/libprotocol.so"
+    "$Z_DB/db_wrapper/android_output/kotlin/com/z_db/android_mascot/db_wrapper.kt"
+    "$Z_DB/db_wrapper/android_output/kotlin/uniffi/protocol/protocol.kt"
+    "$ZAKKEN/client_table_blueprints/android_output/jniLibs/arm64-v8a/libclient_table_blueprints.so"
+    "$ZAKKEN/client_table_blueprints/android_output/kotlin/rustlib/client_table_blueprints/client_table_blueprints.kt"
+    "$ZAKKEN/smart_frac_index/android_output_folder/jniLibs/arm64-v8a/libsmart_frac_index.so"
+    "$ZAKKEN/smart_frac_index/android_output_folder/kotlin/rustlib/smart_frac_index/smart_frac_index.kt"
+    "$ZAKKEN/yrs/android_output_folder/jniLibs/arm64-v8a/libmy_yrs_lib.so"
+    "$ZAKKEN/yrs/android_output_folder/kotlin/rustlib/my_yrs_lib/my_yrs_lib.kt"
+    "$ZAKKEN/love_letter/android_output_folder/jniLibs/arm64-v8a/liblove_letter.so"
+    "$ZAKKEN/love_letter/android_output_folder/kotlin/rustlib/love_letter/love_letter.kt"
+    "$ZAKKEN/text_diff/android_output_folder/jniLibs/arm64-v8a/libtext_diff.so"
+    "$ZAKKEN/text_diff/android_output_folder/kotlin/rustlib/text_diff/text_diff.kt"
+    "$ZAKKEN/cqrs_state_synchronization/data_builder_for_operations_that_need_to_be_correct/android_output/jniLibs/arm64-v8a/libdata_builder_for_operations_that_need_to_be_correct.so"
+    "$ZAKKEN/cqrs_state_synchronization/data_builder_for_operations_that_need_to_be_correct/android_output/kotlin/rustlib/data_builder_for_operations_that_need_to_be_correct/data_builder_for_operations_that_need_to_be_correct.kt"
+    "$ZAKKEN/zakken_server/client_internals/server_link/android_output_folder/jniLibs/arm64-v8a/libserver_link.so"
+    "$ZAKKEN/zakken_server/client_internals/server_link/android_output_folder/kotlin/rustlib/server_link/server_link.kt"
+)
+
+MISSING=()
+for src in "${SOURCES[@]}"; do
+    [ -f "$src" ] || MISSING+=("$src")
+done
+if [ "${#MISSING[@]}" -ne 0 ]; then
+    echo -e "${RED}Error: the following build outputs are missing:${NC}" >&2
+    for src in "${MISSING[@]}"; do
+        echo -e "${RED}  $src${NC}" >&2
+    done
+    echo -e "${RED}Did the corresponding build_android.sh run? Nothing was touched.${NC}" >&2
+    exit 1
+fi
+
 copy_file() {
     local src="$1"
     local dest="$2"
-    if [ ! -f "$src" ]; then
-        echo -e "${RED}Error: source file does not exist: $src${NC}"
-        echo -e "${RED}Did the corresponding build_android.sh run?${NC}"
-        exit 1
-    fi
     cp "$src" "$dest"
 }
 
@@ -44,7 +76,8 @@ capture_hash "$JNI_DEST/libprotocol.so"
 capture_hash "$KOTLIN_DEST/com/z_db/android_mascot/db_wrapper.kt"
 capture_hash "$JNI_DEST/libclient_table_blueprints.so"
 capture_hash "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
-capture_hash "$KOTLIN_DEST/uniffi/protocol/protocol.kt"
+capture_hash "$JNI_DEST/libsmart_frac_index.so"
+capture_hash "$KOTLIN_DEST/rustlib/smart_frac_index/smart_frac_index.kt"
 capture_hash "$JNI_DEST/libmy_yrs_lib.so"
 capture_hash "$KOTLIN_DEST/rustlib/my_yrs_lib/my_yrs_lib.kt"
 capture_hash "$JNI_DEST/liblove_letter.so"
@@ -54,14 +87,19 @@ capture_hash "$KOTLIN_DEST/rustlib/text_diff/text_diff.kt"
 capture_hash "$JNI_DEST/libdata_builder_for_operations_that_need_to_be_correct.so"
 capture_hash "$KOTLIN_DEST/rustlib/data_builder_for_operations_that_need_to_be_correct/data_builder_for_operations_that_need_to_be_correct.kt"
 
+capture_hash "$JNI_DEST/libserver_link.so"
+capture_hash "$KOTLIN_DEST/rustlib/server_link/server_link.kt"
+
 # -- Clear old versions --
 rm -rf "$KOTLIN_DEST/com/z_db/android_mascot"
 rm -rf "$KOTLIN_DEST/rustlib/client_table_blueprints"
+rm -rf "$KOTLIN_DEST/rustlib/smart_frac_index"
 rm -rf "$KOTLIN_DEST/rustlib/my_yrs_lib"
 rm -rf "$KOTLIN_DEST/uniffi/protocol"
 rm -rf "$KOTLIN_DEST/rustlib/love_letter"
 rm -rf "$KOTLIN_DEST/rustlib/text_diff"
 rm -rf "$KOTLIN_DEST/rustlib/data_builder_for_operations_that_need_to_be_correct"
+rm -rf "$KOTLIN_DEST/rustlib/server_link"
 
 # -- Hashed my_yrs_lib deps in jniLibs: remove old ones, we'll re-copy below --
 rm -f "$JNI_DEST"/libmy_yrs_lib-*.so
@@ -70,11 +108,13 @@ rm -f "$JNI_DEST"/libmy_yrs_lib-*.so
 mkdir -p "$JNI_DEST"
 mkdir -p "$KOTLIN_DEST/com/z_db/android_mascot"
 mkdir -p "$KOTLIN_DEST/rustlib/client_table_blueprints"
+mkdir -p "$KOTLIN_DEST/rustlib/smart_frac_index"
 mkdir -p "$KOTLIN_DEST/rustlib/my_yrs_lib"
 mkdir -p "$KOTLIN_DEST/uniffi/protocol"
 mkdir -p "$KOTLIN_DEST/rustlib/love_letter"
 mkdir -p "$KOTLIN_DEST/rustlib/text_diff"
 mkdir -p "$KOTLIN_DEST/rustlib/data_builder_for_operations_that_need_to_be_correct"
+mkdir -p "$KOTLIN_DEST/rustlib/server_link"
 
 # -- z_db --
 echo "Copying z_db..."
@@ -102,6 +142,13 @@ done
 # patch package mismatch
 sed -i 's/uniffi\.my_yrs_lib/rustlib.my_yrs_lib/g' \
     "$KOTLIN_DEST/rustlib/client_table_blueprints/client_table_blueprints.kt"
+
+# -- smart_frac_index --
+echo "Copying smart_frac_index..."
+copy_file "$ZAKKEN/smart_frac_index/android_output_folder/jniLibs/arm64-v8a/libsmart_frac_index.so" \
+          "$JNI_DEST/libsmart_frac_index.so"
+copy_file "$ZAKKEN/smart_frac_index/android_output_folder/kotlin/rustlib/smart_frac_index/smart_frac_index.kt" \
+          "$KOTLIN_DEST/rustlib/smart_frac_index/smart_frac_index.kt"
 
 # -- yrs --
 echo "Copying yrs..."
@@ -139,11 +186,17 @@ copy_file "$ZAKKEN/cqrs_state_synchronization/data_builder_for_operations_that_n
 copy_file "$ZAKKEN/cqrs_state_synchronization/data_builder_for_operations_that_need_to_be_correct/android_output/kotlin/rustlib/data_builder_for_operations_that_need_to_be_correct/data_builder_for_operations_that_need_to_be_correct.kt" \
           "$KOTLIN_DEST/rustlib/data_builder_for_operations_that_need_to_be_correct/data_builder_for_operations_that_need_to_be_correct.kt"
 
-# the builder's Kotlin may reference the same package names as the others
 sed -i 's/uniffi\.my_yrs_lib/rustlib.my_yrs_lib/g' \
     "$KOTLIN_DEST/rustlib/data_builder_for_operations_that_need_to_be_correct/data_builder_for_operations_that_need_to_be_correct.kt"
 sed -i 's/uniffi\.text_diff/rustlib.text_diff/g' \
     "$KOTLIN_DEST/rustlib/data_builder_for_operations_that_need_to_be_correct/data_builder_for_operations_that_need_to_be_correct.kt"
+
+# -- server_link --
+echo "Copying server_link..."
+copy_file "$ZAKKEN/zakken_server/client_internals/server_link/android_output_folder/jniLibs/arm64-v8a/libserver_link.so" \
+          "$JNI_DEST/libserver_link.so"
+copy_file "$ZAKKEN/zakken_server/client_internals/server_link/android_output_folder/kotlin/rustlib/server_link/server_link.kt" \
+          "$KOTLIN_DEST/rustlib/server_link/server_link.kt"
 
 # -- Change detection --
 for file in "${FILES_TO_CHECK[@]}"; do
@@ -165,4 +218,14 @@ if [ $CHANGED -eq 1 ]; then
     echo "a change was made"
 else
     echo "nothing changed"
+fi
+
+# Surface schema drift right after a native rebuild. Warn-only here:
+# building the native libs is a legitimate step mid-schema-change, and
+# failing the copy would leave the app on older bindings. build_and_install.sh
+# and the Gradle hook fail hard.
+if [ -x ./schema_drift_detector/check.sh ]; then
+    echo
+    echo "schema drift check (warn-only):"
+    ./schema_drift_detector/check.sh --warn-only || true
 fi

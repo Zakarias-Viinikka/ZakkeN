@@ -15,14 +15,16 @@ object Actions {
     suspend fun wipeAllPageData(): DevCheckResult {
         return try {
             DbManager.withTransaction {
-                listOf("pages", "every_block_in_existence", "client_love_letter", "backlinks").forEach { table ->
+                // Children first, parent last: pages has foreign keys
+                // pointing from the other three.
+                listOf("every_block_in_existence", "backlinks", "client_love_letter", "pages").forEach { table ->
                     DbManager.deleteRowWhere(DeleteRowWhereIn(
                         table,
                         SelectArguments.Single(SelectArgument.All)
                     )).getOrThrow()
                 }
             }.getOrThrow()
-            Log.i(TAG, "wiped pages, every_block_in_existence, client_love_letter, backlinks")
+            Log.i(TAG, "wiped every_block_in_existence, backlinks, client_love_letter, pages")
             pass("actions.wipe_all_page_data", "Wipe all page data", "Deleted all rows from 4 tables.")
         } catch (e: Exception) {
             fail("actions.wipe_all_page_data", "Wipe all page data", "Exception: ${e.message}", e.stackTraceToString())

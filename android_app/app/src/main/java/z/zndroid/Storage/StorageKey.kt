@@ -13,7 +13,8 @@ enum class StorageKey(val keyName: String) {
     USER_ID("user_id"),
 
     /**
-     * The current session counter. Increments on app launches and screen changes.
+     * The current session counter. Increments once per process start.
+     * Navigation does not bump it.
      */
     SESSION_ID("session_id"),
 

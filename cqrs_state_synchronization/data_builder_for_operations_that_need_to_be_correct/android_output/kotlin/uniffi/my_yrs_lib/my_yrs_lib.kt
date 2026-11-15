@@ -675,6 +675,10 @@ internal object IntegrityCheckingUniffiLib {
     }
 
     internal fun ensureInitialized() = Unit
+    external fun uniffi_my_yrs_lib_checksum_func_freeze_doc_builder(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_func_freeze_doc(
+    ): Int
     external fun uniffi_my_yrs_lib_checksum_func_generate_unique_key(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_func_create_bookmark(
@@ -732,6 +736,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block_meta(
+    ): Int
+    external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_set_frac_position(
     ): Int
     external fun uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info(
     ): Int
@@ -841,12 +847,18 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_read_block_meta(`ptr`: Long,`blockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_method_bossofyrs_set_frac_position(`ptr`: Long,`blockId`: RustBuffer.ByValue,`newFracPosition`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_show_doc_info(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_snapshot(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_method_bossofyrs_user_id(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_func_freeze_doc_builder(`boss`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_my_yrs_lib_fn_func_freeze_doc(`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
     external fun uniffi_my_yrs_lib_fn_func_generate_unique_key(`userId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_my_yrs_lib_fn_func_create_bookmark(`boss`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -974,6 +986,12 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if ((lib.uniffi_my_yrs_lib_checksum_func_freeze_doc_builder() and 0xFFFF) != 59626) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_my_yrs_lib_checksum_func_freeze_doc() and 0xFFFF) != 41716) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_my_yrs_lib_checksum_func_generate_unique_key() and 0xFFFF) != 10378) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1059,6 +1077,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_read_block_meta() and 0xFFFF) != 14555) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_set_frac_position() and 0xFFFF) != 49144) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_my_yrs_lib_checksum_method_bossofyrs_show_doc_info() and 0xFFFF) != 38564) {
@@ -1486,6 +1507,15 @@ public interface BossOfYrsInterface {
     
     fun `readBlockMeta`(`blockId`: kotlin.String): kotlin.String?
     
+    /**
+     * Directly overwrite a block's frac position. The reconcile letter
+     * builder uses this instead of `move_block` because the caller
+     * already computed the final frac via smart_frac_index; recomputing
+     * it from neighbour ids at apply time is unsafe in a batch (a
+     * later move's neighbour might still be in its old position).
+     */
+    fun `setFracPosition`(`blockId`: kotlin.String, `newFracPosition`: kotlin.String)
+    
     fun `showDocInfo`()
     
     fun `snapshot`(): kotlin.ByteArray
@@ -1784,6 +1814,28 @@ open class BossOfYrs: Disposable, AutoCloseable, BossOfYrsInterface
     }
     )
     }
+    
+
+    
+    /**
+     * Directly overwrite a block's frac position. The reconcile letter
+     * builder uses this instead of `move_block` because the caller
+     * already computed the final frac via smart_frac_index; recomputing
+     * it from neighbour ids at apply time is unsafe in a batch (a
+     * later move's neighbour might still be in its old position).
+     */
+    @Throws(YrsException::class)override fun `setFracPosition`(`blockId`: kotlin.String, `newFracPosition`: kotlin.String)
+        = 
+    callWithHandle {
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_method_bossofyrs_set_frac_position(
+        it,
+        
+        FfiConverterString.lower(`blockId`),
+        FfiConverterString.lower(`newFracPosition`),_status)
+}
+    }
+    
     
 
     
@@ -2679,6 +2731,97 @@ public object FfiConverterTypeErrorInfo: FfiConverterRustBuffer<ErrorInfo> {
 
 
 
+data class FreezeDocInput (
+    var `pageId`: kotlin.String
+    , 
+    var `userId`: kotlin.String
+    , 
+    var `time`: kotlin.String
+    , 
+    var `blocks`: List<FrozenBlock>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeFreezeDocInput: FfiConverterRustBuffer<FreezeDocInput> {
+    override fun read(buf: ByteBuffer): FreezeDocInput {
+        return FreezeDocInput(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterSequenceTypeFrozenBlock.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: FreezeDocInput) = (
+            FfiConverterString.allocationSize(value.`pageId`) +
+            FfiConverterString.allocationSize(value.`userId`) +
+            FfiConverterString.allocationSize(value.`time`) +
+            FfiConverterSequenceTypeFrozenBlock.allocationSize(value.`blocks`)
+    )
+
+    override fun write(value: FreezeDocInput, buf: ByteBuffer) {
+            FfiConverterString.write(value.`pageId`, buf)
+            FfiConverterString.write(value.`userId`, buf)
+            FfiConverterString.write(value.`time`, buf)
+            FfiConverterSequenceTypeFrozenBlock.write(value.`blocks`, buf)
+    }
+}
+
+
+
+data class FrozenBlock (
+    var `blockId`: kotlin.String
+    , 
+    var `content`: kotlin.String
+    , 
+    var `meta`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeFrozenBlock: FfiConverterRustBuffer<FrozenBlock> {
+    override fun read(buf: ByteBuffer): FrozenBlock {
+        return FrozenBlock(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: FrozenBlock) = (
+            FfiConverterString.allocationSize(value.`blockId`) +
+            FfiConverterString.allocationSize(value.`content`) +
+            FfiConverterString.allocationSize(value.`meta`)
+    )
+
+    override fun write(value: FrozenBlock, buf: ByteBuffer) {
+            FfiConverterString.write(value.`blockId`, buf)
+            FfiConverterString.write(value.`content`, buf)
+            FfiConverterString.write(value.`meta`, buf)
+    }
+}
+
+
+
 sealed class DeadlockPrediction {
     
     data class PotentiallyJustSlowOperation(
@@ -3151,7 +3294,59 @@ public object FfiConverterSequenceTypeBlock: FfiConverterRustBuffer<List<Block>>
             FfiConverterTypeBlock.write(it, buf)
         }
     }
-} fun `generateUniqueKey`(`userId`: kotlin.String, `time`: kotlin.String): kotlin.String {
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeFrozenBlock: FfiConverterRustBuffer<List<FrozenBlock>> {
+    override fun read(buf: ByteBuffer): List<FrozenBlock> {
+        val len = buf.getInt()
+        return List<FrozenBlock>(len) {
+            FfiConverterTypeFrozenBlock.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<FrozenBlock>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeFrozenBlock.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<FrozenBlock>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeFrozenBlock.write(it, buf)
+        }
+    }
+}
+    @Throws(YrsException::class) fun `freezeDocBuilder`(`boss`: BossOfYrs): FreezeDocInput {
+            return FfiConverterTypeFreezeDocInput.lift(
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_freeze_doc_builder(
+    
+        
+        FfiConverterTypeBossOfYrs.lower(`boss`),_status)
+}
+    )
+    }
+    
+
+    @Throws(YrsException::class) fun `freezeDoc`(`input`: FreezeDocInput): BossOfYrs {
+            return FfiConverterTypeBossOfYrs.lift(
+    uniffiRustCallWithError(YrsException) { _status ->
+    UniffiLib.uniffi_my_yrs_lib_fn_func_freeze_doc(
+    
+        
+        FfiConverterTypeFreezeDocInput.lower(`input`),_status)
+}
+    )
+    }
+    
+ fun `generateUniqueKey`(`userId`: kotlin.String, `time`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_my_yrs_lib_fn_func_generate_unique_key(

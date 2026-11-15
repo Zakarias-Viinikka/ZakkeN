@@ -68,6 +68,13 @@ object IncomingLoveLettersTableSchema {
     val allColumns = listOf(id, loveLetter, targetPageId)
 }
 
+object SeenServerLettersTableSchema {
+    const val TABLE_NAME = "seen_server_letters"
+    val id = ColumnDescriptor("id", "INTEGER") { (it as Col.Integer).v1 }
+    val letterId = ColumnDescriptor("letter_id", "INTEGER") { (it as Col.Integer).v1 }
+    val allColumns = listOf(id, letterId)
+}
+
 object LogsTableSchema {
     const val TABLE_NAME = "logs"
     val id = ColumnDescriptor("id", "INTEGER") { (it as Col.Integer).v1 }

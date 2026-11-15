@@ -14,14 +14,20 @@ object MirrorVsYrsCheck {
     const val NAME = "Mirror vs yrs (every page)"
 
     suspend fun run(): DevCheckResult {
-        if (DbManager.executeNative { }.isFailure) {
-            return pass(ID, NAME, "Skipped (DB not ready)")
+        try {
+            DbManager.awaitReady()
+        } catch (e: Exception) {
+            return fail(ID, NAME, "DB not ready: ${e.message}", e.stackTraceToString())
         }
         return try {
             val userId = StorageAccess.getUserId()
-            val pagesOut = DbManager.getPages().getOrThrow()
-            val pageIdIdx = 1 // pages: id, page_id, blobbed_page, page_status, version, is_main_menu_page
-            val pageIds = pagesOut.mapNotNull { (it.cols.getOrNull(pageIdIdx) as? uniffi.protocol.Col.Text)?.v1 }
+            val pageIds = DbManager.getData(uniffi.protocol.GetDataIn(
+                "pages",
+                uniffi.protocol.SelectArguments.Single(uniffi.protocol.SelectArgument.All),
+                listOf("page_id")
+            )).getOrThrow().rows.mapNotNull {
+                (it.cols.firstOrNull() as? uniffi.protocol.Col.Text)?.v1
+            }
 
             val problems = mutableListOf<String>()
 
@@ -43,7 +49,7 @@ object MirrorVsYrsCheck {
                 val titleRows = mirror.filter { it.isTitle }
                 if (titleRows.size != 1) {
                     problems.add("$pageId: expected exactly 1 is_title row, found ${titleRows.size}")
-                } else if (!mirror.first().isTitle) {
+                } else if (mirror.isEmpty() || !mirror.first().isTitle) {
                     problems.add("$pageId: first mirror block is not the title")
                 }
 
@@ -64,7 +70,10 @@ object MirrorVsYrsCheck {
                 val activeFlag = active.isPageActive(pageId)
                 val mirrorDisabled = isPageDisabled(pageId)
                 if (activeFlag == mirrorDisabled) {
-                    problems.add("$pageId: active_pages says active=$activeFlag but mirror page_is_disabled=$mirrorDisabled")
+                    problems.add(
+                        "$pageId: expected active=${!mirrorDisabled} but active_pages says active=$activeFlag " +
+                        "(mirror page_is_disabled=$mirrorDisabled)"
+                    )
                 }
             }
 

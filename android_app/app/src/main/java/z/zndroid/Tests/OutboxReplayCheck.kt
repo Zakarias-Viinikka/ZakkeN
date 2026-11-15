@@ -19,13 +19,20 @@ object OutboxReplayCheck {
     private data class Letter(val id: Long, val sketch: LoveLetterSketch, val snapshot: ByteArray)
 
     suspend fun run(): DevCheckResult {
-        if (DbManager.executeNative { }.isFailure) {
-            return pass(ID, NAME, "Skipped (DB not ready)")
+        try {
+            DbManager.awaitReady()
+        } catch (e: Exception) {
+            return fail(ID, NAME, "DB not ready: ${e.message}", e.stackTraceToString())
         }
         return try {
             val userId = StorageAccess.getUserId()
-            val pagesOut = DbManager.getPages().getOrThrow()
-            val pageIds = pagesOut.mapNotNull { (it.cols.getOrNull(1) as? Col.Text)?.v1 }
+            val pageIds = DbManager.getData(GetDataIn(
+                "pages",
+                SelectArguments.Single(SelectArgument.All),
+                listOf("page_id")
+            )).getOrThrow().rows.mapNotNull {
+                (it.cols.firstOrNull() as? Col.Text)?.v1
+            }
 
             val lettersOut = DbManager.getDataOrdered(uniffi.protocol.GetDataOrderedIn(
                 "client_love_letter",

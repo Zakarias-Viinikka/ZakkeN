@@ -29,7 +29,7 @@ class PageSession(
     val pageId: String,
     val isMainMenu: Boolean,
     mirrorRows: List<BlockMirrorRow>,
-    onFailure: () -> Unit
+    private val onFailure: () -> Unit
 ) {
     val rows = mutableStateListOf<BlockRow>()
     val pendingFocus = mutableStateOf<PendingFocus?>(null)
@@ -87,14 +87,19 @@ class PageSession(
         if (above.isTitle) return
 
         if (row.textFieldValue.text.isEmpty()) {
+            // Focus above before removing this block: keeps the IME open.
+            runCatching { above.focusRequester.requestFocus() }
             batcher.pushDelete(row.blockId)
             rows.removeAt(rowIndex)
             pendingFocus.value = PendingFocus(above.blockId, above.textFieldValue.text.length)
         } else if (above.textFieldValue.text.isEmpty()) {
+            // The kept block (this one) already has focus; nothing to do.
             batcher.pushDelete(above.blockId)
             rows.removeAt(aboveIndex)
             pendingFocus.value = PendingFocus(row.blockId, 0)
         } else {
+            // Merge: focus above before removing this block: keeps the IME open.
+            runCatching { above.focusRequester.requestFocus() }
             val combined = above.textFieldValue.text + row.textFieldValue.text
             val joinOffset = above.textFieldValue.text.length
             batcher.pushEdit(above.blockId, getDiff(above.textFieldValue.text, combined))
@@ -111,12 +116,21 @@ class PageSession(
         if (row.isTitle) return
         val normalCount = rows.count { !it.isTitle }
         if (normalCount <= 1) return
+        val focusIdx = (rowIndex - 1).coerceAtLeast(0)
+        val focusRow = rows.getOrNull(focusIdx)
+        // Move focus to the surviving block BEFORE removing this one so
+        // the IME never sees a frame with no focused text field (which
+        // is what causes the close-then-reopen flicker). Wrapped in
+        // runCatching because requestFocus throws when the target block
+        // isn't composed yet (offscreen); in that case the pendingFocus
+        // path below still handles it, just with the old flicker.
+        if (focusRow != null) {
+            runCatching { focusRow.focusRequester.requestFocus() }
+        }
         batcher.pushDelete(row.blockId)
         rows.removeAt(rowIndex)
-        val focusIdx = (rowIndex - 1).coerceAtLeast(0)
-        if (focusIdx < rows.size) {
-            val f = rows[focusIdx]
-            pendingFocus.value = PendingFocus(f.blockId, f.textFieldValue.text.length)
+        if (focusRow != null) {
+            pendingFocus.value = PendingFocus(focusRow.blockId, focusRow.textFieldValue.text.length)
         }
     }
 
@@ -163,15 +177,57 @@ class PageSession(
         rows.add(BlockRow(newId, false, ""))
     }
 
+    /**
+     * A remote letter was merged into this page's boss and the db mirror.
+     * Bring the visible rows in line with the mirror, keeping the row
+     * objects (so focus and cursor survive) for blocks that still exist.
+     * If local edits are still queued the rows can't be trusted yet:
+     * flush, then reload the page. Call on the main thread.
+     */
+    fun applyRemoteRows(mirrorRows: List<BlockMirrorRow>) {
+        if (batcher.hasPending()) {
+            batcher.flushThen(onFailure)
+            return
+        }
+        val byId = rows.associateBy { it.blockId }
+        val next = mirrorRows.map { m ->
+            val row = byId[m.blockId] ?: return@map BlockRow(m.blockId, m.isTitle, m.content)
+            val current = row.textFieldValue
+            if (current.text != m.content) {
+                val end = m.content.length
+                row.textFieldValue = current.copy(
+                    text = m.content,
+                    selection = TextRange(
+                        current.selection.start.coerceAtMost(end),
+                        current.selection.end.coerceAtMost(end)
+                    )
+                )
+            }
+            row
+        }
+        val same = next.size == rows.size && next.indices.all { next[it] === rows[it] }
+        if (!same) {
+            rows.clear()
+            rows.addAll(next)
+        }
+    }
+
     fun clearPendingFocus() {
         pendingFocus.value = null
     }
 
-    suspend fun closeAndFlush(): Result<Unit> {
-        return batcher.closeAndFlush()
-    }
+    suspend fun flush(): Result<Unit> = batcher.flush()
 
-    fun closeAndFlushAsync() {
-        batcher.closeAndFlushAsync()
+    fun flushAsync() = batcher.flushAsync()
+
+    /**
+     * Flush, destroy the yrs boss, and stop accepting further edits.
+     * Call once this session has been replaced; the caller must await
+     * the returned [Result] before calling anything else on [boss].
+     */
+    suspend fun destroyAfterFlush() {
+        batcher.flush()
+        runCatching { boss.destroy() }
+        batcher.destroy()
     }
 }

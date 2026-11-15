@@ -3,11 +3,13 @@ package z.zndroid.MainPages.ViewPage
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -31,13 +33,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
 import rustlib.my_yrs_lib.docFromSnapshot
+import z.zndroid.BuildConfig
 import z.zndroid.DbManager
 import z.zndroid.Storage.StorageAccess
-import z.zndroid.Storage.StorageKey
 import z.zndroid.components.GlobalPopupManager
 import z.zndroid.db.reads.getBlocksForPageOrdered
 import z.zndroid.db.reads.getPageBlob
 import z.zndroid.db.reads.isMainMenuPage
+import z.zndroid.editor.OpenPageRegistry
 import z.zndroid.editor.PageSession
 import z.zndroid.editor.PendingFocus
 import z.zndroid.log.ViewPageLogs
@@ -51,19 +54,33 @@ fun ViewPage(
 ) {
     var session by remember { mutableStateOf<PageSession?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var loadFailed by remember { mutableStateOf(false) }
     var reloadToken by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
+    fun leavePage() {
+        coroutineScope.launch {
+            session?.flush()
+            onBack()
+        }
+    }
+
     LaunchedEffect(pageId, reloadToken) {
         ViewPageLogs.logPageInit(pageId)
-        StorageAccess.setValue(StorageKey.CURRENT_DOCUMENT, pageId)
         isLoading = true
-        session?.let { runCatching { it.boss.destroy() } }
+        loadFailed = false
+
+        // Flush the old session's queue, destroy its boss, and cancel its
+        // batcher so nothing can be pushed against a dead yrs doc.
+        session?.let { old ->
+            OpenPageRegistry.unregister(old)
+            old.destroyAfterFlush()
+        }
         session = null
 
-        DbManager.awaitReady()
         try {
+            DbManager.awaitReady()
             val mirrorRows = getBlocksForPageOrdered(pageId).getOrThrow()
             val blob = getPageBlob(pageId).getOrThrow()
             val userId = StorageAccess.getUserId()
@@ -80,6 +97,7 @@ fun ViewPage(
             }
 
             session = newSession
+            OpenPageRegistry.register(newSession)
 
             if (newSession.rows.size == 2 && newSession.rows[1].textFieldValue.text.isEmpty()) {
                 newSession.pendingFocus.value = PendingFocus(newSession.rows[1].blockId, 0)
@@ -88,30 +106,25 @@ fun ViewPage(
         } catch (e: Exception) {
             ViewPageLogs.logPageLoadError(pageId, e.message ?: "Unknown error")
             GlobalPopupManager.showError("Failed to load page: ${e.message}")
+            loadFailed = true
         }
         isLoading = false
     }
 
-    BackHandler {
-        coroutineScope.launch {
-            session?.closeAndFlush()
-            onBack()
-        }
-    }
+    BackHandler { leavePage() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
-                coroutineScope.launch {
-                    session?.closeAndFlush()
-                }
+                coroutineScope.launch { session?.flush() }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            session?.closeAndFlushAsync()
+            session?.let { OpenPageRegistry.unregister(it) }
+            session?.flushAsync()
         }
     }
 
@@ -120,30 +133,37 @@ fun ViewPage(
             TopAppBar(
                 title = {},
                 navigationIcon = {
-                    IconButton(onClick = {
-                        coroutineScope.launch {
-                            session?.closeAndFlush()
-                            onBack()
-                        }
-                    }) {
+                    IconButton(onClick = { leavePage() }) {
                         Text("←")
                     }
                 },
                 actions = {
-                    TextButton(onClick = onOpenAdminView) {
-                        Text("Admin")
+                    if (BuildConfig.DEBUG) {
+                        TextButton(onClick = onOpenAdminView) {
+                            Text("Admin")
+                        }
                     }
                 }
             )
         }
     ) { innerPadding ->
         val currentSession = session
-        if (isLoading || currentSession == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when {
+            isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        } else {
-            LazyColumn(
+            currentSession == null -> Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Could not load this page.")
+                TextButton(onClick = { leavePage() }) { Text("Back") }
+            }
+            else -> LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .padding(innerPadding)

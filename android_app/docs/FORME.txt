@@ -1,3 +1,5 @@
-tag:GlobalPopup level:ERROR
+tag:GlobalPopup
 
 tag:AndroidRuntime level:ERROR
+
+tag:DevCheck

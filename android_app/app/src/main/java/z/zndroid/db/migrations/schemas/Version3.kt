@@ -1,0 +1,97 @@
+package z.zndroid.db.migrations.schemas
+
+import uniffi.protocol.ColumnDef
+import uniffi.protocol.ForeignKeyDef
+
+/**
+ * Frozen snapshot of the schema at V3. Do not edit by hand; when the
+ * Rust blueprints change, add a Version<N+1>.kt via
+ * `schema_drift_detector/check.sh emit-snapshot <N+1>` and bump LATEST
+ * in SchemaVersion.kt.
+ *
+ * Table order matches V3's bootstrap order (V2.bootstrap today). FK-
+ * bearing tables come after their referenced tables.
+ */
+object Version3 {
+    val tables: List<FrozenTable> = listOf(
+        FrozenTable(
+            name = "key_value_storage",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("key", "TEXT", primaryKey = false, notNull = true, unique = true, defaultValue = "", autoincrement = false),
+                ColumnDef("value", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            )
+        ),
+        FrozenTable(
+            name = "pages",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("page_id", "TEXT", primaryKey = false, notNull = true, unique = true, defaultValue = "", autoincrement = false),
+                ColumnDef("blobbed_page", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("page_status", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("version", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("is_main_menu_page", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            )
+        ),
+        FrozenTable(
+            name = "client_love_letter",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("snapshot_of_edit", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("love_letter_sketch", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("session_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("target_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            )
+        ),
+        FrozenTable(
+            name = "logs",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("timestamp", "INTEGER", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("level", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("category", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("source", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("session_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("message", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            )
+        ),
+        FrozenTable(
+            name = "incoming_love_letters",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("love_letter", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("target_page_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            )
+        ),
+        FrozenTable(
+            name = "backlinks",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("page_that_holds_link_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("page_being_linked_to_id", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("disabled", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("version", "BLOB", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            ),
+            foreignKeys = listOf(
+                ForeignKeyDef("page_that_holds_link_id", "pages", "page_id"),
+                ForeignKeyDef("page_being_linked_to_id", "pages", "page_id")
+            )
+        ),
+        FrozenTable(
+            name = "every_block_in_existence",
+            columns = listOf(
+                ColumnDef("id", "INTEGER", primaryKey = true, notNull = true, unique = false, defaultValue = "", autoincrement = true),
+                ColumnDef("is_title", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("is_part_of_main_menu_page", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("content", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("my_id_as_given_by_yrs", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("id_of_page_i_belong_to", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("frac_position", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false),
+                ColumnDef("page_is_disabled", "TEXT", primaryKey = false, notNull = true, unique = false, defaultValue = "", autoincrement = false)
+            ),
+            foreignKeys = listOf(
+                ForeignKeyDef("id_of_page_i_belong_to", "pages", "page_id")
+            )
+        )
+    )
+}

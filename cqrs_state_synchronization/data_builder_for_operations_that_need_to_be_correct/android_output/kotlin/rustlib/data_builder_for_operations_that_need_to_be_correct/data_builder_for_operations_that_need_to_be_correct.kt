@@ -685,6 +685,12 @@ internal object IntegrityCheckingUniffiLib {
     internal fun ensureInitialized() = Unit
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block(
     ): Int
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_build_merge_blob(
+    ): Int
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_build_merge_disable(
+    ): Int
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_build_merge_new_page(
+    ): Int
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_create_page(
     ): Int
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_delete_block(
@@ -713,6 +719,12 @@ internal object UniffiLib {
 
     internal fun ensureInitialized() = Unit
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_add_block(`yrs`: Long,`blockContent`: RustBuffer.ByValue,`blockMetaData`: RustBuffer.ByValue,`position`: RustBufferPositionToInsert.ByValue,`isPartOfMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,`insertWithExistingBlockId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_build_merge_blob(`pageId`: RustBuffer.ByValue,`snapshotOfEdit`: RustBuffer.ByValue,`existingBlocks`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`boss`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_build_merge_disable(`pageId`: RustBuffer.ByValue,`snapshotOfEdit`: RustBuffer.ByValue,`existingStatus`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_build_merge_new_page(`pageId`: RustBuffer.ByValue,`isMainMenuPage`: Byte,`snapshotOfEdit`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`time`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_create_page(`isMainMenuPage`: Byte,`sessionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -844,6 +856,15 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_add_block() and 0xFFFF) != 37911) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_build_merge_blob() and 0xFFFF) != 40443) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_build_merge_disable() and 0xFFFF) != 8301) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_build_merge_new_page() and 0xFFFF) != 29478) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_data_builder_for_operations_that_need_to_be_correct_checksum_func_create_page() and 0xFFFF) != 62539) {
@@ -1494,6 +1515,208 @@ public object FfiConverterTypeEverythingToInsertForNewPage: FfiConverterRustBuff
 
 
 
+data class ExistingBlock (
+    var `blockId`: kotlin.String
+    , 
+    var `content`: kotlin.String
+    , 
+    var `fracPosition`: kotlin.String
+    , 
+    var `isTitle`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeExistingBlock: FfiConverterRustBuffer<ExistingBlock> {
+    override fun read(buf: ByteBuffer): ExistingBlock {
+        return ExistingBlock(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ExistingBlock) = (
+            FfiConverterString.allocationSize(value.`blockId`) +
+            FfiConverterString.allocationSize(value.`content`) +
+            FfiConverterString.allocationSize(value.`fracPosition`) +
+            FfiConverterBoolean.allocationSize(value.`isTitle`)
+    )
+
+    override fun write(value: ExistingBlock, buf: ByteBuffer) {
+            FfiConverterString.write(value.`blockId`, buf)
+            FfiConverterString.write(value.`content`, buf)
+            FfiConverterString.write(value.`fracPosition`, buf)
+            FfiConverterBoolean.write(value.`isTitle`, buf)
+    }
+}
+
+
+
+data class FinalBlock (
+    var `blockId`: kotlin.String
+    , 
+    var `content`: kotlin.String
+    , 
+    var `isTitle`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeFinalBlock: FfiConverterRustBuffer<FinalBlock> {
+    override fun read(buf: ByteBuffer): FinalBlock {
+        return FinalBlock(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: FinalBlock) = (
+            FfiConverterString.allocationSize(value.`blockId`) +
+            FfiConverterString.allocationSize(value.`content`) +
+            FfiConverterBoolean.allocationSize(value.`isTitle`)
+    )
+
+    override fun write(value: FinalBlock, buf: ByteBuffer) {
+            FfiConverterString.write(value.`blockId`, buf)
+            FfiConverterString.write(value.`content`, buf)
+            FfiConverterBoolean.write(value.`isTitle`, buf)
+    }
+}
+
+
+
+data class MergePlan (
+    var `pageId`: kotlin.String
+    , 
+    var `newBlob`: kotlin.ByteArray?
+    , 
+    var `newStatus`: kotlin.ByteArray?
+    , 
+    var `setPageDisabled`: kotlin.Boolean
+    , 
+    var `isNewPage`: NewPageInfo?
+    , 
+    var `reconcile`: List<ReconcileOp>
+    , 
+    var `finalBlocks`: List<FinalBlock>
+    , 
+    var `changed`: kotlin.Boolean
+    , 
+    var `isMainMenuPage`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeMergePlan: FfiConverterRustBuffer<MergePlan> {
+    override fun read(buf: ByteBuffer): MergePlan {
+        return MergePlan(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalByteArray.read(buf),
+            FfiConverterOptionalByteArray.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterOptionalTypeNewPageInfo.read(buf),
+            FfiConverterSequenceTypeReconcileOp.read(buf),
+            FfiConverterSequenceTypeFinalBlock.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MergePlan) = (
+            FfiConverterString.allocationSize(value.`pageId`) +
+            FfiConverterOptionalByteArray.allocationSize(value.`newBlob`) +
+            FfiConverterOptionalByteArray.allocationSize(value.`newStatus`) +
+            FfiConverterBoolean.allocationSize(value.`setPageDisabled`) +
+            FfiConverterOptionalTypeNewPageInfo.allocationSize(value.`isNewPage`) +
+            FfiConverterSequenceTypeReconcileOp.allocationSize(value.`reconcile`) +
+            FfiConverterSequenceTypeFinalBlock.allocationSize(value.`finalBlocks`) +
+            FfiConverterBoolean.allocationSize(value.`changed`) +
+            FfiConverterBoolean.allocationSize(value.`isMainMenuPage`)
+    )
+
+    override fun write(value: MergePlan, buf: ByteBuffer) {
+            FfiConverterString.write(value.`pageId`, buf)
+            FfiConverterOptionalByteArray.write(value.`newBlob`, buf)
+            FfiConverterOptionalByteArray.write(value.`newStatus`, buf)
+            FfiConverterBoolean.write(value.`setPageDisabled`, buf)
+            FfiConverterOptionalTypeNewPageInfo.write(value.`isNewPage`, buf)
+            FfiConverterSequenceTypeReconcileOp.write(value.`reconcile`, buf)
+            FfiConverterSequenceTypeFinalBlock.write(value.`finalBlocks`, buf)
+            FfiConverterBoolean.write(value.`changed`, buf)
+            FfiConverterBoolean.write(value.`isMainMenuPage`, buf)
+    }
+}
+
+
+
+data class NewPageInfo (
+    var `isMainMenuPage`: kotlin.Boolean
+    , 
+    var `version`: kotlin.ByteArray
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeNewPageInfo: FfiConverterRustBuffer<NewPageInfo> {
+    override fun read(buf: ByteBuffer): NewPageInfo {
+        return NewPageInfo(
+            FfiConverterBoolean.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: NewPageInfo) = (
+            FfiConverterBoolean.allocationSize(value.`isMainMenuPage`) +
+            FfiConverterByteArray.allocationSize(value.`version`)
+    )
+
+    override fun write(value: NewPageInfo, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`isMainMenuPage`, buf)
+            FfiConverterByteArray.write(value.`version`, buf)
+    }
+}
+
+
+
 data class NormalBlock (
     var `myIdAsGivenByYrs`: kotlin.String
     , 
@@ -1752,6 +1975,157 @@ public object FfiConverterTypeBuilderErr : FfiConverterRustBuffer<BuilderErr> {
 
 
 
+sealed class ReconcileOp {
+    
+    data class Insert(
+        val `blockId`: kotlin.String, 
+        val `content`: kotlin.String, 
+        val `fracPosition`: kotlin.String, 
+        val `isTitle`: kotlin.Boolean) : ReconcileOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class UpdateContent(
+        val `blockId`: kotlin.String, 
+        val `newContent`: kotlin.String) : ReconcileOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class UpdateFrac(
+        val `blockId`: kotlin.String, 
+        val `newFracPosition`: kotlin.String) : ReconcileOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class Delete(
+        val `blockId`: kotlin.String) : ReconcileOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeReconcileOp : FfiConverterRustBuffer<ReconcileOp>{
+    override fun read(buf: ByteBuffer): ReconcileOp {
+        return when(buf.getInt()) {
+            1 -> ReconcileOp.Insert(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                FfiConverterBoolean.read(buf),
+                )
+            2 -> ReconcileOp.UpdateContent(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                )
+            3 -> ReconcileOp.UpdateFrac(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                )
+            4 -> ReconcileOp.Delete(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: ReconcileOp): ULong = when(value) {
+        is ReconcileOp.Insert -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterString.allocationSize(value.`content`)
+                + FfiConverterString.allocationSize(value.`fracPosition`)
+                + FfiConverterBoolean.allocationSize(value.`isTitle`)
+            )
+        }
+        is ReconcileOp.UpdateContent -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterString.allocationSize(value.`newContent`)
+            )
+        }
+        is ReconcileOp.UpdateFrac -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+                + FfiConverterString.allocationSize(value.`newFracPosition`)
+            )
+        }
+        is ReconcileOp.Delete -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`blockId`)
+            )
+        }
+    }
+
+    override fun write(value: ReconcileOp, buf: ByteBuffer) {
+        when(value) {
+            is ReconcileOp.Insert -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterString.write(value.`content`, buf)
+                FfiConverterString.write(value.`fracPosition`, buf)
+                FfiConverterBoolean.write(value.`isTitle`, buf)
+                Unit
+            }
+            is ReconcileOp.UpdateContent -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterString.write(value.`newContent`, buf)
+                Unit
+            }
+            is ReconcileOp.UpdateFrac -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.`blockId`, buf)
+                FfiConverterString.write(value.`newFracPosition`, buf)
+                Unit
+            }
+            is ReconcileOp.Delete -> {
+                buf.putInt(4)
+                FfiConverterString.write(value.`blockId`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
 
 /**
  * @suppress
@@ -1778,6 +2152,38 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         } else {
             buf.put(1)
             FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalByteArray: FfiConverterRustBuffer<kotlin.ByteArray?> {
+    override fun read(buf: ByteBuffer): kotlin.ByteArray? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterByteArray.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.ByteArray?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterByteArray.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.ByteArray?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterByteArray.write(value, buf)
         }
     }
 }
@@ -1817,6 +2223,122 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
 
 
 
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeNewPageInfo: FfiConverterRustBuffer<NewPageInfo?> {
+    override fun read(buf: ByteBuffer): NewPageInfo? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeNewPageInfo.read(buf)
+    }
+
+    override fun allocationSize(value: NewPageInfo?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeNewPageInfo.allocationSize(value)
+        }
+    }
+
+    override fun write(value: NewPageInfo?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeNewPageInfo.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeExistingBlock: FfiConverterRustBuffer<List<ExistingBlock>> {
+    override fun read(buf: ByteBuffer): List<ExistingBlock> {
+        val len = buf.getInt()
+        return List<ExistingBlock>(len) {
+            FfiConverterTypeExistingBlock.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ExistingBlock>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeExistingBlock.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ExistingBlock>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeExistingBlock.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeFinalBlock: FfiConverterRustBuffer<List<FinalBlock>> {
+    override fun read(buf: ByteBuffer): List<FinalBlock> {
+        val len = buf.getInt()
+        return List<FinalBlock>(len) {
+            FfiConverterTypeFinalBlock.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<FinalBlock>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeFinalBlock.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<FinalBlock>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeFinalBlock.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeReconcileOp: FfiConverterRustBuffer<List<ReconcileOp>> {
+    override fun read(buf: ByteBuffer): List<ReconcileOp> {
+        val len = buf.getInt()
+        return List<ReconcileOp>(len) {
+            FfiConverterTypeReconcileOp.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ReconcileOp>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeReconcileOp.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ReconcileOp>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeReconcileOp.write(it, buf)
+        }
+    }
+}
+
+
+
+
 
 
     @Throws(BuilderErr::class) fun `addBlock`(`yrs`: BossOfYrs, `blockContent`: kotlin.String, `blockMetaData`: kotlin.String, `position`: PositionToInsert, `isPartOfMainMenuPage`: kotlin.Boolean, `sessionId`: kotlin.String, `insertWithExistingBlockId`: kotlin.String?): EverythingForAddBlock {
@@ -1832,6 +2354,52 @@ public object FfiConverterOptionalTypeEverythingForEditBlock: FfiConverterRustBu
         FfiConverterBoolean.lower(`isPartOfMainMenuPage`),
         FfiConverterString.lower(`sessionId`),
         FfiConverterOptionalString.lower(`insertWithExistingBlockId`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BuilderErr::class) fun `buildMergeBlob`(`pageId`: kotlin.String, `snapshotOfEdit`: kotlin.ByteArray, `existingBlocks`: List<ExistingBlock>, `isMainMenuPage`: kotlin.Boolean, `boss`: BossOfYrs): MergePlan {
+            return FfiConverterTypeMergePlan.lift(
+    uniffiRustCallWithError(BuilderErr) { _status ->
+    UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_build_merge_blob(
+    
+        
+        FfiConverterString.lower(`pageId`),
+        FfiConverterByteArray.lower(`snapshotOfEdit`),
+        FfiConverterSequenceTypeExistingBlock.lower(`existingBlocks`),
+        FfiConverterBoolean.lower(`isMainMenuPage`),
+        FfiConverterTypeBossOfYrs.lower(`boss`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BuilderErr::class) fun `buildMergeDisable`(`pageId`: kotlin.String, `snapshotOfEdit`: kotlin.ByteArray, `existingStatus`: kotlin.ByteArray): MergePlan {
+            return FfiConverterTypeMergePlan.lift(
+    uniffiRustCallWithError(BuilderErr) { _status ->
+    UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_build_merge_disable(
+    
+        
+        FfiConverterString.lower(`pageId`),
+        FfiConverterByteArray.lower(`snapshotOfEdit`),
+        FfiConverterByteArray.lower(`existingStatus`),_status)
+}
+    )
+    }
+    
+
+    @Throws(BuilderErr::class) fun `buildMergeNewPage`(`pageId`: kotlin.String, `isMainMenuPage`: kotlin.Boolean, `snapshotOfEdit`: kotlin.ByteArray, `userId`: kotlin.String, `time`: kotlin.String): MergePlan {
+            return FfiConverterTypeMergePlan.lift(
+    uniffiRustCallWithError(BuilderErr) { _status ->
+    UniffiLib.uniffi_data_builder_for_operations_that_need_to_be_correct_fn_func_build_merge_new_page(
+    
+        
+        FfiConverterString.lower(`pageId`),
+        FfiConverterBoolean.lower(`isMainMenuPage`),
+        FfiConverterByteArray.lower(`snapshotOfEdit`),
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`time`),_status)
 }
     )
     }

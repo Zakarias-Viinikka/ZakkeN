@@ -44,12 +44,26 @@ class TestTransactionReceiver : BroadcastReceiver() {
                             emptyList()
                         )).getOrNull()
                         val checkOut = DbManager.checkTable(CheckTableIn("every_block_in_existence")).getOrNull()
-                        val isTitleIdx = checkOut?.columns?.indexOfFirst { it.name == "is_title" } ?: 1
-                        val parentIdColIdx = checkOut?.columns?.indexOfFirst { it.name == "id_of_page_i_belong_to" } ?: 5
-                        val matchRow = titleBlocks?.rows?.firstOrNull { row ->
-                            (row.cols.getOrNull(isTitleIdx) as? Col.Text)?.v1 == "true"
+                        val isTitleIdx = checkOut?.columns?.indexOfFirst { it.name == "is_title" } ?: -1
+                        val parentIdColIdx = checkOut?.columns?.indexOfFirst { it.name == "id_of_page_i_belong_to" } ?: -1
+                        val resolved: String? = if (isTitleIdx >= 0 && parentIdColIdx >= 0) {
+                            val matchingTitles = titleBlocks?.rows?.filter { row ->
+                                (row.cols.getOrNull(isTitleIdx) as? Col.Text)?.v1 == "true"
+                            } ?: emptyList()
+                            if (matchingTitles.size > 1) {
+                                val ids = matchingTitles.mapNotNull {
+                                    (it.cols.getOrNull(parentIdColIdx) as? Col.Text)?.v1
+                                }
+                                Log.e(TAG, "SyncCheck pageId '$rawPageId' matches ${matchingTitles.size} title blocks across pages: $ids — pass the page_id, not the title")
+                                return@launch
+                            }
+                            matchingTitles.firstOrNull()?.let { row ->
+                                (row.cols.getOrNull(parentIdColIdx) as? Col.Text)?.v1
+                            }
+                        } else {
+                            null
                         }
-                        (matchRow?.cols?.getOrNull(parentIdColIdx) as? Col.Text)?.v1 ?: rawPageId
+                        resolved ?: rawPageId
                     } else {
                         rawPageId
                     }

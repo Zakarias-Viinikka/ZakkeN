@@ -13,6 +13,7 @@ use my_yrs_lib::yrs_active_pages::YrsActivePages;
 use my_yrs_lib::yrs_wrapper::create_bookmark;
 use my_yrs_lib::{doc_from_snapshot, BossOfYrs};
 
+#[derive(uniffi::Record)]
 pub struct MergePlan {
     pub page_id: String,
     pub new_blob: Option<Vec<u8>>,
@@ -25,11 +26,13 @@ pub struct MergePlan {
     pub is_main_menu_page: bool,
 }
 
+#[derive(uniffi::Record)]
 pub struct NewPageInfo {
     pub is_main_menu_page: bool,
     pub version: Vec<u8>,
 }
 
+#[derive(uniffi::Enum)]
 pub enum ReconcileOp {
     Insert {
         block_id: String,
@@ -50,13 +53,14 @@ pub enum ReconcileOp {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, uniffi::Record)]
 pub struct FinalBlock {
     pub block_id: String,
     pub content: String,
     pub is_title: bool,
 }
 
+#[derive(uniffi::Record)]
 pub struct ExistingBlock {
     pub block_id: String,
     pub content: String,

@@ -124,3 +124,49 @@ pub fn disable_page(
 ) -> Result<EverythingForDisablePage, BuilderErr> {
     real_disable_page(page_id, session_id, active_pages_serialized_form).map_err(Into::into)
 }
+
+#[uniffi::export]
+pub fn build_merge_blob(
+    page_id: String,
+    snapshot_of_edit: Vec<u8>,
+    existing_blocks: Vec<crate::merge_page::ExistingBlock>,
+    is_main_menu_page: bool,
+    boss: Arc<BossOfYrs>,
+) -> Result<crate::merge_page::MergePlan, BuilderErr> {
+    crate::merge_page::build_merge_blob(
+        page_id,
+        snapshot_of_edit,
+        existing_blocks,
+        is_main_menu_page,
+        boss,
+    )
+    .map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn build_merge_disable(
+    page_id: String,
+    snapshot_of_edit: Vec<u8>,
+    existing_status: Vec<u8>,
+) -> Result<crate::merge_page::MergePlan, BuilderErr> {
+    crate::merge_page::build_merge_disable(page_id, snapshot_of_edit, existing_status)
+        .map_err(Into::into)
+}
+
+#[uniffi::export]
+pub fn build_merge_new_page(
+    page_id: String,
+    is_main_menu_page: bool,
+    snapshot_of_edit: Vec<u8>,
+    user_id: String,
+    time: String,
+) -> Result<crate::merge_page::MergePlan, BuilderErr> {
+    crate::merge_page::build_merge_new_page(
+        page_id,
+        is_main_menu_page,
+        snapshot_of_edit,
+        user_id,
+        time,
+    )
+    .map_err(Into::into)
+}

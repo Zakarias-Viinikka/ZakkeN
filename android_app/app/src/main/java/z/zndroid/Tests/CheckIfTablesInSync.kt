@@ -20,7 +20,15 @@ object CheckIfTablesInSync {
         return try {
             val pageRow = DbManager.getPage(pageId).getOrThrow()
             val userId = StorageAccess.getUserId()
-            val blob = (pageRow.cols.getOrNull(2) as? Col.Blob)?.v1
+
+            val pagesCheck = DbManager.checkTable(uniffi.protocol.CheckTableIn("pages")).getOrThrow()
+            val blobIndex = pagesCheck.columns.indexOfFirst { it.name == "blobbed_page" }
+            if (blobIndex < 0) {
+                return Result.failure(IllegalStateException(
+                    "CheckIfTablesInSync: pages table is missing blobbed_page column"
+                ))
+            }
+            val blob = (pageRow.cols.getOrNull(blobIndex) as? Col.Blob)?.v1
 
             val crdtBlocks = if (blob != null) {
                 val boss = docFromSnapshot(blob, userId, pageId, System.currentTimeMillis().toString())
@@ -40,6 +48,11 @@ object CheckIfTablesInSync {
             val checkOut = DbManager.checkTable(uniffi.protocol.CheckTableIn("every_block_in_existence")).getOrThrow()
             val idIndex = checkOut.columns.indexOfFirst { it.name == "my_id_as_given_by_yrs" }
             val contentIndex = checkOut.columns.indexOfFirst { it.name == "content" }
+            if (idIndex < 0 || contentIndex < 0) {
+                return Result.failure(IllegalStateException(
+                    "CheckIfTablesInSync: every_block_in_existence is missing my_id_as_given_by_yrs or content"
+                ))
+            }
 
             val sqliteMap = sqliteData.rows.associate { row ->
                 val yrsId = (row.cols.getOrNull(idIndex) as? Col.Text)?.v1 ?: ""

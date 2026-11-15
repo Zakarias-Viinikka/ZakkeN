@@ -23,34 +23,28 @@ fun NewPagePopup(
 ) {
     var pageName by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val view = LocalView.current
-
-    // The Compose Dialog window defaults to SOFT_INPUT_STATE_HIDDEN, so
-    // the IME never shows even when the TextField has focus. This is the
-    // known issue tracked as issuetracker.google.com/issues/204502668.
-    // Reaching into the dialog's window and setting the soft input mode
-    // to VISIBLE is the fix. ADJUST_RESIZE makes the dialog resize
-    // around the keyboard instead of letting the IME cover it.
-    LaunchedEffect(Unit) {
-        (view.parent as? DialogWindowProvider)?.window?.let { window ->
-            window.setSoftInputMode(
-                WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or
-                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            )
-        }
-        // Belt-and-braces: after the window mode is set, wait for the
-        // dialog to compose, then focus and ask for the keyboard again.
-        // Some devices need this even with the window mode set.
-        delay(200)
-        focusRequester.requestFocus()
-        keyboardController?.show()
-    }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        // LocalView.current must be read inside the Dialog content so its
+        // parent is the dialog's window, not the activity content view.
+        val view = LocalView.current
+        val keyboardController = LocalSoftwareKeyboardController.current
+
+        LaunchedEffect(Unit) {
+            (view.parent as? DialogWindowProvider)?.window?.let { window ->
+                window.setSoftInputMode(
+                    WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or
+                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                )
+            }
+            delay(200)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -92,7 +86,7 @@ fun NewPagePopup(
                         Text("Cancel")
                     }
                     Button(
-                        onClick = { onConfirm(pageName) },
+                        onClick = { onConfirm(pageName.trim()) },
                         enabled = pageName.isNotBlank()
                     ) {
                         Text("Create")

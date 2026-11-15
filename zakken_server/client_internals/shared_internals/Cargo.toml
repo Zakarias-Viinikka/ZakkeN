@@ -17,4 +17,6 @@ js-sys = "0.3"
 gloo-timers = { version = "0.4", features = ["futures"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-# filled in when the android socket lands
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "macros"] }
+tokio-tungstenite = { version = "0.26", default-features = false, features = ["connect"] }
+log = "0.4"

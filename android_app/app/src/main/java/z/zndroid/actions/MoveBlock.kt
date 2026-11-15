@@ -13,8 +13,15 @@ import z.zndroid.executor.deleteBlockRequiresThreeDbActions
 
 /**
  * Move a block from one page's yrs doc to another page's yrs doc.
- * The caller must guarantee neither boss has queued writes (both must be
- * flushed and not in the middle of a batch).
+ *
+ * Caller responsibility: both pages' PageBatchers must be flushed before
+ * calling this. An empty queue is not the same as "flushed" — PageBatcher
+ * drains the queue before it takes the WriteLock, so a batch can be off
+ * the queue and not yet written. Use `PageBatcher.flushNow()` (which
+ * waits on the batcher's flush mutex), not a "queue empty?" check.
+ *
+ * The old and new bosses must also still be alive — this function reads
+ * and writes them directly, and holds no lock on either session.
  *
  * Mirrors web's move_block_to_another_page: deleteBlock on the old boss,
  * addBlock with the same block id on the new boss, both executors in one

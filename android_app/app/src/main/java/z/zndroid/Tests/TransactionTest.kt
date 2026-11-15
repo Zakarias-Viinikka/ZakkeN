@@ -17,8 +17,10 @@ class TransactionTest : AppTest {
     override val name = "Database Transactions"
 
     override suspend fun run(): TestResult {
-        if (DbManager.executeNative { }.isFailure) {
-            return TestResult(name, true, "Skipped (DB not ready)")
+        try {
+            DbManager.awaitReady()
+        } catch (e: Exception) {
+            return TestResult(name, false, "DB not ready: ${e.message}")
         }
 
         val testKey = "transaction_test_${UUID.randomUUID()}"
@@ -37,9 +39,9 @@ class TransactionTest : AppTest {
             val queryRes = DbManager.getData(GetDataIn(
                 "key_value_storage",
                 SelectArguments.Single(SelectArgument.XEqualY("key", testKey)),
-                emptyList()
+                listOf("value")
             )).getOrThrow()
-            
+
             if (queryRes.rows.isNotEmpty()) {
                 return TestResult(name, false, "Rollback failed: key '$testKey' was persisted")
             }
@@ -63,17 +65,17 @@ class TransactionTest : AppTest {
             val query1 = DbManager.getData(GetDataIn(
                 "key_value_storage",
                 SelectArguments.Single(SelectArgument.XEqualY("key", testKey)),
-                emptyList()
+                listOf("value")
             )).getOrThrow()
-            
+
             val query2 = DbManager.getData(GetDataIn(
                 "key_value_storage",
                 SelectArguments.Single(SelectArgument.XEqualY("key", testKey + "_nested")),
-                emptyList()
+                listOf("value")
             )).getOrThrow()
 
-            val val1 = (query1.rows.firstOrNull()?.cols?.getOrNull(1) as? Col.Text)?.v1
-            val val2 = (query2.rows.firstOrNull()?.cols?.getOrNull(1) as? Col.Text)?.v1
+            val val1 = (query1.rows.firstOrNull()?.cols?.firstOrNull() as? Col.Text)?.v1
+            val val2 = (query2.rows.firstOrNull()?.cols?.firstOrNull() as? Col.Text)?.v1
 
             if (val1 == "stage_1" && val2 == "nested_val") {
                 TestResult(name, true, "Transactions passed: Rollback works, Re-entrancy works, Persistence works.")

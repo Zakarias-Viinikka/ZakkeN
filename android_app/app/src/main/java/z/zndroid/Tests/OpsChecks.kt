@@ -1,8 +1,9 @@
 package z.zndroid.Tests
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import rustlib.my_yrs_lib.PositionToInsert
 import rustlib.my_yrs_lib.docFromSnapshot
-import rustlib.text_diff.getDiff
 import z.zndroid.DbManager
 import z.zndroid.Storage.StorageAccess
 import z.zndroid.actions.createNewPage
@@ -10,23 +11,23 @@ import z.zndroid.actions.disablePage
 import z.zndroid.actions.moveBlockToAnotherPage
 import z.zndroid.actions.renamePage
 import z.zndroid.db.reads.getBlocksForPageOrdered
+import z.zndroid.db.reads.getMenuPages
 import z.zndroid.db.reads.getPageBlob
 import z.zndroid.db.reads.isMainMenuPage
 import z.zndroid.editor.PageSession
-import z.zndroid.editor.PendingFocus
 
 object OpsChecks {
-    private suspend fun withScratchPage(name: String, body: suspend (pageId: String) -> Unit): String? {
-        val created = createNewPage(name).getOrThrow()
-        val menu = z.zndroid.db.reads.getMenuPages().getOrThrow()
-        val row = menu.firstOrNull { it.title == name } ?: error("Created page '$name' not in menu")
+    private suspend fun withScratchPage(name: String, body: suspend (pageId: String) -> Unit) {
+        createNewPage(name).getOrThrow()
+        val menu = getMenuPages().getOrThrow()
+        val row = menu.firstOrNull { it.title == name }
+            ?: error("Created page '$name' not in menu")
         val pageId = row.pageId
         try {
             body(pageId)
         } finally {
             DbManager.hardDeletePage(pageId)
         }
-        return pageId
     }
 
     private suspend fun openSession(pageId: String): PageSession {
@@ -39,11 +40,17 @@ object OpsChecks {
     }
 
     private fun sessionRowIds(s: PageSession): List<String> = s.rows.map { it.blockId }
+
     private suspend fun mirrorIds(pageId: String): List<String> =
         getBlocksForPageOrdered(pageId).getOrThrow().map { it.blockId }
 
-    private fun verifyMirrorAndOrder(pageId: String, session: PageSession, problems: MutableList<String>, ctx: String) {
-        val mirror = kotlinx.coroutines.runBlocking { mirrorIds(pageId) }
+    private suspend fun verifyMirrorAndOrder(
+        pageId: String,
+        session: PageSession,
+        problems: MutableList<String>,
+        ctx: String
+    ) {
+        val mirror = mirrorIds(pageId)
         val sessionIds = sessionRowIds(session)
         if (mirror != sessionIds) {
             problems.add("$ctx: session rows $sessionIds != mirror $mirror")
@@ -76,14 +83,14 @@ object OpsChecks {
             withScratchPage("ops_split_${System.currentTimeMillis()}") { pageId ->
                 val session = openSession(pageId)
                 try {
-                    session.onInput(1, androidx.compose.ui.text.input.TextFieldValue("hello", androidx.compose.ui.text.TextRange(5)))
+                    session.onInput(1, TextFieldValue("hello", TextRange(5)))
                     session.onEnter(1, 3)
-                    session.closeAndFlush().getOrThrow()
+                    session.flush().getOrThrow()
                     val problems = mutableListOf<String>()
                     verifyMirrorAndOrder(pageId, session, problems, "after split")
                     if (session.rows.size != 3) problems.add("after split expected 3 rows, got ${session.rows.size}")
                     session.onBackspaceAtStart(2)
-                    session.closeAndFlush().getOrThrow()
+                    session.flush().getOrThrow()
                     verifyMirrorAndOrder(pageId, session, problems, "after merge")
                     if (session.rows.size != 2) problems.add("after merge expected 2 rows, got ${session.rows.size}")
                     if (problems.isNotEmpty()) throw Exception(problems.joinToString("; "))
@@ -99,21 +106,40 @@ object OpsChecks {
 
     suspend fun deleteRules(): DevCheckResult {
         val id = "ops.delete_rules"
-        val name = "Ops delete rules (title, only-body protected)"
+        val name = "Ops delete rules (title, only-body protected, multi-body allowed)"
         return try {
             withScratchPage("ops_delete_${System.currentTimeMillis()}") { pageId ->
                 val session = openSession(pageId)
                 try {
+                    // Guard 1: title can never be deleted.
                     val before = session.rows.size
                     session.onDeleteBlock(0)
                     if (session.rows.size != before) throw Exception("Title delete was allowed")
+
+                    // Guard 2: the only body block cannot be deleted.
                     session.onDeleteBlock(1)
                     if (session.rows.size != before) throw Exception("Only-body delete was allowed")
+
+                    // Positive case: with two body blocks, one can be
+                    // deleted. Split the existing body first.
+                    session.onInput(1, TextFieldValue("first", TextRange(5)))
+                    session.onEnter(1, 5)
+                    session.flush().getOrThrow()
+                    if (session.rows.size != 3) {
+                        throw Exception("expected 3 rows after split, got ${session.rows.size}")
+                    }
+                    session.onDeleteBlock(2)
+                    if (session.rows.size != 2) {
+                        throw Exception("body delete refused when two bodies exist")
+                    }
+                    session.flush().getOrThrow()
+                    val mirror = mirrorIds(pageId)
+                    if (mirror.size != 2) throw Exception("mirror has ${mirror.size} rows, expected 2")
                 } finally {
                     session.boss.destroy()
                 }
             }
-            pass(id, name, "title and only-body deletes refused, rows unchanged")
+            pass(id, name, "title and only-body deletes refused; body delete allowed when 2 exist")
         } catch (e: Exception) {
             fail(id, name, "Exception: ${e.message}", e.stackTraceToString())
         }
@@ -126,13 +152,13 @@ object OpsChecks {
             withScratchPage("ops_move_${System.currentTimeMillis()}") { pageId ->
                 val session = openSession(pageId)
                 try {
-                    session.onInput(1, androidx.compose.ui.text.input.TextFieldValue("A", androidx.compose.ui.text.TextRange(1)))
+                    session.onInput(1, TextFieldValue("A", TextRange(1)))
                     session.onEnter(1, 1)
-                    session.onInput(2, androidx.compose.ui.text.input.TextFieldValue("B", androidx.compose.ui.text.TextRange(1)))
-                    session.closeAndFlush().getOrThrow()
+                    session.onInput(2, TextFieldValue("B", TextRange(1)))
+                    session.flush().getOrThrow()
                     val before = sessionRowIds(session)
                     session.onMoveUp(2)
-                    session.closeAndFlush().getOrThrow()
+                    session.flush().getOrThrow()
                     val problems = mutableListOf<String>()
                     verifyMirrorAndOrder(pageId, session, problems, "after move up")
                     if (before == sessionRowIds(session)) problems.add("row order did not change")
@@ -157,20 +183,40 @@ object OpsChecks {
                     val fromSession = openSession(fromPageId)
                     val toSession = openSession(toPageId)
                     try {
-                        fromSession.onInput(1, androidx.compose.ui.text.input.TextFieldValue("traveler", androidx.compose.ui.text.TextRange(8)))
-                        fromSession.closeAndFlush().getOrThrow()
+                        fromSession.onInput(1, TextFieldValue("traveler", TextRange(8)))
+                        fromSession.flush().getOrThrow()
                         val movedBlockId = fromSession.rows[1].blockId
-                        fromSession.onDeleteBlock(1)
-                        fromSession.closeAndFlush().getOrThrow()
-                        val moveResult = moveBlockToAnotherPage(fromSession.boss, toSession.boss, movedBlockId, toSession.rows.last().blockId, null)
-                        moveResult.getOrThrow()
+                        val targetAbove = toSession.rows.last().blockId
+
+                        moveBlockToAnotherPage(
+                            fromSession.boss,
+                            toSession.boss,
+                            movedBlockId,
+                            targetAbove,
+                            null
+                        ).getOrThrow()
+
+                        val fromMirror = mirrorIds(fromPageId)
+                        if (movedBlockId in fromMirror) {
+                            throw Exception("block still in source mirror after move: $fromMirror")
+                        }
+                        val toMirror = mirrorIds(toPageId)
+                        if (movedBlockId !in toMirror) {
+                            throw Exception("block not in target mirror after move: $toMirror")
+                        }
+                        val toBlocks = getBlocksForPageOrdered(toPageId).getOrThrow()
+                        val moved = toBlocks.firstOrNull { it.blockId == movedBlockId }
+                            ?: throw Exception("moved block missing from target mirror rows")
+                        if (moved.content != "traveler") {
+                            throw Exception("moved content='${moved.content}', expected 'traveler'")
+                        }
                     } finally {
                         fromSession.boss.destroy()
                         toSession.boss.destroy()
                     }
                 }
             }
-            pass(id, name, "cross-page move pushed a block to another page")
+            pass(id, name, "block moved source→target; source no longer has it, target does")
         } catch (e: Exception) {
             fail(id, name, "Exception: ${e.message}", e.stackTraceToString())
         }
@@ -182,12 +228,13 @@ object OpsChecks {
         return try {
             val scratch = "ops_disable_${System.currentTimeMillis()}"
             createNewPage(scratch).getOrThrow()
-            val menu = z.zndroid.db.reads.getMenuPages().getOrThrow()
-            val row = menu.firstOrNull { it.title == scratch } ?: throw Exception("Scratch page not in menu")
+            val menu = getMenuPages().getOrThrow()
+            val row = menu.firstOrNull { it.title == scratch }
+                ?: throw Exception("Scratch page not in menu")
             val pageId = row.pageId
             try {
                 disablePage(pageId).getOrThrow()
-                val after = z.zndroid.db.reads.getMenuPages().getOrThrow()
+                val after = getMenuPages().getOrThrow()
                 if (after.any { it.pageId == pageId }) {
                     throw Exception("Disabled page still in menu")
                 }
@@ -208,14 +255,18 @@ object OpsChecks {
                 val session = openSession(pageId)
                 try {
                     val text = "aåäö🙂end"
-                    session.onInput(1, androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length)))
+                    session.onInput(1, TextFieldValue(text, TextRange(text.length)))
                     session.onEnter(1, 4)
-                    session.closeAndFlush().getOrThrow()
+                    session.flush().getOrThrow()
                     val mirror = mirrorIds(pageId)
-                    if (mirror.size != 3) throw Exception("expected 3 mirror rows after unicode split, got ${mirror.size}")
+                    if (mirror.size != 3) {
+                        throw Exception("expected 3 mirror rows after unicode split, got ${mirror.size}")
+                    }
                     val rows = getBlocksForPageOrdered(pageId).getOrThrow()
                     val joined = rows[1].content + rows[2].content
-                    if (joined != text) throw Exception("after split, joined=$joined != original=$text")
+                    if (joined != text) {
+                        throw Exception("after split, joined=$joined != original=$text")
+                    }
                 } finally {
                     session.boss.destroy()
                 }

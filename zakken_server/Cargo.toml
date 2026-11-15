@@ -8,6 +8,7 @@ members = [
     "shared/server_protocol",
 
     "client_internals/shared_internals",
+    "client_internals/server_link",
 ]
 
 resolver = "3"

@@ -20,9 +20,6 @@ object DevCheckRegistry {
                 fail("schema.blueprints", "Schema blueprints vs frozen", "Exception: ${e.message}")
             }
         },
-        DevCheck("schema.canary", "Schema type canary") {
-            SchemaCanaryTest().run().toDevCheck("schema.canary")
-        },
         DevCheck("schema.live_db", "Schema live DB") {
             SchemaSyncTest().run().toDevCheck("schema.live_db")
         },
@@ -58,7 +55,7 @@ object DevCheckRegistry {
             ?: return fail(id, id, "Unknown check id")
         val result = try {
             check.run()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             fail(check.id, check.name, "Uncaught: ${e.message}", e.stackTraceToString())
         }
         Log.i("DevCheck", "id=${result.id} status=${result.status} detail=${result.message.take(200)}")

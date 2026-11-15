@@ -226,3 +226,9 @@ Adjacent apps share the same fundamental problems — CRDT sync, offline editing
 The goal isn't to fix every bug or to achieve coverage. It's to widen the categories of bug I know to look for. The audit list in `2026_10_31_cqrs_and_server_audit_findings.md` is a list of bugs I already know about; this is a strategy for finding the ones I don't.
 
 Not started. Filter (relevance to my architecture) is the hard part, and the answer to "what's relevant" is a function of how well I understand my own code.
+
+## E2E android alternative — preplan handed off, nothing built yet
+
+A second end-to-end suite mirroring `complete_e2e`, but with the client pair being web + android (android in a PC emulator) instead of web + web. Same scenarios, same assertions; `complete_e2e` is the reference for structure, `e2e_android_tests` for driving the app. Assumes the android build gets updated separately to support the emulator's ABI.
+
+Status (2026-11-15): preplan written and handed off to an AI session. No design discussion has happened yet, no files created, no code written. The handoff's first step is for the AI to propose a design and confirm fork-vs-flag and driver-coexistence questions with the human before anything else.
