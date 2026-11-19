@@ -45,16 +45,21 @@ fun DevToolsPage(onBack: () -> Unit) {
         scope.launch(Dispatchers.IO) {
             var passCount = 0
             var failCount = 0
+            var skipCount = 0
             try {
                 DevCheckRegistry.checks.forEach { check ->
                     results[check.id] = DevCheckResult(check.id, check.name, DevCheckStatus.RUNNING)
                     val result = DevCheckRegistry.runOne(check.id)
                     results[check.id] = result
-                    if (result.status == DevCheckStatus.PASS) passCount++
-                    else if (result.status == DevCheckStatus.FAIL) failCount++
+                    when (result.status) {
+                        DevCheckStatus.PASS -> passCount++
+                        DevCheckStatus.FAIL -> failCount++
+                        DevCheckStatus.SKIP -> skipCount++
+                        DevCheckStatus.NOT_RUN, DevCheckStatus.RUNNING -> {}
+                    }
                 }
             } finally {
-                Log.i("DevCheck", "summary pass=$passCount fail=$failCount")
+                Log.i("DevCheck", "summary pass=$passCount fail=$failCount skip=$skipCount")
                 isRunning = false
             }
         }
@@ -81,9 +86,10 @@ fun DevToolsPage(onBack: () -> Unit) {
         ) {
             val pass = results.values.count { it.status == DevCheckStatus.PASS }
             val fail = results.values.count { it.status == DevCheckStatus.FAIL }
+            val skip = results.values.count { it.status == DevCheckStatus.SKIP }
             val running = results.values.count { it.status == DevCheckStatus.RUNNING }
             Text(
-                text = "SUMMARY pass=$pass fail=$fail running=$running",
+                text = "SUMMARY pass=$pass fail=$fail skip=$skip running=$running",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.testTag("dev_summary").padding(bottom = 8.dp)
             )
@@ -151,6 +157,7 @@ private fun DevCheckCard(result: DevCheckResult, canRun: Boolean, onRun: () -> U
     val color = when (result.status) {
         DevCheckStatus.PASS -> Color(0xFF4CAF50)
         DevCheckStatus.FAIL -> MaterialTheme.colorScheme.error
+        DevCheckStatus.SKIP -> Color(0xFF78909C)
         DevCheckStatus.RUNNING -> Color(0xFFAA8800)
         DevCheckStatus.NOT_RUN -> MaterialTheme.colorScheme.outline
     }

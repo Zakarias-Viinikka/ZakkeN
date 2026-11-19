@@ -247,6 +247,47 @@ object OpsChecks {
         }
     }
 
+    suspend fun multilinePaste(): DevCheckResult {
+        val id = "ops.multiline_paste"
+        val name = "Ops multi-line paste and soft-keyboard split"
+        return try {
+            withScratchPage("ops_paste_${System.currentTimeMillis()}") { pageId ->
+                val session = openSession(pageId)
+                try {
+                    val problems = mutableListOf<String>()
+                    session.onInput(1, TextFieldValue("ab", TextRange(2)))
+                    session.onMultiLineInput(1, TextFieldValue("aX\r\nY\r\nZb", TextRange(8)))
+                    val pasteFocus = session.pendingFocus.value
+                    if (pasteFocus == null || pasteFocus.blockId != session.rows[3].blockId || pasteFocus.offset != 1) {
+                        problems.add("paste focus expected (row3, 1), got $pasteFocus")
+                    }
+                    session.onMultiLineInput(3, TextFieldValue("aX", TextRange(2)))
+                    session.onInput(3, TextFieldValue("hello", TextRange(5)))
+                    session.onMultiLineInput(3, TextFieldValue("he\nllo", TextRange(3)))
+                    session.flush().getOrThrow()
+
+                    val mirror = getBlocksForPageOrdered(pageId).getOrThrow()
+                    val expectedContents = listOf(mirror[0].content, "aX", "Y", "he", "llo")
+                    val actualContents = mirror.map { it.content }
+                    if (actualContents != expectedContents) {
+                        problems.add("expected mirror $expectedContents, got $actualContents")
+                    }
+                    verifyMirrorAndOrder(pageId, session, problems, "after multiline paste")
+                    val splitFocus = session.pendingFocus.value
+                    if (splitFocus == null || splitFocus.blockId != session.rows[4].blockId || splitFocus.offset != 0) {
+                        problems.add("split focus expected (row4, 0), got $splitFocus")
+                    }
+                    if (problems.isNotEmpty()) throw Exception(problems.joinToString("; "))
+                } finally {
+                    session.boss.destroy()
+                }
+            }
+            pass(id, name, "multi-line paste and soft-keyboard split matched mirror and cursor")
+        } catch (e: Exception) {
+            fail(id, name, "Exception: ${e.message}", e.stackTraceToString())
+        }
+    }
+
     suspend fun unicodeEdit(): DevCheckResult {
         val id = "ops.unicode_edit"
         val name = "Ops unicode edit (accents, emoji, split mid-string)"

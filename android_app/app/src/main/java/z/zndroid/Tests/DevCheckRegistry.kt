@@ -9,6 +9,8 @@ private fun TestResult.toDevCheck(id: String): DevCheckResult {
 }
 
 object DevCheckRegistry {
+    private const val TAG = "DevCheck"
+
     val checks: List<DevCheck> = listOf(
         DevCheck("schema.blueprints", "Schema blueprints vs frozen") {
             try {
@@ -44,9 +46,10 @@ object DevCheckRegistry {
         DevCheck("ops.move_same_page", "Ops move same page") { OpsChecks.moveSamePage() },
         DevCheck("ops.move_cross_page", "Ops move cross page") { OpsChecks.moveCrossPage() },
         DevCheck("ops.disable_hides_from_menu", "Ops disable hides from menu") { OpsChecks.disableHidesFromMenu() },
+        DevCheck("ops.multiline_paste", "Ops multi-line paste and soft-keyboard split") { OpsChecks.multilinePaste() },
 
         DevCheck("client_vs_server", "Client vs server") {
-            pass("client_vs_server", "Client vs server", "NOT IMPLEMENTED - reserved")
+            skip("client_vs_server", "Client vs server", "NOT IMPLEMENTED - reserved")
         }
     )
 
@@ -58,9 +61,10 @@ object DevCheckRegistry {
         } catch (e: Throwable) {
             fail(check.id, check.name, "Uncaught: ${e.message}", e.stackTraceToString())
         }
-        Log.i("DevCheck", "id=${result.id} status=${result.status} detail=${result.message.take(200)}")
+        // Was take(200); bumped so the full problem list survives into logcat.
+        Log.i(TAG, "id=${result.id} status=${result.status} detail=${result.message.take(4000)}")
         if (result.detail != null) {
-            Log.i("DevCheck", "id=${result.id} st=${result.status} stack=${result.detail.take(1500)}")
+            Log.i(TAG, "id=${result.id} st=${result.status} stack=${result.detail.take(8000)}")
         }
         return result
     }

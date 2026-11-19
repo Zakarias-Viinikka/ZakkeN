@@ -173,8 +173,7 @@ private suspend fun flushOpenPage(pageId: String) {
 private suspend fun refreshOpenPage(pageId: String) {
     val open = OpenPageRegistry.get(pageId) ?: return
     try {
-        val mirror = getBlocksForPageOrdered(pageId).getOrThrow()
-        withContext(Dispatchers.Main) { open.applyRemoteRows(mirror) }
+        open.applyRemoteRows { getBlocksForPageOrdered(pageId).getOrThrow() }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {

@@ -4,12 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -56,12 +57,19 @@ fun ViewPage(
     var isLoading by remember { mutableStateOf(true) }
     var loadFailed by remember { mutableStateOf(false) }
     var reloadToken by remember { mutableStateOf(0) }
+    var isLeaving by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
     fun leavePage() {
+        if (isLeaving) return
+        isLeaving = true
         coroutineScope.launch {
-            session?.flush()
+            val result = session?.flush()
+            if (result != null && result.isFailure) {
+                isLeaving = false
+                return@launch
+            }
             onBack()
         }
     }
@@ -78,7 +86,12 @@ fun ViewPage(
             old.destroyAfterFlush()
         }
         session = null
+        // If a previous ViewPage instance for this pageId just disposed
+        // (e.g. activity recreation), wait for its flush to finish before
+        // reading the DB.
+        OpenPageRegistry.awaitPendingClose(pageId)
 
+        var createdBoss: rustlib.my_yrs_lib.BossOfYrs? = null
         try {
             DbManager.awaitReady()
             val mirrorRows = getBlocksForPageOrdered(pageId).getOrThrow()
@@ -86,9 +99,11 @@ fun ViewPage(
             val userId = StorageAccess.getUserId()
             val isMainMenu = isMainMenuPage(pageId)
             val boss = docFromSnapshot(blob, userId, pageId, System.currentTimeMillis().toString())
+            createdBoss = boss
             val newSession = PageSession(boss, pageId, isMainMenu, mirrorRows) {
                 reloadToken++
             }
+            createdBoss = null
 
             if (newSession.rows.isEmpty()) {
                 GlobalPopupManager.showError("Page $pageId has no blocks. Reload to try recovery.")
@@ -103,7 +118,11 @@ fun ViewPage(
                 newSession.pendingFocus.value = PendingFocus(newSession.rows[1].blockId, 0)
             }
             ViewPageLogs.logPageLoadSuccess(pageId, newSession.rows.size)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            createdBoss?.let { runCatching { it.destroy() } }
+            throw e
         } catch (e: Exception) {
+            createdBoss?.let { runCatching { it.destroy() } }
             ViewPageLogs.logPageLoadError(pageId, e.message ?: "Unknown error")
             GlobalPopupManager.showError("Failed to load page: ${e.message}")
             loadFailed = true
@@ -123,8 +142,10 @@ fun ViewPage(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            session?.let { OpenPageRegistry.unregister(it) }
-            session?.flushAsync()
+            session?.let {
+                OpenPageRegistry.unregisterAndClose(it)
+                session = null
+            }
         }
     }
 
@@ -155,6 +176,8 @@ fun ViewPage(
             currentSession == null -> Column(
                 modifier = Modifier
                     .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding()
                     .fillMaxSize()
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -167,6 +190,8 @@ fun ViewPage(
                 state = listState,
                 modifier = Modifier
                     .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding()
                     .fillMaxSize()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)

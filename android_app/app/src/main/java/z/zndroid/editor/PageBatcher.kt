@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import rustlib.data_builder_for_operations_that_need_to_be_correct.addBlock
 import rustlib.data_builder_for_operations_that_need_to_be_correct.deleteBlock
 import rustlib.data_builder_for_operations_that_need_to_be_correct.editBlock
@@ -44,7 +45,13 @@ class PageBatcher(
     private val queue = mutableListOf<Entry>()
     private val queueLock = Any()
     private val flushMutex = Mutex()
+
+    // Guards [debounceJob]. Every read and write of the field happens
+    // inside synchronized(debounceLock) so armDebounce / flushNow /
+    // destroy can't race each other. See STORED context (2026-11-19).
+    private val debounceLock = Any()
     private var debounceJob: Job? = null
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // Set by [destroy]. Once true, pushes are dropped and no further flush
@@ -52,6 +59,9 @@ class PageBatcher(
     // flushing edits against a destroyed boss.
     @Volatile
     private var destroyed = false
+
+    @Volatile
+    private var closing = false
 
     fun pushEdit(blockId: String, diff: DiffResult) {
         if (destroyed) return
@@ -77,13 +87,23 @@ class PageBatcher(
         armDebounce()
     }
 
+    /**
+     * Arm (or re-arm) the 500 ms debounce. Only the sleep runs on
+     * [debounceJob]; the actual flush is launched on a *separate*
+     * coroutine that [debounceJob] cannot cancel. This mirrors the web
+     * batcher, where the run loop never cancels an in-flight flush.
+     * Without the split, a fresh push arriving while a flush was inside
+     * its transaction would cancel it and lose the already-drained batch.
+     */
     private fun armDebounce() {
         if (destroyed) return
-        debounceJob?.cancel()
-        debounceJob = scope.launch {
-            delay(500)
-            if (destroyed) return@launch
-            runOneFlush()
+        synchronized(debounceLock) {
+            debounceJob?.cancel()
+            debounceJob = scope.launch {
+                delay(500)
+                if (destroyed) return@launch
+                scope.launch { runOneFlush() }
+            }
         }
     }
 
@@ -94,15 +114,19 @@ class PageBatcher(
      */
     fun destroy() {
         destroyed = true
-        debounceJob?.cancel()
-        debounceJob = null
+        synchronized(debounceLock) {
+            debounceJob?.cancel()
+            debounceJob = null
+        }
         synchronized(queueLock) { queue.clear() }
         scope.cancel()
     }
 
     suspend fun flushNow(): Result<Unit> {
-        debounceJob?.cancel()
-        debounceJob = null
+        synchronized(debounceLock) {
+            debounceJob?.cancel()
+            debounceJob = null
+        }
         return runOneFlush()
     }
 
@@ -112,18 +136,45 @@ class PageBatcher(
     fun hasPending(): Boolean =
         flushMutex.isLocked || synchronized(queueLock) { queue.isNotEmpty() }
 
-    /** Flush in the background, then run [then] (even if the flush failed). */
-    fun flushThen(then: () -> Unit) {
+    /**
+     * Flush in the background. [onSuccess] runs on Main only if the flush
+     * succeeded. On failure [onFailed] has already fired (inside
+     * [runOneFlush]) - do not double-fire it here.
+     */
+    fun flushThen(onSuccess: () -> Unit) {
         if (destroyed) return
         scope.launch {
-            runOneFlush()
-            then()
+            val result = runOneFlush()
+            if (result.isSuccess) {
+                withContext(Dispatchers.Main) { onSuccess() }
+            }
         }
     }
 
     fun flushAsync() {
         if (destroyed) return
         scope.launch { runOneFlush() }
+    }
+
+    /**
+     * Marks this batcher as closing, flushes any pending entries, invokes
+     * [onFlushed] (e.g. to destroy the yrs boss) even if the flush fails,
+     * and permanently destroys the batcher.
+     */
+    fun flushAndDestroyAsync(onFlushed: () -> Unit): Job {
+        closing = true
+        synchronized(debounceLock) {
+            debounceJob?.cancel()
+            debounceJob = null
+        }
+        return scope.launch {
+            try {
+                runOneFlush()
+            } finally {
+                onFlushed()
+                destroy()
+            }
+        }
     }
 
     private suspend fun runOneFlush(): Result<Unit> = flushMutex.withLock {
@@ -150,8 +201,17 @@ class PageBatcher(
                 if (e is CancellationException) {
                     Result.failure(e)
                 } else {
-                    GlobalPopupManager.showError("Save failed: ${e.message}. Reloading page.")
-                    onFailed()
+                    // Popup and onFailed (which reloads the page) both
+                    // mutate UI state; dispatch to Main. When closing,
+                    // the page is already leaving so don't trigger a reload.
+                    withContext(Dispatchers.Main) {
+                        if (closing) {
+                            GlobalPopupManager.showError("Save failed: ${e.message}")
+                        } else {
+                            GlobalPopupManager.showError("Save failed: ${e.message}. Reloading page.")
+                            onFailed()
+                        }
+                    }
                     Result.failure(e)
                 }
             }

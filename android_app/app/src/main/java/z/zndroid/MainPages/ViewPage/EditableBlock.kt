@@ -95,10 +95,8 @@ fun EditableBlock(
         BasicTextField(
             value = row.textFieldValue,
             onValueChange = { newValue ->
-                if (newValue.text.contains('\n')) {
-                    val cleanText = newValue.text.replace("\n", "")
-                    val cursor = newValue.selection.start.coerceAtMost(cleanText.length)
-                    session.onEnter(index, cursor)
+                if (newValue.text.contains('\n') || newValue.text.contains('\r')) {
+                    session.onMultiLineInput(index, newValue)
                     return@BasicTextField
                 }
                 if (newValue.text == row.textFieldValue.text) {
@@ -112,31 +110,30 @@ fun EditableBlock(
                 .focusRequester(row.focusRequester)
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val sel = row.textFieldValue.selection
                     when (event.key) {
                         Key.Enter -> {
-                            if (!event.isShiftPressed) {
-                                val cursor = row.textFieldValue.selection.start
-                                session.onEnter(index, cursor)
+                            if (event.isShiftPressed) {
+                                true
+                            } else if (sel.collapsed) {
+                                session.onEnter(index, sel.start)
                                 true
                             } else false
                         }
                         Key.Backspace -> {
-                            val cursor = row.textFieldValue.selection.start
-                            if (cursor == 0 && index > 0) {
+                            if (sel.collapsed && sel.start == 0 && index > 0) {
                                 session.onBackspaceAtStart(index)
                                 true
                             } else false
                         }
                         Key.DirectionUp -> {
-                            val cursor = row.textFieldValue.selection.start
-                            if (cursor == 0 && !event.isShiftPressed) {
+                            if (sel.collapsed && sel.start == 0 && !event.isShiftPressed) {
                                 session.onArrow(index, goDown = false)
                             } else false
                         }
                         Key.DirectionDown -> {
-                            val cursor = row.textFieldValue.selection.start
                             val len = row.textFieldValue.text.length
-                            if (cursor == len && !event.isShiftPressed) {
+                            if (sel.collapsed && sel.start == len && !event.isShiftPressed) {
                                 session.onArrow(index, goDown = true)
                             } else false
                         }
@@ -162,7 +159,7 @@ fun EditableBlock(
         BlockActionMenu(
             blockText = row.textFieldValue.text,
             canMoveUp = index >= 2,
-            canMoveDown = index < session.rows.size - 1,
+            canMoveDown = !isTitle && index < session.rows.size - 1,
             canDelete = !isTitle && session.rows.count { !it.isTitle } > 1,
             onDelete = {
                 session.onDeleteBlock(index)

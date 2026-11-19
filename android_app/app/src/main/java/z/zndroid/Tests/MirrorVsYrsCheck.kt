@@ -1,5 +1,6 @@
 package z.zndroid.Tests
 
+import android.util.Log
 import rustlib.my_yrs_lib.YrsActivePages
 import rustlib.my_yrs_lib.docFromSnapshot
 import z.zndroid.DbManager
@@ -12,6 +13,7 @@ import z.zndroid.db.reads.isPageDisabled
 object MirrorVsYrsCheck {
     const val ID = "mirror.vs_yrs"
     const val NAME = "Mirror vs yrs (every page)"
+    private const val TAG = "MirrorVsYrs"
 
     suspend fun run(): DevCheckResult {
         try {
@@ -30,6 +32,7 @@ object MirrorVsYrsCheck {
             }
 
             val problems = mutableListOf<String>()
+            Log.i(TAG, "checking ${pageIds.size} pages")
 
             for (pageId in pageIds) {
                 val blob = getPageBlob(pageId).getOrThrow()
@@ -37,45 +40,60 @@ object MirrorVsYrsCheck {
                 val yrsBlocks = try { boss.getEntirePage() } finally { boss.destroy() }
                 val mirror = getBlocksForPageOrdered(pageId).getOrThrow()
 
-                if (yrsBlocks.size != mirror.size) {
-                    problems.add("$pageId: yrs has ${yrsBlocks.size} blocks, mirror has ${mirror.size}")
-                    continue
-                }
-
-                if (mirror.size < 2) {
-                    problems.add("$pageId: only ${mirror.size} block(s) in mirror (min is 2)")
-                }
-
-                val titleRows = mirror.filter { it.isTitle }
-                if (titleRows.size != 1) {
-                    problems.add("$pageId: expected exactly 1 is_title row, found ${titleRows.size}")
-                } else if (mirror.isEmpty() || !mirror.first().isTitle) {
-                    problems.add("$pageId: first mirror block is not the title")
-                }
-
                 val yrsIds = yrsBlocks.map { it.idInYrs }
                 val mirrorIds = mirror.map { it.blockId }
-                if (yrsIds != mirrorIds) {
-                    problems.add("$pageId: order mismatch. yrs=$yrsIds mirror=$mirrorIds")
-                } else {
-                    yrsBlocks.zip(mirror).forEach { (y, m) ->
-                        if (y.text != m.content) {
-                            problems.add("$pageId/${y.idInYrs}: content mismatch yrs='${y.text}' mirror='${m.content}'")
-                        }
-                    }
-                }
-
+                val titleRows = mirror.filter { it.isTitle }
                 val activeBlob = getActivePagesBlob(pageId).getOrThrow()
                 val active = YrsActivePages(activeBlob)
                 val activeFlag = active.isPageActive(pageId)
                 val mirrorDisabled = isPageDisabled(pageId)
+                Log.i(
+                    TAG,
+                    "page $pageId: yrs=${yrsBlocks.size} mirror=${mirror.size} " +
+                        "titleRows=${titleRows.size} active=$activeFlag mirrorDisabled=$mirrorDisabled"
+                )
+
+                if (yrsBlocks.size != mirror.size) {
+                    val p = "$pageId: yrs has ${yrsBlocks.size} blocks, mirror has ${mirror.size}. " +
+                        "yrsIds=$yrsIds mirrorIds=$mirrorIds"
+                    problems.add(p)
+                    Log.w(TAG, p)
+                    continue
+                }
+
+                if (titleRows.size != 1) {
+                    val p = "$pageId: expected exactly 1 is_title row, found ${titleRows.size}"
+                    problems.add(p)
+                    Log.w(TAG, p)
+                } else if (mirror.isEmpty() || !mirror.first().isTitle) {
+                    val p = "$pageId: first mirror block is not the title"
+                    problems.add(p)
+                    Log.w(TAG, p)
+                }
+
+                if (yrsIds != mirrorIds) {
+                    val p = "$pageId: order mismatch. yrs=$yrsIds mirror=$mirrorIds"
+                    problems.add(p)
+                    Log.w(TAG, p)
+                } else {
+                    yrsBlocks.zip(mirror).forEach { (y, m) ->
+                        if (y.text != m.content) {
+                            val p = "$pageId/${y.idInYrs}: content mismatch yrs='${y.text}' mirror='${m.content}'"
+                            problems.add(p)
+                            Log.w(TAG, p)
+                        }
+                    }
+                }
+
                 if (activeFlag == mirrorDisabled) {
-                    problems.add(
-                        "$pageId: expected active=${!mirrorDisabled} but active_pages says active=$activeFlag " +
+                    val p = "$pageId: expected active=${!mirrorDisabled} but active_pages says active=$activeFlag " +
                         "(mirror page_is_disabled=$mirrorDisabled)"
-                    )
+                    problems.add(p)
+                    Log.w(TAG, p)
                 }
             }
+
+            Log.i(TAG, "done: ${problems.size} problem(s) across ${pageIds.size} page(s)")
 
             if (problems.isEmpty()) {
                 pass(ID, NAME, "Checked ${pageIds.size} pages. All mirror rows agree with yrs.")

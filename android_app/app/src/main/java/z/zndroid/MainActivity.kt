@@ -39,11 +39,8 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("nav_page") {
                             NavPage(
-                                onOpenPage = { title ->
-                                    navController.navigate("view_page/$title")
-                                },
-                                onOpenAdminView = { title ->
-                                    navController.navigate("admin_view/$title")
+                                onOpenPage = { pageId ->
+                                    navController.navigate("view_page/$pageId")
                                 },
                                 onOpenDbInspector = {
                                     navController.navigate("db_gui")

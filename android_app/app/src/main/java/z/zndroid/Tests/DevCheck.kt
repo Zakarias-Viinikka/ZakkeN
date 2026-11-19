@@ -1,6 +1,6 @@
 package z.zndroid.Tests
 
-enum class DevCheckStatus { NOT_RUN, RUNNING, PASS, FAIL }
+enum class DevCheckStatus { NOT_RUN, RUNNING, PASS, FAIL, SKIP }
 
 data class DevCheckResult(
     val id: String,
@@ -21,3 +21,6 @@ fun pass(id: String, name: String, message: String = ""): DevCheckResult =
 
 fun fail(id: String, name: String, message: String, detail: String? = null): DevCheckResult =
     DevCheckResult(id, name, DevCheckStatus.FAIL, message, detail)
+
+fun skip(id: String, name: String, message: String = "", detail: String? = null): DevCheckResult =
+    DevCheckResult(id, name, DevCheckStatus.SKIP, message, detail)

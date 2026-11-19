@@ -31,7 +31,7 @@ To verify: Confirm web's worker handles transaction-failure logging by preservin
 
 ### PageBatcher with optimistic delete/move
 
-Android: `editor/PageBatcher` holds an ordered queue of `Entry.Edit / Add / Delete / Move`. Consecutive edits to a block are squashed via `combineGetdiffResults` before the transaction; any non-edit entry flushes the pending edit run first, then does its own op inside the same transaction. Local UI state (`PageSession.rows`) is updated optimistically for delete and move before the write lands.
+Android: `editor/PageBatcher` holds an ordered queue of `Entry.Edit / Add / Delete / Move`. Debounce (`debounceJob`, guarded by `debounceLock`) cancels only the 500ms sleep coroutine and launches each flush in its own coroutine so a new push cannot cancel an in-flight transaction. Consecutive edits to a block are squashed via `combineGetdiffResults` before the transaction; any non-edit entry flushes the pending edit run first, then does its own op inside the same transaction. Local UI state (`PageSession.rows`) is updated optimistically for delete and move before the write lands, and `PageSession.applyRemoteRows` flushes pending edits before updating rows in place on Main.
 
 Web: `db/batcher` queues only `Edit` and `AddBlock`. Delete and move go straight through `ui_actions` entry points (`delete_block`, `move_block`, `move_block_to_another_page`) which flush the batcher first, then take the write lock. Web does not queue them.
 
@@ -77,9 +77,9 @@ To verify: Web reloads on navigation (browser refresh), so its "once per reload"
 
 ---
 
-### Nav "Delete" button means disable
+### Nav "X" (Delete) button means disable
 
-Android: the nav row button labelled "Delete" calls `actions/disablePage`, which sets the page's blocks and status to disabled and removes the page from the menu. No data is deleted. Renamed conceptually but the button label is frozen because the e2e harness (and other tests) click the "Delete" text.
+Android: the nav row button labelled `"X"` opens a "Delete Page" dialog (confirm button `"Delete"`) which calls `actions/disablePage`, setting the page's blocks and status to disabled and removing the page from the menu. No data is deleted.
 
 Web: the menu button next to each title is an eye icon (SVG) labelled with the tooltip "disable page". Same behaviour.
 
@@ -91,7 +91,7 @@ To verify: any future UI redesign can re-label the button. Nothing depends on th
 
 ### Dev Tools page + DevCheck registry
 
-Android: page at route `test_results` (nav button "Dev Tools"). Both the nav button and the route are gated behind `BuildConfig.DEBUG` in `MainActivity`, so the page is unreachable in release even though its class is compiled in. `DevCheckRegistry.checks` is the one list of checks. `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
+Android: page at route `test_results` (nav button "Dev Tools"). Both the nav button and the route are gated behind `BuildConfig.DEBUG` in `MainActivity`, so the page is unreachable in release even though its class is compiled in. `DevCheckRegistry.checks` is the one list of checks (`PASS`, `FAIL`, or `SKIP`). `DevToolsPage` runs them sequentially. Each logs `Log.i("DevCheck", "id=... status=PASS|FAIL|SKIP detail=...")`; the last line is `Log.i("DevCheck", "summary pass=N fail=M skip=K")`. `test_dev_checks` in the e2e harness navigates to the page, taps "Run all checks", waits for the summary line, asserts `fail=0`, prints every failed check's id and message.
 
 Web: `web_interface/src/db/dev_actions.rs` has `insert_three_pages`, `delete_everything`, `reset_everything` exposed as buttons in a dev sidebar. No pass/fail check registry.
 

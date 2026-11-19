@@ -7,6 +7,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.PositionToInsert
 import rustlib.text_diff.getDiff
@@ -76,6 +79,73 @@ class PageSession(
             selection = TextRange(head.length)
         )
         pendingFocus.value = PendingFocus(newId, 0)
+    }
+
+    /**
+     * Handles input containing one or more newlines (soft-keyboard Enter or
+     * multi-line paste). Splits normalized lines into the current block plus
+     * newly inserted blocks below it, preserving text before/after the paste
+     * and placing focus at the exact cursor location in the target block.
+     */
+    fun onMultiLineInput(rowIndex: Int, newValue: TextFieldValue) {
+        val row = rows[rowIndex]
+        val oldText = row.textFieldValue.text
+        val rawText = newValue.text
+        val normalized = rawText.replace("\r\n", "\n").replace('\r', '\n')
+        val parts = normalized.split('\n')
+        if (parts.size <= 1) {
+            onInput(rowIndex, newValue.copy(text = normalized))
+            return
+        }
+
+        val rawCursor = newValue.selection.start.coerceIn(0, rawText.length)
+        val normalizedCursor = rawText.substring(0, rawCursor)
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .length
+
+        var remaining = normalizedCursor
+        var targetPartIdx = parts.lastIndex
+        var targetOffset = parts.last().length
+        for (i in parts.indices) {
+            val lineLen = parts[i].length
+            if (remaining <= lineLen) {
+                targetPartIdx = i
+                targetOffset = remaining
+                break
+            }
+            remaining -= lineLen + 1
+        }
+
+        val firstText = parts[0]
+        if (firstText != oldText) {
+            batcher.pushEdit(row.blockId, getDiff(oldText, firstText))
+        }
+        row.textFieldValue = row.textFieldValue.copy(
+            text = firstText,
+            selection = TextRange(firstText.length)
+        )
+
+        val originalBelow = rows.getOrNull(rowIndex + 1)?.blockId
+        var prevId = row.blockId
+        val insertedRows = ArrayList<BlockRow>(parts.size - 1)
+        for (i in 1 until parts.size) {
+            val newId = UUID.randomUUID().toString().replace("-", "")
+            val partText = parts[i]
+            batcher.pushAdd(newId, partText, PositionToInsert.Between(prevId, originalBelow))
+            val newRow = BlockRow(newId, false, partText)
+            rows.add(rowIndex + i, newRow)
+            insertedRows.add(newRow)
+            prevId = newId
+        }
+
+        val targetRow = if (targetPartIdx == 0) row else insertedRows[targetPartIdx - 1]
+        if (targetPartIdx == 0) {
+            targetRow.textFieldValue = targetRow.textFieldValue.copy(
+                selection = TextRange(targetOffset)
+            )
+        }
+        pendingFocus.value = PendingFocus(targetRow.blockId, targetOffset)
     }
 
     fun onBackspaceAtStart(rowIndex: Int) {
@@ -181,14 +251,25 @@ class PageSession(
      * A remote letter was merged into this page's boss and the db mirror.
      * Bring the visible rows in line with the mirror, keeping the row
      * objects (so focus and cursor survive) for blocks that still exist.
-     * If local edits are still queued the rows can't be trusted yet:
-     * flush, then reload the page. Call on the main thread.
+     *
+     * If local edits are still queued, flush first, then re-read the
+     * mirror via [fetchMirror]. The mirror the caller captured may be
+     * stale by the time the flush finishes; fetching after the flush
+     * guarantees the rows we apply match the DB. On flush failure
+     * [batcher] has already called onFailure (which reloads the page);
+     * we do not apply rows on that path. Safe to call from any thread;
+     * the row mutation runs on Main.
      */
-    fun applyRemoteRows(mirrorRows: List<BlockMirrorRow>) {
+    suspend fun applyRemoteRows(fetchMirror: suspend () -> List<BlockMirrorRow>) {
         if (batcher.hasPending()) {
-            batcher.flushThen(onFailure)
-            return
+            val result = batcher.flush()
+            if (result.isFailure) return
         }
+        val mirror = fetchMirror()
+        withContext(Dispatchers.Main) { applyRemoteRowsNow(mirror) }
+    }
+
+    private fun applyRemoteRowsNow(mirrorRows: List<BlockMirrorRow>) {
         val byId = rows.associateBy { it.blockId }
         val next = mirrorRows.map { m ->
             val row = byId[m.blockId] ?: return@map BlockRow(m.blockId, m.isTitle, m.content)
@@ -221,13 +302,19 @@ class PageSession(
     fun flushAsync() = batcher.flushAsync()
 
     /**
+     * Asynchronously flush pending edits, destroy [boss], and destroy [batcher].
+     * Safe to call from Compose `onDispose` without blocking the UI thread.
+     */
+    fun destroyAfterFlushAsync(): Job = batcher.flushAndDestroyAsync {
+        runCatching { boss.destroy() }
+    }
+
+    /**
      * Flush, destroy the yrs boss, and stop accepting further edits.
      * Call once this session has been replaced; the caller must await
-     * the returned [Result] before calling anything else on [boss].
+     * completion before reading from the DB or calling anything else on [boss].
      */
     suspend fun destroyAfterFlush() {
-        batcher.flush()
-        runCatching { boss.destroy() }
-        batcher.destroy()
+        destroyAfterFlushAsync().join()
     }
 }

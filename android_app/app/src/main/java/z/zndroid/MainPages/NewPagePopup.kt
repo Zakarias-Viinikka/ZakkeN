@@ -19,7 +19,10 @@ import kotlinx.coroutines.delay
 @Composable
 fun NewPagePopup(
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String) -> Unit,
+    errorMessage: String? = null,
+    isSubmitting: Boolean = false,
+    onClearError: () -> Unit = {}
 ) {
     var pageName by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -61,7 +64,7 @@ fun NewPagePopup(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("New Page", style = MaterialTheme.typography.titleLarge)
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = onDismiss, enabled = !isSubmitting) {
                         Text("✕")
                     }
                 }
@@ -70,11 +73,26 @@ fun NewPagePopup(
 
                 OutlinedTextField(
                     value = pageName,
-                    onValueChange = { pageName = it },
+                    onValueChange = {
+                        pageName = it
+                        if (errorMessage != null) onClearError()
+                    },
                     label = { Text("Page Name") },
+                    isError = errorMessage != null,
+                    enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                     singleLine = true
                 )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -82,12 +100,12 @@ fun NewPagePopup(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(onClick = onDismiss, enabled = !isSubmitting) {
                         Text("Cancel")
                     }
                     Button(
                         onClick = { onConfirm(pageName.trim()) },
-                        enabled = pageName.isNotBlank()
+                        enabled = pageName.isNotBlank() && !isSubmitting
                     ) {
                         Text("Create")
                     }

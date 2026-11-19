@@ -8,24 +8,22 @@ import z.zndroid.DbManager
 import z.zndroid.Storage.SessionManager
 import z.zndroid.WriteLock
 import z.zndroid.db.reads.isMainMenuPage
+import z.zndroid.editor.OpenPageRegistry
 import z.zndroid.executor.addBlockRequiresThreeDbActions
 import z.zndroid.executor.deleteBlockRequiresThreeDbActions
 
 /**
  * Move a block from one page's yrs doc to another page's yrs doc.
  *
- * Caller responsibility: both pages' PageBatchers must be flushed before
- * calling this. An empty queue is not the same as "flushed" — PageBatcher
- * drains the queue before it takes the WriteLock, so a batch can be off
- * the queue and not yet written. Use `PageBatcher.flushNow()` (which
- * waits on the batcher's flush mutex), not a "queue empty?" check.
+ * Mirrors web's `move_block_to_another_page` wrapped in `run_exclusive`:
+ * any open PageSession for either page is flushed first, so pending
+ * edits land in the DB before the cross-page move's transaction. The
+ * flush happens before WriteLock because flushing itself takes the
+ * lock. If a flush fails the move is aborted; the batcher has already
+ * popped an error and fired onFailed in that case.
  *
- * The old and new bosses must also still be alive — this function reads
- * and writes them directly, and holds no lock on either session.
- *
- * Mirrors web's move_block_to_another_page: deleteBlock on the old boss,
- * addBlock with the same block id on the new boss, both executors in one
- * transaction under WriteLock.
+ * The old and new bosses must still be alive — this function reads and
+ * writes them directly, and holds no lock on either session.
  */
 suspend fun moveBlockToAnotherPage(
     oldBoss: BossOfYrs,
@@ -34,6 +32,16 @@ suspend fun moveBlockToAnotherPage(
     above: String?,
     below: String?
 ): Result<Unit> {
+    for (pageId in listOf(oldBoss.pageId(), newBoss.pageId())) {
+        val open = OpenPageRegistry.get(pageId) ?: continue
+        val flushed = open.flush()
+        if (flushed.isFailure) {
+            return Result.failure(
+                flushed.exceptionOrNull() ?: Exception("flush failed for page $pageId")
+            )
+        }
+    }
+
     val result = runCatching {
         WriteLock.withLock {
             DbManager.withTransaction {

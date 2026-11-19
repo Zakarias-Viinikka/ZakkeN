@@ -1,5 +1,6 @@
 package z.zndroid.editor
 
+import kotlinx.coroutines.Job
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -9,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object OpenPageRegistry {
     private val sessions = ConcurrentHashMap<String, PageSession>()
+    private val closingJobs = ConcurrentHashMap<String, Job>()
 
     fun register(session: PageSession) {
         sessions[session.pageId] = session
@@ -17,6 +19,27 @@ object OpenPageRegistry {
     /** Only removes `session` itself, never a newer session for the same page. */
     fun unregister(session: PageSession) {
         sessions.remove(session.pageId, session)
+    }
+
+    /**
+     * Unregisters [session] and asynchronously flushes pending edits, destroys
+     * its BossOfYrs, and destroys its PageBatcher. Tracks the job per pageId so
+     * a quickly reopened ViewPage can await it before reading the DB.
+     */
+    fun unregisterAndClose(session: PageSession) {
+        unregister(session)
+        val job = session.destroyAfterFlushAsync()
+        closingJobs[session.pageId] = job
+        job.invokeOnCompletion {
+            closingJobs.remove(session.pageId, job)
+        }
+    }
+
+    suspend fun awaitPendingClose(pageId: String) {
+        while (true) {
+            val job = closingJobs[pageId] ?: return
+            job.join()
+        }
     }
 
     fun get(pageId: String): PageSession? = sessions[pageId]

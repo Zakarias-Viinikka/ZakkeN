@@ -1,20 +1,21 @@
 package z.zndroid.MainPages
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import z.zndroid.BuildConfig
 import z.zndroid.DbManager
 import z.zndroid.actions.createNewPage
 import z.zndroid.actions.disablePage
-import z.zndroid.actions.renamePage
 import z.zndroid.components.GlobalPopupManager
 import z.zndroid.db.reads.MenuPageRow
 import z.zndroid.db.reads.getMenuPages
@@ -26,7 +27,6 @@ import z.zndroid.sync.owner_of_interacting_with_server.menuTick
 @Composable
 fun NavPage(
     onOpenPage: (String) -> Unit,
-    onOpenAdminView: (String) -> Unit,
     onOpenDbInspector: () -> Unit,
     onOpenTests: () -> Unit,
     onOpenRecovery: () -> Unit
@@ -34,11 +34,10 @@ fun NavPage(
     var pages by remember { mutableStateOf(emptyList<MenuPageRow>()) }
     var hasLoadedOnce by remember { mutableStateOf(false) }
     var showNewPagePopup by remember { mutableStateOf(false) }
-    var pageToRename by remember { mutableStateOf<MenuPageRow?>(null) }
+    var newPageError by remember { mutableStateOf<String?>(null) }
     var pageToDelete by remember { mutableStateOf<MenuPageRow?>(null) }
-    var renameInputText by remember { mutableStateOf("") }
+    var deletePageError by remember { mutableStateOf<String?>(null) }
     var scrollToNewest by remember { mutableStateOf(false) }
-    var scrollToPageId by remember { mutableStateOf<String?>(null) }
     var actionInFlight by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -70,20 +69,10 @@ fun NavPage(
         refreshPages()
     }
 
-    LaunchedEffect(pages.size, scrollToNewest, scrollToPageId) {
-        val targetId = scrollToPageId
-        when {
-            targetId != null -> {
-                val idx = pages.indexOfFirst { it.pageId == targetId }
-                if (idx >= 0) {
-                    listState.animateScrollToItem(idx)
-                    scrollToPageId = null
-                }
-            }
-            scrollToNewest && pages.isNotEmpty() -> {
-                listState.animateScrollToItem(pages.size - 1)
-                scrollToNewest = false
-            }
+    LaunchedEffect(pages.size, scrollToNewest) {
+        if (scrollToNewest && pages.isNotEmpty()) {
+            listState.animateScrollToItem(pages.size - 1)
+            scrollToNewest = false
         }
     }
 
@@ -120,47 +109,41 @@ fun NavPage(
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
-                    items(pages, key = { it.pageId }) { info ->
+                    itemsIndexed(pages, key = { _, info -> info.pageId }) { index, info ->
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Button(
-                                onClick = { onOpenPage(info.pageId) },
-                                modifier = Modifier.weight(1f)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable(role = Role.Button) { onOpenPage(info.pageId) }
+                                    .padding(vertical = 10.dp, horizontal = 4.dp)
                             ) {
                                 Text(
                                     text = info.title,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = if (info.isUntitled) {
-                                        LocalContentColor.current.copy(alpha = 0.6f)
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                     } else {
-                                        LocalContentColor.current
+                                        MaterialTheme.colorScheme.onSurface
                                     }
                                 )
                             }
 
-                            if (BuildConfig.DEBUG) {
-                                TextButton(onClick = { onOpenAdminView(info.pageId) }) {
-                                    Text("Admin")
-                                }
+                            TextButton(onClick = {
+                                deletePageError = null
+                                pageToDelete = info
+                            }) {
+                                Text("X")
                             }
-
-                            TextButton(
-                                onClick = {
-                                    pageToRename = info
-                                    renameInputText = if (info.isUntitled) "" else info.title
-                                }
-                            ) {
-                                Text("Rename")
-                            }
-
-                            TextButton(onClick = { pageToDelete = info }) {
-                                Text("Delete")
-                            }
+                        }
+                        if (index < pages.lastIndex) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
 
@@ -179,7 +162,10 @@ fun NavPage(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { showNewPagePopup = true },
+                onClick = {
+                    newPageError = null
+                    showNewPagePopup = true
+                },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp)
             ) {
                 Text("+ New Page")
@@ -201,23 +187,37 @@ fun NavPage(
 
     if (showNewPagePopup) {
         NewPagePopup(
-            onDismiss = { showNewPagePopup = false },
+            onDismiss = {
+                if (!actionInFlight) {
+                    newPageError = null
+                    showNewPagePopup = false
+                }
+            },
+            errorMessage = newPageError,
+            isSubmitting = actionInFlight,
+            onClearError = { newPageError = null },
             onConfirm = { name ->
                 if (!actionInFlight) {
+                    newPageError = null
                     actionInFlight = true
                     coroutineScope.launch {
                         try {
                             DbManager.awaitReady()
                             createNewPage(name)
                                 .onSuccess {
+                                    newPageError = null
                                     showNewPagePopup = false
                                     refreshPages { scrollToNewest = true }
                                 }
                                 .onFailure { error ->
-                                    GlobalPopupManager.showError("Error creating page: ${error.message}")
+                                    val msg = "Error creating page: ${error.message}"
+                                    newPageError = msg
+                                    GlobalPopupManager.showError(msg)
                                 }
                         } catch (e: Exception) {
-                            GlobalPopupManager.showError("Error creating page: ${e.message}")
+                            val msg = "Error creating page: ${e.message}"
+                            newPageError = msg
+                            GlobalPopupManager.showError(msg)
                         } finally {
                             actionInFlight = false
                         }
@@ -227,77 +227,52 @@ fun NavPage(
         )
     }
 
-    if (pageToRename != null) {
-        val currentInfo = pageToRename!!
-        AlertDialog(
-            onDismissRequest = { pageToRename = null },
-            title = { Text("Rename Page") },
-            text = {
-                OutlinedTextField(
-                    value = renameInputText,
-                    onValueChange = { renameInputText = it },
-                    label = { Text("New title") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val newTitle = renameInputText.trim()
-                        if (newTitle.isNotEmpty() && !actionInFlight) {
-                            actionInFlight = true
-                            coroutineScope.launch {
-                                try {
-                                    renamePage(currentInfo.pageId, newTitle)
-                                        .onSuccess {
-                                            pageToRename = null
-                                            refreshPages { scrollToPageId = currentInfo.pageId }
-                                        }
-                                        .onFailure { error ->
-                                            GlobalPopupManager.showError("Rename failed: ${error.message}")
-                                        }
-                                } catch (e: Exception) {
-                                    GlobalPopupManager.showError("Rename failed: ${e.message}")
-                                } finally {
-                                    actionInFlight = false
-                                }
-                            }
-                        }
-                    },
-                    enabled = renameInputText.isNotBlank() && !actionInFlight
-                ) {
-                    Text("Rename")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pageToRename = null }) { Text("Cancel") }
-            }
-        )
-    }
-
     if (pageToDelete != null) {
         val currentInfo = pageToDelete!!
         AlertDialog(
-            onDismissRequest = { pageToDelete = null },
+            onDismissRequest = {
+                if (!actionInFlight) {
+                    deletePageError = null
+                    pageToDelete = null
+                }
+            },
             title = { Text("Delete Page") },
-            text = { Text("Hide \"${currentInfo.title}\" from the menu? The page stays in the database; blocks are not removed.") },
+            text = {
+                Column {
+                    Text("Hide \"${currentInfo.title}\" from the menu? The page stays in the database; blocks are not removed.")
+                    if (deletePageError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = deletePageError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         if (!actionInFlight) {
+                            deletePageError = null
                             actionInFlight = true
                             coroutineScope.launch {
                                 try {
                                     disablePage(currentInfo.pageId)
                                         .onSuccess {
+                                            deletePageError = null
                                             pageToDelete = null
                                             refreshPages()
                                         }
                                         .onFailure { error ->
-                                            GlobalPopupManager.showError("Delete failed: ${error.message}")
+                                            val msg = "Delete failed: ${error.message}"
+                                            deletePageError = msg
+                                            GlobalPopupManager.showError(msg)
                                         }
                                 } catch (e: Exception) {
-                                    GlobalPopupManager.showError("Delete failed: ${e.message}")
+                                    val msg = "Delete failed: ${e.message}"
+                                    deletePageError = msg
+                                    GlobalPopupManager.showError(msg)
                                 } finally {
                                     actionInFlight = false
                                 }
@@ -310,7 +285,13 @@ fun NavPage(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pageToDelete = null }) { Text("Cancel") }
+                TextButton(
+                    onClick = {
+                        deletePageError = null
+                        pageToDelete = null
+                    },
+                    enabled = !actionInFlight
+                ) { Text("Cancel") }
             }
         )
     }

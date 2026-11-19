@@ -32,15 +32,10 @@ RUN_ALL_CHECKS_BUTTON = "Run all checks"
 def _row_sibling(element, label, timeout):
     """Find the `label` text in the same Row as `element`.
 
-    Compose's a11y tree for a row is Row > Button > Text(title) and
-    Row > TextButton > Text("Admin"/"Rename"/"Delete"). The old helper tried
-    `following-sibling::*[@text="Delete"]` and `following::*[@text="Delete"][1]`
-    from the title Text. Both are fragile in this tree and neither retried.
-
-    This version walks up to the nearest ancestor that contains Admin/Rename/
-    Delete (that's the row), then finds `label` inside it. Retries with a
-    fresh query each attempt because a LazyColumn can recycle rows during
-    scroll animations, making the reference stale for a moment.
+    Nav rows contain the clickable title text and the `"X"` disable button.
+    Walks up to the nearest ancestor containing `label` (the row), then
+    finds `label` inside it. Retries with a fresh query each attempt because
+    a LazyColumn can recycle rows during scroll animations.
     """
     end = time.time() + timeout
     last_error = None
@@ -48,7 +43,7 @@ def _row_sibling(element, label, timeout):
         try:
             row = element.find_element(
                 AppiumBy.XPATH,
-                'ancestor::*[.//*[@text="Admin"] and .//*[@text="Rename"] and .//*[@text="Delete"]][1]',
+                f'ancestor::*[.//*[@text={ui.xpath_literal(label)}]][1]',
             )
             labels = row.find_elements(
                 AppiumBy.XPATH, f'.//*[@text={ui.xpath_literal(label)}]'
@@ -90,7 +85,7 @@ def cleanup_test_pages(driver, prefix=PREFIX, timeout=WAIT):
         if not title_text.startswith(prefix):
             return
 
-        delete_btn = _row_sibling(el, "Delete", timeout)
+        delete_btn = _row_sibling(el, "X", timeout)
         delete_btn.click()
 
         confirm_xp = (
@@ -252,7 +247,7 @@ def rename_page(driver, old_name, new_name):
 
 def delete_page(driver, title):
     el = ui.find_by_text(driver, title)
-    delete_btn = _row_sibling(el, "Delete", timeout=WAIT)
+    delete_btn = _row_sibling(el, "X", timeout=WAIT)
     delete_btn.click()
 
     confirm_xp = (
