@@ -39,3 +39,7 @@ The goal is to create a pro-grade block-based editor (similar to Notion or Obsid
 - **No-Lag Persistence**: Character edits go through an ordered queue with a 500ms debounce. Consecutive edits to the same block are squashed before the transaction. Structural actions (split, merge, delete, move) go through the same queue, so they can't run ahead of pending text. The UI stays responsive because nothing waits on SQLite or yrs per keystroke.
 - **CRDT Stability**: Because we use Yrs, undo/redo and multi-device sync are robust, but the UX should hide that complexity. STATUS 2026-11-13: aspirational. There is no undo/redo in the app (the Lab's undo bar is a mock whose buttons do nothing) and no sync (see MISSING_AND_STALE.md).
 - **Page disable is a hide, not a delete.** The nav row's "Delete" button removes the page from the menu without touching any data. Blocks, blob and outbox rows stay. The button label is frozen for the e2e harness and does not reflect the new meaning.
+
+## Lab wishes (2026-11-20)
+
+Zakke's requested UI work is recorded in `android_app/docs/LAB_WISHES.md`: verbatim answers plus the interpreted spec. Read it before doing any UI work.

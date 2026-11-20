@@ -12,6 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import rustlib.my_yrs_lib.BossOfYrs
 import rustlib.my_yrs_lib.PositionToInsert
+import rustlib.text_diff.DiffResult
 import rustlib.text_diff.getDiff
 import z.zndroid.db.reads.BlockMirrorRow
 import java.util.UUID
@@ -51,7 +52,7 @@ class PageSession(
             row.textFieldValue = newValue
             return
         }
-        val diff = getDiff(old.text, newValue.text)
+        val diff = computeDiff(old.text, newValue.text)
         batcher.pushEdit(row.blockId, diff)
         row.textFieldValue = newValue
     }
@@ -64,7 +65,7 @@ class PageSession(
         val tail = text.substring(cursor)
 
         if (head != text) {
-            batcher.pushEdit(row.blockId, getDiff(text, head))
+            batcher.pushEdit(row.blockId, computeDiff(text, head))
         }
 
         val newId = UUID.randomUUID().toString().replace("-", "")
@@ -119,7 +120,7 @@ class PageSession(
 
         val firstText = parts[0]
         if (firstText != oldText) {
-            batcher.pushEdit(row.blockId, getDiff(oldText, firstText))
+            batcher.pushEdit(row.blockId, computeDiff(oldText, firstText))
         }
         row.textFieldValue = row.textFieldValue.copy(
             text = firstText,
@@ -172,7 +173,7 @@ class PageSession(
             runCatching { above.focusRequester.requestFocus() }
             val combined = above.textFieldValue.text + row.textFieldValue.text
             val joinOffset = above.textFieldValue.text.length
-            batcher.pushEdit(above.blockId, getDiff(above.textFieldValue.text, combined))
+            batcher.pushEdit(above.blockId, computeDiff(above.textFieldValue.text, combined))
             batcher.pushDelete(row.blockId)
             above.textFieldValue = above.textFieldValue.copy(text = combined)
             rows.removeAt(rowIndex)
@@ -317,4 +318,64 @@ class PageSession(
     suspend fun destroyAfterFlush() {
         destroyAfterFlushAsync().join()
     }
+}
+
+// text_diff's getDiff can emit Insert/Delete where a Replace is correct
+// (see text_diff/src/diff_logic.rs: "aX" -> "hello" -> Insert("hello", 0)).
+// We verify the raw diff by applying it; if it doesn't reproduce newText,
+// we build the diff from a code-point prefix/suffix match instead.
+private fun computeDiff(oldText: String, newText: String): DiffResult {
+    if (oldText == newText) return DiffResult.NoDiff
+    val raw = getDiff(oldText, newText)
+    if (applyDiffOnCodepoints(oldText, raw) == newText) return raw
+    if (newText.startsWith(oldText)) {
+        return DiffResult.Insert(
+            newText.substring(oldText.length),
+            oldText.codePointCount(0, oldText.length).toUInt()
+        )
+    }
+    if (oldText.startsWith(newText)) {
+        return DiffResult.Delete(
+            oldText.substring(newText.length),
+            newText.codePointCount(0, newText.length).toUInt()
+        )
+    }
+    val a = oldText.codePoints().toArray()
+    val b = newText.codePoints().toArray()
+    var p = 0
+    while (p < a.size && p < b.size && a[p] == b[p]) p++
+    var s = 0
+    while (s < a.size - p && s < b.size - p && a[a.size - 1 - s] == b[b.size - 1 - s]) s++
+    val oldMid = String(a, p, a.size - p - s)
+    val newMid = String(b, p, b.size - p - s)
+    return DiffResult.Replace(oldMid, newMid, p.toUInt())
+}
+
+private fun applyDiffOnCodepoints(oldText: String, diff: DiffResult): String {
+    val cps = oldText.codePoints().toArray().toMutableList()
+    when (diff) {
+        is DiffResult.Insert -> {
+            val p = diff.v2.toInt().coerceIn(0, cps.size)
+            val ins = diff.v1.codePoints().toArray()
+            for (i in ins.indices) cps.add(p + i, ins[i])
+        }
+        is DiffResult.Delete -> {
+            val p = diff.v2.toInt().coerceIn(0, cps.size)
+            val del = diff.v1.codePoints().toArray()
+            if (p + del.size > cps.size) return oldText
+            for (i in del.indices) if (cps[p + i] != del[i]) return oldText
+            repeat(del.size) { cps.removeAt(p) }
+        }
+        is DiffResult.Replace -> {
+            val p = diff.position.toInt().coerceIn(0, cps.size)
+            val oldCp = diff.oldText.codePoints().toArray()
+            if (p + oldCp.size > cps.size) return oldText
+            for (i in oldCp.indices) if (cps[p + i] != oldCp[i]) return oldText
+            val newCp = diff.newText.codePoints().toArray()
+            repeat(oldCp.size) { cps.removeAt(p) }
+            for (i in newCp.indices) cps.add(p + i, newCp[i])
+        }
+        DiffResult.NoDiff -> return oldText
+    }
+    return String(cps.toIntArray(), 0, cps.size)
 }

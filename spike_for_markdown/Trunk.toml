@@ -1,0 +1,7 @@
+[watch]
+ignore = ["assets"]
+
+[[hooks]]
+stage = "pre_build"
+command = "npm"
+command_arguments = ["--prefix", "js", "run", "build"]

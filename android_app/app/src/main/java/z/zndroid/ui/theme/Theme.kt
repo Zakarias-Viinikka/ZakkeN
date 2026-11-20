@@ -1,58 +1,71 @@
 package z.zndroid.ui.theme
 
-import android.app.Activity
-import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+// Ported from android_labs theme/FeelTheme.kt: the app always uses the lab's dark
+// palette (Zakke's ask: "make the app look more like the lab"). FeelColors also drive
+// the Material3 scheme, so components reading MaterialTheme.colorScheme get the lab
+// look for free. LocalReducedMotion mirrors the system animator scale.
+private val LabColorScheme = darkColorScheme(
+    primary = DarkFeelColors.accent,
+    onPrimary = DarkFeelColors.bgDeep,
+    primaryContainer = DarkFeelColors.accentSoft,
+    onPrimaryContainer = DarkFeelColors.accent,
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    secondary = DarkFeelColors.accent,
+    onSecondary = DarkFeelColors.bgDeep,
+    secondaryContainer = DarkFeelColors.accentSoft,
+    onSecondaryContainer = DarkFeelColors.accent,
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    tertiary = DarkFeelColors.accent,
+    onTertiary = DarkFeelColors.bgDeep,
+
+    background = DarkFeelColors.bg,
+    onBackground = DarkFeelColors.fg,
+
+    surface = DarkFeelColors.surface1,
+    onSurface = DarkFeelColors.fg,
+    surfaceVariant = DarkFeelColors.surface2,
+    onSurfaceVariant = DarkFeelColors.fgDim,
+
+    outline = DarkFeelColors.borderStrong,
+    outlineVariant = DarkFeelColors.border,
+
+    error = DarkFeelColors.danger,
+    onError = DarkFeelColors.bgDeep,
+    errorContainer = DarkFeelColors.dangerSoft,
+    onErrorContainer = DarkFeelColors.danger,
+
+    scrim = DarkFeelColors.bgDeep,
 )
 
 @Composable
 fun ZndroidTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
+    val context = LocalContext.current
+    val scale = Settings.Global.getFloat(
+        context.contentResolver,
+        Settings.Global.ANIMATOR_DURATION_SCALE,
+        1f,
     )
+    val reduced = scale == 0f
+    CompositionLocalProvider(
+        LocalFeelColors provides DarkFeelColors,
+        LocalReducedMotion provides reduced,
+    ) {
+        MaterialTheme(
+            colorScheme = LabColorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
