@@ -1,6 +1,7 @@
 package z.zndroid.editor
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,10 +24,24 @@ class BlockRow(
     initialText: String
 ) {
     var textFieldValue by mutableStateOf(TextFieldValue(initialText))
+
+    /** Bumped when the user types the first character into an empty body block. EditableBlock plays the indent transition on change. */
+    var indentGen by mutableIntStateOf(0)
+
+    /** Last indentGen already animated (plain field: stops a re-animation when the row scrolls back into view). */
+    var indentPlayedGen = 0
     val focusRequester = FocusRequester()
 }
 
 data class PendingFocus(val blockId: String, val offset: Int)
+
+/**
+ * A just-deleted block kept only for its drop animation. It is NOT part of
+ * PageSession.rows (the DB delete and all index logic already treat it as gone).
+ * anchorBlockId is the block that was directly above it, so the UI can draw the ghost
+ * in place.
+ */
+class GhostRow(val blockId: String, val text: String, val anchorBlockId: String)
 
 class PageSession(
     val boss: BossOfYrs,
@@ -37,12 +52,21 @@ class PageSession(
 ) {
     val rows = mutableStateListOf<BlockRow>()
     val pendingFocus = mutableStateOf<PendingFocus?>(null)
+    val ghosts = mutableStateListOf<GhostRow>()
     private val batcher = PageBatcher(boss, pageId, isMainMenu, onFailure)
 
     init {
         for (row in mirrorRows) {
             rows.add(BlockRow(row.blockId, row.isTitle, row.content))
         }
+    }
+
+    private fun spawnGhost(row: BlockRow, anchorBlockId: String) {
+        ghosts.add(GhostRow(row.blockId, row.textFieldValue.text, anchorBlockId))
+    }
+
+    fun removeGhost(ghost: GhostRow) {
+        ghosts.remove(ghost)
     }
 
     fun onInput(rowIndex: Int, newValue: TextFieldValue) {
@@ -53,6 +77,8 @@ class PageSession(
             return
         }
         val diff = computeDiff(old.text, newValue.text)
+        // First character typed into an empty body block: indent transition.
+        if (!row.isTitle && old.text.isEmpty()) row.indentGen++
         batcher.pushEdit(row.blockId, diff)
         row.textFieldValue = newValue
     }
@@ -162,11 +188,13 @@ class PageSession(
             runCatching { above.focusRequester.requestFocus() }
             batcher.pushDelete(row.blockId)
             rows.removeAt(rowIndex)
+            spawnGhost(row, above.blockId)
             pendingFocus.value = PendingFocus(above.blockId, above.textFieldValue.text.length)
         } else if (above.textFieldValue.text.isEmpty()) {
             // The kept block (this one) already has focus; nothing to do.
             batcher.pushDelete(above.blockId)
             rows.removeAt(aboveIndex)
+            spawnGhost(above, rows[aboveIndex - 1].blockId)
             pendingFocus.value = PendingFocus(row.blockId, 0)
         } else {
             // Merge: focus above before removing this block: keeps the IME open.
@@ -200,6 +228,7 @@ class PageSession(
         }
         batcher.pushDelete(row.blockId)
         rows.removeAt(rowIndex)
+        spawnGhost(row, rows[rowIndex - 1].blockId)
         if (focusRow != null) {
             pendingFocus.value = PendingFocus(focusRow.blockId, focusRow.textFieldValue.text.length)
         }

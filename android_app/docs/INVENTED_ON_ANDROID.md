@@ -55,6 +55,8 @@ To verify: Web can't auto-reload, so the Android answer will always differ here.
 
 ### Move Up / Down instead of drag
 
+(Note 2026-11-20: a drag/cascade physics engine now exists in the app as an invisible foundation, see "Invisible cascade engine" below. There is still NO drag handle and no manual dragging; Up/Down in the block menu is still how the user reorders.)
+
 Android: block reorder is two buttons in the block action menu (opened by tapping the `::` handle, not a long-press) ("Up" / "Down"). No drag. The title can't move and nothing moves above it.
 
 Web: drag the block handle to reorder, implemented by `drag_reorder_container`.
@@ -77,7 +79,7 @@ To verify: Web reloads on navigation (browser refresh), so its "once per reload"
 
 ---
 
-### Nav "X" (Delete) button means disable
+### (Superseded 2026-11-20, see "Eye hides the page after a drop" below) Nav "X" (Delete) button means disable
 
 Android: the nav row button labelled `"X"` opens a "Delete Page" dialog (confirm button `"Delete"`) which calls `actions/disablePage`, setting the page's blocks and status to disabled and removing the page from the menu. No data is deleted.
 
@@ -180,6 +182,64 @@ Web: `create_page` emits exactly one letter, a CreateNewPage carrying a title-be
 Reference location: web's `create_page` and the builder's `create_page`.
 
 To verify: both orderings converge on the server, but Android sends two round-trips where web sends one. Decide whether the builder should take the initial title so one letter is enough.
+
+---
+
+### Eye hides the page after a drop
+
+Android: the main-menu row button is an eye (content-desc `Hide <title>`), like web's disable button. No confirmation dialog. Press: eye closes, row dims; 1.5 s later the row plays a drop animation; only after it ends does `disablePage` run. Pressing the eye again before the drop starts cancels the hide (Android invention). Leaving the menu during the wait cancels it silently. If `disablePage` fails the row springs back and an error popup shows.
+
+Web: eye button with tooltip "disable page", immediate, no animation.
+
+Reference location: `web_interface/src/leptos_components/action_buttons/disable_page_button.rs`; Android `MainPages/NavRow.kt`.
+
+To verify: the 1.5 s delay is Zakke's ask ("1.5 sec after the eye has been pressed"); decide whether web should get the same delayed drop.
+
+---
+
+### Ghost rows for delete animation
+
+Android: a deleted block is removed from `PageSession.rows` and its DB delete is pushed immediately (so indices, focus and IME behave exactly as before). For the drop animation a display-only `GhostRow` (text plus the id of the block above) is added to `PageSession.ghosts` and drawn by `GhostBlock`; it removes itself when its animation ends. Backspace merge spawns no ghost.
+
+Web: no delete animation.
+
+Reference location: `editor/PageSession.kt` (`spawnGhost`), `MainPages/ViewPage/GhostBlock.kt`.
+
+To verify: N/A, presentation only. Never let ghosts into `rows` or the batcher.
+
+---
+
+### Indent transition on first typed character
+
+Android: the row's indent settle animation (22dp to 0, 500 ms, -5.5dp at 200 ms) plays when the first character is typed into an empty non-title block (`BlockRow.indentGen`), not on Enter.
+
+Web: none.
+
+Reference location: `PageSession.onInput`, `EditableBlock.kt`; lab `BlockTransitionLab`.
+
+To verify: Zakke's ask. Remote edits and multiline paste deliberately do not trigger it.
+
+---
+
+### Invisible cascade engine in ViewPage
+
+Android: blocks are positioned by a Rust physics engine (`rapier2d_wrapper`, prebuilt `.so` copied from `android_labs`) through `cascade/PageCascade` and `CascadeColumn`, so inserts, deletes and moves make the blocks below fall into place. There is no drag handle and no manual dragging. ViewPage is a scrolling `Column`, not a LazyColumn, so every block is composed.
+
+Web: `web_interface/src/drag_reorder_container` is a visible drag-and-drop component (a different engine, with handles).
+
+Reference location: `android_app/app/src/main/java/z/zndroid/cascade/`, lab `notes/CascadeController.kt`.
+
+To verify: never run on a device when written (2026-11-20). Check typing, wrapping lines, long pages and IME resize first.
+
+---
+
+### Settings page behind a cog
+
+Android: main-menu top bar has a cog opening `SettingsPage`. Debug builds list Recovery, Database Inspector and Dev Tools there (they were NavPage buttons). Web has a dev sidebar instead.
+
+Reference location: `MainPages/SettingsPage.kt`.
+
+To verify: N/A, Zakke's ask. Add real settings sections here later.
 
 ---
 

@@ -36,6 +36,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -112,9 +115,12 @@ fun GlobalPopup() {
     var clock by remember { mutableLongStateOf(0L) }
     var lastFrameNanos by remember { mutableLongStateOf(0L) }
 
-    // One frame loop owns the virtual clock so it pauses when the app is
-    // backgrounded (withFrameNanos suspends) instead of burning CPU.
-    LaunchedEffect(Unit) {
+    // One frame loop owns the virtual clock. It only runs while at least one
+    // toast is live, so an idle app requests no frames at all.
+    val hasLive = live.isNotEmpty()
+    LaunchedEffect(hasLive) {
+        if (!hasLive) return@LaunchedEffect
+        lastFrameNanos = 0L
         while (true) {
             withFrameNanos { now ->
                 if (lastFrameNanos == 0L) {
@@ -215,6 +221,11 @@ private fun PopupToast(
                 )
             }
             .clickable { onDismiss() }
+            .clearAndSetSemantics {
+                // e2e reads this: "popup|<error|info>|<message>"
+                contentDescription = "popup|${if (popup.isError) "error" else "info"}|${popup.text}"
+                onClick { onDismiss(); true }
+            }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {

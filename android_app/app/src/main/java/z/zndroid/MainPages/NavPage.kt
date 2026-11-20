@@ -1,6 +1,5 @@
 package z.zndroid.MainPages
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -9,10 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import z.zndroid.BuildConfig
 import z.zndroid.DbManager
 import z.zndroid.actions.createNewPage
 import z.zndroid.actions.disablePage
@@ -27,16 +25,13 @@ import z.zndroid.sync.owner_of_interacting_with_server.menuTick
 @Composable
 fun NavPage(
     onOpenPage: (String) -> Unit,
-    onOpenDbInspector: () -> Unit,
-    onOpenTests: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenRecovery: () -> Unit
 ) {
     var pages by remember { mutableStateOf(emptyList<MenuPageRow>()) }
     var hasLoadedOnce by remember { mutableStateOf(false) }
     var showNewPagePopup by remember { mutableStateOf(false) }
     var newPageError by remember { mutableStateOf<String?>(null) }
-    var pageToDelete by remember { mutableStateOf<MenuPageRow?>(null) }
-    var deletePageError by remember { mutableStateOf<String?>(null) }
     var scrollToNewest by remember { mutableStateOf(false) }
     var actionInFlight by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -78,7 +73,10 @@ fun NavPage(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Navigation page") })
+            TopAppBar(
+                title = { Text("Navigation page") },
+                actions = { CogButton(onClick = onOpenSettings) }
+            )
         }
     ) { innerPadding ->
         Column(
@@ -112,39 +110,32 @@ fun NavPage(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     itemsIndexed(pages, key = { _, info -> info.pageId }) { index, info ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable(role = Role.Button) { onOpenPage(info.pageId) }
-                                    .padding(vertical = 10.dp, horizontal = 4.dp)
-                            ) {
-                                Text(
-                                    text = info.title,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = if (info.isUntitled) {
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    }
-                                )
+                        NavRow(
+                            info = info,
+                            showDivider = index < pages.lastIndex,
+                            onOpen = { onOpenPage(info.pageId) },
+                            // Eye = hide (disablePage; data stays). Runs after the drop
+                            // animation. true = row can go, false = row springs back.
+                            onHide = {
+                                try {
+                                    disablePage(info.pageId).fold(
+                                        onSuccess = {
+                                            refreshPages()
+                                            true
+                                        },
+                                        onFailure = { error ->
+                                            GlobalPopupManager.showError("Hide failed: ${error.message}")
+                                            false
+                                        }
+                                    )
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    GlobalPopupManager.showError("Hide failed: ${e.message}")
+                                    false
+                                }
                             }
-
-                            TextButton(onClick = {
-                                deletePageError = null
-                                pageToDelete = info
-                            }) {
-                                Text("X")
-                            }
-                        }
-                        if (index < pages.lastIndex) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        }
+                        )
                     }
 
                     if (pages.isEmpty()) {
@@ -171,17 +162,7 @@ fun NavPage(
                 Text("+ New Page")
             }
 
-            if (BuildConfig.DEBUG) {
-                TextButton(onClick = onOpenRecovery) {
-                    Text("Recovery")
-                }
-                TextButton(onClick = onOpenDbInspector) {
-                    Text("Database Inspector")
-                }
-                TextButton(onClick = onOpenTests) {
-                    Text("Dev Tools")
-                }
-            }
+            // Recovery / Database Inspector / Dev Tools live in SettingsPage (cog in the top bar).
         }
     }
 
@@ -223,75 +204,6 @@ fun NavPage(
                         }
                     }
                 }
-            }
-        )
-    }
-
-    if (pageToDelete != null) {
-        val currentInfo = pageToDelete!!
-        AlertDialog(
-            onDismissRequest = {
-                if (!actionInFlight) {
-                    deletePageError = null
-                    pageToDelete = null
-                }
-            },
-            title = { Text("Delete Page") },
-            text = {
-                Column {
-                    Text("Hide \"${currentInfo.title}\" from the menu? The page stays in the database; blocks are not removed.")
-                    if (deletePageError != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = deletePageError!!,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (!actionInFlight) {
-                            deletePageError = null
-                            actionInFlight = true
-                            coroutineScope.launch {
-                                try {
-                                    disablePage(currentInfo.pageId)
-                                        .onSuccess {
-                                            deletePageError = null
-                                            pageToDelete = null
-                                            refreshPages()
-                                        }
-                                        .onFailure { error ->
-                                            val msg = "Delete failed: ${error.message}"
-                                            deletePageError = msg
-                                            GlobalPopupManager.showError(msg)
-                                        }
-                                } catch (e: Exception) {
-                                    val msg = "Delete failed: ${e.message}"
-                                    deletePageError = msg
-                                    GlobalPopupManager.showError(msg)
-                                } finally {
-                                    actionInFlight = false
-                                }
-                            }
-                        }
-                    },
-                    enabled = !actionInFlight
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        deletePageError = null
-                        pageToDelete = null
-                    },
-                    enabled = !actionInFlight
-                ) { Text("Cancel") }
             }
         )
     }

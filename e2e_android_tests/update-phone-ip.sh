@@ -29,6 +29,14 @@ if [ -n "$addr" ]; then
   exit 0
 fi
 
+# 1b. Connected over USB (serial has no :port): no wifi address needed.
+# Explicit args below still work if you want to save an address anyway.
+usb_serial="$(adb devices 2>/dev/null | awk 'NR>1 && $2=="device" && $1 !~ /^emulator-/ && $1 !~ /:[0-9]+$/ {print $1; exit}')"
+if [ -n "$usb_serial" ] && [ $# -eq 0 ]; then
+  log "connected over USB ($usb_serial); no wifi IP/port needed"
+  exit 0
+fi
+
 # 2. Args: ./update-phone-ip.sh <IP> [PORT]
 if [ $# -ge 1 ]; then
   new_ip="$1"

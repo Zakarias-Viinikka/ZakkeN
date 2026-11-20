@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import z.zndroid.MainPages.NavPage
 import z.zndroid.MainPages.RecoveryPage
+import z.zndroid.MainPages.SettingsPage
 import z.zndroid.MainPages.ViewPage.ViewPage
 import z.zndroid.components.MainContainer
 
@@ -34,6 +35,14 @@ class MainActivity : ComponentActivity() {
                         popEnterTransition = { EnterTransition.None },
                         popExitTransition = { ExitTransition.None }
                     ) {
+                        composable("settings") {
+                            SettingsPage(
+                                onBack = { navController.popBackStack() },
+                                onOpenRecovery = { navController.navigate("recovery_page") },
+                                onOpenDbInspector = { navController.navigate("db_gui") },
+                                onOpenTests = { navController.navigate("test_results") }
+                            )
+                        }
                         composable("recovery_page") {
                             RecoveryPage(onBack = { navController.popBackStack() })
                         }
@@ -42,11 +51,8 @@ class MainActivity : ComponentActivity() {
                                 onOpenPage = { pageId ->
                                     navController.navigate("view_page/$pageId")
                                 },
-                                onOpenDbInspector = {
-                                    navController.navigate("db_gui")
-                                },
-                                onOpenTests = {
-                                    navController.navigate("test_results")
+                                onOpenSettings = {
+                                    navController.navigate("settings")
                                 },
                                 onOpenRecovery = {
                                     navController.navigate("recovery_page")

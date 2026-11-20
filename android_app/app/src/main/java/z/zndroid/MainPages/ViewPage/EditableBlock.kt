@@ -1,6 +1,11 @@
 package z.zndroid.MainPages.ViewPage
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.graphicsLayer
+import z.zndroid.ui.theme.LocalReducedMotion
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,16 +51,41 @@ fun EditableBlock(
     row: BlockRow,
     index: Int,
     session: PageSession,
-    listState: LazyListState
+    listState: LazyListState? = null,
+    lazyIndex: Int = index,
+    pageScroll: PageScroll? = null
 ) {
     val isTitle = row.isTitle
+    val density = LocalDensity.current.density
     val textStyle = if (isTitle) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge
     var showMenu by remember { mutableStateOf(false) }
+
+    // Indent transition (lab BlockTransitionLab "Indent settle"): 22dp -> 0 over 500 ms
+    // with a -5.5dp overshoot at 200 ms. Plays when the first character is typed into an
+    // empty body block (PageSession.onInput bumps indentGen), not on Enter.
+    val reduced = LocalReducedMotion.current
+    val indentX = remember { Animatable(0f) }
+    LaunchedEffect(row.indentGen) {
+        if (row.indentGen == row.indentPlayedGen) return@LaunchedEffect
+        row.indentPlayedGen = row.indentGen
+        if (reduced) return@LaunchedEffect
+        indentX.snapTo(22f)
+        indentX.animateTo(
+            targetValue = 0f,
+            animationSpec = keyframes {
+                durationMillis = 500
+                -5.5f at 200
+            },
+        )
+    }
 
     LaunchedEffect(session.pendingFocus.value) {
         val req = session.pendingFocus.value ?: return@LaunchedEffect
         if (req.blockId != row.blockId) return@LaunchedEffect
-        runCatching { listState.animateScrollToItem(index) }
+        runCatching {
+            if (pageScroll != null) pageScroll.scrollToBlock(row.blockId, density)
+            else listState?.animateScrollToItem(lazyIndex)
+        }
         for (attempt in 0..5) {
             try {
                 withFrameNanos { }
@@ -75,6 +105,7 @@ fun EditableBlock(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer { translationX = indentX.value * density }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.Top
     ) {

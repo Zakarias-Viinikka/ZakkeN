@@ -27,6 +27,11 @@ RENAME_DIALOG_TITLE = "Rename Page"
 DELETE_DIALOG_TITLE = "Delete Page"
 DEV_TOOLS_BUTTON = "Dev Tools"
 RUN_ALL_CHECKS_BUTTON = "Run all checks"
+SETTINGS_COG_DESC = "Settings"
+SETTINGS_DEV_HEADER = "DEVELOPER"
+HIDE_DESC_PREFIX = "Hide "
+# Eye press -> ~1.5 s delay -> drop animation (~0.8 s) -> DB disable -> refresh.
+HIDE_WAIT = 10
 
 
 def _row_sibling(element, label, timeout):
@@ -85,20 +90,10 @@ def cleanup_test_pages(driver, prefix=PREFIX, timeout=WAIT):
         if not title_text.startswith(prefix):
             return
 
-        delete_btn = _row_sibling(el, "X", timeout)
-        delete_btn.click()
-
-        confirm_xp = (
-            f'//*[@text={ui.xpath_literal(DELETE_DIALOG_TITLE)}]'
-            f'/following::*[@text="Delete"][1]'
-        )
-        confirm = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((AppiumBy.XPATH, confirm_xp))
-        )
-        confirm.click()
+        _hide_button(driver, title_text, timeout).click()
 
         try:
-            ui.wait_text_gone(driver, title_text, timeout=timeout)
+            ui.wait_text_gone(driver, title_text, timeout=HIDE_WAIT)
         except Exception:
             pass
 
@@ -247,23 +242,34 @@ def rename_page(driver, old_name, new_name):
 
 def delete_page(driver, title):
     el = ui.find_by_text(driver, title)
-    delete_btn = _row_sibling(el, "X", timeout=WAIT)
-    delete_btn.click()
+    _hide_button(driver, title).click()
 
-    confirm_xp = (
-        f'//*[@text={ui.xpath_literal(DELETE_DIALOG_TITLE)}]'
-        f'/following::*[@text="Delete"][1]'
-    )
-    confirm = WebDriverWait(driver, WAIT).until(
-        EC.element_to_be_clickable((AppiumBy.XPATH, confirm_xp))
-    )
-    confirm.click()
+    ui.wait_text_gone(driver, title, timeout=HIDE_WAIT)
 
-    ui.wait_text_gone(driver, title, timeout=WAIT)
+def _hide_button(driver, title, timeout=WAIT):
+    """The eye button of the row titled `title` (content-desc 'Hide <title>')."""
+    xp = f'//*[@content-desc={ui.xpath_literal(HIDE_DESC_PREFIX + title)}]'
+    return WebDriverWait(driver, timeout).until(
+        EC.element_to_be_clickable((AppiumBy.XPATH, xp))
+    )
+
+
+def open_settings(driver, timeout=WAIT):
+    """Tap the cog in the NavPage top bar (content-desc 'Settings') and wait
+    for the Developer section. Developer section only exists in debug builds."""
+    cog = WebDriverWait(driver, timeout).until(
+        EC.element_to_be_clickable(
+            (AppiumBy.XPATH, f'//*[@content-desc={ui.xpath_literal(SETTINGS_COG_DESC)}]')
+        )
+    )
+    cog.click()
+    ui.wait_for_text(driver, SETTINGS_DEV_HEADER, timeout=timeout)
+
 
 def open_dev_tools(driver, timeout=WAIT):
     """Tap the nav button that opens the Dev Tools page, wait for the
     Run-all button to appear. Dev Tools only exists in debug builds."""
+    open_settings(driver, timeout)
     ui.click_by_text(driver, DEV_TOOLS_BUTTON)
     WebDriverWait(driver, timeout).until(
         EC.presence_of_element_located(
@@ -316,5 +322,8 @@ def run_all_dev_checks(driver, serial, timeout=180):
 
 
 def go_back_from_dev_tools(driver, timeout=WAIT):
+    # Dev Tools -> Settings -> NavPage.
+    ui.click_by_text(driver, BACK_ARROW)
+    ui.wait_for_text(driver, SETTINGS_DEV_HEADER, timeout=timeout)
     ui.click_by_text(driver, BACK_ARROW)
     ensure_nav_page(driver, timeout=timeout)

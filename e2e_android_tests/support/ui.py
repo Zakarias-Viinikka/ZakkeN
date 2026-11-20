@@ -149,81 +149,52 @@ def type_text(driver, text):
     )
 
 
+# GlobalPopup (the lab toast stack) exposes each toast as ONE node whose
+# content-desc is "popup|<error|info>|<message>" (see GlobalPopup.kt,
+# clearAndSetSemantics). Tapping the node dismisses the toast.
+# POPUP_ACTION_LABEL is the legacy Snackbar button text, kept only so old
+# imports still resolve.
 POPUP_ACTION_LABEL = "Dismiss"
+POPUP_DESC_PREFIX = "popup|"
+ERROR_PREFIX = "ERROR: "
+_POPUP_XPATH = f'//*[starts-with(@content-desc, {xpath_literal(POPUP_DESC_PREFIX)})]'
+
+
+def _popup_nodes(driver):
+    return driver.find_elements(AppiumBy.XPATH, _POPUP_XPATH)
 
 
 def popup_present(driver) -> bool:
-    return bool(driver.find_elements(
-        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
-    ))
-
-
-def get_popup_message(driver):
-    """Return the app-popup message if a GlobalPopup snackbar is visible, else None."""
-    dismiss = driver.find_elements(
-        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
-    )
-    if not dismiss:
-        return None
-    for xp in (
-        'ancestor::*[count(descendant::*[@text]) = 2][1]',
-        'ancestor::*[count(descendant::*[@text]) <= 3][1]',
-        'ancestor::*[descendant::*[@text="Dismiss"]][1]',
-    ):
-        try:
-            container = dismiss[0].find_element(AppiumBy.XPATH, xp)
-            for t in container.find_elements(AppiumBy.XPATH, './/*[@text]'):
-                txt = (t.text or '').strip()
-                if txt and txt != POPUP_ACTION_LABEL:
-                    return txt
-        except Exception:
-            continue
-    return "(popup visible, message not readable)"
-
-
-def dismiss_popup(driver) -> bool:
-    for n in driver.find_elements(
-        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
-    ):
-        try:
-            n.click()
-            return True
-        except Exception:
-            continue
-    return False
-
-
-ERROR_PREFIX = "ERROR: "
+    return bool(_popup_nodes(driver))
 
 
 def get_popup(driver):
-    """Return (message, is_error) if a GlobalPopup is visible, else None.
-
-    is_error is True when the visible text starts with ERROR_PREFIX, which
-    GlobalPopupManager.showError() prepends.
-    """
-    dismiss = driver.find_elements(
-        AppiumBy.XPATH, f'//*[@text={xpath_literal(POPUP_ACTION_LABEL)}]'
-    )
-    if not dismiss:
+    """Return (message, is_error) if a GlobalPopup toast is visible, else None."""
+    nodes = _popup_nodes(driver)
+    if not nodes:
         return None
-    text = None
-    for xp in (
-        'ancestor::*[count(descendant::*[@text]) = 2][1]',
-        'ancestor::*[count(descendant::*[@text]) <= 3][1]',
-        'ancestor::*[descendant::*[@text="Dismiss"]][1]',
-    ):
+    try:
+        desc = nodes[0].get_attribute("content-desc") or ""
+    except Exception:
+        return ("(popup visible, message not readable)", False)
+    parts = desc.split("|", 2)
+    if len(parts) != 3 or not parts[2].strip():
+        return ("(popup visible, message not readable)", False)
+    return (parts[2].strip(), parts[1] == "error")
+
+
+def get_popup_message(driver):
+    """Return the popup message if a toast is visible, else None."""
+    popup = get_popup(driver)
+    return popup[0] if popup else None
+
+
+def dismiss_popup(driver) -> bool:
+    dismissed = False
+    for n in _popup_nodes(driver):
         try:
-            container = dismiss[0].find_element(AppiumBy.XPATH, xp)
-            for t in container.find_elements(AppiumBy.XPATH, './/*[@text]'):
-                txt = (t.text or '').strip()
-                if txt and txt != POPUP_ACTION_LABEL:
-                    text = txt
-                    break
+            n.click()
+            dismissed = True
         except Exception:
             continue
-        if text:
-            break
-    if text is None:
-        return ("(popup visible, message not readable)", False)
-    return (text, text.startswith(ERROR_PREFIX))
+    return dismissed

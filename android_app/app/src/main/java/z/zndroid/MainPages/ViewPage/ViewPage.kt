@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.SideEffect
+import z.zndroid.cascade.CascadeColumn
+import z.zndroid.cascade.PageCascade
+import z.zndroid.ui.theme.LocalReducedMotion
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -59,7 +62,7 @@ fun ViewPage(
     var reloadToken by remember { mutableStateOf(0) }
     var isLeaving by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
 
     fun leavePage() {
         if (isLeaving) return
@@ -186,26 +189,48 @@ fun ViewPage(
                 Text("Could not load this page.")
                 TextButton(onClick = { leavePage() }) { Text("Back") }
             }
-            else -> LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .consumeWindowInsets(innerPadding)
-                    .imePadding()
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                itemsIndexed(
-                    items = currentSession.rows,
-                    key = { _, row -> row.blockId }
-                ) { index, row ->
-                    EditableBlock(
-                        row = row,
-                        index = index,
-                        session = currentSession,
-                        listState = listState
-                    )
+            else -> {
+                // Cascade engine (invisible foundation): positions every block, so
+                // inserts/deletes/moves make the blocks below fall into place.
+                val cascade = remember(currentSession) { PageCascade() }
+                val reduced = LocalReducedMotion.current
+                DisposableEffect(cascade) { onDispose { cascade.close() } }
+                LaunchedEffect(cascade) { cascade.controller.runFrames() }
+                LaunchedEffect(cascade, reduced) { cascade.controller.setReduced(reduced) }
+
+                // Live blocks plus ghosts (deleted blocks playing their drop animation).
+                val entries = buildPageEntries(currentSession)
+                SideEffect { cascade.sync(entries.map { it.key }) }
+                val byId = entries.associateBy { cascade.idOf(it.key) }
+                val pageScroll = remember(cascade, scrollState) { PageScroll(scrollState, cascade) }
+
+                Column(
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .consumeWindowInsets(innerPadding)
+                        .imePadding()
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(16.dp)
+                ) {
+                    CascadeColumn(
+                        controller = cascade.controller,
+                        blockIds = entries.map { cascade.idOf(it.key) },
+                    ) { id ->
+                        when (val entry = byId[id]) {
+                            is PageListEntry.Real -> EditableBlock(
+                                row = entry.row,
+                                index = entry.rowIndex,
+                                session = currentSession,
+                                pageScroll = pageScroll
+                            )
+                            is PageListEntry.Ghost -> GhostBlock(
+                                ghost = entry.ghost,
+                                onDone = { currentSession.removeGhost(entry.ghost) }
+                            )
+                            null -> {}
+                        }
+                    }
                 }
             }
         }

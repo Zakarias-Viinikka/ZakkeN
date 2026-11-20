@@ -25,7 +25,7 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 if ready; then
-  log "already connected: $(serial)"
+  log "already connected (USB or wifi, no pairing needed): $(serial)"
   exit 0
 fi
 

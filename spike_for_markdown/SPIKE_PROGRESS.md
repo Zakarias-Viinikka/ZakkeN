@@ -11,7 +11,7 @@ Browser harness verification via `trunk serve` (`c r`).
 - Added `local_cargo.sh` (`run`, `test`, `check` including wasm32).
 
 ## Next
-- Open the browser harness, test decorations/undo/remote buttons/intents/`[[` autocomplete/Fuzz 500x, click "Copy report", and paste output.
+- Confirm in the browser: (a) markers in a heading/bold span reveal when the caret enters and hide when it leaves; (b) typing `[[` shows the autocomplete popup with Cats (and Cats & Kittens when toggled); (c) undo (Ctrl+Z) after typing works without breaking sync; (d) focus-hop: Down at end of block 1 → focus lands in block 2; Up at start of block 2 → focus in block 1.
 
 ## Files Touched
 - `spike_for_markdown/Cargo.toml`
@@ -45,7 +45,7 @@ Browser harness verification via `trunk serve` (`c r`).
 
 ## Open Questions
 - Whether `yrs` 0.27 compiles cleanly for `wasm32-unknown-unknown` without extra `getrandom` flags.
-- Browser-side visual rendering, focus, resize, and clipboard behaviour (will need user browser check at the end).
+- Browser-side visual rendering of decorations, focus-hop intents, autocomplete, and undo round-trip still need user confirmation in the browser.
 
 ## Verification Status
 - `cargo test`: passed (verified via `c t`).
@@ -53,4 +53,8 @@ Browser harness verification via `trunk serve` (`c r`).
 - `node js/test_links.mjs`: passed (verified via `c t`).
 - esbuild bundle (`assets/cm_bridge.js`): built cleanly (verified via `c t`).
 - Browser harness initial mount: verified (all 3 blocks rendered, heights measured by ResizeObserver, CM and authority in sync).
-- Browser interactive buttons & fuzz: not run yet.
+- Fuzz 500x in browser (block 3, seed 12345): PASS 500/500, all 3 blocks IN SYNC after fuzz (verified via user-pasted Copy report). UTF-16 offsets hold up against emoji, ZWJ family emoji, CJK, and wikilinks mixed into garbage fuzz text.
+- Visual decorations (heading size, bold/italic/code styling, wikilink chips blue vs red): confirmed by user browsing the page — looks right.
+- All 5 remote-edit buttons on block 2: confirmed working (all applied cleanly, block 2 stayed IN SYNC). Clicking them left-to-right in one pass yields the expected composition — "delete link" deletes whichever link the previous "break link" step left parseable, so the ` <MID> ` insertion from the middle step ends up inside the deleted second token.
+- Rename page-cats / Toggle disable page-cats buttons: clicked, no errors, chip rendered correctly per user; final titles state not separately captured in the report.
+- Hidden-marker-on-caret-away, focus-hop intents, `[[` autocomplete, undo (Ctrl+Z) round-trip: not yet explicitly confirmed.
