@@ -1,23 +1,23 @@
-use leptos::prelude::*;
 use leptos::ev;
 use leptos::html::Div;
+use leptos::prelude::*;
 use std::collections::HashMap;
 use std::time::Duration;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 
 use super::cascade::step;
 use super::drag_state::{DragState, RectDragState};
 use super::heights::apply_heights;
 use super::layout::{
-    stage_height, stage_width, page_x, page_panel_height, PAGE_W, PAGE_TOP,
-    VACUUM_W, RECT_W, RECT_H, RECT_HOME, BLOCK_W,
+    BLOCK_W, PAGE_TOP, PAGE_W, RECT_H, RECT_HOME, RECT_W, VACUUM_W, page_panel_height, page_x,
+    stage_height, stage_width,
 };
 use super::mouse::{handle_mouse_move, handle_mouse_up};
 use super::rapier_world::RapierWorld;
-use super::sync::{sync_from_props, SyncState};
-use crate::complex_state::BlockRow;
+use super::sync::{SyncState, sync_from_props};
 use super::types::{BlockRenderInput, MoveEvent, PageInput};
+use crate::complex_state::BlockRow;
 
 #[component]
 pub fn DragReorderBlackBox(
@@ -67,8 +67,8 @@ pub fn DragReorderBlackBox(
                 apply_heights(pairs, boxes_obs, &rapier_obs, page_count_obs);
             },
         );
-        let observer = web_sys::ResizeObserver::new(cb.as_ref().unchecked_ref())
-            .expect("ResizeObserver::new");
+        let observer =
+            web_sys::ResizeObserver::new(cb.as_ref().unchecked_ref()).expect("ResizeObserver::new");
         cb.forget();
         observer_stored.set_value(Some(observer));
     }
@@ -166,7 +166,6 @@ pub fn DragReorderBlackBox(
                                 style:width=format!("{}px", PAGE_W)
                                 style:height=move || format!("{}px", page_panel_height(stage_height(&boxes.get())))
                             >
-                                <span class="ps-page-title">{pid.to_uppercase()}</span>
                             </div>
                         }
                     }

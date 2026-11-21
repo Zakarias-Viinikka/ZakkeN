@@ -1,6 +1,8 @@
-use crate::complex_state::{BlockInputEvent, FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID};
-use crate::drag_reorder_container::BlockRenderInput;
-use crate::markdown_conversion::{MarkdownConversion, MarkdownInputEvent};
+use crate::bbox_drag_reorder_container::BlockRenderInput;
+use crate::bbox_markdown_conversion::{MarkdownConversion, MarkdownInputEvent};
+use crate::complex_state::{
+    BlockInputEvent, FOCUS_BLOCK_AT_POS, FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID,
+};
 use leptos::prelude::*;
 
 /// One block's content. The editing itself lives in `markdown_conversion`;
@@ -24,6 +26,7 @@ pub fn MyBlockContent(
     // The app-wide globals are forwarded into them when they target this block.
     let focus_end = ArcRwSignal::new(None::<String>);
     let focus_start = ArcRwSignal::new(None::<String>);
+    let focus_pos = ArcRwSignal::new(None::<(String, usize)>);
 
     {
         let my_id = block_id.clone();
@@ -54,6 +57,21 @@ pub fn MyBlockContent(
         });
     }
 
+    {
+        let my_id = block_id.clone();
+        let local = focus_pos.clone();
+        Effect::new(move |_| {
+            let Some((target, pos)) = FOCUS_BLOCK_AT_POS.get() else {
+                return;
+            };
+            if target != my_id {
+                return;
+            }
+            local.set(Some((target, pos)));
+            FOCUS_BLOCK_AT_POS.set(None);
+        });
+    }
+
     let on_markdown_input = Callback::new(move |e: MarkdownInputEvent| {
         on_input.run(BlockInputEvent {
             block_id: e.block_id,
@@ -74,6 +92,7 @@ pub fn MyBlockContent(
             class="ps-content"
             focus_at_end=focus_end
             focus_at_start=focus_start
+            focus_at_pos=focus_pos
             on_input=on_markdown_input
             on_delete_request=on_delete_request
             on_merge_with_above=on_merge_with_above

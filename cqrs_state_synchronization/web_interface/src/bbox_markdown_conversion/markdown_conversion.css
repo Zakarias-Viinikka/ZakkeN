@@ -17,6 +17,8 @@
 .ps-content .cm-editor .cm-scroller {
     font: inherit;
     line-height: inherit;
+    height: auto;
+    overflow: hidden;
 }
 
 .ps-content .cm-editor .cm-content {

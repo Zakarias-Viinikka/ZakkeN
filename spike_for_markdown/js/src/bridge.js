@@ -337,6 +337,17 @@ window.cmBridge = {
     rec.view.focus();
   },
 
+  setCursor(id, pos) {
+    const rec = editors.get(id);
+    if (!rec) return;
+    const p = Math.max(0, Math.min(pos, rec.view.state.doc.length));
+    rec.view.dispatch({
+      selection: { anchor: p, head: p },
+      scrollIntoView: true,
+    });
+    rec.view.focus();
+  },
+
   setEditable(id, editable) {
     const rec = editors.get(id);
     if (!rec) return;

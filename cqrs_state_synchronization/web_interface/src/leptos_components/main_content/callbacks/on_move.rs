@@ -1,8 +1,8 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use crate::bbox_drag_reorder_container::MoveEvent;
 use crate::db::cached_ids::current_session_id;
-use crate::drag_reorder_container::MoveEvent;
 use crate::leptos_components::small_components::popup::show_popup;
 use crate::page_state::OpenPages;
 

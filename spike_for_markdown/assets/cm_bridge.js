@@ -26673,6 +26673,16 @@
       });
       rec.view.focus();
     },
+    setCursor(id2, pos) {
+      const rec = editors.get(id2);
+      if (!rec) return;
+      const p = Math.max(0, Math.min(pos, rec.view.state.doc.length));
+      rec.view.dispatch({
+        selection: { anchor: p, head: p },
+        scrollIntoView: true
+      });
+      rec.view.focus();
+    },
     setEditable(id2, editable2) {
       const rec = editors.get(id2);
       if (!rec) return;

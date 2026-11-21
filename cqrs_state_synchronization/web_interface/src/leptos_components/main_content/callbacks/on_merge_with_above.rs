@@ -73,6 +73,7 @@ async fn append_into_above_and_delete_this(
     page: crate::page_state::Page,
     session_id: String,
 ) {
+    let join_pos = above_content.encode_utf16().count();
     let new_above = format!("{}{}", above_content, current_text);
     let diff = text_diff::diff_logic::get_diff(&above_content, &new_above);
     batcher_handle::push_edit(boss.clone(), above_id.clone(), diff);
@@ -92,5 +93,5 @@ async fn append_into_above_and_delete_this(
         }
     });
 
-    focus::at_end(above_id);
+    focus::at_pos(above_id, join_pos);
 }

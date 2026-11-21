@@ -39,6 +39,9 @@ extern "C" {
 
     #[wasm_bindgen(js_namespace = cmBridge, js_name = destroy)]
     fn js_destroy(id: &str);
+
+    #[wasm_bindgen(js_namespace = cmBridge, js_name = setCursor)]
+    fn js_set_cursor(id: &str, pos: u32);
 }
 
 struct EditorHandle {
@@ -87,6 +90,27 @@ fn install_focus_effect(
     });
 }
 
+fn install_focus_pos_effect(
+    focus: Option<ArcRwSignal<Option<(String, usize)>>>,
+    ready: RwSignal<bool>,
+    block_id: String,
+    editor_id: StoredValue<String>,
+) {
+    let Some(sig) = focus else {
+        return;
+    };
+    Effect::new(move |_| {
+        let Some((target, pos)) = sig.get() else {
+            return;
+        };
+        if target != block_id || !ready.get() {
+            return;
+        }
+        js_set_cursor(&editor_id.get_value(), pos as u32);
+        sig.set(None);
+    });
+}
+
 /// Markdown editor for one block.
 ///
 /// Boundary:
@@ -111,6 +135,7 @@ pub fn MarkdownConversion(
     #[prop(optional, into)] placeholder: Option<String>,
     #[prop(optional)] focus_at_end: Option<ArcRwSignal<Option<String>>>,
     #[prop(optional)] focus_at_start: Option<ArcRwSignal<Option<String>>>,
+    #[prop(optional)] focus_at_pos: Option<ArcRwSignal<Option<(String, usize)>>>,
     #[prop(optional)] on_link_click: Option<Callback<String>>,
     #[prop(optional, into)] titles_json: Option<Signal<String>>,
     #[prop(optional, into)] class: Option<String>,
@@ -274,6 +299,7 @@ pub fn MarkdownConversion(
 
     install_focus_effect(focus_at_end, ready, block_id.clone(), editor_id, "end");
     install_focus_effect(focus_at_start, ready, block_id.clone(), editor_id, "start");
+    install_focus_pos_effect(focus_at_pos, ready, block_id.clone(), editor_id);
 
     on_cleanup(move || {
         handle_holder.set_value(None);

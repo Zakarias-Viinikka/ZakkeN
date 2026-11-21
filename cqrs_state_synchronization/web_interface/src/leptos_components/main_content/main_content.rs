@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
+use crate::bbox_drag_reorder_container::{DragReorderContainer, PageInput};
 use crate::complex_state::APP_LOCKED;
-use crate::drag_reorder_container::{DragReorderContainer, PageInput};
 use crate::page_state::OpenPages;
 
 use super::background_activity_indicator::BackgroundActivityIndicator;

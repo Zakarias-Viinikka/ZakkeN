@@ -9,7 +9,7 @@ pub fn AppBorder(children: Children) -> impl IntoView {
     view! {
         <div style=move || {
             format!(
-                "min-height: 100vh; box-sizing: border-box; border: 4px solid {};",
+                "min-height: 100vh; box-sizing: border-box; border-top: 4px solid {};",
                 color()
             )
         }>
