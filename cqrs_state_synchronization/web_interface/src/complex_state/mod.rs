@@ -1,7 +1,8 @@
 pub mod batcher_handle;
+pub mod block_input_event;
+pub mod clickable_popups;
 pub mod conn_state;
 pub mod drift_version;
-pub mod block_input_event;
 pub mod focus;
 pub mod rows;
 pub mod ui_signals;

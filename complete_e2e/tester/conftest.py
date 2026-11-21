@@ -22,6 +22,7 @@ def browser(playwright_instance):
 @pytest.fixture(scope="session")
 def page(browser):
     context = browser.new_context(no_viewport=True)
+    context.add_init_script("window.__popups_unclickable__ = true;")
     pg = context.new_page()
     pg.on("load", lambda: print(f"### PAGE LOAD: {pg.url}"))
     pg.on("framenavigated", lambda f: print(f"### NAV: {f.url}"))

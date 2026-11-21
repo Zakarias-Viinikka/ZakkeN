@@ -12205,6 +12205,49 @@
     }
   }));
   var UnicodeRegexpSupport = /x/.unicode != null ? "gu" : "g";
+  var Placeholder = class extends WidgetType {
+    constructor(content2) {
+      super();
+      this.content = content2;
+    }
+    toDOM(view) {
+      let wrap = document.createElement("span");
+      wrap.className = "cm-placeholder";
+      wrap.style.pointerEvents = "none";
+      wrap.appendChild(typeof this.content == "string" ? document.createTextNode(this.content) : typeof this.content == "function" ? this.content(view) : this.content.cloneNode(true));
+      wrap.setAttribute("aria-hidden", "true");
+      return wrap;
+    }
+    coordsAt(dom) {
+      let rects = dom.firstChild ? clientRectsFor(dom.firstChild) : [];
+      if (!rects.length)
+        return null;
+      let style = window.getComputedStyle(dom.parentNode);
+      let rect = flattenRect(rects[0], style.direction != "rtl");
+      let lineHeight = parseInt(style.lineHeight);
+      if (rect.bottom - rect.top > lineHeight * 1.5)
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.top + lineHeight };
+      return rect;
+    }
+    ignoreEvent() {
+      return false;
+    }
+  };
+  function placeholder(content2) {
+    let plugin = ViewPlugin.fromClass(class {
+      constructor(view) {
+        this.view = view;
+        this.placeholder = content2 ? Decoration.set([Decoration.widget({ widget: new Placeholder(content2), side: 1 }).range(0)]) : Decoration.none;
+      }
+      get decorations() {
+        return this.view.state.doc.length ? Decoration.none : this.placeholder;
+      }
+    }, { decorations: (v) => v.decorations });
+    return typeof content2 == "string" ? [
+      plugin,
+      EditorView.contentAttributes.of({ "aria-placeholder": content2 })
+    ] : plugin;
+  }
   var Outside = "-10000px";
   var TooltipViewManager = class {
     constructor(view, facet, createTooltipView, removeTooltipView) {
@@ -26426,7 +26469,10 @@
           run(view) {
             if (completionStatus(view.state) === "active") return false;
             const doc2 = view.state.doc;
-            if (doc2.length === 0) return false;
+            if (doc2.length === 0) {
+              onIntent(JSON.stringify({ kind: "enter_passthrough" }));
+              return false;
+            }
             const main = view.state.selection.main;
             const before = doc2.sliceString(0, main.from);
             const after = doc2.sliceString(main.to, doc2.length);
@@ -26439,6 +26485,16 @@
           run(view) {
             const sel = view.state.selection;
             if (sel.ranges.length === 1 && sel.main.empty && sel.main.head === 0) {
+              onIntent(JSON.stringify({ kind: "merge_up" }));
+              return true;
+            }
+            return false;
+          }
+        },
+        {
+          key: "Delete",
+          run(view) {
+            if (view.state.doc.length === 0) {
               onIntent(JSON.stringify({ kind: "merge_up" }));
               return true;
             }
@@ -26514,6 +26570,8 @@
         window.cmBridge.destroy(id2);
       }
       const parsedTitles = titlesJson ? JSON.parse(titlesJson) : {};
+      const editableCompartment = new Compartment();
+      const placeholderCompartment = new Compartment();
       const updateListener2 = EditorView.updateListener.of((update) => {
         if (!update.docChanged) return;
         const isFromRust = update.transactions.some(
@@ -26537,6 +26595,11 @@
         extensions: [
           plainTextareaTheme,
           EditorView.lineWrapping,
+          editableCompartment.of([
+            EditorView.editable.of(true),
+            EditorState.readOnly.of(false)
+          ]),
+          placeholderCompartment.of([]),
           history(),
           createIntentKeymap((json) => {
             if (callbacks && callbacks.onIntent) callbacks.onIntent(json);
@@ -26568,7 +26631,7 @@
         });
         observer.observe(view.dom);
       }
-      editors.set(id2, { view, observer });
+      editors.set(id2, { view, observer, editableCompartment, placeholderCompartment });
     },
     setTitles(id2, titlesJson) {
       const rec = editors.get(id2);
@@ -26609,6 +26672,28 @@
         selection: { anchor: pos, head: pos }
       });
       rec.view.focus();
+    },
+    setEditable(id2, editable2) {
+      const rec = editors.get(id2);
+      if (!rec) return;
+      rec.view.dispatch({
+        effects: rec.editableCompartment.reconfigure([
+          EditorView.editable.of(!!editable2),
+          EditorState.readOnly.of(!editable2)
+        ])
+      });
+    },
+    setPlaceholder(id2, text) {
+      const rec = editors.get(id2);
+      if (!rec) return;
+      rec.view.dispatch({
+        effects: rec.placeholderCompartment.reconfigure(text ? placeholder(text) : [])
+      });
+    },
+    getCursor(id2) {
+      const rec = editors.get(id2);
+      if (!rec) return 0;
+      return rec.view.state.selection.main.head;
     },
     getText(id2) {
       const rec = editors.get(id2);

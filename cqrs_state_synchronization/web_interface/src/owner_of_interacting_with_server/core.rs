@@ -1,12 +1,13 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use drift_guard_client::connection_status::get_conn_color;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use shared_internals::{ConnStatus, Router};
 use wasm_bindgen::prelude::*;
 
-use crate::db::cached_ids;
 use crate::page_state::OpenPages;
+use crate::{db::cached_ids, plexget_conn_state};
 
 pub use drift_guard_client::connection_status::ConnectionStatus as ConnState;
 
@@ -74,7 +75,9 @@ async fn connect_to_socket_on_startup(open: OpenPages) {
         tx_give_love_letter_that_came_from_server_to_task_that_processes_it,
     );
     let on_conn_status_change = move |status| match status {
-        ConnStatus::Connecting => plexset_conn_state(ConnState::Connecting),
+        ConnStatus::Connecting => {
+            plexset_conn_state(ConnState::Connecting(get_conn_color(plexget_conn_state())))
+        }
         ConnStatus::Connected => {
             plexset_conn_state(ConnState::LoggingIn);
             let _ =

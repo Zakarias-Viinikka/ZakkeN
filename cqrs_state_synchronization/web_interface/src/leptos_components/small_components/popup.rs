@@ -6,6 +6,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use wasm_bindgen::JsCast;
 
+use crate::complex_state::clickable_popups::plexget_popup_clickability;
+
 const TICK_MS: i32 = 100;
 const EXIT_MS: i32 = 380;
 const CONSUMED_EXIT_MS: i32 = 220;
@@ -25,7 +27,7 @@ const CSS: &str = r#"
 @keyframes pp-row-enter { from { grid-template-rows: 0fr; } to { grid-template-rows: 1fr; } }
 .pp-row-clip { min-height: 0; padding: 0 16px; margin: 0 -16px; }
 .pp-row.leaving .pp-row-clip, .pp-row.consumed .pp-row-clip { overflow: hidden; }
-.pp-toast { position: relative; margin-top: 10px; background: #151c29; border: 1px solid rgba(228, 233, 242, 0.09); border-left: 3px solid #8ab4ff; border-radius: 6px; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.6); overflow: hidden; animation: pp-toast-enter 380ms cubic-bezier(0.34, 1.56, 0.64, 1) 40ms backwards, pp-fade-enter 180ms ease-out 40ms backwards; color: #e4e9f2; font-family: system-ui, -apple-system, sans-serif; }
+.pp-toast { pointer-events: auto; position: relative; margin-top: 10px; background: #151c29; border: 1px solid rgba(228, 233, 242, 0.09); border-left: 3px solid #8ab4ff; border-radius: 6px; box-shadow: 0 8px 24px -12px rgba(0,0,0,0.6); overflow: hidden; animation: pp-toast-enter 380ms cubic-bezier(0.34, 1.56, 0.64, 1) 40ms backwards, pp-fade-enter 180ms ease-out 40ms backwards; color: #e4e9f2; font-family: system-ui, -apple-system, sans-serif; }
 .pp-toast-info { border-left-color: rgba(228, 233, 242, 0.72); }
 .pp-toast-success { border-left-color: #8ab4ff; }
 .pp-toast-warning { border-left-color: #f2b45a; }
@@ -35,6 +37,7 @@ const CSS: &str = r#"
 .pp-row.leaving .pp-toast { animation: pp-leave 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 @keyframes pp-leave { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-32px); } }
 .pp-row.consumed .pp-toast { animation: pp-consume 90ms linear forwards; }
+.pp-row.leaving .pp-toast, .pp-row.consumed .pp-toast, .pp-stack.unclickable .pp-toast { pointer-events: none; }
 @keyframes pp-consume { to { opacity: 0; } }
 .pp-toast-main { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px 12px; background: transparent; border: none; text-align: left; font: inherit; width: 100%; color: inherit; cursor: pointer; }
 .pp-toast-main:hover .pp-toast-title { color: #8ab4ff; }
@@ -292,10 +295,13 @@ pub fn CoolPopup() -> impl IntoView {
     });
 
     let stack_class = move || {
-        if modal.get().is_some() || hover_id.get().is_some() {
-            "pp-stack held"
-        } else {
-            "pp-stack"
+        let held = modal.get().is_some() || hover_id.get().is_some();
+        let clickable = plexget_popup_clickability();
+        match (held, clickable) {
+            (true, true) => "pp-stack held",
+            (false, true) => "pp-stack",
+            (true, false) => "pp-stack held unclickable",
+            (false, false) => "pp-stack unclickable",
         }
     };
 

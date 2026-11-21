@@ -29,6 +29,8 @@ enum EditorIntent {
     Split { before: String, after: String },
     #[serde(rename = "merge_up")]
     MergeUp,
+    #[serde(rename = "enter_passthrough")]
+    EnterPassthrough,
 }
 
 #[derive(Clone)]

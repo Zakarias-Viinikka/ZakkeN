@@ -31,7 +31,9 @@ class TwoBrowserStage:
         from support.timeouts import ms
         headless = os.environ.get("HEADLESS") == "1"
         brave_browser = playwright.chromium.launch(headless=headless)
-        brave_page = brave_browser.new_context(no_viewport=True).new_page()
+        brave_context = brave_browser.new_context(no_viewport=True)
+        brave_context.add_init_script("window.__popups_unclickable__ = true;")
+        brave_page = brave_context.new_page()
         brave_page.set_default_timeout(ms())
         brave_page.on("console", lambda m: print(f"### BRAVE CONSOLE {m.type}: {m.text}"))
         brave_page.goto(url)
@@ -39,7 +41,9 @@ class TwoBrowserStage:
         brave_cdp, brave_window_id = _get_window(brave_browser)
 
         edge_browser = playwright.chromium.launch(headless=headless)
-        edge_page = edge_browser.new_context(no_viewport=True).new_page()
+        edge_context = edge_browser.new_context(no_viewport=True)
+        edge_context.add_init_script("window.__popups_unclickable__ = true;")
+        edge_page = edge_context.new_page()
         edge_page.set_default_timeout(ms())
         edge_page.on("console", lambda m: print(f"### EDGE CONSOLE {m.type}: {m.text}"))
         edge_page.goto(url)

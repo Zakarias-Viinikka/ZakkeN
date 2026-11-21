@@ -1,7 +1,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ConnectionStatus {
     Offline,
-    Connecting,
+    Connecting(&'static str),
     /// Socket is open but login and the drift comparison haven't
     /// finished yet. Nothing may be sent from here.
     LoggingIn,
@@ -21,4 +21,17 @@ pub enum ConnectionStatus {
     /// letter to the server and the server throws an error, then the client goes
     /// to lonewolf.
     Lonewolf,
+}
+
+pub fn get_conn_color(cs: ConnectionStatus) -> &'static str {
+    match cs {
+        ConnectionStatus::Offline => "#808080",
+        ConnectionStatus::Connecting(color) => color,
+        ConnectionStatus::LoggingIn => "#aa8800",
+        ConnectionStatus::FailedToConnect => "#2255cc",
+        ConnectionStatus::Connected => "#227722",
+        ConnectionStatus::TwoTabs => "#444",
+        ConnectionStatus::Lonewolf => "#2255cc",
+        ConnectionStatus::LonewolfAndOffline => "#2255cc",
+    }
 }

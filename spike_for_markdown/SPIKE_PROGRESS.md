@@ -1,7 +1,7 @@
 # Spike Progress
 
 ## Current Task
-Browser harness verification via `trunk serve` (`c r`).
+Verify `api_example` demo in browser: focus-hopping, title block Enter-ignored, Delete on empty block, ghost toggle, server push.
 
 ## Done
 - Created `spike_for_markdown/` directory, `SPIKE_BRIEF.md`, `SPIKE_PROGRESS.md`.

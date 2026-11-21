@@ -1,5 +1,5 @@
-import { Annotation, EditorState, Prec, Transaction } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { Annotation, Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
+import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { autocompletion, completionStatus } from "@codemirror/autocomplete";
@@ -119,7 +119,10 @@ function createIntentKeymap(onIntent) {
         run(view) {
           if (completionStatus(view.state) === "active") return false;
           const doc = view.state.doc;
-          if (doc.length === 0) return false;
+          if (doc.length === 0) {
+            onIntent(JSON.stringify({ kind: "enter_passthrough" }));
+            return false;
+          }
           const main = view.state.selection.main;
           const before = doc.sliceString(0, main.from);
           const after = doc.sliceString(main.to, doc.length);
@@ -132,6 +135,16 @@ function createIntentKeymap(onIntent) {
         run(view) {
           const sel = view.state.selection;
           if (sel.ranges.length === 1 && sel.main.empty && sel.main.head === 0) {
+            onIntent(JSON.stringify({ kind: "merge_up" }));
+            return true;
+          }
+          return false;
+        },
+      },
+      {
+        key: "Delete",
+        run(view) {
+          if (view.state.doc.length === 0) {
             onIntent(JSON.stringify({ kind: "merge_up" }));
             return true;
           }
@@ -210,6 +223,8 @@ window.cmBridge = {
     }
 
     const parsedTitles = titlesJson ? JSON.parse(titlesJson) : {};
+    const editableCompartment = new Compartment();
+    const placeholderCompartment = new Compartment();
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (!update.docChanged) return;
@@ -236,6 +251,11 @@ window.cmBridge = {
       extensions: [
         plainTextareaTheme,
         EditorView.lineWrapping,
+        editableCompartment.of([
+          EditorView.editable.of(true),
+          EditorState.readOnly.of(false),
+        ]),
+        placeholderCompartment.of([]),
         history(),
         createIntentKeymap((json) => {
           if (callbacks && callbacks.onIntent) callbacks.onIntent(json);
@@ -270,7 +290,7 @@ window.cmBridge = {
       observer.observe(view.dom);
     }
 
-    editors.set(id, { view, observer });
+    editors.set(id, { view, observer, editableCompartment, placeholderCompartment });
   },
 
   setTitles(id, titlesJson) {
@@ -315,6 +335,31 @@ window.cmBridge = {
       selection: { anchor: pos, head: pos },
     });
     rec.view.focus();
+  },
+
+  setEditable(id, editable) {
+    const rec = editors.get(id);
+    if (!rec) return;
+    rec.view.dispatch({
+      effects: rec.editableCompartment.reconfigure([
+        EditorView.editable.of(!!editable),
+        EditorState.readOnly.of(!editable),
+      ]),
+    });
+  },
+
+  setPlaceholder(id, text) {
+    const rec = editors.get(id);
+    if (!rec) return;
+    rec.view.dispatch({
+      effects: rec.placeholderCompartment.reconfigure(text ? placeholder(text) : []),
+    });
+  },
+
+  getCursor(id) {
+    const rec = editors.get(id);
+    if (!rec) return 0;
+    return rec.view.state.selection.main.head;
   },
 
   getText(id) {
