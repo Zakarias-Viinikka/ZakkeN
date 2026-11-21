@@ -40,11 +40,13 @@ pub fn AppMain() -> impl IntoView {
     let on_split = Callback::new(move |(id, before, after): (String, String, String)| {
         push_log(log, format!("split {id}: {before:?} | {after:?}"));
     });
+    let fe_nav = focus_end.clone();
+    let fs_nav = focus_start.clone();
     let on_navigate = Callback::new(move |(id, down): (String, bool)| {
         push_log(log, format!("navigate {id} {}", if down { "down" } else { "up" }));
         match (id.as_str(), down) {
-            ("b1", true) => focus_start.set(Some("b2".to_string())),
-            ("b2", false) => focus_end.set(Some("b1".to_string())),
+            ("b1", true) => fs_nav.set(Some("b2".to_string())),
+            ("b2", false) => fe_nav.set(Some("b1".to_string())),
             _ => {}
         }
     });
@@ -56,8 +58,8 @@ pub fn AppMain() -> impl IntoView {
                 content=title
                 is_title=true
                 placeholder="Untitled"
-                focus_at_end=focus_end
-                focus_at_start=focus_start
+                focus_at_end=focus_end.clone()
+                focus_at_start=focus_start.clone()
                 on_input=on_input
                 on_delete_request=on_delete_request
                 on_merge_with_above=on_merge_with_above

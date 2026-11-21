@@ -18,6 +18,7 @@ pub use complex_state::drift_version::{
 pub mod new_local_block_id;
 pub mod page_state;
 pub mod drag_reorder_container;
+pub mod markdown_conversion;
 pub mod expose_methods_for_testing;
 
 pub mod owner_of_interacting_with_server;

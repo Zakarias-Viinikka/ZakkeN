@@ -2,7 +2,11 @@
 
 Written by AI for AI. First thing a fresh AI reads after STORED_AI_CONTEXT.md. Update it after every meaningful step, IN PLACE (use replace or overwrite, never append). If code and this file disagree, code wins.
 
-## CURRENT TASK (2026-11-20): port lab UI into android_app
+## CURRENT TASK (2026-11-21): spike_for_markdown - blackboxed <MarkdownConversion /> component
+
+Scope: `spike_for_markdown` (do NOT touch `cqrs_state_synchronization/web_interface` until requested).
+Goal: Replace `<textarea>` in `cqrs_state_synchronization/web_interface/.../my_block_content.rs` with blackbox component `<MarkdownConversion />`.
+Status: Component built and verified in `spike_for_markdown/api_example`. Props directly mirror `MyBlockContent`.
 
 Zakke's workflow: AI interviews him in plain language, saves answers durably, then builds autonomously while he only runs commands. Interview is DONE. His verbatim answers and the interpreted spec are in `android_app/docs/LAB_WISHES.md` (read it). `android_app/docs/UX_INTENT.md` points to it.
 

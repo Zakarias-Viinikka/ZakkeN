@@ -3399,6 +3399,7 @@ dependencies = [
  "protocol",
  "rapier2d",
  "serde",
+ "serde_json",
  "server_protocol",
  "shared_internals",
  "stylist",

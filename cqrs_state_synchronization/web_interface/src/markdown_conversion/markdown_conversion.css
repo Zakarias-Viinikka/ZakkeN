@@ -1,0 +1,62 @@
+/* Restyles the CodeMirror editor created by cm_bridge.js so it blends into the
+   dark block UI. Its built-in theme is light; these selectors out-rank it. */
+
+.ps-content .cm-editor {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+}
+
+.ps-content .cm-editor.cm-focused {
+    outline: none;
+}
+
+.ps-content .cm-editor .cm-scroller {
+    font: inherit;
+    line-height: inherit;
+}
+
+.ps-content .cm-editor .cm-content {
+    padding: 0;
+    caret-color: #e4e9f2;
+}
+
+.ps-content .cm-editor .cm-line {
+    padding: 0;
+}
+
+.ps-content .cm-editor .cm-placeholder {
+    color: rgba(228, 233, 242, 0.35);
+}
+
+.ps-content:focus-within {
+    color: #e4e9f2;
+}
+
+.ps-content .cm-editor .cm-md-code {
+    background: rgba(228, 233, 242, 0.08);
+}
+
+.ps-content .cm-editor .cm-wikilink {
+    color: #8ab4ff;
+    background: rgba(138, 180, 255, 0.14);
+}
+
+.ps-content .cm-editor .cm-wikilink-missing {
+    color: #ff9a9a;
+    background: rgba(255, 120, 120, 0.14);
+}
+
+.ps-content .cm-editor .cm-wikilink-disabled {
+    color: #7d8aa3;
+    background: rgba(125, 138, 163, 0.14);
+}
+
+.ps-content .cm-editor .cm-tooltip {
+    background: #2b3648;
+    color: #e4e9f2;
+    border: 1px solid rgba(138, 180, 255, 0.35);
+}

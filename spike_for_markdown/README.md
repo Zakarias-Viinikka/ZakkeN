@@ -29,3 +29,5 @@ Proves whether CodeMirror 6 can render markdown + wikilinks visually while keepi
 7. `src/bridge_ffi.rs` — wasm-bindgen FFI + `EditorBridgeHandle` closure lifetime guard.
 8. `src/fuzz.rs` — deterministic multi-change fuzz generator.
 9. `src/harness_app.rs` — Leptos CSR 3-block debug harness.
+10. `api_example/src/markdown_conversion.rs` — standalone blackbox `<MarkdownConversion />` component mirroring `MyBlockContent`.
+11. `api_example/src/app_main.rs` — plug-and-play demo testing two-way sync, focus-hopping, title block enter-ignore, and ghost toggle.

@@ -37,6 +37,7 @@ block_diff_viewer_leptos.path = "/home/zakke/ProgStuff/ZakkeN/web_diff_viewer/bl
 generate_love_letters.path = "/home/zakke/ProgStuff/ZakkeN/web_diff_viewer/generate_love_letters"
 drift_guard_shared.path = "/home/zakke/ProgStuff/ZakkeN/drift_guard_and_ops/shared"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # server link
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
