@@ -16,7 +16,6 @@ pub use complex_state::drift_version::{
     plexset_make_new_drift_version,
 };
 pub mod bbox_drag_reorder_container;
-pub mod bbox_markdown_conversion;
 pub mod expose_methods_for_testing;
 pub mod new_local_block_id;
 pub mod page_state;

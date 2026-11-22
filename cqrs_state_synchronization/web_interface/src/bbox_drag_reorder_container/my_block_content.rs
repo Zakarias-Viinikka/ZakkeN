@@ -1,12 +1,13 @@
+use crate::complex_state::BlockInputEvent;
+use crate::complex_state::{FOCUS_BLOCK_AT_POS, FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID};
 use crate::bbox_drag_reorder_container::BlockRenderInput;
-use crate::bbox_markdown_conversion::{MarkdownConversion, MarkdownInputEvent};
-use crate::complex_state::{
-    BlockInputEvent, FOCUS_BLOCK_AT_POS, FOCUS_BLOCK_AT_START, FOCUS_BLOCK_ID,
-};
+use leptos::ev;
+use leptos::html::Textarea;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
-/// One block's content. The editing itself lives in `markdown_conversion`;
-/// this file only adapts it to the app's types and focus globals.
 #[component]
 pub fn MyBlockContent(
     block: BlockRenderInput,
@@ -16,88 +17,356 @@ pub fn MyBlockContent(
     on_split: Callback<(String, String, String)>,
     on_navigate: Callback<(String, bool)>,
 ) -> impl IntoView {
-    let block_id = block.block_id.clone();
-    let content = block.content.clone();
+    let initial = block.content.get_untracked();
     let ghost = block.ghost;
+    let was_enter = StoredValue::new(false);
+    let textarea_ref = NodeRef::<Textarea>::new();
+    let my_block_id = block.block_id.to_string();
+    let content_signal = block.content.clone();
     let is_title = block.is_title;
-    let placeholder = if is_title { "Untitled" } else { "" };
 
-    // Local focus signals in the shape the markdown module wants.
-    // The app-wide globals are forwarded into them when they target this block.
-    let focus_end = ArcRwSignal::new(None::<String>);
-    let focus_start = ArcRwSignal::new(None::<String>);
-    let focus_pos = ArcRwSignal::new(None::<(String, usize)>);
+    install_autosize_on_mount_effect(textarea_ref);
+    install_value_sync_effect(textarea_ref, content_signal.clone());
+    install_focus_at_end_effect(textarea_ref, content_signal.clone(), my_block_id.clone());
+    install_focus_at_start_effect(textarea_ref, content_signal.clone(), my_block_id.clone());
+    install_focus_at_pos_effect(textarea_ref, content_signal.clone(), my_block_id.clone());
 
-    {
-        let my_id = block_id.clone();
-        let local = focus_end.clone();
-        Effect::new(move |_| {
-            let Some(target) = FOCUS_BLOCK_ID.get() else {
-                return;
-            };
-            if target != my_id {
-                return;
-            }
-            local.set(Some(target));
-            FOCUS_BLOCK_ID.set(None);
-        });
-    }
-    {
-        let my_id = block_id.clone();
-        let local = focus_start.clone();
-        Effect::new(move |_| {
-            let Some(target) = FOCUS_BLOCK_AT_START.get() else {
-                return;
-            };
-            if target != my_id {
-                return;
-            }
-            local.set(Some(target));
-            FOCUS_BLOCK_AT_START.set(None);
-        });
-    }
+    let my_block_id_for_keydown = my_block_id.clone();
+    let content_signal_for_keydown = content_signal.clone();
+    let on_keydown = move |e: ev::KeyboardEvent| {
+        if handle_arrow(&e, textarea_ref, &my_block_id_for_keydown, on_navigate) {
+            return;
+        }
+        if handle_enter(&e, textarea_ref, is_title, &my_block_id_for_keydown, on_split, was_enter)
+        {
+            return;
+        }
+        handle_backspace(
+            &e,
+            textarea_ref,
+            is_title,
+            &content_signal_for_keydown,
+            &my_block_id_for_keydown,
+            on_delete_request,
+            on_merge_with_above,
+        );
+    };
 
-    {
-        let my_id = block_id.clone();
-        let local = focus_pos.clone();
-        Effect::new(move |_| {
-            let Some((target, pos)) = FOCUS_BLOCK_AT_POS.get() else {
-                return;
-            };
-            if target != my_id {
-                return;
-            }
-            local.set(Some((target, pos)));
-            FOCUS_BLOCK_AT_POS.set(None);
-        });
-    }
+    let content_signal_for_input = content_signal.clone();
+    let on_ev = move |e: ev::Event| {
+        let Some(t) = e.target() else {
+            return;
+        };
+        let ta: web_sys::HtmlTextAreaElement = t.unchecked_into();
+        let new_val = ta.value();
+        let old_val = content_signal_for_input.get_untracked();
+        let cursor_pos = ta.selection_start().ok().flatten().unwrap_or(0) as usize;
+        let was_enter_val = was_enter.get_value();
+        was_enter.set_value(false);
 
-    let on_markdown_input = Callback::new(move |e: MarkdownInputEvent| {
+        content_signal_for_input.set(new_val.clone());
         on_input.run(BlockInputEvent {
-            block_id: e.block_id,
-            old_text: e.old_text,
-            new_text: e.new_text,
-            was_enter: e.was_enter,
-            cursor_pos: e.cursor_pos,
+            block_id: block.block_id.to_string(),
+            old_text: old_val,
+            new_text: new_val,
+            was_enter: was_enter_val,
+            cursor_pos,
         });
-    });
+
+        resize_textarea_to_content(&ta);
+    };
+
+    let placeholder = if block.is_title { "Untitled" } else { "" };
 
     view! {
-        <MarkdownConversion
-            block_id=block_id
-            content=content
-            is_title=is_title
-            ghost=ghost
-            placeholder=placeholder
+        <textarea
+            node_ref=textarea_ref
             class="ps-content"
-            focus_at_end=focus_end
-            focus_at_start=focus_start
-            focus_at_pos=focus_pos
-            on_input=on_markdown_input
-            on_delete_request=on_delete_request
-            on_merge_with_above=on_merge_with_above
-            on_split=on_split
-            on_navigate=on_navigate
-        />
+            prop:value=initial
+            placeholder=placeholder
+            prop:disabled=move || ghost.get()
+            rows="1"
+            on:keydown=on_keydown
+            on:input=on_ev
+            style="border: 1px solid rgba(0, 0, 0, 0.05); outline: none; resize: none;"
+        ></textarea>
     }
+}
+
+fn handle_arrow(
+    e: &ev::KeyboardEvent,
+    textarea_ref: NodeRef<Textarea>,
+    my_block_id: &str,
+    on_navigate: Callback<(String, bool)>,
+) -> bool {
+    let key = e.key();
+    if key != "ArrowUp" && key != "ArrowDown" {
+        return false;
+    }
+    if e.shift_key() || e.ctrl_key() || e.alt_key() || e.meta_key() {
+        return false;
+    }
+    let Some(el) = textarea_ref.get_untracked() else {
+        return false;
+    };
+    let len = el.value().encode_utf16().count() as u32;
+    let start = el.selection_start().ok().flatten().unwrap_or(0);
+    let end = el.selection_end().ok().flatten().unwrap_or(0);
+    let go_down = key == "ArrowDown";
+    let at_edge = if go_down {
+        start == len && end == len
+    } else {
+        start == 0 && end == 0
+    };
+    if !at_edge {
+        return false;
+    }
+    e.prevent_default();
+    on_navigate.run((my_block_id.to_string(), go_down));
+    true
+}
+
+fn handle_enter(
+    e: &ev::KeyboardEvent,
+    textarea_ref: NodeRef<Textarea>,
+    is_title: bool,
+    my_block_id: &str,
+    on_split: Callback<(String, String, String)>,
+    was_enter: StoredValue<bool>,
+) -> bool {
+    if e.key() != "Enter" {
+        return false;
+    }
+    if !is_title {
+        if let Some(el) = textarea_ref.get_untracked() {
+            let value = el.value();
+            if !value.trim().is_empty() {
+                e.prevent_default();
+                let utf16: Vec<u16> = value.encode_utf16().collect();
+                let start = el.selection_start().ok().flatten().unwrap_or(0) as usize;
+                let end = el.selection_end().ok().flatten().unwrap_or(0) as usize;
+                let start = start.min(utf16.len());
+                let end = end.clamp(start, utf16.len());
+                let before = String::from_utf16_lossy(&utf16[..start]);
+                let after = String::from_utf16_lossy(&utf16[end..]);
+                let _ = el.blur();
+                on_split.run((my_block_id.to_string(), before, after));
+                return true;
+            }
+        }
+    }
+    was_enter.set_value(true);
+    true
+}
+
+fn handle_backspace(
+    e: &ev::KeyboardEvent,
+    textarea_ref: NodeRef<Textarea>,
+    is_title: bool,
+    content_signal: &ArcRwSignal<String>,
+    my_block_id: &str,
+    on_delete_request: Callback<String>,
+    on_merge_with_above: Callback<(String, String)>,
+) -> bool {
+    if is_title {
+        return false;
+    }
+    let key = e.key();
+    let is_empty = content_signal.get_untracked().is_empty();
+    if (key == "Backspace" || key == "Delete") && is_empty {
+        on_delete_request.run(my_block_id.to_string());
+        return true;
+    }
+    if key == "Backspace" && !is_empty {
+        if let Some(el) = textarea_ref.get_untracked() {
+            let start = el.selection_start().ok().flatten().unwrap_or(1);
+            let end = el.selection_end().ok().flatten().unwrap_or(1);
+            if start == 0 && end == 0 {
+                on_merge_with_above.run((my_block_id.to_string(), el.value()));
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn resize_textarea_to_content(el: &web_sys::HtmlTextAreaElement) {
+    let _ = web_sys::HtmlElement::style(el).set_property("height", "auto");
+    let sh = el.scroll_height();
+    let _ = web_sys::HtmlElement::style(el).set_property("height", &format!("{}px", sh));
+}
+
+fn install_autosize_on_mount_effect(textarea_ref: NodeRef<Textarea>) {
+    Effect::new(move |_| {
+        spawn_local(async move {
+            for _ in 0..3 {
+                gloo_timers::future::TimeoutFuture::new(16).await;
+                if let Some(el) = textarea_ref.get_untracked() {
+                    resize_textarea_to_content(&el);
+                }
+            }
+        });
+    });
+}
+
+fn install_value_sync_effect(textarea_ref: NodeRef<Textarea>, content_signal: ArcRwSignal<String>) {
+    Effect::new(move |_| {
+        let new_value = content_signal.get();
+        let Some(el) = textarea_ref.get_untracked() else {
+            return;
+        };
+        let old_value = el.value();
+        if old_value == new_value {
+            return;
+        }
+        let is_focused = {
+            let active = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.active_element());
+            match active {
+                Some(active) => {
+                    let a: &JsValue = active.as_ref();
+                    let e: &JsValue = el.as_ref();
+                    a == e
+                }
+                None => false,
+            }
+        };
+        let caret_before = el.selection_start().ok().flatten().unwrap_or(0);
+        el.set_value(&new_value);
+        if is_focused {
+            let new_caret = map_caret_across_edit(&old_value, &new_value, caret_before);
+            let _ = el.set_selection_range(new_caret, new_caret);
+        }
+        resize_textarea_to_content(&el);
+    });
+}
+
+fn install_focus_at_end_effect(
+    textarea_ref: NodeRef<Textarea>,
+    content_signal: ArcRwSignal<String>,
+    my_block_id: String,
+) {
+    Effect::new(move |_| {
+        let Some(target) = FOCUS_BLOCK_ID.get() else {
+            return;
+        };
+        if target != my_block_id {
+            return;
+        }
+        if let Some(el) = textarea_ref.get() {
+            let current = content_signal.get_untracked();
+            if el.value() != current {
+                el.set_value(&current);
+            }
+            let _ = el.focus();
+            let pos = current.encode_utf16().count() as u32;
+            let _ = el.set_selection_range(pos, pos);
+        }
+        FOCUS_BLOCK_ID.set(None);
+    });
+}
+
+fn install_focus_at_start_effect(
+    textarea_ref: NodeRef<Textarea>,
+    content_signal: ArcRwSignal<String>,
+    my_block_id: String,
+) {
+    Effect::new(move |_| {
+        let sig = FOCUS_BLOCK_AT_START.get();
+        let is_target = sig.as_deref() == Some(my_block_id.as_str());
+        if is_target {
+            leptos::logging::log!("FAS effect fires for target {}", my_block_id);
+        }
+        let Some(_target) = sig else { return; };
+        if !is_target {
+            return;
+        }
+        let content_sig = content_signal.clone();
+        let my_id = my_block_id.clone();
+        spawn_local(async move {
+            for i in 0..20 {
+                if let Some(el) = textarea_ref.get_untracked() {
+                    let current = content_sig.get_untracked();
+                    if el.value() != current {
+                        el.set_value(&current);
+                    }
+                    let _ = el.focus();
+                    let _ = el.set_selection_range(0, 0);
+                    let active_tag = web_sys::window()
+                        .and_then(|w| w.document())
+                        .and_then(|d| d.active_element())
+                        .map(|e| e.tag_name())
+                        .unwrap_or_default();
+                    leptos::logging::log!(
+                        "FAS focused on {} at try {} active={}",
+                        my_id, i, active_tag,
+                    );
+                    FOCUS_BLOCK_AT_START.set(None);
+                    return;
+                }
+                gloo_timers::future::TimeoutFuture::new(16).await;
+            }
+            leptos::logging::log!("FAS gave up on {}", my_id);
+            FOCUS_BLOCK_AT_START.set(None);
+        });
+    });
+}
+
+/// Used after merging a block into the one above: put the caret where the two
+/// texts joined. `utf16_pos` is a UTF-16 offset, which is what selection_range
+/// takes.
+fn install_focus_at_pos_effect(
+    textarea_ref: NodeRef<Textarea>,
+    content_signal: ArcRwSignal<String>,
+    my_block_id: String,
+) {
+    Effect::new(move |_| {
+        let Some((target, pos)) = FOCUS_BLOCK_AT_POS.get() else {
+            return;
+        };
+        if target != my_block_id {
+            return;
+        }
+        if let Some(el) = textarea_ref.get() {
+            let current = content_signal.get_untracked();
+            if el.value() != current {
+                el.set_value(&current);
+            }
+            let _ = el.focus();
+            let pos = (pos as u32).min(current.encode_utf16().count() as u32);
+            let _ = el.set_selection_range(pos, pos);
+        }
+        FOCUS_BLOCK_AT_POS.set(None);
+    });
+}
+
+fn map_caret_across_edit(old: &str, new: &str, caret: u32) -> u32 {
+    let old_u: Vec<u16> = old.encode_utf16().collect();
+    let new_u: Vec<u16> = new.encode_utf16().collect();
+    let caret = caret as usize;
+
+    let min_len = old_u.len().min(new_u.len());
+    let mut prefix = 0;
+    while prefix < min_len && old_u[prefix] == new_u[prefix] {
+        prefix += 1;
+    }
+
+    let mut suffix = 0;
+    while suffix < (old_u.len() - prefix)
+        && suffix < (new_u.len() - prefix)
+        && old_u[old_u.len() - 1 - suffix] == new_u[new_u.len() - 1 - suffix]
+    {
+        suffix += 1;
+    }
+
+    if caret <= prefix {
+        return caret as u32;
+    }
+    if caret >= old_u.len() - suffix {
+        let delta = new_u.len() as isize - old_u.len() as isize;
+        let shifted = (caret as isize + delta).max(prefix as isize);
+        return shifted as u32;
+    }
+    prefix as u32
 }
