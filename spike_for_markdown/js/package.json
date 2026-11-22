@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/bridge.js --bundle --format=iife --outfile=../assets/cm_bridge.js",
-    "test:links": "node test_links.mjs"
+    "build": "esbuild src/editor.js --bundle --format=iife --outfile=../assets/cm_bridge.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.0",
