@@ -25,6 +25,7 @@ class PageCascade : AutoCloseable {
     fun sync(keys: List<String>) {
         val order = keys.map { idOf(it) }
         if (order == lastOrder) return
+        val isFirstSync = lastOrder.isEmpty()
         val current = order.toHashSet()
         for (id in inEngine.filter { it !in current }) {
             controller.removeBlock(id)
@@ -32,7 +33,8 @@ class PageCascade : AutoCloseable {
         }
         val added = order.filter { inEngine.add(it) }
         for (id in added) controller.addBlock(id, 0, ESTIMATED_BLOCK_HEIGHT_DP)
-        controller.commitOrder(listOf(order), added)
+        val snapIds = if (isFirstSync) order else added
+        controller.commitOrder(listOf(order), snapIds)
         lastOrder = order
     }
 

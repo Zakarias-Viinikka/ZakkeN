@@ -94,6 +94,7 @@ Editor:
 - `MoveBlock.moveBlockToAnotherPage` flushes any registered `OpenPageRegistry` sessions for both source and target pages before taking `WriteLock` (unregistered sessions such as `OpsChecks` scratch sessions flush explicitly).
 
 Editor rules:
+- Multi-block selection: ViewPage wraps the cascade blocks in `SelectionContainer`, allowing cross-block text selection and multi-block copy via standard Android selection handles.
 - Input: on text change (ignore selection-only changes) compute `PageSession.computeDiff(old, new)` (a Unicode code-point prefix/suffix differ that emits `DiffResult.Replace` for unequal-length replacements, avoiding `text_diff.getDiff`'s Insert/Delete bug), `pushEdit`, update the state optimistically.
 - Enter and multi-line input: hardware `Key.Enter` splits at the cursor when `selection.collapsed` (Shift+Enter is consumed and does nothing; non-collapsed falls through to `BasicTextField`). Text changes containing `\n` or `\r` (soft-keyboard Enter or multi-line paste) go to `PageSession.onMultiLineInput`, which normalizes `\r\n`/`\r`, splits lines into the current block plus new blocks below, preserves prefix/suffix text, and places `pendingFocus` at the mapped cursor line and offset.
 - Backspace at position 0 with collapsed selection:

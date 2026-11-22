@@ -184,26 +184,30 @@ class PageSession(
         if (above.isTitle) return
 
         if (row.textFieldValue.text.isEmpty()) {
-            // Focus above before removing this block: keeps the IME open.
+            val targetOffset = above.textFieldValue.text.length
+            above.textFieldValue = above.textFieldValue.copy(
+                selection = TextRange(targetOffset)
+            )
             runCatching { above.focusRequester.requestFocus() }
             batcher.pushDelete(row.blockId)
             rows.removeAt(rowIndex)
             spawnGhost(row, above.blockId)
-            pendingFocus.value = PendingFocus(above.blockId, above.textFieldValue.text.length)
+            pendingFocus.value = PendingFocus(above.blockId, targetOffset)
         } else if (above.textFieldValue.text.isEmpty()) {
-            // The kept block (this one) already has focus; nothing to do.
             batcher.pushDelete(above.blockId)
             rows.removeAt(aboveIndex)
             spawnGhost(above, rows[aboveIndex - 1].blockId)
             pendingFocus.value = PendingFocus(row.blockId, 0)
         } else {
-            // Merge: focus above before removing this block: keeps the IME open.
-            runCatching { above.focusRequester.requestFocus() }
-            val combined = above.textFieldValue.text + row.textFieldValue.text
             val joinOffset = above.textFieldValue.text.length
+            val combined = above.textFieldValue.text + row.textFieldValue.text
+            above.textFieldValue = above.textFieldValue.copy(
+                text = combined,
+                selection = TextRange(joinOffset)
+            )
+            runCatching { above.focusRequester.requestFocus() }
             batcher.pushEdit(above.blockId, computeDiff(above.textFieldValue.text, combined))
             batcher.pushDelete(row.blockId)
-            above.textFieldValue = above.textFieldValue.copy(text = combined)
             rows.removeAt(rowIndex)
             pendingFocus.value = PendingFocus(above.blockId, joinOffset)
         }

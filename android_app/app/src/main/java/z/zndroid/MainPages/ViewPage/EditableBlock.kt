@@ -82,24 +82,21 @@ fun EditableBlock(
     LaunchedEffect(session.pendingFocus.value) {
         val req = session.pendingFocus.value ?: return@LaunchedEffect
         if (req.blockId != row.blockId) return@LaunchedEffect
+        val targetSel = TextRange(req.offset.coerceIn(0, row.textFieldValue.text.length))
+        row.textFieldValue = row.textFieldValue.copy(selection = targetSel)
+        session.clearPendingFocus()
+
+        var focused = runCatching { row.focusRequester.requestFocus() }.isSuccess
+        var attempts = 0
+        while (!focused && attempts < 5) {
+            withFrameNanos { }
+            focused = runCatching { row.focusRequester.requestFocus() }.isSuccess
+            attempts++
+        }
         runCatching {
             if (pageScroll != null) pageScroll.scrollToBlock(row.blockId, density)
             else listState?.animateScrollToItem(lazyIndex)
         }
-        for (attempt in 0..5) {
-            try {
-                withFrameNanos { }
-                row.focusRequester.requestFocus()
-                row.textFieldValue = row.textFieldValue.copy(selection = TextRange(req.offset))
-                session.clearPendingFocus()
-                return@LaunchedEffect
-            } catch (_: IllegalStateException) {
-                delay(16)
-            }
-        }
-        // The row never laid out. Clear the request so a stale pendingFocus
-        // doesn't silently block the next focus attempt once it composes.
-        session.clearPendingFocus()
     }
 
     Row(
@@ -123,67 +120,69 @@ fun EditableBlock(
             )
         }
 
-        BasicTextField(
-            value = row.textFieldValue,
-            onValueChange = { newValue ->
-                if (newValue.text.contains('\n') || newValue.text.contains('\r')) {
-                    session.onMultiLineInput(index, newValue)
-                    return@BasicTextField
-                }
-                if (newValue.text == row.textFieldValue.text) {
-                    row.textFieldValue = newValue
-                } else {
-                    session.onInput(index, newValue)
-                }
-            },
-            modifier = Modifier
-                .weight(1f)
-                .focusRequester(row.focusRequester)
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    val sel = row.textFieldValue.selection
-                    when (event.key) {
-                        Key.Enter -> {
-                            if (event.isShiftPressed) {
-                                true
-                            } else if (sel.collapsed) {
-                                session.onEnter(index, sel.start)
-                                true
-                            } else false
-                        }
-                        Key.Backspace -> {
-                            if (sel.collapsed && sel.start == 0 && index > 0) {
-                                session.onBackspaceAtStart(index)
-                                true
-                            } else false
-                        }
-                        Key.DirectionUp -> {
-                            if (sel.collapsed && sel.start == 0 && !event.isShiftPressed) {
-                                session.onArrow(index, goDown = false)
-                            } else false
-                        }
-                        Key.DirectionDown -> {
-                            val len = row.textFieldValue.text.length
-                            if (sel.collapsed && sel.start == len && !event.isShiftPressed) {
-                                session.onArrow(index, goDown = true)
-                            } else false
-                        }
-                        else -> false
+        Box(modifier = Modifier.weight(1f)) {
+            BasicTextField(
+                value = row.textFieldValue,
+                onValueChange = { newValue ->
+                    if (newValue.text.contains('\n') || newValue.text.contains('\r')) {
+                        session.onMultiLineInput(index, newValue)
+                        return@BasicTextField
+                    }
+                    if (newValue.text == row.textFieldValue.text) {
+                        row.textFieldValue = newValue
+                    } else {
+                        session.onInput(index, newValue)
                     }
                 },
-            textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            decorationBox = { innerTextField ->
-                if (row.textFieldValue.text.isEmpty()) {
-                    Text(
-                        text = if (isTitle) "Page Title" else "Type '/' for commands...",
-                        style = textStyle,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                    )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(row.focusRequester)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        val sel = row.textFieldValue.selection
+                        when (event.key) {
+                            Key.Enter -> {
+                                if (event.isShiftPressed) {
+                                    true
+                                } else if (sel.collapsed) {
+                                    session.onEnter(index, sel.start)
+                                    true
+                                } else false
+                            }
+                            Key.Backspace -> {
+                                if (sel.collapsed && sel.start == 0 && index > 0) {
+                                    session.onBackspaceAtStart(index)
+                                    true
+                                } else false
+                            }
+                            Key.DirectionUp -> {
+                                if (sel.collapsed && sel.start == 0 && !event.isShiftPressed) {
+                                    session.onArrow(index, goDown = false)
+                                } else false
+                            }
+                            Key.DirectionDown -> {
+                                val len = row.textFieldValue.text.length
+                                if (sel.collapsed && sel.start == len && !event.isShiftPressed) {
+                                    session.onArrow(index, goDown = true)
+                                } else false
+                            }
+                            else -> false
+                        }
+                    },
+                textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    if (row.textFieldValue.text.isEmpty()) {
+                        Text(
+                            text = if (isTitle) "Page Title" else "Type '/' for commands...",
+                            style = textStyle,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                    }
+                    innerTextField()
                 }
-                innerTextField()
-            }
-        )
+            )
+        }
     }
 
     if (showMenu) {

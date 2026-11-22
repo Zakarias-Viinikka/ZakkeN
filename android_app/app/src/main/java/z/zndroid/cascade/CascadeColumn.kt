@@ -43,7 +43,8 @@ fun CascadeColumn(
             }
         },
         measurePolicy = { measurables, constraints ->
-            val placeables = measurables.map { it.measure(constraints) }
+            val childConstraints = constraints.copy(minHeight = 0, maxHeight = constraints.maxHeight)
+            val placeables = measurables.map { it.measure(childConstraints) }
             val width = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
             val heightPx = (heightState.floatValue * density).toInt().coerceAtLeast(1)
             layout(width, heightPx) {

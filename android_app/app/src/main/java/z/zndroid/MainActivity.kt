@@ -40,8 +40,14 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() },
                                 onOpenRecovery = { navController.navigate("recovery_page") },
                                 onOpenDbInspector = { navController.navigate("db_gui") },
-                                onOpenTests = { navController.navigate("test_results") }
+                                onOpenTests = { navController.navigate("test_results") },
+                                onOpenRapierTest = { navController.navigate("rapier_test") }
                             )
+                        }
+                        if (BuildConfig.DEBUG) {
+                            composable("rapier_test") {
+                                z.zndroid.MainPages.Rapier2dTestPage(onBack = { navController.popBackStack() })
+                            }
                         }
                         composable("recovery_page") {
                             RecoveryPage(onBack = { navController.popBackStack() })

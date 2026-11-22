@@ -58,6 +58,7 @@ fun SettingsPage(
     onOpenRecovery: () -> Unit,
     onOpenDbInspector: () -> Unit,
     onOpenTests: () -> Unit,
+    onOpenRapierTest: () -> Unit = {},
 ) {
     val colors = LocalFeelColors.current
     Scaffold(
@@ -92,6 +93,11 @@ fun SettingsPage(
                     title = "Dev Tools",
                     description = "Run the built-in checks and test actions.",
                     onClick = onOpenTests,
+                )
+                SettingsRow(
+                    title = "Rapier2D Test",
+                    description = "Isolated sandbox for CascadeColumn & Rapier physics.",
+                    onClick = onOpenRapierTest,
                 )
             } else {
                 BasicText(

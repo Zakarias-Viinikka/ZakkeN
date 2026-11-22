@@ -209,6 +209,16 @@ To verify: N/A, presentation only. Never let ghosts into `rows` or the batcher.
 
 ---
 
+### Cursor and selection preserved synchronously during block merge
+
+Android: when merging blocks or deleting empty blocks via `onBackspaceAtStart`, `above.textFieldValue` has its `selection` set immediately to `joinOffset` / `targetOffset` synchronously, before `focusRequester.requestFocus()` is called and before the old block is removed. In `EditableBlock`, `pendingFocus` sets the cursor and attempts `requestFocus()` immediately on the first frame rather than only inside `withFrameNanos`, eliminating caret update lag on Enter and preventing Backspace repeat from stalling or landing at offset 0.
+
+Reference location: `editor/PageSession.kt` (`onBackspaceAtStart`), `MainPages/ViewPage/EditableBlock.kt`.
+
+To verify: hold Backspace across block boundaries; caret should remain at the end of the text in the block above and continue deleting smoothly.
+
+---
+
 ### Indent transition on first typed character
 
 Android: the row's indent settle animation (22dp to 0, 500 ms, -5.5dp at 200 ms) plays when the first character is typed into an empty non-title block (`BlockRow.indentGen`), not on Enter.
