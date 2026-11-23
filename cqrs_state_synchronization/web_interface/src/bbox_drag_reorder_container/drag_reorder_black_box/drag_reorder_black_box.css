@@ -126,7 +126,7 @@
     line-height: 1.6;
 }
 
-.ps-content:focus {
+.ps-content:focus-within {
     color: #e4e9f2;
 }
 
