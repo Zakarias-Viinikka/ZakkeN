@@ -6,6 +6,7 @@ use crate::page_state::OpenPages;
 
 use super::background_activity_indicator::BackgroundActivityIndicator;
 use super::callbacks;
+use super::caret_owner::CaretOwner;
 use super::page_loading_logic;
 
 #[component]
@@ -40,6 +41,7 @@ pub fn MainContent() -> impl IntoView {
                 "min-height: 100vh;"
             }
         }>
+            <CaretOwner />
             <BackgroundActivityIndicator />
             <DragReorderContainer
                 pages=pages_for_ui
