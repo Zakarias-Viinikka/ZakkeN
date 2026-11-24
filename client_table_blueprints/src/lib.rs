@@ -11,3 +11,4 @@ pub mod tbl_logs;
 pub mod tbl_pages;
 pub mod tbl_client_love_letter;
 pub mod tbl_seen_server_letters;
+pub mod web_migrations;

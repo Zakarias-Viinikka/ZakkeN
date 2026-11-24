@@ -1,43 +1,18 @@
-use std::collections::HashMap;
-
-use client_table_blueprints::{
-    tbl_client_love_letter, tbl_every_block_in_existence, tbl_key_value_storage, tbl_pages,
-    tbl_seen_server_letters,
-};
-
 use error_stuff::CqrsErr;
 use leptos::prelude::*;
 use leptos::logging::log;
 
 use crate::db::cached_ids;
 use crate::leptos_components::small_components::popup::show_popup;
-use protocol::{new_table::ColumnDef, payload::*};
-use web_internal_db;
 
-pub async fn create_all_tables() {
-    let all_defs = vec![
-        tbl_client_love_letter::new_table_client_love_letter(),
-        tbl_every_block_in_existence::new_table_every_block_in_existence(),
-        tbl_key_value_storage::new_table_key_value_storage(),
-        tbl_pages::new_table_pages(),
-        tbl_seen_server_letters::new_table_seen_server_letters(),
-    ];
-
-    let mut name_map: HashMap<u8, String> = HashMap::new();
-    name_map.insert(0, tbl_client_love_letter::TABLE_NAME.into());
-    name_map.insert(1, tbl_every_block_in_existence::TABLE_NAME.into());
-    name_map.insert(2, tbl_key_value_storage::TABLE_NAME.into());
-    name_map.insert(3, tbl_pages::TABLE_NAME.into());
-    name_map.insert(4, tbl_seen_server_letters::TABLE_NAME.into());
-
-    //my db throws an err if table already exists. aka. nothing happens.
-    // so ill just swallow the err.
-    //
-    let _ = create_each_table_one_by_one(all_defs, name_map).await;
-}
+use client_table_blueprints::web_migrations::main_for_bringing_the_db_to_the_newest_schema_version::bring_the_db_to_the_newest_schema_version;
 
 pub async fn init_all() {
-    create_all_tables().await;
+    if let Err(e) = bring_the_db_to_the_newest_schema_version().await {
+        log!("bring db to newest schema version failed: {:?}", e);
+        show_popup(format!("bring db to newest schema version failed: {e:?}"));
+        return;
+    }
 
     if let Err(e) = init_session_id().await {
         log!("init session_id failed: {:?}", e);
@@ -76,27 +51,4 @@ async fn init_user_id() -> Result<(), CqrsErr> {
 }
 
 
-async fn create_each_table_one_by_one(
-    list_of_defs_for_making_the_tables: Vec<Vec<ColumnDef>>,
-    name_map: HashMap<u8, String>,
-) {
-    let mut ctr = 0;
-    for table_to_make in list_of_defs_for_making_the_tables.into_iter() {
-        /*table_name
-        columns */
-        let table_name = name_map.get(&ctr).unwrap().clone();
-        let crate_table_in = CreateTableIn {
-            table_name: table_name.clone(),
-            columns: table_to_make,
-        };
-        let result = web_internal_db::db_helper::create_table(crate_table_in).await;
-        if let Err(e) = result {
-            log!("result: {:?}", e);
-            if !e.to_string().contains("Table already exists") {
-                show_popup(format!("create table {table_name}: {e}"));
-            }
-        }
 
-        ctr = ctr + 1;
-    }
-}

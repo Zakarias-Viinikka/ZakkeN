@@ -397,6 +397,7 @@ version = "0.1.0"
 dependencies = [
  "protocol",
  "uniffi",
+ "web_internal_db",
  "yrs 0.1.0",
 ]
 
