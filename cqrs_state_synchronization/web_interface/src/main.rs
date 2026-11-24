@@ -24,7 +24,6 @@ use web_internal_db::db_gui::db_gui_main;
 fn main() {
     console_error_panic_hook::set_once();
     mount_to_body(App);
-    //either here or in App() do install_auto_reconecter
 }
 
 fn connection_refresh_guard(open_pages: OpenPages) {
