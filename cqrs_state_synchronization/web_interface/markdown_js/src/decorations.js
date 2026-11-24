@@ -35,38 +35,26 @@ const ALLOWED_TREE_NODES = new Set([
 ]);
 
 class WikiLinkWidget extends WidgetType {
-  constructor(pageId, displayTitle, missing, disabled, onLinkClick) {
+  constructor(command, rest, onLinkClick) {
     super();
-    this.pageId = pageId;
-    this.displayTitle = displayTitle;
-    this.missing = missing;
-    this.disabled = disabled;
+    this.command = command;
+    this.rest = rest;
     this.onLinkClick = onLinkClick;
   }
 
   eq(other) {
     return (
       other instanceof WikiLinkWidget &&
-      other.pageId === this.pageId &&
-      other.displayTitle === this.displayTitle &&
-      other.missing === this.missing &&
-      other.disabled === this.disabled
+      other.command === this.command &&
+      other.rest === this.rest
     );
   }
 
   toDOM() {
     const span = document.createElement("span");
-    let cls = "cm-wikilink";
-    if (this.missing) cls += " cm-wikilink-missing";
-    if (this.disabled) cls += " cm-wikilink-disabled";
-    span.className = cls;
-    span.textContent = this.displayTitle;
-    span.dataset.pageId = this.pageId;
-    span.title = this.missing
-      ? `Missing page (${this.pageId})`
-      : this.disabled
-        ? `Disabled page (${this.pageId})`
-        : `Open ${this.pageId}`;
+    span.className = "cm-wikilink";
+    span.textContent = this.command;
+    span.title = `${this.command}: ${this.rest}`;
 
     // Prevent CodeMirror from moving caret/focus before click fires.
     span.addEventListener("mousedown", (e) => {
@@ -77,7 +65,7 @@ class WikiLinkWidget extends WidgetType {
       e.preventDefault();
       e.stopPropagation();
       if (this.onLinkClick) {
-        this.onLinkClick(this.pageId);
+        this.onLinkClick(this.command, this.rest);
       }
     });
     return span;
@@ -119,23 +107,15 @@ function buildDecorations(view, onLinkClick) {
   const { state } = view;
   const doc = state.doc;
   const raw = doc.toString();
-  const titlesMap = state.field(titlesField);
-  const selRanges = state.selection.ranges;
+  const selRanges = view.hasFocus ? state.selection.ranges : [];
 
   const links = parseLinks(raw);
   const decos = [];
   const atomicDecos = [];
 
   for (const link of links) {
-    const entry = Object.prototype.hasOwnProperty.call(titlesMap, link.pageId)
-      ? titlesMap[link.pageId]
-      : null;
-    const missing = entry === null || entry === undefined;
-    const disabled = Boolean(entry && entry.disabled);
-    const displayTitle = entry && entry.title ? entry.title : link.title;
-
     const widgetDeco = Decoration.replace({
-      widget: new WikiLinkWidget(link.pageId, displayTitle, missing, disabled, onLinkClick),
+      widget: new WikiLinkWidget(link.command, link.rest, onLinkClick),
     });
     decos.push(widgetDeco.range(link.from, link.to));
     atomicDecos.push(widgetDeco.range(link.from, link.to));
@@ -144,7 +124,7 @@ function buildDecorations(view, onLinkClick) {
   const seenHeadingLines = new Set();
   const tree = syntaxTree(state);
 
-  for (const { from, to } of view.visibleRanges) {
+  for (const { from, to } of [{ from: 0, to: doc.length }]) {
     tree.iterate({
       from,
       to,
@@ -248,7 +228,9 @@ export function createMarkdownDecorationsExtension(onLinkClick) {
           update.docChanged ||
           update.selectionSet ||
           update.viewportChanged ||
-          titlesChanged
+          titlesChanged ||
+          update.focusChanged ||
+          syntaxTree(update.startState) !== syntaxTree(update.state)
         ) {
           const built = buildDecorations(update.view, onLinkClick);
           this.decorations = built.decorations;

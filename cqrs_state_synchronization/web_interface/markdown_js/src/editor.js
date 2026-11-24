@@ -2,7 +2,7 @@
 // Rust -> JS: window.cmBridge.<fn>(...)   (plain function calls)
 // JS -> Rust: window CustomEvent "cm", detail = JSON string {id, kind, ...}.
 //             Cancelable: if a Rust listener calls prevent_default(), emit() returns false.
-// Event kinds: changes {changes, head}, key {...}, link_click {pageId}.
+// Event kinds: changes {changes, head}, key {...}, link_click {command, rest}.
 import { Annotation, Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -107,8 +107,8 @@ window.cmBridge = {
           keymap.of([...defaultKeymap, ...historyKeymap]),
           markdown(),
           titlesField.init(() => titles),
-          createMarkdownDecorationsExtension((pageId) => {
-            emit(id, "link_click", { pageId });
+          createMarkdownDecorationsExtension((command, rest) => {
+            emit(id, "link_click", { command, rest });
           }),
           autocompletion({ override: [wikilinkCompletionSource] }),
           updateListener,

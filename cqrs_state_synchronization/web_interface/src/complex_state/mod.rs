@@ -3,6 +3,7 @@ pub mod block_input_event;
 pub mod caret;
 pub mod clickable_popups;
 pub mod conn_state;
+pub mod navigation_request;
 pub mod drift_version;
 pub mod rows;
 pub mod ui_signals;

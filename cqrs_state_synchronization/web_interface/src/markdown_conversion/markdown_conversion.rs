@@ -42,7 +42,7 @@ pub fn MarkdownConversion(
     #[prop(optional)] is_title: bool,
     #[prop(optional, into)] ghost: Option<Signal<bool>>,
     #[prop(optional, into)] placeholder: Option<String>,
-    #[prop(optional)] on_link_click: Option<Callback<String>>,
+    #[prop(optional)] on_link_click: Option<Callback<(String, String)>>,
     #[prop(optional, into)] titles: Option<Signal<HashMap<String, PageTitle>>>,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
@@ -119,9 +119,9 @@ pub fn MarkdownConversion(
         })
     };
 
-    let link_cb = Callback::new(move |page_id: String| {
+    let link_cb = Callback::new(move |(command, rest): (String, String)| {
         if let Some(cb) = on_link_click {
-            cb.run(page_id);
+            cb.run((command, rest));
         }
     });
     let ready_cb = Callback::new(move |_: ()| ready.set(true));

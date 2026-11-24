@@ -141,8 +141,8 @@ enum CmEvent {
     },
     LinkClick {
         id: String,
-        #[serde(rename = "pageId")]
-        page_id: String,
+        command: String,
+        rest: String,
     },
 }
 
@@ -165,7 +165,7 @@ pub fn CmEditor(
     on_edit: Callback<Edit>,
     on_key: Callback<KeyPress, bool>,
     #[prop(optional)] initial_titles: HashMap<String, PageTitle>,
-    #[prop(optional)] on_link_click: Option<Callback<String>>,
+    #[prop(optional)] on_link_click: Option<Callback<(String, String)>>,
     #[prop(optional)] on_ready: Option<Callback<()>>,
 ) -> impl IntoView {
     let host_ref = NodeRef::<Div>::new();
@@ -227,9 +227,9 @@ pub fn CmEditor(
                     custom.prevent_default();
                 }
             }
-            CmEvent::LinkClick { page_id, .. } => {
+            CmEvent::LinkClick { command, rest, .. } => {
                 if let Some(cb) = on_link_click {
-                    cb.run(page_id);
+                    cb.run((command, rest));
                 }
             }
         }

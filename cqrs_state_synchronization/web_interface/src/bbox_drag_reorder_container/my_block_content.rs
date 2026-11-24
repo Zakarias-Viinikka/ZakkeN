@@ -4,6 +4,7 @@
 use crate::bbox_drag_reorder_container::BlockRenderInput;
 use crate::complex_state::BlockInputEvent;
 use crate::markdown_conversion::MarkdownConversion;
+use crate::markdown_conversion::main_for_on_link_click::main_on_link_click;
 use leptos::prelude::*;
 
 #[component]
@@ -18,6 +19,9 @@ pub fn MyBlockContent(
     let ghost = block.ghost;
     let ghost_signal = Signal::derive(move || ghost.get());
     let placeholder = if block.is_title { "Untitled" } else { "" }.to_string();
+    let on_link_click = Callback::new(move |(command, rest): (String, String)| {
+        main_on_link_click(&command, &rest);
+    });
 
     view! {
         <MarkdownConversion
@@ -31,6 +35,7 @@ pub fn MyBlockContent(
             is_title=block.is_title
             ghost=ghost_signal
             placeholder=placeholder
+            on_link_click=on_link_click
             class="ps-content"
         />
     }

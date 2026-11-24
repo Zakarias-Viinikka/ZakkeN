@@ -26220,17 +26220,17 @@
   );
 
   // src/link_parser.js
-  var WIKILINK_RE = /\[\[([^\]\r\n]+)\|([^\s\]|]+)\]\]/g;
+  var LINK_RE = /\[\[([^\]\r\n|]+)\|((?:[^\]\r\n]|\](?!\]))*)\]\]/g;
   function parseLinks(raw) {
     const results = [];
-    WIKILINK_RE.lastIndex = 0;
+    LINK_RE.lastIndex = 0;
     let match;
-    while ((match = WIKILINK_RE.exec(raw)) !== null) {
+    while ((match = LINK_RE.exec(raw)) !== null) {
       results.push({
         from: match.index,
         to: match.index + match[0].length,
-        title: match[1],
-        pageId: match[2]
+        command: match[1],
+        rest: match[2]
       });
     }
     return results;
@@ -26266,26 +26266,20 @@
     "CodeMark"
   ]);
   var WikiLinkWidget = class _WikiLinkWidget extends WidgetType {
-    constructor(pageId, displayTitle, missing, disabled, onLinkClick) {
+    constructor(command2, rest, onLinkClick) {
       super();
-      this.pageId = pageId;
-      this.displayTitle = displayTitle;
-      this.missing = missing;
-      this.disabled = disabled;
+      this.command = command2;
+      this.rest = rest;
       this.onLinkClick = onLinkClick;
     }
     eq(other) {
-      return other instanceof _WikiLinkWidget && other.pageId === this.pageId && other.displayTitle === this.displayTitle && other.missing === this.missing && other.disabled === this.disabled;
+      return other instanceof _WikiLinkWidget && other.command === this.command && other.rest === this.rest;
     }
     toDOM() {
       const span = document.createElement("span");
-      let cls = "cm-wikilink";
-      if (this.missing) cls += " cm-wikilink-missing";
-      if (this.disabled) cls += " cm-wikilink-disabled";
-      span.className = cls;
-      span.textContent = this.displayTitle;
-      span.dataset.pageId = this.pageId;
-      span.title = this.missing ? `Missing page (${this.pageId})` : this.disabled ? `Disabled page (${this.pageId})` : `Open ${this.pageId}`;
+      span.className = "cm-wikilink";
+      span.textContent = this.command;
+      span.title = `${this.command}: ${this.rest}`;
       span.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -26294,7 +26288,7 @@
         e.preventDefault();
         e.stopPropagation();
         if (this.onLinkClick) {
-          this.onLinkClick(this.pageId);
+          this.onLinkClick(this.command, this.rest);
         }
       });
       return span;
@@ -26331,25 +26325,20 @@
     const { state } = view;
     const doc2 = state.doc;
     const raw = doc2.toString();
-    const titlesMap = state.field(titlesField);
-    const selRanges = state.selection.ranges;
+    const selRanges = view.hasFocus ? state.selection.ranges : [];
     const links = parseLinks(raw);
     const decos = [];
     const atomicDecos = [];
     for (const link of links) {
-      const entry = Object.prototype.hasOwnProperty.call(titlesMap, link.pageId) ? titlesMap[link.pageId] : null;
-      const missing = entry === null || entry === void 0;
-      const disabled = Boolean(entry && entry.disabled);
-      const displayTitle = entry && entry.title ? entry.title : link.title;
       const widgetDeco = Decoration.replace({
-        widget: new WikiLinkWidget(link.pageId, displayTitle, missing, disabled, onLinkClick)
+        widget: new WikiLinkWidget(link.command, link.rest, onLinkClick)
       });
       decos.push(widgetDeco.range(link.from, link.to));
       atomicDecos.push(widgetDeco.range(link.from, link.to));
     }
     const seenHeadingLines = /* @__PURE__ */ new Set();
     const tree = syntaxTree(state);
-    for (const { from, to } of view.visibleRanges) {
+    for (const { from, to } of [{ from: 0, to: doc2.length }]) {
       tree.iterate({
         from,
         to,
@@ -26437,7 +26426,7 @@
           const titlesChanged = update.transactions.some(
             (tr) => tr.effects.some((e) => e.is(setTitlesEffect))
           );
-          if (update.docChanged || update.selectionSet || update.viewportChanged || titlesChanged) {
+          if (update.docChanged || update.selectionSet || update.viewportChanged || titlesChanged || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
             const built = buildDecorations(update.view, onLinkClick);
             this.decorations = built.decorations;
             this.atomicLinks = built.atomicLinks;
@@ -26548,8 +26537,8 @@
             keymap.of([...defaultKeymap, ...historyKeymap]),
             markdown(),
             titlesField.init(() => titles),
-            createMarkdownDecorationsExtension((pageId) => {
-              emit(id2, "link_click", { pageId });
+            createMarkdownDecorationsExtension((command2, rest) => {
+              emit(id2, "link_click", { command: command2, rest });
             }),
             autocompletion({ override: [wikilinkCompletionSource] }),
             updateListener2

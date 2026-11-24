@@ -10,6 +10,7 @@ use web_interface::leptos_components::custom_port_setting_page::CustomPortSettin
 use web_interface::leptos_components::imp_or_export::ImpOrExport;
 use web_interface::leptos_components::main_content::MainContent;
 use web_interface::leptos_components::menu::Menu;
+use web_interface::leptos_components::navigation_owner::NavigationOwner;
 use web_interface::leptos_components::reconcile_page::ReconcilePage;
 use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
@@ -84,6 +85,7 @@ fn App() -> impl IntoView {
                             <SetupGuard/>
                             <CoolPopup/>
                             <MainForNavigatingFromTheTester/>
+                            <NavigationOwner/>
                         </main>
                     </Router>
                 }.into_any()
