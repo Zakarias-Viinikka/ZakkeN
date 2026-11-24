@@ -1,0 +1,6 @@
+[crate-roots]
+special_menu_rust = "."
+
+[crates.special_menu_rust.bindings.kotlin]
+package_name = "z.special_menu.rust"
+android = true
