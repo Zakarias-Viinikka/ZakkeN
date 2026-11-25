@@ -4,7 +4,6 @@ use stylist::style;
 use crate::leptos_components::dev_panel::sidebar_buttons::{
     DeleteEverythingButton, DeliberateLonewolfButton, ImpOrExportButton, InsertThreePagesButton,
     ReconcileButton, ResetEverythingButton, WipeSelfAndAdoptServerButton, WipeServerButton,
-    special_menu_test_button::SpecialMenuTestButton,
 };
 
 const SIDEBAR_TOGGLE_BUTTON_WIDTH: i32 = 32;
@@ -229,7 +228,6 @@ fn SidebarContent() -> impl IntoView {
         <hr/>
         <ImpOrExportButton />
         <hr/>
-        <SpecialMenuTestButton />
     }
 }
 

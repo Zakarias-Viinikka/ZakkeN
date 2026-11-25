@@ -144,12 +144,19 @@ enum CmEvent {
         command: String,
         rest: String,
     },
+    Selection {
+        id: String,
+        head: usize,
+    },
 }
 
 impl CmEvent {
     fn id(&self) -> &str {
         match self {
-            CmEvent::Changes { id, .. } | CmEvent::Key { id, .. } | CmEvent::LinkClick { id, .. } => id,
+            CmEvent::Changes { id, .. }
+            | CmEvent::Key { id, .. }
+            | CmEvent::LinkClick { id, .. }
+            | CmEvent::Selection { id, .. } => id,
         }
     }
 }
@@ -167,6 +174,7 @@ pub fn CmEditor(
     #[prop(optional)] initial_titles: HashMap<String, PageTitle>,
     #[prop(optional)] on_link_click: Option<Callback<(String, String)>>,
     #[prop(optional)] on_ready: Option<Callback<()>>,
+    #[prop(optional)] on_caret_moved: Option<Callback<usize>>,
 ) -> impl IntoView {
     let host_ref = NodeRef::<Div>::new();
     let titles_json = titles_to_json(&initial_titles);
@@ -230,6 +238,11 @@ pub fn CmEditor(
             CmEvent::LinkClick { command, rest, .. } => {
                 if let Some(cb) = on_link_click {
                     cb.run((command, rest));
+                }
+            }
+            CmEvent::Selection { head, .. } => {
+                if let Some(cb) = on_caret_moved {
+                    cb.run(head);
                 }
             }
         }

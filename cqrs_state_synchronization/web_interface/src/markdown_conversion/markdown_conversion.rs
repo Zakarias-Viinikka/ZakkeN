@@ -43,6 +43,8 @@ pub fn MarkdownConversion(
     #[prop(optional, into)] ghost: Option<Signal<bool>>,
     #[prop(optional, into)] placeholder: Option<String>,
     #[prop(optional)] on_link_click: Option<Callback<(String, String)>>,
+    /// Fires with the UTF-16 caret offset whenever the caret moves while this editor has focus.
+    #[prop(optional)] on_caret_moved: Option<Callback<usize>>,
     #[prop(optional, into)] titles: Option<Signal<HashMap<String, PageTitle>>>,
     #[prop(optional, into)] class: Option<String>,
 ) -> impl IntoView {
@@ -124,6 +126,11 @@ pub fn MarkdownConversion(
             cb.run((command, rest));
         }
     });
+    let caret_cb = Callback::new(move |pos: usize| {
+        if let Some(cb) = on_caret_moved {
+            cb.run(pos);
+        }
+    });
     let ready_cb = Callback::new(move |_: ()| ready.set(true));
 
     // content changed from outside (server sync) -> push into the editor.
@@ -194,6 +201,7 @@ pub fn MarkdownConversion(
                 initial_titles=init_titles
                 on_link_click=link_cb
                 on_ready=ready_cb
+                on_caret_moved=caret_cb
             />
         </div>
     }

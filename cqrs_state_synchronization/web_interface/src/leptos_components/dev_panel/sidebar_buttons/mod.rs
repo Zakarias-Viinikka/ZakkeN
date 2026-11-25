@@ -4,7 +4,6 @@ pub mod imp_or_export_button;
 pub mod insert_three_pages;
 pub mod reconcile_button;
 pub mod reset_everything;
-pub mod special_menu_test_button;
 pub mod wipe_self_and_adopt_server;
 pub mod wipe_server;
 

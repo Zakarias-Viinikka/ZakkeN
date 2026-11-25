@@ -26513,6 +26513,9 @@
       const editableCompartment = new Compartment();
       const placeholderCompartment = new Compartment();
       const updateListener2 = EditorView.updateListener.of((update) => {
+        if ((update.selectionSet || update.docChanged || update.focusChanged) && update.view.hasFocus) {
+          emit(id2, "selection", { head: update.state.selection.main.head });
+        }
         if (!update.docChanged) return;
         if (update.transactions.some((tr) => tr.annotation(fromRust) === true)) return;
         const changes = [];

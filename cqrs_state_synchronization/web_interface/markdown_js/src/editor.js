@@ -2,7 +2,7 @@
 // Rust -> JS: window.cmBridge.<fn>(...)   (plain function calls)
 // JS -> Rust: window CustomEvent "cm", detail = JSON string {id, kind, ...}.
 //             Cancelable: if a Rust listener calls prevent_default(), emit() returns false.
-// Event kinds: changes {changes, head}, key {...}, link_click {command, rest}.
+// Event kinds: changes {changes, head}, key {...}, link_click {command, rest}, selection {head}.
 import { Annotation, Compartment, EditorState, Prec, Transaction } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -80,6 +80,12 @@ window.cmBridge = {
     const placeholderCompartment = new Compartment();
 
     const updateListener = EditorView.updateListener.of((update) => {
+      // Where the caret is, but only while the user is really in this editor. Rust-pushed
+      // text in unfocused blocks must not count. focusChanged covers "Rust set the selection,
+      // then focused the editor".
+      if ((update.selectionSet || update.docChanged || update.focusChanged) && update.view.hasFocus) {
+        emit(id, "selection", { head: update.state.selection.main.head });
+      }
       if (!update.docChanged) return;
       // Changes that Rust itself pushed in are not user edits: no echo.
       if (update.transactions.some((tr) => tr.annotation(fromRust) === true)) return;

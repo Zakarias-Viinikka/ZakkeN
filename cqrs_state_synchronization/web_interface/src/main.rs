@@ -16,7 +16,6 @@ use web_interface::leptos_components::setup_guard::SetupGuard;
 use web_interface::leptos_components::setup_page::SetupPage;
 use web_interface::leptos_components::small_components::AppBorder;
 use web_interface::leptos_components::small_components::popup::CoolPopup;
-use web_interface::leptos_components::special_menu_test::SpecialMenuTest;
 use web_interface::page_state::{OpenPages, Page, PageLoadState};
 
 use web_internal_db::db_gui::db_gui_main;
@@ -79,7 +78,6 @@ fn App() -> impl IntoView {
                                 <Route path=path!("/custom_port_setting_page") view=CustomPortSettingPage/>
                                 <Route path=path!("/reconcile") view=ReconcilePage/>
                                 <Route path=path!("/imp_or_export") view=ImpOrExport/>
-                                <Route path=path!("/special_menu_test") view=SpecialMenuTest/>
                             </Routes>
                             <SetupGuard/>
                             <CoolPopup/>

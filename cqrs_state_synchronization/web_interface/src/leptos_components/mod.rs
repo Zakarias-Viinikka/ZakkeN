@@ -8,5 +8,5 @@ pub mod reconcile_page;
 pub mod setup_guard;
 pub mod setup_page;
 pub mod small_components;
-pub mod special_menu_test;
+pub mod special_menu;
 pub mod navigation_owner;
