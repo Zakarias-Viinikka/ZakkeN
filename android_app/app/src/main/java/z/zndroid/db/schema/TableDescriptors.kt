@@ -32,15 +32,9 @@ object EveryBlockInExistenceTableSchema {
     val allColumns = listOf(id, isTitle, isPartOfMainMenuPage, content, myIdAsGivenByYrs, idOfPageIBelongTo, fracPosition, pageIsDisabled)
 }
 
-object BacklinksTableSchema {
-    const val TABLE_NAME = "backlinks"
-    val id = ColumnDescriptor("id", "INTEGER") { (it as Col.Integer).v1 }
-    val pageThatHoldsLinkId = ColumnDescriptor("page_that_holds_link_id", "TEXT") { (it as Col.Text).v1 }
-    val pageBeingLinkedToId = ColumnDescriptor("page_being_linked_to_id", "TEXT") { (it as Col.Text).v1 }
-    val disabled = ColumnDescriptor("disabled", "BLOB") { (it as Col.Blob).v1 }
-    val version = ColumnDescriptor("version", "BLOB") { (it as Col.Blob).v1 }
-    val allColumns = listOf(id, pageThatHoldsLinkId, pageBeingLinkedToId, disabled, version)
-}
+// BacklinksTableSchema was removed 2026-11-25 alongside the backlinks CRDT
+// table (web commit 8ae8ab9b). SchemaVersion.V4.updateOnce drops the
+// physical table on upgrade; V5's frozen snapshot omits it.
 
 object ClientLoveLetterTableSchema {
     const val TABLE_NAME = "client_love_letter"

@@ -1078,109 +1078,109 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_add_column() and 0xFFFF) != 64117) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_add_column() and 0xFFFF) != 42883) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_are_we_in_middle_of_transaction() and 0xFFFF) != 45524) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_are_we_in_middle_of_transaction() and 0xFFFF) != 19852) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_begin_all_or_nothing() and 0xFFFF) != 18291) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_check_index() and 0xFFFF) != 38564) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_check_index() and 0xFFFF) != 4218) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_check_table() and 0xFFFF) != 59452) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_check_table() and 0xFFFF) != 63704) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_copy_table() and 0xFFFF) != 11694) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_copy_table() and 0xFFFF) != 30594) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_count_all_rows() and 0xFFFF) != 37156) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_count_all_rows() and 0xFFFF) != 15184) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_count_rows() and 0xFFFF) != 46394) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_count_rows() and 0xFFFF) != 51689) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table() and 0xFFFF) != 17456) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_foreign_table() and 0xFFFF) != 54405) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_fts5_table() and 0xFFFF) != 50441) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_fts5_table() and 0xFFFF) != 14958) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_index() and 0xFFFF) != 42700) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_index() and 0xFFFF) != 45721) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_table() and 0xFFFF) != 37715) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_table() and 0xFFFF) != 30125) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_table_from_export() and 0xFFFF) != 51410) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_create_table_from_export() and 0xFFFF) != 44484) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_all_rows() and 0xFFFF) != 3534) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_all_rows() and 0xFFFF) != 34973) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_row() and 0xFFFF) != 37060) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_row() and 0xFFFF) != 9123) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_row_where() and 0xFFFF) != 5784) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_delete_row_where() and 0xFFFF) != 55748) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_drop_table() and 0xFFFF) != 33779) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_drop_table() and 0xFFFF) != 13242) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row() and 0xFFFF) != 13066) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row() and 0xFFFF) != 21441) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row_where() and 0xFFFF) != 41980) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_edit_col_in_row_where() and 0xFFFF) != 31430) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_everything_went_perfectly() and 0xFFFF) != 29733) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_export_tables() and 0xFFFF) != 24452) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_export_tables() and 0xFFFF) != 53639) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_force_drop_table() and 0xFFFF) != 37357) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_force_drop_table() and 0xFFFF) != 22774) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_fundamentally_edit_existing_col() and 0xFFFF) != 46695) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_fundamentally_edit_existing_col() and 0xFFFF) != 25921) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data() and 0xFFFF) != 52530) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data() and 0xFFFF) != 59006) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered() and 0xFFFF) != 54005) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered() and 0xFFFF) != 45250) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered_and_skip_first_x() and 0xFFFF) != 61602) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_data_ordered_and_skip_first_x() and 0xFFFF) != 22556) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_single_col() and 0xFFFF) != 52203) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_get_single_col() and 0xFFFF) != 34820) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_insert_data() and 0xFFFF) != 12765) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_insert_data() and 0xFFFF) != 36817) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_insert_data_and_get_col() and 0xFFFF) != 56059) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_insert_data_and_get_col() and 0xFFFF) != 12520) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_list_tables() and 0xFFFF) != 59841) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_list_tables() and 0xFFFF) != 24170) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_rebuild_fts5_index() and 0xFFFF) != 28229) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_rebuild_fts5_index() and 0xFFFF) != 35706) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_method_liveforever_regret_everything() and 0xFFFF) != 37180) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_remove_column() and 0xFFFF) != 59222) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_remove_column() and 0xFFFF) != 30357) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_search_fts5() and 0xFFFF) != 24292) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_search_fts5() and 0xFFFF) != 44701) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_swap_columns() and 0xFFFF) != 41881) {
+    if ((lib.uniffi_db_wrapper_checksum_method_liveforever_swap_columns() and 0xFFFF) != 55261) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_db_wrapper_checksum_constructor_liveforever_new() and 0xFFFF) != 57802) {

@@ -8,7 +8,17 @@ import z.zndroid.db.migrations.schemas.Version1
 import z.zndroid.db.migrations.schemas.Version2
 import z.zndroid.db.migrations.schemas.Version3
 import z.zndroid.db.migrations.schemas.Version4
+import z.zndroid.db.migrations.schemas.Version5
 import z.zndroid.protocol.SafeRowMapper
+
+/**
+ * V5's frozen snapshot = V4's tables with the backlinks table removed.
+ * The web removed the backlinks CRDT table (web commit 8ae8ab9b) and
+ * Android follows. Deriving it here avoids a separate Version5.kt whose
+ * only difference from Version4.kt would be the missing backlinks.
+ */
+private val V5_FROZEN_TABLES: List<FrozenTable> =
+    Version4.tables.filter { it.name != "backlinks" }
 
 enum class SchemaVersion(val version: Int) {
     V0(0) {
@@ -117,6 +127,24 @@ enum class SchemaVersion(val version: Int) {
 
         override val snapshotTables: List<FrozenTable> get() = Version4.tables
 
+        override fun updateOnce(db: LiveForever): SchemaVersion {
+            // V4 -> V5: the web removed the backlinks CRDT table (web commit
+            // 8ae8ab9b) and Android follows. Drop the physical table so
+            // existing dev DBs clean up after themselves; Version4.tables
+            // stays as a frozen historical record of what V4 created.
+            try {
+                db.dropTable(DropTableIn("backlinks"))
+            } catch (_: Exception) {
+                // Table already gone; nothing to do.
+            }
+            return V5
+        }
+    },
+    V5(5) {
+        override fun bootstrap(db: LiveForever) {
+            createSnapshotTables(db, Version5.tables)
+        }
+        override val snapshotTables: List<FrozenTable> get() = Version5.tables
         override fun updateOnce(db: LiveForever): SchemaVersion = this
     };
 
@@ -131,7 +159,7 @@ enum class SchemaVersion(val version: Int) {
     open val snapshotTables: List<FrozenTable>? get() = null
 
     companion object {
-        val LATEST = V4
+        val LATEST = V5
 
         fun fromInt(version: Int): SchemaVersion {
             return values().find { it.version == version }
@@ -157,13 +185,11 @@ enum class SchemaVersion(val version: Int) {
                     "every_block_in_existence" to rustlib.client_table_blueprints.newTableEveryBlockInExistence(),
                     "client_love_letter" to rustlib.client_table_blueprints.newTableClientLoveLetter(),
                     "key_value_storage" to rustlib.client_table_blueprints.newTableKeyValueStorage(),
-                    "backlinks" to rustlib.client_table_blueprints.newTableBacklinks(),
                     "incoming_love_letters" to rustlib.client_table_blueprints.newTableIncomingLoveLetters(),
                     "logs" to rustlib.client_table_blueprints.newTableLogs(),
                     "seen_server_letters" to rustlib.client_table_blueprints.newTableSeenServerLetters(),
                 )
                 liveFks = mapOf(
-                    "backlinks" to rustlib.client_table_blueprints.getForeignDefBacklinks(),
                     "every_block_in_existence" to rustlib.client_table_blueprints.getForeignDefEveryBlockInExistence(),
                 )
             } catch (e: UnsatisfiedLinkError) {

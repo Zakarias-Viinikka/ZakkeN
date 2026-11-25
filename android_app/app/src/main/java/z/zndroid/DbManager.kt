@@ -301,8 +301,8 @@ object DbManager {
      */
     suspend fun hardDeletePage(pageId: String): Result<Unit> = withTransaction {
         deleteRowsByColumn("every_block_in_existence", "id_of_page_i_belong_to", pageId)
-        deleteRowsByColumn("backlinks", "page_that_holds_link_id", pageId)
-        deleteRowsByColumn("backlinks", "page_being_linked_to_id", pageId)
+        // Backlinks became a computed query 2026-11-25 (web commit 8ae8ab9b),
+        // so there is no backlinks table to delete from any more.
         deleteRowsByColumn("client_love_letter", "target_id", pageId)
         deleteRowsByColumn("pages", "page_id", pageId)
     }

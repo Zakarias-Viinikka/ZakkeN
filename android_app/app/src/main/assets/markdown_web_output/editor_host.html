@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: #e4e9f2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+  }
+  #host { width: 100%; }
+  .cm-editor, .cm-scroller, .cm-content { background: transparent !important; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script src="cm_bridge.js"></script>
+<script>
+  // Android-only: forward the bridge's "cm" CustomEvent to the Kotlin
+  // JavascriptInterface. The boolean return tells CodeMirror whether to
+  // suppress the default action for a key press.
+  window.addEventListener("cm", function (ev) {
+    if (!window.CmHost) return;
+    var consumed = false;
+    try { consumed = !!window.CmHost.postEvent(ev.detail); } catch (e) { consumed = false; }
+    if (consumed) ev.preventDefault();
+  });
+</script>
+</body>
+</html>

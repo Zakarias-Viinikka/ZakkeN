@@ -17,7 +17,6 @@ fun SchemaGui(onBack: () -> Unit) {
     val tableSchemas = listOf(
         TableSchema("pages", newTablePages(), emptyList()),
         TableSchema("client_love_letter", newTableClientLoveLetter(), emptyList()),
-        TableSchema("backlinks", newTableBacklinks(), getForeignDefBacklinks()),
         TableSchema("every_block_in_existence", newTableEveryBlockInExistence(), getForeignDefEveryBlockInExistence()),
         TableSchema("key_value_storage", newTableKeyValueStorage(), emptyList())
     )

@@ -60,13 +60,7 @@ pub const REGISTRY: &[Entry] = &[
         fk_fn_name: None,
         fk_fn: None,
     },
-    Entry {
-        table_name: "backlinks",
-        fn_name: "new_table_backlinks",
-        columns_fn: client_table_blueprints::tbl_backlinks::new_table_backlinks,
-        fk_fn_name: Some("get_foreign_def_backlinks"),
-        fk_fn: Some(client_table_blueprints::tbl_backlinks::get_foreign_def_backlinks),
-    },
+
     Entry {
         table_name: "every_block_in_existence",
         fn_name: "new_table_every_block_in_existence",

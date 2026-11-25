@@ -77,8 +77,13 @@ class PageSession(
             return
         }
         val diff = computeDiff(old.text, newValue.text)
-        // First character typed into an empty body block: indent transition.
-        if (!row.isTitle && old.text.isEmpty()) row.indentGen++
+        // First input into an empty body block, and that input is >10 chars:
+        // indent transition. Fires on a >10-char paste or IME word commit;
+        // typing one character at a time never reaches this (each later
+        // keystroke's `old` is non-empty).
+        if (!row.isTitle && old.text.isEmpty() && newValue.text.length > 10) {
+            row.indentGen++
+        }
         batcher.pushEdit(row.blockId, diff)
         row.textFieldValue = newValue
     }

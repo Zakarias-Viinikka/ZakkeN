@@ -260,3 +260,59 @@ Android: `SchemaVersion.V2.updateOnce` performs the V2 to V3 migration by droppi
 Reference location: none - one-time project-state choice. Web accepted the same data loss.
 
 To verify: N/A once the project has real data. Until then, this is accepted data loss, not a design to keep.
+
+---
+### CM6 WebView bridge + CmHost event forwarding
+Android: `markdown_conversion/cm.kt` is `object Cm` (Kotlin has no `mod`) wrapping one `WebView` per block. The bridge JS in `assets/markdown_web_output/editor_host.html` forwards the bridge's CustomEvent `"cm"` into a Kotlin `@JavascriptInterface` at `window.CmHost.postEvent(detailJson)`. The returned Boolean goes back to JS, which calls `ev.preventDefault()` on the CustomEvent if true — that is how a key press is "consumed". The bridge JS itself is the same `cm_bridge.js` web uses. All other bridge calls go through `evaluateJavascript`; `getText` / `getSelection` / `getContentHeight` are async, not synchronous like web's `extern "C"` `cm.rs`.
+Web: `cm.rs` declares `extern "C"` wrappers around `window.cmBridge.*` with synchronous returns, and `window_event_listener_untyped("cm")` reads the CustomEvent directly. The `<div>` host is a Leptos component.
+Reference location: `android_app/app/src/main/java/z/zndroid/markdown_conversion/cm.kt`, `.../assets/markdown_web_output/editor_host.html`; `cqrs_state_synchronization/web_interface/src/markdown_conversion/cm.rs`.
+To verify: nothing in section 1 is checked on a device yet (2026-11-25). Typing, Enter split/merge, Backspace merge, arrow nav, block height and wikilink click all need a phone run before this entry can be trusted to describe working code.
+---
+### JS thread -> Compose Main thread handoff for key decisions
+Android: `CmHost.postEvent` runs on the WebView JS thread. It must answer "consume or not" synchronously (that boolean goes to `preventDefault`), but cannot safely call `session.onXxx` from that thread. Each composed block keeps `lastKnownText = AtomicReference(row.textFieldValue.text)` updated in the changes handler (JS thread), so a key decision can be made against CM's text at the instant the key fired; the actual `session.onXxx` runs inside `scope.launch { ... }` on Main. `cm.kt` posts every `evaluateJavascript` back to the UI thread via `webView.post { ... }`.
+Web: single-threaded; `on_key`'s `Callback::run` executes on the same thread as the decision.
+Reference location: `android_app/app/src/main/java/z/zndroid/MainPages/ViewPage/EditableBlock.kt`, `.../markdown_conversion/cm.kt`.
+To verify: type and press Enter fast; the AtomicReference can be behind an outside `setText` for at most one keystroke. Recovery is the next keystroke; a lost char or a stale split offset would be the symptom.
+---
+### WebView height measured from `scrollHeight`
+Android: CM6 renders with `overflow: visible` and no fixed height. `Cm.getContentHeight(id)` reads `document.getElementById('host').scrollHeight` in CSS px, `EditableBlock` uses that (+4) as the WebView's Compose height. CSS px == Compose dp here because `editor_host.html` sets `<meta name="viewport" content="width=device-width, initial-scale=1, ...">` and Android's WebView default density matches.
+Web: CSS sizes the editor inside its container.
+Reference location: `android_app/app/src/main/java/z/zndroid/markdown_conversion/cm.kt` (`getContentHeight`), `.../MainPages/ViewPage/EditableBlock.kt`.
+To verify: check for clipped text or extra whitespace on the phone, especially with system font scale not at 1.0. If a phone clips, the fix is clamping `settings.textZoom` or dividing by JS `window.devicePixelRatio` inside the measure script.
+---
+### PageNav is a per-view callback, not a global router
+Android: `mainOnLinkClick(command, rest, onOpenPage)` receives the navigation callback from `MainActivity` -> `ViewPage` -> `EditableBlock`. There is no singleton. The `MainActivity` closure also guards self-links (`targetId != currentPageId`), so a page linking to itself does not stack a duplicate nav entry.
+Web: `page_nav.rs` calls `plexset_navigation_request(...)`, which is effectively a global `NavigationRequest` signal that a component inside the router picks up.
+Reference location: `android_app/app/src/main/java/z/zndroid/markdown_conversion/main_for_on_link_click/page_nav.kt`, `.../MainActivity.kt`, `.../MainPages/ViewPage/ViewPage.kt`; `cqrs_state_synchronization/web_interface/src/markdown_conversion/main_for_on_link_click/page_nav.rs`.
+To verify: `[[PageNav|<id>]]` inside a page navigates; a self-link no-ops; a link to a nonexistent page id opens an empty page rather than crashing.
+---
+### OnLinkClickError extends Exception
+Android: `Result.failure(...)` requires a `Throwable`. Web's `OnLinkClickError` is a plain struct returned by `Result<(), OnLinkClickError>`. The Kotlin class extends `Exception(errMsg)` and `message == errMsg` — same three fields, one supertype.
+Web: struct.
+Reference location: `android_app/app/src/main/java/z/zndroid/markdown_conversion/main_for_on_link_click/on_link_click_error.kt`; `cqrs_state_synchronization/web_interface/src/markdown_conversion/main_for_on_link_click/on_link_click_error.rs`.
+To verify: `[[PageNav|]]` (empty page id) shows the popup "Link command failed: PageNav needs a page id after the |, got nothing" and does not crash.
+---
+### Backlinks CRDT table removed; V5 derived from V4
+Android: follows web commit `8ae8ab9b`, which deleted `tbl_backlinks` (no clean CRDT merge answer for "should this page be disabled?"; backlinks will be computed on demand from block content). `SchemaVersion.LATEST` becomes `V5`; `V4.updateOnce` drops the physical `backlinks` table (wrapped in try/catch so a DB that already dropped it is a no-op); `assertLatestMatchesBlueprints` no longer fetches the backlinks columns/fks; `SchemaGui` drops the backlinks row; `schema_drift_detector/src/registry.rs` drops the Entry; `V5_FROZEN_TABLES` is derived as `Version4.tables.filter { it.name != "backlinks" }` so no `Version5.kt` file is needed. `Version4.tables` stays as the frozen record of what V4 created. `BacklinksTableSchema` in `TableDescriptors.kt` is left in place; no caller was touched by this change.
+Web: same deletion at the Rust side.
+Reference location: `android_app/app/src/main/java/z/zndroid/db/migrations/SchemaVersion.kt` (`V4`, `V5`, `V5_FROZEN_TABLES`), `.../schema_drift_detector/src/registry.rs`, `.../db/schema/TableDescriptors.kt`.
+To verify: fresh install bootstraps V5 with no `backlinks` table. A V4 DB runs `V4.updateOnce` -> dropTable(backlinks) -> returns `V5`. `Reads.kt` must not query `backlinks` (it does not: only `pages`, `every_block_in_existence`, `key_value_storage`).
+
+(2026-11-25, supersedes the "Indent transition" entry above.) The indent settle animation (22dp to 0, 500 ms, -5.5dp at 200 ms) now plays when a single >10-char input lands in an empty non-title block. `PageSession.onInput` condition is `old.text.isEmpty() && newValue.text.length > 10`. Typing char-by-char never fires it. A >10-char paste or IME word commit does.
+
+---
+### Special menu: overlay adapted, marker spike not ported
+Android: `MainPages/special_menu/` mirrors web's `leptos_components/special_menu/`. The double-tap trigger is ported from `android_labs/special_menu/MainActivity.kt::interceptDoubleTap`. Overlay is a centered Compose Box, not web's `<div id="menu_container">`.
+
+NOT ported from the spike: `MarkerLogic`, `MarkerVisualTransformation`, BasicTextField marker badges, cascade drag handles, and the Copy/Cut/Delete/Clear action buttons. Those only work with Compose text fields; the block editor is now a CM6 WebView.
+
+Production special menu scope: keyword picker + "link to existing page" → title search → insert wikilink.
+
+To verify: not run on a device yet (2026-11-25). The double-tap pointerInput listens at `PointerEventPass.Initial` on the ViewPage container, ahead of the WebView's own gestures. If it ever fails to fire inside a block, the pointerInput needs to move up.
+
+---
+### Search fallback instead of FTS5
+Android: `db/reads/Reads.kt::searchPageTitles` is the fallback path only — reads every `is_title = "true" AND page_is_disabled = "false"` row through the mirror, then filters in Kotlin with "every whitespace-separated query word is a substring of the lowercase title". No `is_part_of_main_menu_page` filter (matches web, so disabled-but-not-main-menu pages are also searchable).
+Web: `db/reads_wrapper/search.rs` uses FTS5 trigram MATCH when every query word is ≥3 chars, and the same fallback otherwise. Same result set, different cost.
+Reference location: `android_app/app/src/main/java/z/zndroid/db/reads/Reads.kt`; `cqrs_state_synchronization/web_interface/src/db/reads_wrapper/search.rs`.
+To verify: search a title fragment ≥3 chars. Result set must equal what web returns on the same DB. Cost is the only difference (Android full scan, web indexed).

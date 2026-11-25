@@ -48,20 +48,30 @@ import z.zndroid.editor.OpenPageRegistry
 import z.zndroid.editor.PageSession
 import z.zndroid.editor.PendingFocus
 import z.zndroid.log.ViewPageLogs
+import z.zndroid.MainPages.special_menu.SpecialMenu
+import z.zndroid.MainPages.special_menu.interceptDoubleTap
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewPage(
     pageId: String,
     onBack: () -> Unit,
-    onOpenAdminView: () -> Unit
+    onOpenAdminView: () -> Unit,
+    onOpenPage: (String) -> Unit = {},
 ) {
     var session by remember { mutableStateOf<PageSession?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var loadFailed by remember { mutableStateOf(false) }
     var reloadToken by remember { mutableStateOf(0) }
     var isLeaving by remember { mutableStateOf(false) }
+    var focusedBlockId by remember(pageId) { mutableStateOf<String?>(null) }
+    var showSpecialMenu by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(showSpecialMenu) {
+        if (showSpecialMenu) {
+            androidx.compose.ui.platform.LocalSoftwareKeyboardController.current?.hide()
+        }
+    }
     val scrollState = rememberScrollState()
 
     fun leavePage() {
@@ -210,6 +220,7 @@ fun ViewPage(
                         .consumeWindowInsets(innerPadding)
                         .imePadding()
                         .fillMaxSize()
+                        .interceptDoubleTap { showSpecialMenu = true }
                         .verticalScroll(scrollState)
                         .padding(16.dp)
                 ) {
@@ -222,7 +233,9 @@ fun ViewPage(
                                 row = entry.row,
                                 index = entry.rowIndex,
                                 session = currentSession,
-                                pageScroll = pageScroll
+                                pageScroll = pageScroll,
+                                onOpenPage = onOpenPage,
+                                onFocused = { focusedBlockId = entry.row.blockId },
                             )
                             is PageListEntry.Ghost -> GhostBlock(
                                 ghost = entry.ghost,
@@ -234,5 +247,21 @@ fun ViewPage(
                 }
             }
         }
+    }
+    if (showSpecialMenu) {
+        SpecialMenu(
+            onDismiss = { showSpecialMenu = false },
+            onFinishLinkingToExistingPage = { match ->
+                val target = focusedBlockId
+                    ?: session?.rows?.firstOrNull { !it.isTitle }?.blockId
+                if (target != null) {
+                    z.zndroid.markdown_conversion.Cm.insertAtCursor(
+                        target,
+                        "[[${match.title}|${match.pageId}]]"
+                    )
+                }
+                showSpecialMenu = false
+            }
+        )
     }
 }

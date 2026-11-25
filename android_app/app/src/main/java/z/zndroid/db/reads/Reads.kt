@@ -137,3 +137,36 @@ suspend fun getMenuPages(): Result<List<MenuPageRow>> {
         }
     }
 }
+
+/**
+ * Fallback-only page-title search. Mirrors web's non-FTS5 path exactly:
+ * is_title = "true" AND page_is_disabled = "false", filter in Kotlin by
+ * "every whitespace-separated word is a substring of the lowercase title".
+ * Android ships no FTS5 mirror, so this is the only path here. See
+ * MISSING_AND_STALE.md.
+ */
+suspend fun searchPageTitles(query: String): Result<List<z.zndroid.MainPages.special_menu.TitleMatch>> {
+    val columns = listOf(
+        EveryBlockInExistenceTableSchema.content.name,
+        EveryBlockInExistenceTableSchema.idOfPageIBelongTo.name,
+    )
+    val args = SelectArguments.Two(
+        first = SelectArgument.XEqualY(EveryBlockInExistenceTableSchema.isTitle.name, "true"),
+        join = JoinType.AND,
+        second = SelectArgument.XEqualY(EveryBlockInExistenceTableSchema.pageIsDisabled.name, "false"),
+    )
+    val words = query.split(Regex("\\s+")).map { it.lowercase() }.filter { it.isNotEmpty() }
+    return DbManager.getData(GetDataIn(
+        EveryBlockInExistenceTableSchema.TABLE_NAME,
+        args,
+        columns,
+    )).mapCatching { data ->
+        data.rows.mapNotNull { row ->
+            val title = colOf(row, columns, EveryBlockInExistenceTableSchema.content)
+            val pageId = colOf(row, columns, EveryBlockInExistenceTableSchema.idOfPageIBelongTo)
+            if (words.all { title.lowercase().contains(it) }) {
+                z.zndroid.MainPages.special_menu.TitleMatch(title, pageId)
+            } else null
+        }
+    }
+}

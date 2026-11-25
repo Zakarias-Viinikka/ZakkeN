@@ -11,7 +11,6 @@ import uniffi.protocol.SelectArgument
 import uniffi.protocol.SelectArguments
 import z.zndroid.DbManager
 import z.zndroid.WriteLock
-import z.zndroid.db.schema.BacklinksTableSchema
 import z.zndroid.db.schema.ClientLoveLetterTableSchema
 import z.zndroid.db.schema.EveryBlockInExistenceTableSchema
 import z.zndroid.db.schema.PagesTableSchema
@@ -25,7 +24,6 @@ import z.zndroid.db.schema.SeenServerLettersTableSchema
  */
 private val LOCAL_DATA_TABLES = listOf(
     EveryBlockInExistenceTableSchema.TABLE_NAME,
-    BacklinksTableSchema.TABLE_NAME,
     ClientLoveLetterTableSchema.TABLE_NAME,
     SeenServerLettersTableSchema.TABLE_NAME,
     PagesTableSchema.TABLE_NAME

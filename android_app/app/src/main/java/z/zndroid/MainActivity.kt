@@ -78,7 +78,15 @@ class MainActivity : ComponentActivity() {
                             ViewPage(
                                 pageId = id,
                                 onBack = { navController.popBackStack() },
-                                onOpenAdminView = { navController.navigate("admin_view/$id") }
+                                onOpenAdminView = { navController.navigate("admin_view/$id") },
+                                onOpenPage = { targetId ->
+                                    // A link click in an open page navigates to the
+                                    // target, unless it's the current page (a self
+                                    // link), which would stack a duplicate entry.
+                                    if (targetId.isNotEmpty() && targetId != id) {
+                                        navController.navigate("view_page/$targetId")
+                                    }
+                                }
                             )
                         }
                         if (BuildConfig.DEBUG) {
