@@ -3,7 +3,6 @@ uniffi::setup_scaffolding!();
 mod row_values;
 
 pub mod new_row_helper;
-pub mod tbl_backlinks;
 pub mod tbl_every_block_in_existence;
 pub mod tbl_incoming_love_letters;
 pub mod tbl_key_value_storage;

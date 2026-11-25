@@ -25,3 +25,6 @@ queue = { path = "../queue" }
 love_letter.path = "/home/zakke/ProgStuff/ZakkeN/love_letter"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+my_yrs_lib = { package = "yrs", path = "../../../yrs" }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+chrono = "0.4"

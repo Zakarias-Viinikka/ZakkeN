@@ -4,6 +4,7 @@ use server_protocol::{
 };
 
 pub enum ClientCommand {
+    Export,
     WipeDataset,
     GetPageFingerprints,
     GetPagesByIds(Vec<String>),
@@ -17,6 +18,7 @@ pub enum ClientCommand {
 
 pub fn build_request(command: ClientCommand) -> (Request, Vec<u8>) {
     match command {
+        ClientCommand::Export => (Request::Export, Vec::new()),
         ClientCommand::WipeDataset => build_wipe_dataset_request(),
         ClientCommand::GetPageFingerprints => (Request::GetPageFingerprints, Vec::new()),
         ClientCommand::GetPagesByIds(page_ids) => {
