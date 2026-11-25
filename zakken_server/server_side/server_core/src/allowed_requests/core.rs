@@ -9,6 +9,7 @@ use server_protocol::{Request, UnsentLetter};
 use std::sync::{Arc, Mutex};
 
 use super::{
+    import_pages,
     ack, get_all_yrs_pages, get_current_drift, get_my_unsent_letters, get_page_fingerprints,
     get_pages_by_ids, get_reconcile_version, login, reconcile_letters, register, send_love_letter,
     wipe_dataset,
@@ -60,6 +61,7 @@ fn refuse_if_the_client_is_on_a_stale_drift_version(
             | Request::GetPagesByIds
             | Request::ReconcileLetters
             | Request::GetReconcileVersion
+            | Request::ImportPages
     ) {
         return None;
     }
@@ -163,6 +165,7 @@ pub async fn do_request(
             let db_wrapper = state.lock().unwrap();
             exp_and_import::export_all_pages(&db_wrapper)
         }
+        Request::ImportPages => import_pages::import_pages(msg_content),
     }
 }
 

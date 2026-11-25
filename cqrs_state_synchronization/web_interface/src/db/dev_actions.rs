@@ -144,7 +144,7 @@ pub async fn reset_everything() -> Result<(), CqrsErr> {
     .await
 }
 
-async fn wipe_tables(tables: &[&str]) -> Result<(), CqrsErr> {
+pub(crate) async fn wipe_tables(tables: &[&str]) -> Result<(), CqrsErr> {
     for table_name in tables {
         db_helper::delete_all_rows(DeleteAllRowsIn {
             table_name: table_name.to_string(),

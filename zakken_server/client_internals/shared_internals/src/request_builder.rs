@@ -1,6 +1,7 @@
 use protocol::serialization::Convert;
 use server_protocol::{
-    GetPagesByIdsPayload, ReconcileLettersPayload, Request, WipeDatasetPayload,
+    GetPagesByIdsPayload, ImportPagesPayload, ReconcileLettersPayload, Request,
+    WipeDatasetPayload,
 };
 
 pub enum ClientCommand {
@@ -14,6 +15,7 @@ pub enum ClientCommand {
         target_reconcile_version: String,
         letters: Vec<Vec<u8>>,
     },
+    ImportPages(ImportPagesPayload),
 }
 
 pub fn build_request(command: ClientCommand) -> (Request, Vec<u8>) {
@@ -38,6 +40,7 @@ pub fn build_request(command: ClientCommand) -> (Request, Vec<u8>) {
             };
             (Request::ReconcileLetters, payload.to_payload())
         }
+        ClientCommand::ImportPages(payload) => (Request::ImportPages, payload.to_payload()),
     }
 }
 

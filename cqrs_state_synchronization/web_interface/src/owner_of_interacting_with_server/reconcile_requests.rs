@@ -46,7 +46,7 @@ pub async fn send_reconcile_letters(
 
 /// Decode a `Result<T, ServErr>` bincode blob into its inner Result.
 /// A decode failure surfaces as `ServErr::BadCode`.
-fn decode_reply<T: serde::de::DeserializeOwned + serde::Serialize>(bytes: &[u8]) -> Result<T, ServErr> {
+pub(super) fn decode_reply<T: serde::de::DeserializeOwned + serde::Serialize>(bytes: &[u8]) -> Result<T, ServErr> {
     let outer: Result<Result<T, ServErr>, protocol::error::DbError> =
         Convert::un_payloadify(bytes);
     match outer {

@@ -48,3 +48,23 @@ pub struct GetPageFingerprintsPayload {
     pub drift_version: String,
     pub pages: Vec<PageFingerprint>,
 }
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+/// One block of a page. Used for the export files and for import.
+pub struct Block {
+    pub block_id: String,
+    pub content: String,
+    pub metadata: String,
+    pub frac_index: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ImportedPage {
+    pub page_id: String,
+    pub blocks: Vec<Block>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ImportPagesReply {
+    pub pages: Vec<ImportedPage>,
+    pub has_more: bool,
+}

@@ -3,21 +3,13 @@ use db_core::db::operations_pages;
 use db_wrapper::android_mascot::LiveForever;
 use my_yrs_lib::doc_from_snapshot;
 use protocol::serialization::Convert;
-use serde::Serialize;
 use server_errors::ServErr;
+use server_protocol::Block;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const PATH: &str = "export_temp";
 const ZIP_PATH: &str = "export_temp.zip";
-
-#[derive(Serialize)]
-struct Block {
-    block_id: String,
-    content: String,
-    metadata: String,
-    frac_index: i32,
-}
 
 pub fn export_all_pages(db: &LiveForever) -> Vec<u8> {
     if let Err(e) = clear_existing_import_folder() {

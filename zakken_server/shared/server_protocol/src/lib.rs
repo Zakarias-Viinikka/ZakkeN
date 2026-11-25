@@ -11,11 +11,12 @@ pub use drift_solution::DriftSolution;
 pub use message::{Message, Response};
 pub use request::{
     AckPayload, GetPagesByIdsPayload, LoginPayload, ReconcileLettersPayload, RegisterPayload,
-    Request, SendLoveLetterPayload, WipeDatasetPayload,
+    ImportPagesPayload, Request, SendLoveLetterPayload, WipeDatasetPayload,
 };
 pub use responses::{
-    GetAllYrsPagesPayload, GetMyUnsentLettersPayload, GetPageFingerprintsPayload,
-    GetReconcileVersionPayload, PageFingerprint, PageRow, UnsentLetter,
+    Block, GetAllYrsPagesPayload, GetMyUnsentLettersPayload, GetPageFingerprintsPayload,
+    GetReconcileVersionPayload, ImportPagesReply, ImportedPage, PageFingerprint, PageRow,
+    UnsentLetter,
 };
 pub mod login_reply;
 pub use login_reply::LoginReply;

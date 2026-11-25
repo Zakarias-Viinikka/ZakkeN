@@ -38,6 +38,10 @@ pub enum Request {
     //web app doesn't have normal os access etc, so instead exporting is a
     // request it makes to the server and the server handles it.
     Export,
+    /// client -> server: give me up to `limit` pages of the import
+    /// archive, starting after `after_page_id`. Paginated so the client
+    /// never holds the whole import in memory.
+    ImportPages,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -83,4 +87,14 @@ pub struct ReconcileLettersPayload {
     /// Each entry is a `LoveLetter` encoded the same way
     /// `SendLoveLetterPayload::love_letter` is.
     pub letters: Vec<Vec<u8>>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ImportPagesPayload {
+    /// Path of the export zip to read from. Sent on every request
+    /// because the server keeps no state between pages.
+    pub zip_path: String,
+    /// None for the first request. Afterwards, the last page_id the
+    /// client received.
+    pub after_page_id: Option<String>,
+    pub limit: usize,
 }

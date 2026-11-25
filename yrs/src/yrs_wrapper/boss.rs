@@ -73,6 +73,22 @@ impl BossOfYrs {
         }
     }
 
+    /// Like `new`, but the page keeps the given page_id instead of
+    /// generating one. Used when rebuilding a page from an import.
+    #[uniffi::constructor]
+    pub fn new_with_preexisting_page_id(
+        page_id: String,
+        user_id: String,
+        unix_time: String,
+    ) -> Self {
+        Self {
+            doc: RwLock::new(Doc::new()),
+            page_id,
+            user_id,
+            time: unix_time,
+        }
+    }
+
     pub fn page_id(self: Arc<Self>) -> String {
         self.page_id.clone()
     }

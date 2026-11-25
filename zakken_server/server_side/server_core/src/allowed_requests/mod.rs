@@ -7,6 +7,7 @@ pub mod get_my_unsent_letters;
 pub mod get_page_fingerprints;
 pub mod get_pages_by_ids;
 pub mod get_reconcile_version;
+pub mod import_pages;
 pub mod login;
 pub mod reconcile_letters;
 pub mod register;
